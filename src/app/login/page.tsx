@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { setMockUser } from "@/components/layout/AuthProvider";
 
-const fadeUp = {
+const fadeUp: Variants = {
   hidden: { opacity: 0, y: 18 },
   visible: (i: number) => ({
     opacity: 1,
@@ -165,6 +165,17 @@ export default function LoginPage() {
             </div>
           </motion.div>
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl text-center">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl text-center">
+              {success}
+            </div>
+          )}
+
           {/* Formulario */}
           <form className="space-y-3" onSubmit={handleSubmit}>
             <AnimatePresence>
@@ -193,6 +204,7 @@ export default function LoginPage() {
                 icon={<Mail size={15} />}
                 placeholder="Correo electrónico"
                 type="email"
+                name="email"
                 autoComplete="email"
                 value={email}
                 onChange={setEmail}
@@ -231,7 +243,7 @@ export default function LoginPage() {
                   </label>
                   <a href="#" className="text-sm text-cyan-600 hover:text-cyan-700 transition-colors">
                     ¿Olvidaste tu contraseña?
-                  </a>
+                  </button>
                 </div>
               </motion.div>
             )}
