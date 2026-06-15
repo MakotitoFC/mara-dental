@@ -1,17 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence,Variants } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, User, ArrowRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { loginAction } from "./actions";
 
-const fadeUp = {
+const fadeUp: Variants = {
   hidden: { opacity: 0, y: 18 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.07, duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { delay: i * 0.07, duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const},
   }),
 };
 
@@ -23,14 +24,59 @@ const FEATURES = [
 ];
 
 export default function LoginPage() {
-  const [tab, setTab] = useState<"login" | "register">("login");
+  const [tab, setTab] = useState<"login" | "register" | "reset">("login");
   const [showPassword, setShowPassword] = useState(false);
+
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(()=>{
+    const savedEmail = localStorage.getItem("mara_dental_remembered_email");
+    if (savedEmail) {
+      // Si usas un ref o controlas el input, lo setearías aquí. 
+      // Por ahora, el navegador a menudo hace autocompletado, pero guardar 
+      // la preferencia en localStorage es buena práctica.
+    }
+  },[]);
+
+  const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      setError(null);
+      setSuccess(null);
+      setIsLoading(true);
+  
+      const formData = new FormData(e.currentTarget);
+  
+      if (tab === "login") {
+        const remember = formData.get("remember");
+        const email = formData.get("email") as string;
+
+        if(remember){
+          localStorage.setItem("mara_dental_remembered_email",email);
+        }else{
+          localStorage.removeItem("mara_dental_remembered_email")
+        }
+        const result = await loginAction(formData);
+        
+        if (result?.error) {
+          setError(result.error);
+          setIsLoading(false);
+        }
+      }else {
+        // Aquí iría la lógica para registrar (signUp)
+        console.log("Lógica de registro pendiente...");
+        setIsLoading(false);
+      }
+    };
+
+
 
   return (
     <div className="h-screen flex bg-slate-50 overflow-hidden">
       {/* Panel izquierdo — formulario */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 bg-white overflow-y-auto">
-        <div className="w-full max-w-[360px] py-4">
+        <div className="w-full max-w-90 py-4">
 
           {/* Logo */}
           <motion.div
@@ -91,8 +137,19 @@ export default function LoginPage() {
             </div>
           </motion.div>
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl text-center">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl text-center">
+              {success}
+            </div>
+          )}
+
           {/* Formulario */}
-          <form className="space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <AnimatePresence>
               {tab === "register" && (
                 <motion.div
@@ -103,7 +160,7 @@ export default function LoginPage() {
                   transition={{ duration: 0.22 }}
                   className="overflow-hidden"
                 >
-                  <Field icon={<User size={15} />} placeholder="Nombre completo" type="text" />
+                  <Field icon={<User size={15} />} name="name" placeholder="Nombre completo" type="text" />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -113,6 +170,7 @@ export default function LoginPage() {
                 icon={<Mail size={15} />}
                 placeholder="Correo electrónico"
                 type="email"
+                name="email"
                 autoComplete="email"
               />
             </motion.div>
@@ -126,6 +184,7 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   autoComplete={tab === "login" ? "current-password" : "new-password"}
                   placeholder="Contraseña"
+                  name="password"
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-10 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-50"
                 />
                 <button
@@ -144,16 +203,19 @@ export default function LoginPage() {
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
                       type="checkbox"
+                      name="remember"
                       className="h-4 w-4 rounded border-slate-300 accent-cyan-600 cursor-pointer"
                     />
                     <span className="text-sm text-slate-600">Recordarme</span>
                   </label>
-                  <a
-                    href="#"
-                    className="text-sm text-cyan-600 hover:text-cyan-700 transition-colors"
+                  <button
+                    type="button"
+                    onClick={() => {
+                    }}
+                    className="text-sm text-cyan-600 hover:text-cyan-700 transition-colors cursor-pointer"
                   >
                     ¿Olvidaste tu contraseña?
-                  </a>
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -221,7 +283,7 @@ export default function LoginPage() {
           style={{ backgroundImage: "url('/dental-clinic.jpg')" }}
         />
         {/* Overlay degradado */}
-        <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/80 via-slate-900/60 to-teal-900/70" />
+        <div className="absolute inset-0 bg-linear-to-br from-cyan-900/80 via-slate-900/60 to-teal-900/70" />
 
         {/* Contenido sobre la imagen */}
         <div className="relative z-10 flex flex-col h-full p-12">
@@ -278,11 +340,13 @@ function Field({
   placeholder,
   type,
   autoComplete,
+  name
 }: {
   icon: React.ReactNode;
   placeholder: string;
   type: string;
   autoComplete?: string;
+  name:string;
 }) {
   return (
     <div className="relative">
@@ -293,6 +357,7 @@ function Field({
         type={type}
         autoComplete={autoComplete}
         placeholder={placeholder}
+        name={name}
         className="w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-50"
       />
     </div>

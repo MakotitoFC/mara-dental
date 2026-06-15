@@ -91,7 +91,7 @@ export function ArchivosView({ pacienteId }: { pacienteId?: string }) {
 
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[180px]">
+        <div className="relative flex-1 min-w-45">
           <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={query}
@@ -195,7 +195,7 @@ function ArchivoCard({
       className="bg-white rounded-2xl border border-slate-200 overflow-hidden cursor-pointer hover:shadow-md hover:border-slate-300 transition-all group"
     >
       {/* Thumbnail */}
-      <div className="relative aspect-[4/3] overflow-hidden" style={{ background: cfg.bg }}>
+      <div className="relative aspect-4/3 overflow-hidden" style={{ background: cfg.bg }}>
         {showImg ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
