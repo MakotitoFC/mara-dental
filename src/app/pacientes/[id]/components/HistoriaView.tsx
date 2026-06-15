@@ -28,9 +28,11 @@ function initials(nombre: string) {
 type Tab = "resumen" | "historial" | "notas" | "recetas" | "archivos";
 
 export function HistoriaView({ paciente: p }: { paciente: Paciente }) {
-  const [tab, setTab]             = useState<Tab>("resumen");
+  const [tab, setTab]                     = useState<Tab>("resumen");
   const [showNuevaCita, setShowNuevaCita] = useState(false);
-  const notas  = getNotasPaciente(p.id);
+  const [showNuevaNota, setShowNuevaNota] = useState(false);
+  const [notasExtra, setNotasExtra]       = useState<NotaClinica[]>([]);
+  const notas  = [...notasExtra, ...getNotasPaciente(p.id)];
   const edad   = calcEdad(p.fecha_nacimiento);
   const color  = avatarColor(p.id);
 
@@ -46,11 +48,11 @@ export function HistoriaView({ paciente: p }: { paciente: Paciente }) {
       </Link>
 
       {/* Header del paciente */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5">
-        <div className="flex items-start gap-4 flex-wrap">
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+        <div className="flex items-start gap-4">
           {/* Avatar */}
           <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center text-[22px] font-bold text-white shrink-0"
+            className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-[20px] sm:text-[22px] font-bold text-white shrink-0"
             style={{ background: color }}
           >
             {initials(p.nombre)}
@@ -58,47 +60,46 @@ export function HistoriaView({ paciente: p }: { paciente: Paciente }) {
 
           {/* Info principal */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-[18px] font-bold text-slate-900">{p.nombre}</h1>
+            <div className="flex items-start gap-2 flex-wrap">
+              <h1 className="text-[16px] sm:text-[18px] font-bold text-slate-900 leading-tight">{p.nombre}</h1>
               {p.alergias.length > 0 && (
-                <span className="flex items-center gap-1 text-[11px] font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
-                  <Icon name="warning_amber" size={13} />
+                <span className="flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full shrink-0">
+                  <Icon name="warning_amber" size={12} />
                   {p.alergias.join(" · ")}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-4 mt-1.5 flex-wrap text-[12px] text-slate-500">
-              <span className="flex items-center gap-1"><Icon name="badge" size={13} />{p.dni}</span>
-              <span className="flex items-center gap-1"><Icon name="cake" size={13} />{edad} años · {fmtFecha(p.fecha_nacimiento)}</span>
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap text-[11px] sm:text-[12px] text-slate-500">
+              <span className="flex items-center gap-1"><Icon name="badge" size={12} />{p.dni}</span>
+              <span className="flex items-center gap-1"><Icon name="cake" size={12} />{edad} años</span>
               {p.grupo_sanguineo && (
-                <span className="flex items-center gap-1"><Icon name="bloodtype" size={13} />{p.grupo_sanguineo}</span>
+                <span className="flex items-center gap-1"><Icon name="bloodtype" size={12} />{p.grupo_sanguineo}</span>
               )}
             </div>
-            <div className="flex items-center gap-4 mt-1 flex-wrap text-[12px] text-slate-500">
-              <span className="flex items-center gap-1"><Icon name="phone" size={13} />{p.telefono}</span>
-              <span className="flex items-center gap-1"><Icon name="email" size={13} />{p.email}</span>
+            <div className="flex items-center gap-3 mt-1 flex-wrap text-[11px] sm:text-[12px] text-slate-500">
+              <span className="flex items-center gap-1 min-w-0 truncate"><Icon name="phone" size={12} className="shrink-0" />{p.telefono}</span>
             </div>
           </div>
+        </div>
 
-          {/* Acciones */}
-          <div className="flex items-center gap-2 shrink-0">
-            <a
-              href={waLink}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <Icon name="chat" size={15} className="text-[#25D366]" />
-              WhatsApp
-            </a>
-            <button
-              onClick={() => setShowNuevaCita(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[12px] font-medium transition-colors"
-            >
-              <Icon name="event_available" size={15} />
-              Nueva cita
-            </button>
-          </div>
+        {/* Acciones — fila separada en mobile */}
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+          <a
+            href={waLink}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            <Icon name="chat" size={15} className="text-[#25D366]" />
+            WhatsApp
+          </a>
+          <button
+            onClick={() => setShowNuevaCita(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[12px] font-medium transition-colors"
+          >
+            <Icon name="event_available" size={15} />
+            Nueva cita
+          </button>
         </div>
 
         {/* Stats rápidos */}
@@ -111,30 +112,39 @@ export function HistoriaView({ paciente: p }: { paciente: Paciente }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-white rounded-xl border border-slate-200 p-1 w-fit">
-        {(["resumen", "historial", "notas", "recetas", "archivos"] as Tab[]).map((t) => {
-          const labels: Record<Tab, string> = { resumen: "Resumen", historial: "Historial de citas", notas: "Notas clínicas", recetas: "Recetas", archivos: "Archivos" };
-          return (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2 rounded-lg text-[12px] font-medium transition-colors ${tab === t ? "bg-cyan-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}
-            >
-              {labels[t]}
-            </button>
-          );
-        })}
+      <div className="overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-0.5 bg-white rounded-xl border border-slate-200 p-1 w-fit">
+          {(["resumen", "historial", "notas", "recetas", "archivos"] as Tab[]).map((t) => {
+            const labels: Record<Tab, string> = { resumen: "Resumen", historial: "Historial", notas: "Notas", recetas: "Recetas", archivos: "Archivos" };
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[12px] sm:text-[13px] font-medium transition-colors whitespace-nowrap ${tab === t ? "bg-cyan-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}
+              >
+                {labels[t]}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Contenido de tabs */}
-      {tab === "resumen" && <TabResumen paciente={p} />}
+      {tab === "resumen"   && <TabResumen paciente={p} />}
       {tab === "historial" && <TabHistorial paciente={p} />}
-      {tab === "notas" && <TabNotas notas={notas} />}
-      {tab === "recetas" && <RecetaTab paciente={p} />}
-      {tab === "archivos" && <ArchivosView pacienteId={p.id} />}
+      {tab === "notas"     && <TabNotas notas={notas} onNuevaNote={() => setShowNuevaNota(true)} />}
+      {tab === "recetas"   && <RecetaTab paciente={p} />}
+      {tab === "archivos"  && <ArchivosView pacienteId={p.id} />}
 
       {showNuevaCita && (
         <NuevaCitaModal paciente={p} onClose={() => setShowNuevaCita(false)} />
+      )}
+      {showNuevaNota && (
+        <NuevaNotaModal
+          paciente={p}
+          onClose={() => setShowNuevaNota(false)}
+          onGuardar={(n) => { setNotasExtra((prev) => [n, ...prev]); setShowNuevaNota(false); }}
+        />
       )}
     </div>
   );
@@ -149,7 +159,7 @@ function TabResumen({ paciente: p }: { paciente: Paciente }) {
       <Section title="Datos de contacto" icon="contact_page">
         <InfoRow icon="badge"  label="DNI"      value={p.dni} />
         <InfoRow icon="phone"  label="Teléfono" value={p.telefono} />
-        <InfoRow icon="email"  label="Email"    value={p.email} />
+        {p.email && <InfoRow icon="email"  label="Email"    value={p.email} />}
         <InfoRow icon="cake"   label="Nacimiento" value={`${fmtFecha(p.fecha_nacimiento)} (${calcEdad(p.fecha_nacimiento)} años)`} />
         {p.grupo_sanguineo && <InfoRow icon="bloodtype" label="Grupo sanguíneo" value={p.grupo_sanguineo} />}
       </Section>
@@ -186,10 +196,11 @@ function TabResumen({ paciente: p }: { paciente: Paciente }) {
         )}
       </Section>
 
-      {/* Notas internas */}
-      {p.notas && (
-        <Section title="Notas internas" icon="sticky_note_2">
-          <p className="text-[12px] text-slate-600 leading-relaxed">{p.notas}</p>
+      {/* Contacto de emergencia */}
+      {p.contacto_emergencia_nombre && (
+        <Section title="Contacto de emergencia" icon="emergency">
+          <InfoRow icon="person"  label="Nombre"    value={p.contacto_emergencia_nombre} />
+          {p.contacto_emergencia_telefono && <InfoRow icon="phone" label="Teléfono" value={p.contacto_emergencia_telefono} />}
         </Section>
       )}
     </div>
@@ -213,15 +224,15 @@ function TabHistorial({ paciente: p }: { paciente: Paciente }) {
       </div>
       <div className="divide-y divide-slate-50">
         {citas.map((c, i) => (
-          <div key={i} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors">
+          <div key={i} className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-slate-50 transition-colors">
             <div className="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center shrink-0">
               <Icon name="event" size={16} className="text-cyan-600" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[12px] font-semibold text-slate-900 truncate">{c.servicio}</p>
-              <p className="text-[11px] text-slate-400">{fmtFecha(c.fecha)} · {c.hora} · {c.medico}</p>
+              <p className="text-[11px] text-slate-400 truncate">{fmtFecha(c.fecha)} · {c.hora} · {c.medico}</p>
             </div>
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 shrink-0">
+            <span className="hidden sm:inline text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 shrink-0">
               Completada
             </span>
           </div>
@@ -233,16 +244,18 @@ function TabHistorial({ paciente: p }: { paciente: Paciente }) {
 
 // ─── Tab Notas ────────────────────────────────────────────────────────────────
 
-function TabNotas({ notas }: { notas: NotaClinica[] }) {
+function TabNotas({ notas, onNuevaNote }: { notas: NotaClinica[]; onNuevaNote: () => void }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex justify-end">
-        <button className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] font-medium transition-colors">
+        <button
+          onClick={onNuevaNote}
+          className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] font-medium transition-colors"
+        >
           <Icon name="add" size={15} />
           Nueva nota
         </button>
       </div>
-
       {notas.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 py-12 text-center text-slate-400">
           <Icon name="description" size={32} className="mx-auto mb-2 opacity-30" />
@@ -259,13 +272,15 @@ function TabNotas({ notas }: { notas: NotaClinica[] }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="text-[13px] font-semibold text-slate-900">{n.titulo}</span>
+                    <span className="text-[13px] font-semibold text-slate-900">{n.motivo}</span>
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: cfg.bg, color: cfg.color }}>
                       {cfg.label}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mb-2">{fmtFecha(n.fecha)} · {n.medico}</p>
-                  <p className="text-[12px] text-slate-600 leading-relaxed">{n.descripcion}</p>
+                  <p className="text-[11px] text-slate-400 mb-2">{fmtFecha(n.fecha)} · {n.doctor_nombre}</p>
+                  {n.observaciones && (
+                    <p className="text-[12px] text-slate-600 leading-relaxed">{n.observaciones}</p>
+                  )}
                   {n.tratamiento && (
                     <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
                       <p className="text-[11px] font-semibold text-slate-500 mb-1">Tratamiento</p>
@@ -304,10 +319,10 @@ function Section({ title, icon, children }: { title: string; icon: string; child
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-2 py-1.5 border-b border-slate-50 last:border-b-0">
-      <Icon name={icon} size={14} className="text-slate-400 shrink-0" />
-      <span className="text-[11px] text-slate-400 w-28 shrink-0">{label}</span>
-      <span className="text-[12px] text-slate-700 font-medium">{value}</span>
+    <div className="flex items-start gap-2 py-1.5 border-b border-slate-50 last:border-b-0">
+      <Icon name={icon} size={14} className="text-slate-400 shrink-0 mt-0.5" />
+      <span className="text-[11px] text-slate-400 w-20 sm:w-28 shrink-0">{label}</span>
+      <span className="text-[12px] text-slate-700 font-medium min-w-0 break-words flex-1">{value}</span>
     </div>
   );
 }
@@ -340,12 +355,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function NuevaCitaModal({ paciente, onClose }: { paciente: Paciente; onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
       style={{ background: "rgba(15,23,42,0.45)" }}
       onClick={onClose}
     >
       <div
         className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+        style={{ maxHeight: "min(92vh, calc(100dvh - 96px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-start justify-between">
@@ -389,8 +405,8 @@ function NuevaCitaModal({ paciente, onClose }: { paciente: Paciente; onClose: ()
             </Field>
             <Field label="Estado">
               <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
-                <option>Pendiente</option>
-                <option>Confirmada</option>
+                <option value="programada">Programada</option>
+                <option value="confirmada">Confirmada</option>
               </select>
             </Field>
           </div>
@@ -429,6 +445,193 @@ function NuevaCitaModal({ paciente, onClose }: { paciente: Paciente; onClose: ()
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Modal Nueva Nota Clínica ─────────────────────────────────────────────────
+
+function uid() { return Math.random().toString(36).slice(2, 9); }
+
+function NuevaNotaModal({
+  paciente,
+  onClose,
+  onGuardar,
+}: {
+  paciente: Paciente;
+  onClose: () => void;
+  onGuardar: (n: NotaClinica) => void;
+}) {
+  const [motivo,       setMotivo]       = useState("");
+  const [tipo,         setTipo]         = useState<NotaClinica["tipo"]>("consulta");
+  const [observaciones,setObservaciones]= useState("");
+  const [tratamiento,  setTratamiento]  = useState("");
+  const [medicacion,   setMedicacion]   = useState("");
+
+  const canGuardar = motivo.trim().length > 0;
+
+  function handleGuardar() {
+    if (!canGuardar) return;
+    const nueva: NotaClinica = {
+      id:           uid(),
+      paciente_id:  paciente.id,
+      doctor_nombre:"Dr. García",
+      fecha:        new Date().toISOString().split("T")[0],
+      motivo:       motivo.trim(),
+      tipo,
+      observaciones: observaciones.trim() || undefined,
+      tratamiento:   tratamiento.trim() || undefined,
+      medicacion:    medicacion.trim() || undefined,
+    };
+    onGuardar(nueva);
+  }
+
+  const TIPOS: { value: NotaClinica["tipo"]; label: string }[] = [
+    { value: "consulta",      label: "Consulta" },
+    { value: "procedimiento", label: "Procedimiento" },
+    { value: "seguimiento",   label: "Seguimiento" },
+    { value: "urgencia",      label: "Urgencia" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
+      style={{ background: "rgba(15,23,42,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl w-full shadow-2xl overflow-hidden flex flex-col"
+        style={{ maxWidth: 560, maxHeight: "min(92vh, calc(100dvh - 96px))" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center">
+              <Icon name="description" size={18} className="text-cyan-600" />
+            </div>
+            <div>
+              <p className="text-[14px] font-semibold text-slate-900">Nueva nota clínica</p>
+              <p className="text-[11px] text-slate-400">{paciente.nombre}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-50">
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 p-5 flex flex-col gap-4">
+          {/* Tipo */}
+          <div>
+            <p className="text-[11px] font-medium text-slate-600 mb-1.5">Tipo de consulta</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {TIPOS.map((t) => {
+                const cfg = TIPO_CFG[t.value];
+                const active = tipo === t.value;
+                return (
+                  <button
+                    key={t.value}
+                    onClick={() => setTipo(t.value)}
+                    className="py-2 px-3 rounded-xl text-[11px] font-semibold border transition-all"
+                    style={{
+                      background:  active ? cfg.bg    : "white",
+                      color:       active ? cfg.color : "#64748b",
+                      borderColor: active ? cfg.color + "66" : "#e2e8f0",
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Motivo (= consultas.motivo) */}
+          <NField label="Motivo de consulta *">
+            <input
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Ej: Control post-extracción, dolor en molar 46…"
+              className="ninput"
+            />
+          </NField>
+
+          {/* Observaciones (= consultas.observaciones) */}
+          <NField label="Observaciones clínicas">
+            <textarea
+              rows={3}
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              placeholder="Hallazgos del examen físico, evolución del paciente…"
+              className="ninput resize-none"
+            />
+          </NField>
+
+          {/* Tratamiento (stored in consultas.examen_fisico jsonb) */}
+          <NField label="Tratamiento indicado">
+            <input
+              value={tratamiento}
+              onChange={(e) => setTratamiento(e.target.value)}
+              placeholder="Ej: Detartraje + pulido coronal, extracción pieza 46…"
+              className="ninput"
+            />
+          </NField>
+
+          {/* Medicación (stored in consultas.examen_fisico jsonb) */}
+          <NField label="Medicación prescrita">
+            <input
+              value={medicacion}
+              onChange={(e) => setMedicacion(e.target.value)}
+              placeholder="Ej: Amoxicilina 500mg c/8h × 5 días…"
+              className="ninput"
+            />
+          </NField>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-slate-100 shrink-0">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleGuardar}
+            disabled={!canGuardar}
+            className="flex items-center gap-1.5 px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[12px] font-semibold transition-colors"
+          >
+            <Icon name="save" size={15} />
+            Guardar nota
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        .ninput {
+          width: 100%;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          padding: 8px 12px;
+          font-size: 12px;
+          outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .ninput:focus {
+          border-color: #06b6d4;
+          box-shadow: 0 0 0 3px rgba(6,182,212,0.12);
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function NField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-[11px] font-medium text-slate-600">{label}</label>
+      {children}
     </div>
   );
 }

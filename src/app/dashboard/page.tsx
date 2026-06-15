@@ -13,8 +13,8 @@ export default function DashboardPage() {
   return (
     <DashboardShell>
       <Topbar title="Inicio" />
-      <div className="p-6 flex flex-col gap-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="p-4 sm:p-6 flex flex-col gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {STATS.map((stat) => (
             <div key={stat.label} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg ${stat.bg} flex items-center justify-center shrink-0`}>
