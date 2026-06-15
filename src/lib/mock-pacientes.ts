@@ -11,10 +11,9 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "O+",
     alergias: ["Penicilina"],
     antecedentes: ["Hipertensión arterial"],
-    estado: "activo",
+    activo: true,
     ultima_visita: "2026-06-14",
     proxima_cita: "2026-07-10",
-    notas: "Paciente muy puntual. Prefiere citas en la mañana.",
   },
   {
     id: "p2",
@@ -26,7 +25,7 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "A+",
     alergias: [],
     antecedentes: [],
-    estado: "activo",
+    activo: true,
     ultima_visita: "2026-06-14",
     proxima_cita: "2026-08-05",
   },
@@ -40,10 +39,9 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "B-",
     alergias: ["Penicilina", "Ibuprofeno"],
     antecedentes: ["Diabetes tipo 2", "Asma"],
-    estado: "activo",
+    activo: true,
     ultima_visita: "2026-06-14",
     proxima_cita: "2026-06-28",
-    notas: "Requiere glucómetro antes de procedimientos largos.",
   },
   {
     id: "p4",
@@ -55,7 +53,7 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "AB+",
     alergias: [],
     antecedentes: [],
-    estado: "activo",
+    activo: true,
     ultima_visita: "2026-06-14",
   },
   {
@@ -68,7 +66,7 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "O-",
     alergias: [],
     antecedentes: [],
-    estado: "activo",
+    activo: true,
     ultima_visita: "2026-06-14",
     proxima_cita: "2026-07-20",
   },
@@ -82,7 +80,7 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "A-",
     alergias: [],
     antecedentes: ["Hipertensión arterial"],
-    estado: "activo",
+    activo: true,
     ultima_visita: "2026-06-13",
     proxima_cita: "2026-09-01",
   },
@@ -96,7 +94,7 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "B+",
     alergias: [],
     antecedentes: [],
-    estado: "nuevo",
+    activo: true,
     proxima_cita: "2026-06-15",
   },
   {
@@ -109,7 +107,7 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "O+",
     alergias: ["Aspirina"],
     antecedentes: ["Gastritis crónica"],
-    estado: "activo",
+    activo: true,
     ultima_visita: "2026-06-15",
     proxima_cita: "2026-07-15",
   },
@@ -123,7 +121,7 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "A+",
     alergias: [],
     antecedentes: [],
-    estado: "nuevo",
+    activo: true,
     proxima_cita: "2026-06-16",
   },
   {
@@ -136,10 +134,9 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "AB-",
     alergias: [],
     antecedentes: ["Diabetes tipo 2", "Hipertensión arterial"],
-    estado: "activo",
+    activo: true,
     ultima_visita: "2026-06-16",
     proxima_cita: "2026-07-02",
-    notas: "Control de glucosa obligatorio antes de anestesia.",
   },
   {
     id: "p11",
@@ -151,7 +148,7 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "O+",
     alergias: [],
     antecedentes: [],
-    estado: "inactivo",
+    activo: false,
     ultima_visita: "2025-11-20",
   },
   {
@@ -164,36 +161,43 @@ export const PACIENTES_MOCK: Paciente[] = [
     grupo_sanguineo: "B+",
     alergias: ["Penicilina"],
     antecedentes: ["Tiroides"],
-    estado: "activo",
+    activo: true,
     ultima_visita: "2026-06-17",
     proxima_cita: "2026-08-12",
   },
 ];
 
+// UI helper: derive visual state from activo + ultima_visita
+export function estadoPaciente(p: Paciente): "activo" | "inactivo" | "nuevo" {
+  if (!p.activo) return "inactivo";
+  if (!p.ultima_visita) return "nuevo";
+  return "activo";
+}
+
 export const NOTAS_MOCK: NotaClinica[] = [
   {
-    id: "n1", paciente_id: "p1", fecha: "2026-06-14", medico: "Dr. García",
-    tipo: "procedimiento", titulo: "Limpieza dental y profilaxis",
-    descripcion: "Se realizó limpieza supragingival completa. Depósitos de sarro moderados en sector posteroinferior. Sangrado al sondaje en piezas 36 y 46.",
+    id: "n1", paciente_id: "p1", fecha: "2026-06-14", doctor_nombre: "Dr. García",
+    tipo: "procedimiento", motivo: "Limpieza dental y profilaxis",
+    observaciones: "Se realizó limpieza supragingival completa. Depósitos de sarro moderados en sector posteroinferior. Sangrado al sondaje en piezas 36 y 46.",
     tratamiento: "Detartraje ultrasónico + pulido coronal con pasta profiláctica.",
     medicacion: "Enjuague con clorhexidina 0.12% por 7 días.",
   },
   {
-    id: "n2", paciente_id: "p1", fecha: "2026-03-10", medico: "Dr. García",
-    tipo: "consulta", titulo: "Control de ortodoncia",
-    descripcion: "Revisión mensual de aparatología fija. Buen avance en alineación del sector anterosuperior.",
+    id: "n2", paciente_id: "p1", fecha: "2026-03-10", doctor_nombre: "Dr. García",
+    tipo: "consulta", motivo: "Control de ortodoncia",
+    observaciones: "Revisión mensual de aparatología fija. Buen avance en alineación del sector anterosuperior.",
     tratamiento: "Cambio de arco a 0.017x0.025 NiTi.",
   },
   {
-    id: "n3", paciente_id: "p1", fecha: "2025-12-05", medico: "Dr. García",
-    tipo: "consulta", titulo: "Consulta inicial y plan de tratamiento",
-    descripcion: "Paciente acude por primera vez. Presenta apiñamiento leve superior e inferior. Caries oclusal en pieza 17.",
+    id: "n3", paciente_id: "p1", fecha: "2025-12-05", doctor_nombre: "Dr. García",
+    tipo: "consulta", motivo: "Consulta inicial y plan de tratamiento",
+    observaciones: "Paciente acude por primera vez. Presenta apiñamiento leve superior e inferior. Caries oclusal en pieza 17.",
     tratamiento: "Plan: Ortodoncia + restauración pieza 17.",
   },
   {
-    id: "n4", paciente_id: "p3", fecha: "2026-06-14", medico: "Dr. García",
-    tipo: "procedimiento", titulo: "Extracción molar inferior",
-    descripcion: "Extracción de pieza 46 con raíces convergentes. Procedimiento sin complicaciones. Control glucémico previo: 118 mg/dL.",
+    id: "n4", paciente_id: "p3", fecha: "2026-06-14", doctor_nombre: "Dr. García",
+    tipo: "procedimiento", motivo: "Extracción molar inferior",
+    observaciones: "Extracción de pieza 46 con raíces convergentes. Procedimiento sin complicaciones. Control glucémico previo: 118 mg/dL.",
     tratamiento: "Extracción bajo anestesia (lidocaína al 2% sin vasoconstrictor por DM).",
     medicacion: "Amoxicilina 500mg c/8h × 5 días. Paracetamol 500mg c/6h según dolor (no ibuprofeno).",
   },

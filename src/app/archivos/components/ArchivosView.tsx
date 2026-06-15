@@ -53,7 +53,7 @@ export function ArchivosView({ pacienteId }: { pacienteId?: string }) {
     const matchQuery = query === "" ||
       a.nombre.toLowerCase().includes(query.toLowerCase()) ||
       a.paciente_nombre.toLowerCase().includes(query.toLowerCase()) ||
-      (a.notas ?? "").toLowerCase().includes(query.toLowerCase());
+      (a.descripcion ?? "").toLowerCase().includes(query.toLowerCase());
     return matchTipo && matchQuery;
   });
 
@@ -109,15 +109,15 @@ export function ArchivosView({ pacienteId }: { pacienteId?: string }) {
         </button>
       </div>
 
-      {/* Filtros de tipo */}
-      <div className="flex items-center gap-1.5 flex-wrap">
+      {/* Filtros de tipo — scroll horizontal en mobile */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
         {FILTROS.map((f) => {
           const active = filtro === f.key;
           return (
             <button
               key={f.key}
               onClick={() => setFiltro(f.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors border ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors border shrink-0 ${
                 active
                   ? "bg-cyan-600 text-white border-cyan-600"
                   : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
@@ -292,22 +292,21 @@ function VisorModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
       style={{ background: "rgba(0,0,0,0.82)" }}
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl overflow-hidden flex w-full shadow-2xl"
-        style={{ maxWidth: 900, maxHeight: "92vh" }}
+        className="bg-white rounded-2xl overflow-hidden flex flex-col md:flex-row w-full shadow-2xl"
+        style={{ maxWidth: 900, maxHeight: "min(92vh, calc(100dvh - 96px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Panel imagen ── */}
         <div
           ref={imgContainerRef}
-          className="flex-1 relative overflow-hidden"
+          className="relative overflow-hidden min-h-[180px] h-[48vw] md:h-auto md:flex-1"
           style={{
             background: "#0f172a",
-            minHeight: 300,
             cursor: annotating && a.es_imagen ? "crosshair" : "default",
           }}
           onClick={handleImageAreaClick}
@@ -500,7 +499,7 @@ function VisorModal({
         </div>
 
         {/* ── Panel info ── */}
-        <div className="w-64 shrink-0 flex flex-col border-l border-slate-100">
+        <div className="w-full md:w-64 md:shrink-0 flex flex-col border-t border-slate-100 md:border-t-0 md:border-l overflow-hidden flex-1 md:flex-none">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 gap-2">
             <span
@@ -535,12 +534,12 @@ function VisorModal({
             <p className="text-[12px] font-semibold text-slate-900 break-all">{a.nombre}</p>
             <InfoLine icon="person"      label="Paciente" value={a.paciente_nombre} />
             <InfoLine icon="today"       label="Fecha"    value={fmtFechaArchivo(a.fecha)} />
-            <InfoLine icon="stethoscope" label="Médico"   value={a.medico} />
+            <InfoLine icon="stethoscope" label="Médico"   value={a.doctor_nombre} />
 
-            {a.notas && (
+            {a.descripcion && (
               <div className="bg-slate-50 rounded-xl p-3">
-                <p className="text-[10px] font-semibold text-slate-500 mb-1">Notas</p>
-                <p className="text-[11px] text-slate-700 leading-relaxed">{a.notas}</p>
+                <p className="text-[10px] font-semibold text-slate-500 mb-1">Descripción</p>
+                <p className="text-[11px] text-slate-700 leading-relaxed">{a.descripcion}</p>
               </div>
             )}
 
@@ -654,8 +653,8 @@ function SubirModal({
       tipo,
       nombre:           file.name,
       fecha:            today,
-      medico:           "Dr. García",
-      notas:            notas || undefined,
+      doctor_nombre:    "Dr. García",
+      descripcion:      notas || undefined,
       es_imagen:        esImagen,
       preview_url:      preview ?? undefined,
     };
@@ -667,13 +666,13 @@ function SubirModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
       style={{ background: "rgba(15,23,42,0.5)" }}
       onClick={onClose}
     >
       <div
         className="bg-white rounded-2xl w-full shadow-2xl overflow-hidden"
-        style={{ maxWidth: 560 }}
+        style={{ maxWidth: 560, maxHeight: "min(92vh, calc(100dvh - 96px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -722,7 +721,7 @@ function SubirModal({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Paciente */}
             {!pacienteId && (
               <div className="col-span-2">

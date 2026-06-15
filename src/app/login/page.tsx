@@ -1,19 +1,46 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff, User, ArrowRight, CheckCircle2 } from "lucide-react";
+import {
+  Mail, Lock, Eye, EyeOff, User, ArrowRight,
+  CheckCircle2, AlertCircle, Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
+import { setMockUser } from "@/components/layout/AuthProvider";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 18 },
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.07, duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { delay: i * 0.07, duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const },
   }),
 };
+
+const ROLE_REDIRECT: Record<string, string> = {
+  Administrador: "/dashboard",
+  Doctor:        "/dashboard",
+  Asistente:     "/agenda",
+  Contador:      "/presupuestos",
+};
+
+const SUPABASE_ERRORS: Record<string, string> = {
+  "Invalid login credentials": "Correo o contraseña incorrectos.",
+  "Email not confirmed":       "Debes confirmar tu correo. Revisa tu bandeja de entrada.",
+  "User not found":            "No existe una cuenta con ese correo.",
+  "Too many requests":         "Demasiados intentos. Espera unos minutos.",
+};
+
+function parseSupabaseError(msg: string): string {
+  for (const [key, val] of Object.entries(SUPABASE_ERRORS)) {
+    if (msg.includes(key)) return val;
+  }
+  return msg;
+}
 
 const FEATURES = [
   "Gestión completa de pacientes",
@@ -22,32 +49,83 @@ const FEATURES = [
   "Archivos e imágenes dental",
 ];
 
+const TEST_USERS = [
+  { email: "israjm19q@gmail.com",       password: "M@ria10ijmrasmr", name: "Israel García",  rol: "Administrador", color: "bg-violet-100 text-violet-700" },
+  { email: "t1513300521@unitru.edu.pe", password: "J@elito12",       name: "Jael Torres",    rol: "Asistente",     color: "bg-blue-100 text-blue-700" },
+  { email: "escalinza@gmail.com",       password: "Takemy2026",      name: "Dr. Escalinza",  rol: "Doctor",        color: "bg-cyan-100 text-cyan-700" },
+  { email: "almen04291@gmail.com",      password: "Almen2029",       name: "Almen Pérez",    rol: "Contador",      color: "bg-emerald-100 text-emerald-700" },
+];
+
 export default function LoginPage() {
+  const router = useRouter();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [showPassword, setShowPassword] = useState(false);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // showTestUsers removed — cards always visible
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const supabase = createClient();
+
+    if (tab === "login") {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setError(parseSupabaseError(error.message));
+      } else {
+        const rol = data.user?.user_metadata?.rol
+          || data.user?.user_metadata?.role
+          || data.user?.user_metadata?.perfil
+          || "";
+        router.push(ROLE_REDIRECT[rol] ?? "/dashboard");
+      }
+    } else {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: name } },
+      });
+      if (error) {
+        setError(parseSupabaseError(error.message));
+      } else {
+        setError(null);
+        router.push("/dashboard");
+      }
+    }
+
+    setLoading(false);
+  }
+
+  function fillTestUser(u: (typeof TEST_USERS)[0]) {
+    // 1. Rellena credenciales visiblemente en el form
+    setTab("login");
+    setEmail(u.email);
+    setPassword(u.password);
+    setError(null);
+    setLoading(true);
+    // 2. Salta Supabase y redirige con el rol correspondiente
+    setTimeout(() => {
+      setMockUser({ name: u.name, email: u.email, rol: u.rol });
+      router.push(ROLE_REDIRECT[u.rol] ?? "/dashboard");
+    }, 600);
+  }
 
   return (
     <div className="h-screen flex bg-slate-50 overflow-hidden">
       {/* Panel izquierdo — formulario */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 bg-white overflow-y-auto">
+      <div className="flex-1 flex flex-col items-center justify-center px-5 sm:px-8 py-8 bg-white overflow-y-auto">
         <div className="w-full max-w-[360px] py-4">
 
           {/* Logo */}
-          <motion.div
-            custom={0}
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            className="mb-8"
-          >
-            <Image
-              src="/logo.png"
-              alt="Mara Dental Group"
-              width={180}
-              height={48}
-              className="object-contain"
-              priority
-            />
+          <motion.div custom={0} initial="hidden" animate="visible" variants={fadeUp} className="mb-7">
+            <Image src="/logo.png" alt="Mara Dental Group" width={170} height={44} className="object-contain" priority />
           </motion.div>
 
           {/* Título */}
@@ -57,32 +135,28 @@ export default function LoginPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-              className="mb-6"
+              transition={{ duration: 0.22 }}
+              className="mb-5"
             >
-              <h1 className="text-2xl font-bold text-slate-900">
+              <h1 className="text-[22px] font-bold text-slate-900">
                 {tab === "login" ? "Bienvenido de nuevo" : "Crear cuenta"}
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                {tab === "login"
-                  ? "Ingresa tus credenciales para continuar"
-                  : "Completa tus datos para empezar"}
+                {tab === "login" ? "Ingresa tus credenciales para continuar" : "Completa tus datos para empezar"}
               </p>
             </motion.div>
           </AnimatePresence>
 
           {/* Tabs */}
           <motion.div custom={1} initial="hidden" animate="visible" variants={fadeUp}>
-            <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 mb-6">
+            <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 mb-5">
               {(["login", "register"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setTab(t)}
+                  onClick={() => { setTab(t); setError(null); }}
                   className={`flex-1 rounded-lg py-2 text-sm font-medium transition-all duration-200 cursor-pointer ${
-                    tab === t
-                      ? "bg-cyan-600 text-white shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
+                    tab === t ? "bg-cyan-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
                   {t === "login" ? "Iniciar sesión" : "Crear cuenta"}
@@ -92,7 +166,7 @@ export default function LoginPage() {
           </motion.div>
 
           {/* Formulario */}
-          <form className="space-y-3">
+          <form className="space-y-3" onSubmit={handleSubmit}>
             <AnimatePresence>
               {tab === "register" && (
                 <motion.div
@@ -103,7 +177,13 @@ export default function LoginPage() {
                   transition={{ duration: 0.22 }}
                   className="overflow-hidden"
                 >
-                  <Field icon={<User size={15} />} placeholder="Nombre completo" type="text" />
+                  <Field
+                    icon={<User size={15} />}
+                    placeholder="Nombre completo"
+                    type="text"
+                    value={name}
+                    onChange={setName}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -114,6 +194,8 @@ export default function LoginPage() {
                 placeholder="Correo electrónico"
                 type="email"
                 autoComplete="email"
+                value={email}
+                onChange={setEmail}
               />
             </motion.div>
 
@@ -126,6 +208,8 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   autoComplete={tab === "login" ? "current-password" : "new-password"}
                   placeholder="Contraseña"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-10 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-50"
                 />
                 <button
@@ -142,41 +226,48 @@ export default function LoginPage() {
               <motion.div custom={4} initial="hidden" animate="visible" variants={fadeUp}>
                 <div className="flex items-center justify-between pt-0.5">
                   <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300 accent-cyan-600 cursor-pointer"
-                    />
+                    <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-cyan-600 cursor-pointer" />
                     <span className="text-sm text-slate-600">Recordarme</span>
                   </label>
-                  <a
-                    href="#"
-                    className="text-sm text-cyan-600 hover:text-cyan-700 transition-colors"
-                  >
+                  <a href="#" className="text-sm text-cyan-600 hover:text-cyan-700 transition-colors">
                     ¿Olvidaste tu contraseña?
                   </a>
                 </div>
               </motion.div>
             )}
 
+            {/* Error */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex items-center gap-2 rounded-xl bg-red-50 border border-red-100 px-3.5 py-2.5 text-sm text-red-600">
+                    <AlertCircle size={14} className="shrink-0" />
+                    {error}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <motion.div custom={5} initial="hidden" animate="visible" variants={fadeUp} className="pt-1">
               <Button
                 type="submit"
-                className="w-full bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl h-10 text-sm font-semibold gap-2 transition-all shadow-sm shadow-cyan-200/60 cursor-pointer"
+                disabled={loading}
+                className="w-full bg-cyan-600 hover:bg-cyan-700 disabled:opacity-70 text-white rounded-xl h-10 text-sm font-semibold gap-2 transition-all shadow-sm shadow-cyan-200/60 cursor-pointer"
               >
-                {tab === "login" ? "Iniciar sesión" : "Crear cuenta"}
-                <ArrowRight size={15} />
+                {loading ? <Loader2 size={15} className="animate-spin" /> : (
+                  <>{tab === "login" ? "Iniciar sesión" : "Crear cuenta"} <ArrowRight size={15} /></>
+                )}
               </Button>
             </motion.div>
           </form>
 
           {/* Separador */}
-          <motion.div
-            custom={6}
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            className="my-5 flex items-center gap-3"
-          >
+          <motion.div custom={6} initial="hidden" animate="visible" variants={fadeUp} className="my-4 flex items-center gap-3">
             <div className="h-px flex-1 bg-slate-100" />
             <span className="text-xs text-slate-400">O continúa con</span>
             <div className="h-px flex-1 bg-slate-100" />
@@ -198,45 +289,52 @@ export default function LoginPage() {
             </button>
           </motion.div>
 
-          <motion.p
-            custom={8}
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            className="mt-6 text-center text-xs text-slate-400"
-          >
+          {/* Accesos de prueba por rol */}
+          <motion.div custom={8} initial="hidden" animate="visible" variants={fadeUp} className="mt-5">
+            <p className="text-[11px] font-medium text-slate-400 mb-2.5 text-center tracking-wide uppercase">
+              Accesos de prueba
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {TEST_USERS.map((u) => (
+                <button
+                  key={u.email}
+                  type="button"
+                  onClick={() => fillTestUser(u)}
+                  className="group flex flex-col items-start gap-1 p-3 rounded-xl border border-slate-200 hover:border-cyan-300 hover:bg-cyan-50/60 hover:shadow-sm transition-all cursor-pointer text-left active:scale-[0.98]"
+                >
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${u.color}`}>
+                    {u.rol}
+                  </span>
+                  <p className="text-[11px] font-semibold text-slate-800 truncate w-full">{u.name}</p>
+                  <p className="text-[9px] text-slate-400 truncate w-full font-mono">{u.email}</p>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
+          <motion.p custom={9} initial="hidden" animate="visible" variants={fadeUp} className="mt-4 text-center text-xs text-slate-400">
             ¿Problemas para ingresar?{" "}
-            <a href="#" className="text-cyan-600 hover:underline transition-colors">
-              Contacta al administrador
-            </a>
+            <a href="#" className="text-cyan-600 hover:underline transition-colors">Contacta al administrador</a>
           </motion.p>
         </div>
       </div>
 
       {/* Panel derecho — imagen + branding */}
       <div className="hidden lg:flex flex-col relative w-[52%] overflow-hidden">
-        {/* Imagen de fondo */}
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('/dental-clinic.jpg')" }}
-        />
-        {/* Overlay degradado */}
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/dental-clinic.jpg')" }} />
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/80 via-slate-900/60 to-teal-900/70" />
 
-        {/* Contenido sobre la imagen */}
         <div className="relative z-10 flex flex-col h-full p-12">
-          {/* Badge top */}
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
             <span className="text-white/80 text-sm font-medium">Sistema de gestión clínica</span>
           </div>
 
-          {/* Texto central */}
           <div className="flex-1 flex flex-col justify-center">
             <motion.div
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2, duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+              transition={{ delay: 0.2, duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] as const }}
             >
               <h2 className="text-4xl font-bold text-white leading-tight mb-4">
                 Tu clínica dental,<br />
@@ -245,7 +343,6 @@ export default function LoginPage() {
               <p className="text-white/70 text-base leading-relaxed mb-10 max-w-sm">
                 Administra pacientes, agenda citas y gestiona historias clínicas desde un solo lugar.
               </p>
-
               <div className="space-y-3">
                 {FEATURES.map((f, i) => (
                   <motion.div
@@ -263,7 +360,6 @@ export default function LoginPage() {
             </motion.div>
           </div>
 
-          {/* Footer */}
           <div className="text-white/40 text-xs">
             © {new Date().getFullYear()} Mara Dental Group. Todos los derechos reservados.
           </div>
@@ -274,15 +370,14 @@ export default function LoginPage() {
 }
 
 function Field({
-  icon,
-  placeholder,
-  type,
-  autoComplete,
+  icon, placeholder, type, autoComplete, value, onChange,
 }: {
   icon: React.ReactNode;
   placeholder: string;
   type: string;
   autoComplete?: string;
+  value?: string;
+  onChange?: (v: string) => void;
 }) {
   return (
     <div className="relative">
@@ -293,6 +388,8 @@ function Field({
         type={type}
         autoComplete={autoComplete}
         placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
         className="w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-50"
       />
     </div>

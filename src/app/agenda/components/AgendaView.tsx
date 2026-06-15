@@ -49,21 +49,19 @@ const SLOTS_1H = Array.from({ length: 12 }, (_, i) =>
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const EST: Record<EstadoCita, {
-  solid: string;       // color sólido para bloques del grid
-  bg: string;          // fondo pastel para panel diario
-  text: string;        // texto sobre fondo pastel
-  bar: string;         // barra lateral en panel diario
+  solid: string;
+  bg: string;
+  text: string;
+  bar: string;
   pillBg: string;
   pillText: string;
   label: string;
   icon: string;
 }> = {
+  programada:  { solid:"#b45309", bg:"#fefce8", text:"#713f12", bar:"#eab308", pillBg:"#fef9c3", pillText:"#a16207", label:"Programada",  icon:"schedule" },
   confirmada:  { solid:"#16a34a", bg:"#f0fdf4", text:"#14532d", bar:"#22c55e", pillBg:"#dcfce7", pillText:"#15803d", label:"Confirmada",  icon:"check_circle" },
-  pendiente:   { solid:"#b45309", bg:"#fefce8", text:"#713f12", bar:"#eab308", pillBg:"#fef9c3", pillText:"#a16207", label:"Pendiente",   icon:"schedule" },
-  en_progreso: { solid:"#2563eb", bg:"#eff6ff", text:"#1e3a8a", bar:"#3b82f6", pillBg:"#dbeafe", pillText:"#1d4ed8", label:"En progreso", icon:"radio_button_checked" },
-  emergencia:  { solid:"#dc2626", bg:"#fff1f2", text:"#881337", bar:"#f43f5e", pillBg:"#fee2e2", pillText:"#dc2626", label:"Emergencia",  icon:"priority_high" },
-  ausente:     { solid:"#64748b", bg:"#f8fafc", text:"#475569", bar:"#94a3b8", pillBg:"#f1f5f9", pillText:"#64748b", label:"Ausente",     icon:"person_off" },
-  cancelada:   { solid:"#94a3b8", bg:"#f8fafc", text:"#94a3b8", bar:"#cbd5e1", pillBg:"#f1f5f9", pillText:"#94a3b8", label:"Cancelada",  icon:"cancel" },
+  hecha:       { solid:"#2563eb", bg:"#eff6ff", text:"#1e3a8a", bar:"#3b82f6", pillBg:"#dbeafe", pillText:"#1d4ed8", label:"Hecha",       icon:"task_alt" },
+  cancelada:   { solid:"#94a3b8", bg:"#f8fafc", text:"#94a3b8", bar:"#cbd5e1", pillBg:"#f1f5f9", pillText:"#94a3b8", label:"Cancelada",   icon:"cancel" },
 };
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
@@ -77,18 +75,18 @@ function getMockCitas(): Cita[] {
   const t4  = toDateStr(addDays(new Date(), 4));
 
   return [
-    { id:"1",  paciente_id:"p1",  paciente_nombre:"María González",  alergias:["Penicilina"],              servicio_nombre:"Limpieza dental + profilaxis",    medico_nombre:"Dr. García", fecha:t,   hora_inicio:"08:30", hora_fin:"09:15", duracion_min:45,  estado:"confirmada"  },
-    { id:"2",  paciente_id:"p2",  paciente_nombre:"Carlos Ríos",      alergias:[],                         servicio_nombre:"Ortodoncia · ajuste de brackets",  medico_nombre:"Dr. García", fecha:t,   hora_inicio:"10:00", hora_fin:"11:00", duracion_min:60,  estado:"en_progreso" },
-    { id:"3",  paciente_id:"p3",  paciente_nombre:"Ana Torres",       alergias:["Penicilina","Ibuprofeno"],servicio_nombre:"Extracción simple molar",           medico_nombre:"Dr. García", fecha:t,   hora_inicio:"11:30", hora_fin:"12:00", duracion_min:30,  estado:"pendiente"   },
-    { id:"4",  paciente_id:"p4",  paciente_nombre:"Luis Vargas",      alergias:[],                         servicio_nombre:"Urgencia · dolor agudo molar 46",  medico_nombre:"Dr. García", fecha:t,   hora_inicio:"14:30", hora_fin:"15:30", duracion_min:60,  estado:"emergencia"  },
-    { id:"5",  paciente_id:"p5",  paciente_nombre:"Rosa Méndez",      alergias:[],                         servicio_nombre:"Control de ortodoncia",            medico_nombre:"Dr. García", fecha:t,   hora_inicio:"16:00", hora_fin:"16:30", duracion_min:30,  estado:"ausente"     },
-    { id:"6",  paciente_id:"p6",  paciente_nombre:"Pedro Díaz",       alergias:[],                         servicio_nombre:"Blanqueamiento dental",             medico_nombre:"Dr. García", fecha:tm1, hora_inicio:"09:00", hora_fin:"10:00", duracion_min:60,  estado:"confirmada"  },
-    { id:"7",  paciente_id:"p7",  paciente_nombre:"Julia Flores",     alergias:[],                         servicio_nombre:"Endodoncia molar",                 medico_nombre:"Dr. García", fecha:t1,  hora_inicio:"09:00", hora_fin:"10:30", duracion_min:90,  estado:"confirmada"  },
-    { id:"8",  paciente_id:"p8",  paciente_nombre:"Sandra Ruiz",      alergias:["Aspirina"],               servicio_nombre:"Ortodoncia · control mensual",     medico_nombre:"Dr. García", fecha:t1,  hora_inicio:"11:00", hora_fin:"11:30", duracion_min:30,  estado:"pendiente"   },
-    { id:"9",  paciente_id:"p9",  paciente_nombre:"Kevin López",      alergias:[],                         servicio_nombre:"Profilaxis + fluorización",         medico_nombre:"Dr. García", fecha:t2,  hora_inicio:"08:00", hora_fin:"08:45", duracion_min:45,  estado:"confirmada"  },
-    { id:"10", paciente_id:"p10", paciente_nombre:"Nora Cruz",        alergias:[],                         servicio_nombre:"Urgencia · fractura incisivo",     medico_nombre:"Dr. García", fecha:t2,  hora_inicio:"14:00", hora_fin:"15:00", duracion_min:60,  estado:"emergencia"  },
-    { id:"11", paciente_id:"p11", paciente_nombre:"Gustavo Ramos",    alergias:[],                         servicio_nombre:"Blanqueamiento dental",             medico_nombre:"Dr. García", fecha:t3,  hora_inicio:"10:00", hora_fin:"11:00", duracion_min:60,  estado:"confirmada"  },
-    { id:"12", paciente_id:"p12", paciente_nombre:"Carmen Vega",      alergias:["Penicilina"],              servicio_nombre:"Implante dental · fase 2",         medico_nombre:"Dr. García", fecha:t4,  hora_inicio:"09:00", hora_fin:"11:00", duracion_min:120, estado:"pendiente"   },
+    { id:"1",  paciente_id:"p1",  paciente_nombre:"María González",  alergias:["Penicilina"],              tipo_consulta:"Limpieza dental",      doctor_nombre:"Dr. García", fecha:t,   hora_inicio:"08:30", hora_fin:"09:15", estado:"confirmada" },
+    { id:"2",  paciente_id:"p2",  paciente_nombre:"Carlos Ríos",     alergias:[],                          tipo_consulta:"Ortodoncia",            doctor_nombre:"Dr. García", fecha:t,   hora_inicio:"10:00", hora_fin:"11:00", estado:"hecha"      },
+    { id:"3",  paciente_id:"p3",  paciente_nombre:"Ana Torres",      alergias:["Penicilina","Ibuprofeno"], tipo_consulta:"Extracción molar",      doctor_nombre:"Dr. García", fecha:t,   hora_inicio:"11:30", hora_fin:"12:00", estado:"programada" },
+    { id:"4",  paciente_id:"p4",  paciente_nombre:"Luis Vargas",     alergias:[],                          tipo_consulta:"Urgencia",              doctor_nombre:"Dr. García", fecha:t,   hora_inicio:"14:30", hora_fin:"15:30", estado:"confirmada" },
+    { id:"5",  paciente_id:"p5",  paciente_nombre:"Rosa Méndez",     alergias:[],                          tipo_consulta:"Control ortodoncia",    doctor_nombre:"Dr. García", fecha:t,   hora_inicio:"16:00", hora_fin:"16:30", estado:"cancelada"  },
+    { id:"6",  paciente_id:"p6",  paciente_nombre:"Pedro Díaz",      alergias:[],                          tipo_consulta:"Blanqueamiento",        doctor_nombre:"Dr. García", fecha:tm1, hora_inicio:"09:00", hora_fin:"10:00", estado:"hecha"      },
+    { id:"7",  paciente_id:"p7",  paciente_nombre:"Julia Flores",    alergias:[],                          tipo_consulta:"Endodoncia molar",      doctor_nombre:"Dr. García", fecha:t1,  hora_inicio:"09:00", hora_fin:"10:30", estado:"confirmada" },
+    { id:"8",  paciente_id:"p8",  paciente_nombre:"Sandra Ruiz",     alergias:["Aspirina"],                tipo_consulta:"Ortodoncia",            doctor_nombre:"Dr. García", fecha:t1,  hora_inicio:"11:00", hora_fin:"11:30", estado:"programada" },
+    { id:"9",  paciente_id:"p9",  paciente_nombre:"Kevin López",     alergias:[],                          tipo_consulta:"Profilaxis",            doctor_nombre:"Dr. García", fecha:t2,  hora_inicio:"08:00", hora_fin:"08:45", estado:"confirmada" },
+    { id:"10", paciente_id:"p10", paciente_nombre:"Nora Cruz",       alergias:[],                          tipo_consulta:"Urgencia",              doctor_nombre:"Dr. García", fecha:t2,  hora_inicio:"14:00", hora_fin:"15:00", estado:"confirmada" },
+    { id:"11", paciente_id:"p11", paciente_nombre:"Gustavo Ramos",   alergias:[],                          tipo_consulta:"Blanqueamiento",        doctor_nombre:"Dr. García", fecha:t3,  hora_inicio:"10:00", hora_fin:"11:00", estado:"programada" },
+    { id:"12", paciente_id:"p12", paciente_nombre:"Carmen Vega",     alergias:["Penicilina"],               tipo_consulta:"Implante dental",       doctor_nombre:"Dr. García", fecha:t4,  hora_inicio:"09:00", hora_fin:"11:00", estado:"programada" },
   ];
 }
 
@@ -137,8 +135,8 @@ function ContextMenu({ cita, pos, onClose }: { cita: Cita; pos: MenuPos; onClose
             <p className="text-[13px] font-semibold text-slate-900 truncate">{cita.paciente_nombre}</p>
           </div>
         </div>
-        <p className="text-[11px] text-slate-500">{cita.hora_inicio} – {cita.hora_fin} · {cita.duracion_min} min</p>
-        <p className="text-[11px] text-slate-400 truncate">{cita.servicio_nombre}</p>
+        <p className="text-[11px] text-slate-500">{cita.hora_inicio} – {cita.hora_fin}</p>
+        <p className="text-[11px] text-slate-400 truncate">{cita.tipo_consulta}</p>
         {cita.alergias.length > 0 && (
           <p className="text-[10px] text-orange-600 font-semibold mt-1 flex items-center gap-1">
             <Icon name="warning_amber" size={12} />
@@ -198,7 +196,7 @@ function DayCard({ cita, onClick }: { cita: Cita; onClick: (c: Cita, e: React.Mo
             {cfg.label}
           </span>
         </div>
-        <p className="text-[10px] truncate mt-0.5" style={{ color: cfg.text, opacity: 0.75 }}>{cita.servicio_nombre}</p>
+        <p className="text-[10px] truncate mt-0.5" style={{ color: cfg.text, opacity: 0.75 }}>{cita.tipo_consulta}</p>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <span className="flex items-center gap-1 text-[9.5px]" style={{ color: cfg.text, opacity: 0.55 }}>
             <Icon name="schedule" size={10} />
@@ -230,7 +228,7 @@ function WeekBlock({ cita, onClick }: { cita: Cita; onClick: (c: Cita, e: React.
         {shortName(cita.paciente_nombre)}
       </p>
       <p className="text-[10px] leading-tight truncate mt-0.5" style={{ color: cfg.text, opacity: 0.75 }}>
-        {cita.servicio_nombre.split("·")[0].trim()}
+        {cita.tipo_consulta.split("·")[0].trim()}
       </p>
       <p className="text-[9.5px] leading-none mt-0.5" style={{ color: cfg.text, opacity: 0.55 }}>
         {cita.hora_inicio}
@@ -244,15 +242,16 @@ function WeekBlock({ cita, onClick }: { cita: Cita; onClick: (c: Cita, e: React.
 function NewCitaModal({ onClose }: { onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
       style={{ background: "rgba(15,23,42,0.45)" }}
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+        className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col"
+        style={{ maxHeight: "min(92vh, calc(100dvh - 96px))" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-start justify-between">
+        <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-start justify-between shrink-0">
           <div>
             <p className="text-[14px] font-semibold text-slate-900">Nueva cita</p>
             <p className="text-[11px] text-slate-400 mt-0.5">Completa los datos para agendar</p>
@@ -262,14 +261,14 @@ function NewCitaModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="px-5 py-4 flex flex-col gap-3">
+        <div className="overflow-y-auto flex-1 px-5 py-4 flex flex-col gap-3">
           <Field label="Paciente">
             <div className="relative">
               <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] pr-8 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" placeholder="Buscar por nombre o DNI…" />
               <Icon name="search" size={15} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             </div>
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Fecha">
               <input type="date" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
             </Field>
@@ -277,7 +276,7 @@ function NewCitaModal({ onClose }: { onClose: () => void }) {
               <input type="time" defaultValue="09:00" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Duración">
               <select defaultValue="60 min" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
                 <option>30 min</option>
@@ -288,9 +287,9 @@ function NewCitaModal({ onClose }: { onClose: () => void }) {
               </select>
             </Field>
             <Field label="Estado">
-              <select defaultValue="Confirmada" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
-                <option>Pendiente</option>
-                <option>Confirmada</option>
+              <select defaultValue="confirmada" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
+                <option value="programada">Programada</option>
+                <option value="confirmada">Confirmada</option>
               </select>
             </Field>
           </div>
@@ -309,7 +308,7 @@ function NewCitaModal({ onClose }: { onClose: () => void }) {
           </Field>
         </div>
 
-        <div className="px-5 pb-5 flex justify-end gap-2">
+        <div className="px-5 pb-5 flex justify-end gap-2 shrink-0 border-t border-slate-100 pt-4">
           <button onClick={onClose} className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
             Cancelar
           </button>
@@ -393,8 +392,8 @@ export function AgendaView() {
   const totalHoy = citasHoy.length;
   const stats = {
     confirmadas: citasHoy.filter((c) => c.estado === "confirmada").length,
-    pendientes:  citasHoy.filter((c) => c.estado === "pendiente").length,
-    emergencias: citasHoy.filter((c) => c.estado === "emergencia").length,
+    pendientes:  citasHoy.filter((c) => c.estado === "programada").length,
+    hechas:      citasHoy.filter((c) => c.estado === "hecha").length,
   };
 
   const weekLabel = `${weekDays[0].getDate()} ${MONTHS[weekDays[0].getMonth()]} – ${weekDays[6].getDate()} ${MONTHS[weekDays[6].getMonth()]} ${weekDays[6].getFullYear()}`;
@@ -404,8 +403,34 @@ export function AgendaView() {
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-3 px-5 py-3 bg-white border-b border-slate-200 shrink-0 flex-wrap">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 bg-white border-b border-slate-200 shrink-0">
+        {/* Mobile: navegación por día */}
+        <div className="flex items-center gap-2 md:hidden">
+          <button
+            onClick={() => {
+              const newDate = addDays(selectedDate, -1);
+              setSelectedDate(newDate);
+              if (newDate < weekDays[0]) setWeekStart(getMonday(newDate));
+            }}
+            className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+          >
+            <Icon name="chevron_left" size={18} />
+          </button>
+          <span className="text-[13px] font-medium text-slate-700 min-w-[130px] text-center">{dayLabel}</span>
+          <button
+            onClick={() => {
+              const newDate = addDays(selectedDate, 1);
+              setSelectedDate(newDate);
+              if (newDate > weekDays[6]) setWeekStart(getMonday(newDate));
+            }}
+            className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
+          >
+            <Icon name="chevron_right" size={18} />
+          </button>
+        </div>
+
+        {/* Desktop: navegación por semana */}
+        <div className="hidden md:flex items-center gap-2">
           <button
             onClick={() => setWeekStart(addDays(weekStart, -7))}
             className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
@@ -430,15 +455,74 @@ export function AgendaView() {
 
         <button
           onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-1.5 px-4 h-8 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[12px] font-medium transition-colors"
+          className="flex items-center gap-1.5 px-3 sm:px-4 h-8 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[12px] font-medium transition-colors shrink-0"
         >
           <Icon name="add" size={16} />
-          Nueva cita
+          <span>Nueva cita</span>
         </button>
       </div>
 
-      {/* Calendar body */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* ── MOBILE: vista de día ── */}
+      <div className="flex flex-col flex-1 overflow-hidden md:hidden">
+        {/* Strip de semana horizontal */}
+        <div className="flex overflow-x-auto shrink-0 bg-white border-b border-slate-100 px-3 py-2 gap-1.5 scrollbar-none">
+          {weekDays.map((d, i) => {
+            const isSel = isSelected(d);
+            const isTod = isToday(d);
+            const cnt   = citasForDate(d).length;
+            return (
+              <button
+                key={i}
+                onClick={() => setSelectedDate(d)}
+                className={`flex flex-col items-center min-w-[46px] rounded-xl py-2 px-1.5 transition-colors shrink-0 ${
+                  isSel ? "bg-cyan-600" : isTod ? "bg-cyan-50" : "hover:bg-slate-50"
+                }`}
+              >
+                <span className={`text-[9px] font-semibold mb-0.5 ${isSel ? "text-white/70" : "text-slate-400"}`}>
+                  {DAY_ABBR[d.getDay()]}
+                </span>
+                <span className={`text-[17px] font-bold leading-tight ${
+                  isSel ? "text-white" : isTod ? "text-cyan-600" : "text-slate-800"
+                }`}>
+                  {d.getDate()}
+                </span>
+                <span className={`w-1.5 h-1.5 rounded-full mt-1 ${
+                  cnt > 0 ? (isSel ? "bg-white/60" : "bg-cyan-500") : "opacity-0"
+                }`} />
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Lista de citas del día */}
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          {citasHoy.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-16 text-slate-400">
+              <Icon name="event_busy" size={44} className="opacity-20 mb-3" />
+              <p className="text-[14px] font-medium text-slate-500">Sin citas este día</p>
+              <button
+                onClick={() => setShowNewModal(true)}
+                className="mt-4 flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] font-medium transition-colors"
+              >
+                <Icon name="add" size={15} />
+                Agregar cita
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-slate-400 tracking-widest mb-3">
+                {citasHoy.length} CITA{citasHoy.length !== 1 ? "S" : ""}
+              </p>
+              {citasHoy.map((c) => (
+                <DayCard key={c.id} cita={c} onClick={openMenu} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── DESKTOP: dos paneles ── */}
+      <div className="hidden md:flex flex-1 overflow-hidden">
 
         {/* Panel izquierdo: vista diaria */}
         <div className="w-[260px] shrink-0 border-r border-slate-200 flex flex-col bg-white overflow-hidden">
@@ -483,7 +567,7 @@ export function AgendaView() {
           </div>
         </div>
 
-        {/* Panel derecho: vista semanal — un solo scroll para alinear cabecera y celdas */}
+        {/* Panel derecho: vista semanal */}
         <div className="flex-1 overflow-hidden bg-slate-50 min-w-0">
           <div className="h-full overflow-y-scroll overflow-x-hidden">
             {/* Cabecera sticky */}

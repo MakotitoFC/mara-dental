@@ -1,22 +1,21 @@
+// Maps to citas.estado CHECK constraint in DB
 export type EstadoCita =
+  | "programada"   // citas.estado default
   | "confirmada"
-  | "pendiente"
-  | "en_progreso"
-  | "emergencia"
-  | "ausente"
+  | "hecha"
   | "cancelada";
 
+// Maps to public.citas
 export interface Cita {
   id: string;
   paciente_id: string;
   paciente_nombre: string;
   alergias: string[];
-  servicio_nombre: string;
-  medico_nombre: string;
-  fecha: string;        // YYYY-MM-DD
-  hora_inicio: string;  // HH:mm
-  hora_fin: string;     // HH:mm
-  duracion_min: number;
+  tipo_consulta: string;   // citas.tipo_consulta
+  doctor_nombre: string;   // derived from personal join
+  fecha: string;           // YYYY-MM-DD
+  hora_inicio: string;     // HH:mm
+  hora_fin: string;        // HH:mm — duración se calcula como diferencia
   estado: EstadoCita;
-  notas_internas?: string;
+  notas?: string;          // citas.notas
 }
