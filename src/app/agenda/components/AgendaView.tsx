@@ -412,7 +412,7 @@ export function AgendaView() {
           >
             <Icon name="chevron_left" size={18} />
           </button>
-          <span className="text-[13px] font-medium text-slate-700 min-w-[160px] text-center">{weekLabel}</span>
+          <span className="text-[13px] font-medium text-slate-700 min-w-40 text-center">{weekLabel}</span>
           <button
             onClick={() => setWeekStart(addDays(weekStart, 7))}
             className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors"
@@ -441,7 +441,7 @@ export function AgendaView() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Panel izquierdo: vista diaria */}
-        <div className="w-[260px] shrink-0 border-r border-slate-200 flex flex-col bg-white overflow-hidden">
+        <div className="w-65 shrink-0 border-r border-slate-200 flex flex-col bg-white overflow-hidden">
           <div className="px-3 py-3 border-b border-slate-100 shrink-0">
             <div className="flex items-center justify-between mb-1">
               <button onClick={() => setSelectedDate(addDays(selectedDate, -1))} className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:bg-slate-100">
@@ -464,10 +464,10 @@ export function AgendaView() {
               return (
                 <div
                   key={slot}
-                  className="flex min-h-[54px]"
+                  className="flex min-h-13.5"
                   style={{ borderBottom: `0.5px solid ${isHalfHour ? "#f1f5f9" : "#e2e8f0"}` }}
                 >
-                  <div className="w-[42px] shrink-0 pt-2 pr-2 text-right">
+                  <div className="w-10.5 shrink-0 pt-2 pr-2 text-right">
                     {!isHalfHour && (
                       <span className="text-[9px] text-slate-400">{slot}</span>
                     )}
