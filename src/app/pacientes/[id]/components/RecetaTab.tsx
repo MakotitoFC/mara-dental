@@ -15,14 +15,14 @@ function getMockRecetas(paciente_id: string): Receta[] {
       id: "r1",
       paciente_id: "p1",
       paciente_nombre: "María González López",
-      medico: "Dr. García",
+      doctor_nombre: "Dr. García",
       fecha: "2026-03-10",
-      diagnostico: "Gingivitis crónica generalizada",
+      diagnostico_texto: "Gingivitis crónica generalizada",
+      estado: "activa" as const,
       medicamentos: [
-        { id:"m1", nombre:"Clorhexidina 0.12%", dosis:"15 ml", via:"Enjuague bucal", frecuencia:"Cada 12 horas", duracion:"7 días", instrucciones:"No enjuagarse con agua después." },
-        { id:"m2", nombre:"Ibuprofeno", dosis:"400 mg", via:"Oral", frecuencia:"Cada 8 horas", duracion:"3 días", instrucciones:"Tomar con alimentos." },
+        { id:"m1", nombre:"Clorhexidina 0.12%", dosis:"15 ml", frecuencia:"Cada 12 horas", indicaciones:"No enjuagarse con agua después." },
+        { id:"m2", nombre:"Ibuprofeno",          dosis:"400 mg", frecuencia:"Cada 8 horas", indicaciones:"Tomar con alimentos." },
       ],
-      indicaciones: "Dieta blanda los primeros 2 días. Cepillado suave con cepillo de cerdas extra-suaves.",
     },
   ].filter((r) => r.paciente_id === paciente_id);
 }
@@ -82,15 +82,15 @@ function RecetaCard({ receta: r, paciente: p }: { receta: Receta; paciente: Paci
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-5">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div>
-          <p className="text-[13px] font-semibold text-slate-900">{r.diagnostico}</p>
-          <p className="text-[11px] text-slate-400">{fmtFecha(r.fecha)} · {r.medico}</p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-slate-900">{r.diagnostico_texto}</p>
+          <p className="text-[11px] text-slate-400">{fmtFecha(r.fecha)} · {r.doctor_nombre}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => handlePrint(r)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-[11px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
           >
             <Icon name="print" size={14} className="text-slate-500" />
             Imprimir
@@ -112,17 +112,12 @@ function RecetaCard({ receta: r, paciente: p }: { receta: Receta; paciente: Paci
             <span className="text-[11px] font-bold text-cyan-600 w-4 shrink-0">{i + 1}.</span>
             <div>
               <p className="text-[12px] font-semibold text-slate-900">{m.nombre} <span className="font-normal text-slate-500">{m.dosis}</span></p>
-              <p className="text-[11px] text-slate-500">{m.via} · {m.frecuencia} · {m.duracion}</p>
-              {m.instrucciones && <p className="text-[11px] text-slate-400 mt-0.5">→ {m.instrucciones}</p>}
+              <p className="text-[11px] text-slate-500">{m.frecuencia}</p>
+              {m.indicaciones && <p className="text-[11px] text-slate-400 mt-0.5">→ {m.indicaciones}</p>}
             </div>
           </div>
         ))}
       </div>
-      {r.indicaciones && (
-        <p className="text-[11px] text-slate-500 mt-3 pt-3 border-t border-slate-100">
-          <span className="font-semibold">Indicaciones: </span>{r.indicaciones}
-        </p>
-      )}
     </div>
   );
 }
@@ -141,13 +136,12 @@ function RecetaModal({
   const today = new Date().toISOString().split("T")[0];
 
   const [diagnostico,  setDiagnostico]  = useState("");
-  const [indicaciones, setIndicaciones] = useState("");
   const [meds, setMeds] = useState<Medicamento[]>([
-    { id: uid(), nombre: "", dosis: "", via: "Oral", frecuencia: "Cada 8 horas", duracion: "7 días", instrucciones: "" },
+    { id: uid(), nombre: "", dosis: "", frecuencia: "Cada 8 horas", indicaciones: "" },
   ]);
 
   function addMed() {
-    setMeds((p) => [...p, { id: uid(), nombre: "", dosis: "", via: "Oral", frecuencia: "Cada 8 horas", duracion: "7 días", instrucciones: "" }]);
+    setMeds((p) => [...p, { id: uid(), nombre: "", dosis: "", frecuencia: "Cada 8 horas", indicaciones: "" }]);
   }
   function removeMed(id: string) {
     setMeds((p) => p.filter((m) => m.id !== id));
@@ -159,22 +153,23 @@ function RecetaModal({
   function handleGuardar() {
     if (!diagnostico.trim() || meds.some((m) => !m.nombre.trim())) return;
     const receta: Receta = {
-      id: uid(),
+      id:               uid(),
       paciente_id:      paciente.id,
       paciente_nombre:  paciente.nombre,
-      medico:           "Dr. García",
+      doctor_nombre:    "Dr. García",
       fecha:            today,
-      diagnostico,
+      diagnostico_texto: diagnostico,
+      estado:           "activa",
       medicamentos:     meds.filter((m) => m.nombre.trim()),
-      indicaciones:     indicaciones || undefined,
     };
     onGuardar(receta);
   }
 
-  const previewData = {
+  const previewData: Receta = {
     id: "", paciente_id: paciente.id, paciente_nombre: paciente.nombre,
-    medico: "Dr. García", fecha: today, diagnostico,
-    medicamentos: meds.filter((m) => m.nombre.trim()), indicaciones,
+    doctor_nombre: "Dr. García", fecha: today, diagnostico_texto: diagnostico,
+    estado: "activa",
+    medicamentos: meds.filter((m) => m.nombre.trim()),
   };
 
   const waLink  = `https://wa.me/${paciente.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(buildWhatsAppText(previewData))}`;
@@ -182,13 +177,13 @@ function RecetaModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
       style={{ background: "rgba(15,23,42,0.5)" }}
       onClick={onClose}
     >
       <div
         className="bg-white rounded-2xl w-full shadow-2xl overflow-hidden flex flex-col"
-        style={{ maxWidth: 900, maxHeight: "90vh" }}
+        style={{ maxWidth: 900, maxHeight: "min(90vh, calc(100dvh - 96px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -203,9 +198,9 @@ function RecetaModal({
         </div>
 
         {/* Body */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden md:flex-row">
           {/* Formulario */}
-          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 border-r border-slate-100">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 md:border-r md:border-slate-100">
 
             <FormField label="Diagnóstico / motivo">
               <input
@@ -237,7 +232,7 @@ function RecetaModal({
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <FormField label="Medicamento">
                         <input
                           value={m.nombre}
@@ -255,17 +250,7 @@ function RecetaModal({
                         />
                       </FormField>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <FormField label="Vía">
-                        <select value={m.via} onChange={(e) => updateMed(m.id, "via", e.target.value)}
-                          className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[12px] outline-none focus:border-cyan-500">
-                          <option>Oral</option>
-                          <option>Enjuague bucal</option>
-                          <option>Tópica</option>
-                          <option>Sublingual</option>
-                          <option>Intramuscular</option>
-                        </select>
-                      </FormField>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <FormField label="Frecuencia">
                         <select value={m.frecuencia} onChange={(e) => updateMed(m.id, "frecuencia", e.target.value)}
                           className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[12px] outline-none focus:border-cyan-500">
@@ -277,23 +262,11 @@ function RecetaModal({
                           <option>Dos veces al día</option>
                         </select>
                       </FormField>
-                      <FormField label="Duración">
-                        <select value={m.duracion} onChange={(e) => updateMed(m.id, "duracion", e.target.value)}
-                          className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[12px] outline-none focus:border-cyan-500">
-                          <option>3 días</option>
-                          <option>5 días</option>
-                          <option>7 días</option>
-                          <option>10 días</option>
-                          <option>14 días</option>
-                          <option>1 mes</option>
-                          <option>Uso continuo</option>
-                        </select>
-                      </FormField>
                     </div>
-                    <FormField label="Instrucciones adicionales">
+                    <FormField label="Indicaciones">
                       <input
-                        value={m.instrucciones ?? ""}
-                        onChange={(e) => updateMed(m.id, "instrucciones", e.target.value)}
+                        value={m.indicaciones ?? ""}
+                        onChange={(e) => updateMed(m.id, "indicaciones", e.target.value)}
                         placeholder="Tomar con alimentos, no mezclar con alcohol…"
                         className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[12px] outline-none focus:border-cyan-500"
                       />
@@ -303,36 +276,26 @@ function RecetaModal({
               </div>
             </div>
 
-            <FormField label="Indicaciones generales">
-              <textarea
-                rows={2}
-                value={indicaciones}
-                onChange={(e) => setIndicaciones(e.target.value)}
-                placeholder="Dieta blanda, reposo, evitar esfuerzos…"
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 resize-none"
-              />
-            </FormField>
           </div>
 
-          {/* Vista previa */}
-          <div className="w-[320px] shrink-0 overflow-y-auto p-5 bg-slate-50">
+          {/* Vista previa — desktop */}
+          <div className="hidden md:block w-[300px] shrink-0 overflow-y-auto p-5 bg-slate-50">
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-3">Vista previa</p>
             <RecetaPreview
               paciente={paciente}
               fecha={today}
               diagnostico={diagnostico}
               medicamentos={meds.filter((m) => m.nombre.trim())}
-              indicaciones={indicaciones}
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-slate-100 shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-slate-100 shrink-0">
           <button onClick={onClose} className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
             Cancelar
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2">
             <button
               onClick={handleGuardar}
               disabled={!canSend}
@@ -344,7 +307,7 @@ function RecetaModal({
             <button
               onClick={() => canSend && handlePrint(previewData)}
               disabled={!canSend}
-              className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="hidden sm:flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Icon name="print" size={14} />
               Imprimir PDF
@@ -373,13 +336,12 @@ function RecetaModal({
 // ─── Vista previa de receta ───────────────────────────────────────────────────
 
 function RecetaPreview({
-  paciente, fecha, diagnostico, medicamentos, indicaciones,
+  paciente, fecha, diagnostico, medicamentos,
 }: {
   paciente: Paciente;
   fecha: string;
   diagnostico: string;
   medicamentos: Medicamento[];
-  indicaciones: string;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden text-[11px]">
@@ -415,18 +377,11 @@ function RecetaPreview({
               {medicamentos.map((m, i) => (
                 <div key={m.id}>
                   <p className="font-semibold text-slate-800">{i + 1}. {m.nombre} <span className="font-normal text-slate-500">{m.dosis}</span></p>
-                  <p className="text-slate-500 pl-3">{m.via} · {m.frecuencia} · {m.duracion}</p>
-                  {m.instrucciones && <p className="text-slate-400 pl-3">→ {m.instrucciones}</p>}
+                  <p className="text-slate-500 pl-3">{m.frecuencia}</p>
+                  {m.indicaciones && <p className="text-slate-400 pl-3">→ {m.indicaciones}</p>}
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {indicaciones && (
-          <div className="border-t border-slate-100 pt-2">
-            <p className="font-semibold text-slate-700 mb-0.5">Indicaciones</p>
-            <p className="text-slate-500">{indicaciones}</p>
           </div>
         )}
 
@@ -457,43 +412,31 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-type RecetaLike = {
-  paciente_nombre: string;
-  medico: string;
-  fecha: string;
-  diagnostico: string;
-  medicamentos: Medicamento[];
-  indicaciones?: string;
-};
-
-function buildWhatsAppText(r: RecetaLike): string {
+function buildWhatsAppText(r: Receta): string {
   const lineas = [
     `🦷 *RECETA MÉDICA - MaraDental*`,
-    `${r.medico} | COP 12345`,
+    `${r.doctor_nombre} | COP 12345`,
     ``,
     `*Paciente:* ${r.paciente_nombre}`,
     `*Fecha:* ${fmtFecha(r.fecha)}`,
-    `*Diagnóstico:* ${r.diagnostico || "—"}`,
+    `*Diagnóstico:* ${r.diagnostico_texto || "—"}`,
     ``,
     `*💊 Medicamentos:*`,
     ...r.medicamentos.map((m, i) =>
-      [`${i + 1}. *${m.nombre} ${m.dosis}*`, `   Vía: ${m.via} | ${m.frecuencia} | ${m.duracion}`, m.instrucciones ? `   → ${m.instrucciones}` : ""].filter(Boolean).join("\n")
+      [`${i + 1}. *${m.nombre} ${m.dosis}*`, `   ${m.frecuencia}`, m.indicaciones ? `   → ${m.indicaciones}` : ""].filter(Boolean).join("\n")
     ),
   ];
-  if (r.indicaciones) {
-    lineas.push(``, `*📋 Indicaciones:* ${r.indicaciones}`);
-  }
   lineas.push(``, `_MaraDental · Av. Principal 123 · +51 987 000 000_`);
   return lineas.join("\n");
 }
 
-function handlePrint(r: RecetaLike) {
+function handlePrint(r: Receta) {
   const medsHtml = r.medicamentos
     .map((m, i) => `
       <div class="med">
         <strong>${i + 1}. ${m.nombre} ${m.dosis}</strong><br/>
-        <span style="color:#64748b">${m.via} &nbsp;·&nbsp; ${m.frecuencia} &nbsp;·&nbsp; ${m.duracion}</span>
-        ${m.instrucciones ? `<br/><span style="color:#94a3b8">→ ${m.instrucciones}</span>` : ""}
+        <span style="color:#64748b">${m.frecuencia}</span>
+        ${m.indicaciones ? `<br/><span style="color:#94a3b8">→ ${m.indicaciones}</span>` : ""}
       </div>
     `)
     .join("");
@@ -534,10 +477,9 @@ function handlePrint(r: RecetaLike) {
       <span><strong>Paciente:</strong> ${r.paciente_nombre}</span>
       <span><strong>Fecha:</strong> ${fmtFecha(r.fecha)}</span>
     </div>
-    ${r.diagnostico ? `<div class="dx"><strong>Diagnóstico:</strong> ${r.diagnostico}</div>` : ""}
+    ${r.diagnostico_texto ? `<div class="dx"><strong>Diagnóstico:</strong> ${r.diagnostico_texto}</div>` : ""}
     <div class="rx-title">℞</div>
     ${medsHtml}
-    ${r.indicaciones ? `<div class="indications"><strong>Indicaciones:</strong> ${r.indicaciones}</div>` : ""}
     <div class="sig">
       <svg viewBox="0 0 160 50" xmlns="http://www.w3.org/2000/svg" width="120" height="38">
         <path d="M8,40 C18,18 28,44 38,26 C46,12 54,40 64,24 C73,10 82,36 92,22 C100,10 110,32 122,20 C130,12 138,26 150,18"

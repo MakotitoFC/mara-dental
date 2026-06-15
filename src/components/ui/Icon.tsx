@@ -19,6 +19,7 @@ import {
   MapPin, ZoomIn, ZoomOut, RadioTower,
   PauseCircle, Hospital, BadgeCheck,
   Heart, Dna, FlaskConical,
+  LogOut,
 } from "lucide-react";
 
 interface IconProps {
@@ -132,6 +133,7 @@ const ICONS: Record<string, LucideIcon> = {
   pin_drop:             MapPin,
   location_on:          MapPin,
   heart:                Heart,
+  logout:               LogOut,
 };
 
 export function Icon({ name, size = 20, className = "", style }: IconProps) {

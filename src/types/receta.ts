@@ -1,20 +1,20 @@
+// Maps to public.receta_medicamento
 export interface Medicamento {
   id: string;
-  nombre: string;
-  dosis: string;
-  via: string;
-  frecuencia: string;
-  duracion: string;
-  instrucciones?: string;
+  nombre: string;         // receta_medicamento.medicamento_nombre
+  dosis: string;          // receta_medicamento.dosis
+  frecuencia: string;     // receta_medicamento.frecuencia
+  indicaciones?: string;  // receta_medicamento.indicaciones
 }
 
+// Maps to public.recetas
 export interface Receta {
   id: string;
   paciente_id: string;
   paciente_nombre: string;
-  medico: string;
-  fecha: string;
-  diagnostico: string;
+  doctor_nombre: string;  // derived from personal join
+  fecha: string;          // recetas.fecha_emision
+  diagnostico_texto: string; // display text derived from diagnostico table
   medicamentos: Medicamento[];
-  indicaciones?: string;
+  estado: "activa" | "cancelada"; // recetas.estado
 }

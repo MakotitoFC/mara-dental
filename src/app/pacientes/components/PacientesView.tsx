@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
-import { PACIENTES_MOCK, calcEdad, fmtFecha } from "@/lib/mock-pacientes";
+import { PACIENTES_MOCK, calcEdad, fmtFecha, estadoPaciente } from "@/lib/mock-pacientes";
 import { NuevoPacienteModal } from "./NuevoPacienteModal";
 import type { EstadoPaciente, Paciente } from "@/types/paciente";
 
@@ -35,7 +35,7 @@ export function PacientesView() {
   const todos = [...extra, ...PACIENTES_MOCK];
 
   const filtrados = todos.filter((p) => {
-    const matchFiltro = filtro === "todos" || p.estado === filtro;
+    const matchFiltro = filtro === "todos" || estadoPaciente(p) === filtro;
     const matchQuery  = query === "" ||
       p.nombre.toLowerCase().includes(query.toLowerCase()) ||
       p.dni.toLowerCase().includes(query.toLowerCase()) ||
@@ -45,9 +45,9 @@ export function PacientesView() {
 
   const totales = {
     todos:    todos.length,
-    activo:   todos.filter((p) => p.estado === "activo").length,
-    nuevo:    todos.filter((p) => p.estado === "nuevo").length,
-    inactivo: todos.filter((p) => p.estado === "inactivo").length,
+    activo:   todos.filter((p) => estadoPaciente(p) === "activo").length,
+    nuevo:    todos.filter((p) => estadoPaciente(p) === "nuevo").length,
+    inactivo: todos.filter((p) => estadoPaciente(p) === "inactivo").length,
   };
 
   function handleNuevoPaciente(p: Paciente) {
@@ -56,16 +56,16 @@ export function PacientesView() {
   }
 
   return (
-    <div className="p-5 flex flex-col gap-4 max-w-[1200px]">
+    <div className="p-4 sm:p-5 flex flex-col gap-4 max-w-[1200px]">
 
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-0">
           <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nombre, DNI o teléfono…"
+            placeholder="Buscar nombre, DNI o teléfono…"
             className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
           />
         </div>
@@ -74,7 +74,8 @@ export function PacientesView() {
           className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-medium transition-colors shrink-0"
         >
           <Icon name="person_add" size={16} />
-          Nuevo paciente
+          <span className="hidden sm:inline">Nuevo paciente</span>
+          <span className="sm:hidden">Nuevo</span>
         </button>
       </div>
 
@@ -104,8 +105,8 @@ export function PacientesView() {
         <span className="text-[12px] text-slate-400 ml-1">{filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""}</span>
       </div>
 
-      {/* Tabla */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden">
         {/* Cabecera */}
         <div
           className="grid text-[11px] font-semibold text-slate-400 uppercase tracking-wide px-4 py-3 border-b border-slate-100"
@@ -131,6 +132,19 @@ export function PacientesView() {
         ))}
       </div>
 
+      {/* Mobile card list */}
+      <div className="md:hidden flex flex-col gap-2">
+        {filtrados.length === 0 && (
+          <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200">
+            <Icon name="person_search" size={36} className="mx-auto mb-2 opacity-30" />
+            <p className="text-[13px]">No se encontraron pacientes</p>
+          </div>
+        )}
+        {filtrados.map((p) => (
+          <PacienteCard key={p.id} paciente={p} />
+        ))}
+      </div>
+
       {showModal && (
         <NuevoPacienteModal
           onClose={() => setShowModal(false)}
@@ -141,9 +155,11 @@ export function PacientesView() {
   );
 }
 
+// ─── Desktop row ──────────────────────────────────────────────────────────────
+
 function PacienteRow({ paciente: p }: { paciente: Paciente }) {
   const router = useRouter();
-  const cfg    = ESTADO_CFG[p.estado];
+  const cfg    = ESTADO_CFG[estadoPaciente(p)];
   const edad   = calcEdad(p.fecha_nacimiento);
   const color  = avatarColor(p.id);
 
@@ -214,6 +230,64 @@ function PacienteRow({ paciente: p }: { paciente: Paciente }) {
           <Icon name="folder_open" size={16} className="text-cyan-600" />
         </button>
       </div>
+    </div>
+  );
+}
+
+// ─── Mobile card ──────────────────────────────────────────────────────────────
+
+function PacienteCard({ paciente: p }: { paciente: Paciente }) {
+  const router = useRouter();
+  const cfg    = ESTADO_CFG[estadoPaciente(p)];
+  const edad   = calcEdad(p.fecha_nacimiento);
+  const color  = avatarColor(p.id);
+
+  return (
+    <div
+      onClick={() => router.push(`/pacientes/${p.id}`)}
+      className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center gap-3 active:bg-slate-50 cursor-pointer"
+    >
+      {/* Avatar */}
+      <div
+        className="w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-bold text-white shrink-0"
+        style={{ background: color }}
+      >
+        {initials(p.nombre)}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+          <p className="text-[13px] font-semibold text-slate-900 truncate">{p.nombre}</p>
+          <span
+            className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+            style={{ background: cfg.bg, color: cfg.text }}
+          >
+            {cfg.label}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 flex-wrap">
+          <span>{p.dni}</span>
+          <span>·</span>
+          <span>{edad} años</span>
+          <span>·</span>
+          <span>{p.telefono}</span>
+        </div>
+        {p.ultima_visita && (
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Última visita: {fmtFecha(p.ultima_visita)}
+          </p>
+        )}
+        {p.alergias.length > 0 && (
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-600 mt-0.5">
+            <Icon name="warning_amber" size={11} />
+            {p.alergias.join(", ")}
+          </span>
+        )}
+      </div>
+
+      {/* Chevron */}
+      <Icon name="chevron_right" size={20} className="text-slate-300 shrink-0" />
     </div>
   );
 }

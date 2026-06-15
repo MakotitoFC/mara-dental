@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
-import type { Paciente, EstadoPaciente } from "@/types/paciente";
+import type { Paciente } from "@/types/paciente";
 
 function uid() { return "p" + Math.random().toString(36).slice(2, 9); }
 
@@ -15,13 +15,12 @@ const GRUPOS = ["A+","A−","B+","B−","AB+","AB−","O+","O−"];
 
 export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
   const [nombre,     setNombre]     = useState("");
+  const [apellido,   setApellido]   = useState("");
   const [dni,        setDni]        = useState("");
   const [fechaNac,   setFechaNac]   = useState("");
   const [telefono,   setTelefono]   = useState("");
   const [email,      setEmail]      = useState("");
   const [grupo,      setGrupo]      = useState("");
-  const [estado,     setEstado]     = useState<EstadoPaciente>("nuevo");
-  const [notas,      setNotas]      = useState("");
 
   // Alergias (chips)
   const [alergiasInput, setAlergiasInput] = useState("");
@@ -40,35 +39,34 @@ export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
     setter(list.filter((x) => x !== val));
   }
 
-  const canSave = nombre.trim() && dni.trim() && telefono.trim() && fechaNac;
+  const canSave = nombre.trim() && apellido.trim() && dni.trim() && telefono.trim() && fechaNac;
 
   function handleGuardar() {
     if (!canSave) return;
     const nuevo: Paciente = {
       id:               uid(),
-      nombre:           nombre.trim(),
+      nombre:           `${nombre.trim()} ${apellido.trim()}`,
       dni:              dni.trim(),
       fecha_nacimiento: fechaNac,
       telefono:         telefono.trim(),
       email:            email.trim() || undefined,
       grupo_sanguineo:  grupo || undefined,
       alergias,
-      antecedentes:     antecedentes.length > 0 ? antecedentes : undefined,
-      estado,
-      notas:            notas.trim() || undefined,
+      antecedentes:     antecedentes,
+      activo:           true,
     };
     onGuardar(nuevo);
   }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
       style={{ background: "rgba(15,23,42,0.5)" }}
       onClick={onClose}
     >
       <div
         className="bg-white rounded-2xl w-full shadow-2xl overflow-hidden flex flex-col"
-        style={{ maxWidth: 600, maxHeight: "92vh" }}
+        style={{ maxWidth: 600, maxHeight: "min(92vh, calc(100dvh - 96px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -93,12 +91,20 @@ export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
 
             {/* Nombre + DNI */}
             <Section label="Datos personales">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Nombre completo *">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Nombre(s) *">
                   <input
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
-                    placeholder="Apellido Nombre"
+                    placeholder="María"
+                    className="input"
+                  />
+                </Field>
+                <Field label="Apellidos *">
+                  <input
+                    value={apellido}
+                    onChange={(e) => setApellido(e.target.value)}
+                    placeholder="González López"
                     className="input"
                   />
                 </Field>
@@ -133,7 +139,7 @@ export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
 
             {/* Contacto */}
             <Section label="Contacto">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Teléfono *">
                   <input
                     value={telefono}
@@ -180,44 +186,16 @@ export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
               />
             </Section>
 
-            {/* Estado + notas */}
-            <Section label="Estado y observaciones">
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                {(["nuevo", "activo", "inactivo"] as EstadoPaciente[]).map((s) => {
-                  const labels = { nuevo: "Nuevo", activo: "Activo", inactivo: "Inactivo" };
-                  const colors = {
-                    nuevo:    { bg: "#dbeafe", text: "#1d4ed8", ring: "#3b82f6" },
-                    activo:   { bg: "#dcfce7", text: "#15803d", ring: "#22c55e" },
-                    inactivo: { bg: "#f1f5f9", text: "#64748b", ring: "#94a3b8" },
-                  };
-                  const c = colors[s];
-                  const active = estado === s;
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => setEstado(s)}
-                      className="py-2 rounded-xl text-[12px] font-semibold transition-all border"
-                      style={{
-                        background: active ? c.bg : "white",
-                        color: active ? c.text : "#64748b",
-                        borderColor: active ? c.ring : "#e2e8f0",
-                        boxShadow: active ? `0 0 0 2px ${c.ring}33` : undefined,
-                      }}
-                    >
-                      {labels[s]}
-                    </button>
-                  );
-                })}
+            {/* Contacto de emergencia */}
+            <Section label="Contacto de emergencia">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Nombre del contacto">
+                  <input placeholder="Ej: Juan González" className="input" />
+                </Field>
+                <Field label="Teléfono del contacto">
+                  <input placeholder="+51 987 000 000" className="input" />
+                </Field>
               </div>
-              <Field label="Notas internas">
-                <textarea
-                  rows={2}
-                  value={notas}
-                  onChange={(e) => setNotas(e.target.value)}
-                  placeholder="Observaciones generales del paciente…"
-                  className="input resize-none"
-                />
-              </Field>
             </Section>
           </div>
         </div>
