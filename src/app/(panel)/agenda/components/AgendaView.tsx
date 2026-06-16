@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import type { Cita, EstadoCita } from "@/types/agenda";
+import { searchPatients, createCitaAction, getCitasRealesAction } from "../actions";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -64,31 +65,7 @@ const EST: Record<EstadoCita, {
   cancelada:   { solid:"#94a3b8", bg:"#f8fafc", text:"#94a3b8", bar:"#cbd5e1", pillBg:"#f1f5f9", pillText:"#94a3b8", label:"Cancelada",   icon:"cancel" },
 };
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-function getMockCitas(): Cita[] {
-  const t   = toDateStr(new Date());
-  const tm1 = toDateStr(addDays(new Date(), -1));
-  const t1  = toDateStr(addDays(new Date(), 1));
-  const t2  = toDateStr(addDays(new Date(), 2));
-  const t3  = toDateStr(addDays(new Date(), 3));
-  const t4  = toDateStr(addDays(new Date(), 4));
-
-  return [
-    { id:"1",  paciente_id:"p1",  paciente_nombre:"María González",  alergias:["Penicilina"],              tipo_consulta:"Limpieza dental",      doctor_nombre:"Dr. García", fecha:t,   hora_inicio:"08:30", hora_fin:"09:15", estado:"confirmada" },
-    { id:"2",  paciente_id:"p2",  paciente_nombre:"Carlos Ríos",     alergias:[],                          tipo_consulta:"Ortodoncia",            doctor_nombre:"Dr. García", fecha:t,   hora_inicio:"10:00", hora_fin:"11:00", estado:"hecha"      },
-    { id:"3",  paciente_id:"p3",  paciente_nombre:"Ana Torres",      alergias:["Penicilina","Ibuprofeno"], tipo_consulta:"Extracción molar",      doctor_nombre:"Dr. García", fecha:t,   hora_inicio:"11:30", hora_fin:"12:00", estado:"programada" },
-    { id:"4",  paciente_id:"p4",  paciente_nombre:"Luis Vargas",     alergias:[],                          tipo_consulta:"Urgencia",              doctor_nombre:"Dr. García", fecha:t,   hora_inicio:"14:30", hora_fin:"15:30", estado:"confirmada" },
-    { id:"5",  paciente_id:"p5",  paciente_nombre:"Rosa Méndez",     alergias:[],                          tipo_consulta:"Control ortodoncia",    doctor_nombre:"Dr. García", fecha:t,   hora_inicio:"16:00", hora_fin:"16:30", estado:"cancelada"  },
-    { id:"6",  paciente_id:"p6",  paciente_nombre:"Pedro Díaz",      alergias:[],                          tipo_consulta:"Blanqueamiento",        doctor_nombre:"Dr. García", fecha:tm1, hora_inicio:"09:00", hora_fin:"10:00", estado:"hecha"      },
-    { id:"7",  paciente_id:"p7",  paciente_nombre:"Julia Flores",    alergias:[],                          tipo_consulta:"Endodoncia molar",      doctor_nombre:"Dr. García", fecha:t1,  hora_inicio:"09:00", hora_fin:"10:30", estado:"confirmada" },
-    { id:"8",  paciente_id:"p8",  paciente_nombre:"Sandra Ruiz",     alergias:["Aspirina"],                tipo_consulta:"Ortodoncia",            doctor_nombre:"Dr. García", fecha:t1,  hora_inicio:"11:00", hora_fin:"11:30", estado:"programada" },
-    { id:"9",  paciente_id:"p9",  paciente_nombre:"Kevin López",     alergias:[],                          tipo_consulta:"Profilaxis",            doctor_nombre:"Dr. García", fecha:t2,  hora_inicio:"08:00", hora_fin:"08:45", estado:"confirmada" },
-    { id:"10", paciente_id:"p10", paciente_nombre:"Nora Cruz",       alergias:[],                          tipo_consulta:"Urgencia",              doctor_nombre:"Dr. García", fecha:t2,  hora_inicio:"14:00", hora_fin:"15:00", estado:"confirmada" },
-    { id:"11", paciente_id:"p11", paciente_nombre:"Gustavo Ramos",   alergias:[],                          tipo_consulta:"Blanqueamiento",        doctor_nombre:"Dr. García", fecha:t3,  hora_inicio:"10:00", hora_fin:"11:00", estado:"programada" },
-    { id:"12", paciente_id:"p12", paciente_nombre:"Carmen Vega",     alergias:["Penicilina"],               tipo_consulta:"Implante dental",       doctor_nombre:"Dr. García", fecha:t4,  hora_inicio:"09:00", hora_fin:"11:00", estado:"programada" },
-  ];
-}
+// Mock data removed in favor of Server Actions
 
 // ─── Context menu ─────────────────────────────────────────────────────────────
 
@@ -239,7 +216,75 @@ function WeekBlock({ cita, onClick }: { cita: Cita; onClick: (c: Cita, e: React.
 
 // ─── New appointment modal ────────────────────────────────────────────────────
 
-function NewCitaModal({ onClose }: { onClose: () => void }) {
+function NewCitaModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
+  const [query, setQuery] = useState("");
+  const [patients, setPatients] = useState<any[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  
+  const [fecha, setFecha] = useState(toDateStr(new Date()));
+  const [horaInicio, setHoraInicio] = useState("09:00");
+  const [duracion, setDuracion] = useState("30");
+  const [estado, setEstado] = useState("programada");
+  const [tipoConsulta, setTipoConsulta] = useState("control");
+  const [notas, setNotas] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [requiresConfirmation, setRequiresConfirmation] = useState(false);
+
+  useEffect(() => {
+    if (query.trim().length >= 2 && !selectedPatient) {
+      const delay = setTimeout(() => {
+        searchPatients(query).then(setPatients);
+      }, 500);
+      return () => clearTimeout(delay);
+    } else {
+      if (!selectedPatient) setPatients([]);
+    }
+  }, [query, selectedPatient]);
+
+  function calculateHoraFin(start: string, durationMins: number) {
+    const [h, m] = start.split(":").map(Number);
+    const total = h * 60 + m + durationMins;
+    const endH = Math.floor(total / 60);
+    const endM = total % 60;
+    return `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
+  }
+
+  const handleSave = async (force: boolean = false) => {
+    if (!selectedPatient) {
+      setErrorMsg("Debe seleccionar un paciente.");
+      return;
+    }
+    setErrorMsg(null);
+    setLoading(true);
+
+    const horaFin = calculateHoraFin(horaInicio, Number(duracion));
+
+    const res = await createCitaAction({
+      paciente_id: selectedPatient.id,
+      fecha,
+      hora_inicio: horaInicio,
+      hora_fin: horaFin,
+      estado,
+      tipo_consulta: tipoConsulta,
+      notas
+    }, force);
+
+    setLoading(false);
+
+    if (res?.error) {
+      setErrorMsg(res.error);
+      if (res.requiresConfirmation) {
+        setRequiresConfirmation(true);
+      }
+      return;
+    }
+
+    onSuccess();
+    onClose();
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
@@ -262,59 +307,90 @@ function NewCitaModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-4 flex flex-col gap-3">
+          {errorMsg && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-[11px] flex flex-col gap-2 border border-red-100">
+              <p className="font-medium flex items-start gap-1"><Icon name="warning" size={14} className="shrink-0" /> {errorMsg}</p>
+              {requiresConfirmation && (
+                <button onClick={() => handleSave(true)} disabled={loading} className="self-end bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-md font-semibold transition-colors">
+                  Confirmar excepción
+                </button>
+              )}
+            </div>
+          )}
           <Field label="Paciente">
             <div className="relative">
-              <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] pr-8 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" placeholder="Buscar por nombre o DNI…" />
-              <Icon name="search" size={15} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              {selectedPatient ? (
+                <div className="flex items-center justify-between w-full border border-cyan-500 bg-cyan-50 rounded-lg px-3 py-2 text-[12px]">
+                  <span className="font-medium text-cyan-900">{selectedPatient.nombre} {selectedPatient.apellido}</span>
+                  <button onClick={() => { setSelectedPatient(null); setQuery(""); }} className="text-cyan-600 hover:text-cyan-800"><Icon name="close" size={14} /></button>
+                </div>
+              ) : (
+                <>
+                  <input 
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] pr-8 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" 
+                    placeholder="Buscar por nombre o DNI…" 
+                  />
+                  <Icon name="search" size={15} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  {patients.length > 0 && (
+                    <div className="absolute z-10 w-full bg-white border border-slate-200 rounded-lg mt-1 shadow-lg max-h-40 overflow-y-auto">
+                      {patients.map(p => (
+                        <div key={p.id} onClick={() => { setSelectedPatient(p); setPatients([]); }} className="px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0">
+                          <p className="text-[12px] font-medium text-slate-800">{p.nombre} {p.apellido}</p>
+                          <p className="text-[10px] text-slate-400">DNI: {p.dni}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Fecha">
-              <input type="date" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
+              <input type="date" value={fecha} onChange={(e)=>setFecha(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
             </Field>
             <Field label="Hora inicio">
-              <input type="time" defaultValue="09:00" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
+              <input type="time" value={horaInicio} onChange={(e)=>setHoraInicio(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
             </Field>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Duración">
-              <select defaultValue="60 min" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
-                <option>30 min</option>
-                <option>45 min</option>
-                <option>60 min</option>
-                <option>90 min</option>
-                <option>120 min</option>
+              <select value={duracion} onChange={(e)=>setDuracion(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">60 min</option>
+                <option value="90">90 min</option>
+                <option value="120">120 min</option>
               </select>
             </Field>
             <Field label="Estado">
-              <select defaultValue="confirmada" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
+              <select value={estado} onChange={(e)=>setEstado(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
                 <option value="programada">Programada</option>
                 <option value="confirmada">Confirmada</option>
               </select>
             </Field>
           </div>
-          <Field label="Tipo de tratamiento">
-            <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
-              <option>Limpieza dental</option>
-              <option>Extracción</option>
-              <option>Ortodoncia</option>
-              <option>Blanqueamiento</option>
-              <option>Endodoncia</option>
-              <option>Implante dental</option>
+          <Field label="Tipo de consulta">
+            <select value={tipoConsulta} onChange={(e)=>setTipoConsulta(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
+              <option value="primera vez">Primera vez</option>
+              <option value="control">Control</option>
+              <option value="emergencia">Emergencia</option>
             </select>
           </Field>
           <Field label="Notas internas">
-            <textarea rows={2} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 resize-none" placeholder="Observaciones previas al tratamiento…" />
+            <textarea value={notas} onChange={(e)=>setNotas(e.target.value)} rows={2} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 resize-none" placeholder="Observaciones previas al tratamiento…" />
           </Field>
         </div>
 
         <div className="px-5 pb-5 flex justify-end gap-2 shrink-0 border-t border-slate-100 pt-4">
-          <button onClick={onClose} className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+          <button onClick={onClose} disabled={loading} className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
             Cancelar
           </button>
-          <button className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors">
+          <button onClick={() => handleSave(false)} disabled={loading} className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-lg transition-colors">
             <Icon name="event_available" size={14} />
-            Guardar cita
+            {loading ? "Guardando..." : "Guardar cita"}
           </button>
         </div>
       </div>
@@ -356,7 +432,16 @@ export function AgendaView() {
   const [menuCita, setMenuCita]         = useState<Cita | null>(null);
   const [menuPos, setMenuPos]           = useState<MenuPos>({ x: 0, y: 0 });
 
-  const citas    = getMockCitas();
+  const [citas, setCitas] = useState<Cita[]>([]);
+
+  const loadCitas = () => {
+    getCitasRealesAction().then(setCitas);
+  };
+
+  useEffect(() => {
+    loadCitas();
+  }, []);
+
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   const citasForDate = (d: Date) =>
@@ -642,7 +727,7 @@ export function AgendaView() {
       )}
 
       {/* Modal nueva cita */}
-      {showNewModal && <NewCitaModal onClose={() => setShowNewModal(false)} />}
+      {showNewModal && <NewCitaModal onClose={() => setShowNewModal(false)} onSuccess={loadCitas} />}
     </div>
   );
 }

@@ -56,7 +56,7 @@ export function PacientesView() {
   }
 
   return (
-    <div className="p-4 sm:p-5 flex flex-col gap-4 max-w-[1200px]">
+    <div className="p-4 sm:p-5 flex flex-col gap-4 max-w-300">
 
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">

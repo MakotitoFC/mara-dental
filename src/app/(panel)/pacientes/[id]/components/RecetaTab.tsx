@@ -279,7 +279,7 @@ function RecetaModal({
           </div>
 
           {/* Vista previa — desktop */}
-          <div className="hidden md:block w-[300px] shrink-0 overflow-y-auto p-5 bg-slate-50">
+          <div className="hidden md:block w-75 shrink-0 overflow-y-auto p-5 bg-slate-50">
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-3">Vista previa</p>
             <RecetaPreview
               paciente={paciente}
