@@ -1,16 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Variants } from "framer-motion";
 import {
   Mail, Lock, Eye, EyeOff, User, ArrowRight,
   CheckCircle2, AlertCircle, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
-import { setMockUser } from "@/components/layout/AuthProvider";
+import { loginAction } from "./actions";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 18 },
@@ -21,27 +19,6 @@ const fadeUp: Variants = {
   }),
 };
 
-const ROLE_REDIRECT: Record<string, string> = {
-  Administrador: "/dashboard",
-  Doctor:        "/dashboard",
-  Asistente:     "/agenda",
-  Contador:      "/presupuestos",
-};
-
-const SUPABASE_ERRORS: Record<string, string> = {
-  "Invalid login credentials": "Correo o contraseña incorrectos.",
-  "Email not confirmed":       "Debes confirmar tu correo. Revisa tu bandeja de entrada.",
-  "User not found":            "No existe una cuenta con ese correo.",
-  "Too many requests":         "Demasiados intentos. Espera unos minutos.",
-};
-
-function parseSupabaseError(msg: string): string {
-  for (const [key, val] of Object.entries(SUPABASE_ERRORS)) {
-    if (msg.includes(key)) return val;
-  }
-  return msg;
-}
-
 const FEATURES = [
   "Gestión completa de pacientes",
   "Agenda y citas en tiempo real",
@@ -50,14 +27,13 @@ const FEATURES = [
 ];
 
 const TEST_USERS = [
-  { email: "israjm19q@gmail.com",       password: "M@ria10ijmrasmr", name: "Israel García",  rol: "Administrador", color: "bg-violet-100 text-violet-700" },
+  { email: "israjm19@gmail.com",       password: "M@ria10ijmrasmr", name: "Israel García",  rol: "Administrador", color: "bg-violet-100 text-violet-700" },
   { email: "t1513300521@unitru.edu.pe", password: "J@elito12",       name: "Jael Torres",    rol: "Asistente",     color: "bg-blue-100 text-blue-700" },
-  { email: "escalinza@gmail.com",       password: "Takemy2026",      name: "Dr. Escalinza",  rol: "Doctor",        color: "bg-cyan-100 text-cyan-700" },
-  { email: "almen04291@gmail.com",      password: "Almen2029",       name: "Almen Pérez",    rol: "Contador",      color: "bg-emerald-100 text-emerald-700" },
+  { email: "escalinza14@gmail.com",       password: "Takemy2026",      name: "Dr. Escalinza",  rol: "Doctor",        color: "bg-cyan-100 text-cyan-700" },
+  { email: "almen042919@gmail.com",      password: "Almen2029",       name: "Almen Pérez",    rol: "Contador",      color: "bg-emerald-100 text-emerald-700" },
 ];
 
 export default function LoginPage() {
-  const router = useRouter();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -65,63 +41,62 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isRemember, setIsRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // showTestUsers removed — cards always visible
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const supabase = createClient();
+    const formData = new FormData(e.currentTarget);
 
     if (tab === "login") {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setError(parseSupabaseError(error.message));
-      } else {
-        const rol = data.user?.user_metadata?.rol
-          || data.user?.user_metadata?.role
-          || data.user?.user_metadata?.perfil
-          || "";
-        router.push(ROLE_REDIRECT[rol] ?? "/dashboard");
+      const remember = formData.get("remember");
+      const email = formData.get("email") as string;
+
+      if(remember){
+        localStorage.setItem("mara_dental_remembered_email",email);
+        localStorage.setItem("mara_dental_remember_option","true");
+      }else{
+        localStorage.removeItem("mara_dental_remembered_email");
+        localStorage.removeItem("mara_dental_remember_option");
+      }
+
+      const result = await loginAction(formData);
+
+      if(result?.error){
+        setError(result.error);
+        setLoading(false);
       }
     } else {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: name } },
-      });
-      if (error) {
-        setError(parseSupabaseError(error.message));
-      } else {
-        setError(null);
-        router.push("/dashboard");
-      }
+      console.log("Lógica de registro pendiente...");
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   function fillTestUser(u: (typeof TEST_USERS)[0]) {
-    // 1. Rellena credenciales visiblemente en el form
     setTab("login");
     setEmail(u.email);
     setPassword(u.password);
     setError(null);
-    setLoading(true);
-    // 2. Salta Supabase y redirige con el rol correspondiente
-    setTimeout(() => {
-      setMockUser({ name: u.name, email: u.email, rol: u.rol });
-      router.push(ROLE_REDIRECT[u.rol] ?? "/dashboard");
-    }, 600);
   }
+
+  useEffect(()=>{
+    if(localStorage.getItem("mara_dental_remembered_email")){
+      setEmail(localStorage.getItem("mara_dental_remembered_email") as string);
+    }
+
+    if(localStorage.getItem("mara_dental_remember_option")){
+      setIsRemember(true);
+    }
+  },[])
 
   return (
     <div className="h-screen flex bg-slate-50 overflow-hidden">
       {/* Panel izquierdo — formulario */}
       <div className="flex-1 flex flex-col items-center justify-center px-5 sm:px-8 py-8 bg-white overflow-y-auto">
-        <div className="w-full max-w-[360px] py-4">
+        <div className="w-full max-w-90 py-4">
 
           {/* Logo */}
           <motion.div custom={0} initial="hidden" animate="visible" variants={fadeUp} className="mb-7">
@@ -165,17 +140,6 @@ export default function LoginPage() {
             </div>
           </motion.div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl text-center">
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl text-center">
-              {success}
-            </div>
-          )}
-
           {/* Formulario */}
           <form className="space-y-3" onSubmit={handleSubmit}>
             <AnimatePresence>
@@ -193,6 +157,7 @@ export default function LoginPage() {
                     placeholder="Nombre completo"
                     type="text"
                     value={name}
+                    name="name"
                     onChange={setName}
                   />
                 </motion.div>
@@ -220,6 +185,7 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   autoComplete={tab === "login" ? "current-password" : "new-password"}
                   placeholder="Contraseña"
+                  name="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-10 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-50"
@@ -238,12 +204,12 @@ export default function LoginPage() {
               <motion.div custom={4} initial="hidden" animate="visible" variants={fadeUp}>
                 <div className="flex items-center justify-between pt-0.5">
                   <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-cyan-600 cursor-pointer" />
+                    <input type="checkbox" name="remember" checked={isRemember} onChange={()=>setIsRemember(!isRemember)} className="h-4 w-4 rounded border-slate-300 accent-cyan-600 cursor-pointer" />
                     <span className="text-sm text-slate-600">Recordarme</span>
                   </label>
                   <a href="#" className="text-sm text-cyan-600 hover:text-cyan-700 transition-colors">
                     ¿Olvidaste tu contraseña?
-                  </button>
+                  </a>
                 </div>
               </motion.div>
             )}
@@ -334,7 +300,7 @@ export default function LoginPage() {
       {/* Panel derecho — imagen + branding */}
       <div className="hidden lg:flex flex-col relative w-[52%] overflow-hidden">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/dental-clinic.jpg')" }} />
-        <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/80 via-slate-900/60 to-teal-900/70" />
+        <div className="absolute inset-0 bg-linear-to-br from-cyan-900/80 via-slate-900/60 to-teal-900/70" />
 
         <div className="relative z-10 flex flex-col h-full p-12">
           <div className="flex items-center gap-2">
@@ -382,13 +348,14 @@ export default function LoginPage() {
 }
 
 function Field({
-  icon, placeholder, type, autoComplete, value, onChange,
+  icon, placeholder, type, autoComplete, value,name, onChange,
 }: {
   icon: React.ReactNode;
   placeholder: string;
   type: string;
   autoComplete?: string;
   value?: string;
+  name:string;
   onChange?: (v: string) => void;
 }) {
   return (
@@ -401,6 +368,7 @@ function Field({
         autoComplete={autoComplete}
         placeholder={placeholder}
         value={value}
+        name={name}
         onChange={(e) => onChange?.(e.target.value)}
         className="w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-50"
       />
