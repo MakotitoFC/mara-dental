@@ -39,7 +39,7 @@ export function HistoriaView({ paciente: p }: { paciente: Paciente }) {
   const waLink = `https://wa.me/${p.telefono.replace(/\D/g, "")}?text=Hola%20${encodeURIComponent(p.nombre.split(" ")[0])}%2C%20le%20contactamos%20desde%20MaraDental.`;
 
   return (
-    <div className="p-5 flex flex-col gap-5 max-w-[960px]">
+    <div className="p-5 flex flex-col gap-5 max-w-240">
 
       {/* Botón volver */}
       <Link href="/pacientes" className="flex items-center gap-1.5 text-[12px] text-slate-500 hover:text-slate-900 transition-colors w-fit">
@@ -322,7 +322,7 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
     <div className="flex items-start gap-2 py-1.5 border-b border-slate-50 last:border-b-0">
       <Icon name={icon} size={14} className="text-slate-400 shrink-0 mt-0.5" />
       <span className="text-[11px] text-slate-400 w-20 sm:w-28 shrink-0">{label}</span>
-      <span className="text-[12px] text-slate-700 font-medium min-w-0 break-words flex-1">{value}</span>
+      <span className="text-[12px] text-slate-700 font-medium min-w-0 wrap-break-word flex-1">{value}</span>
     </div>
   );
 }
