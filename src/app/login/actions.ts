@@ -33,3 +33,9 @@ export async function resetPasswordAction(formData: FormData){
 
     return {success:"Te hemos enviado un enlace para recuperar tu contraseña."}
 }
+
+export async function logoutAction() {
+  const supabase = await createClient();
+  await supabase.auth.signOut(); // Esto borra las cookies seguras en el servidor
+  redirect('/login');
+}

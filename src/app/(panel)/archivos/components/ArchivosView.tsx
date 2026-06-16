@@ -304,7 +304,7 @@ function VisorModal({
         {/* ── Panel imagen ── */}
         <div
           ref={imgContainerRef}
-          className="relative overflow-hidden min-h-[180px] h-[48vw] md:h-auto md:flex-1"
+          className="relative overflow-hidden min-h-45 h-[48vw] md:h-auto md:flex-1"
           style={{
             background: "#0f172a",
             cursor: annotating && a.es_imagen ? "crosshair" : "default",
