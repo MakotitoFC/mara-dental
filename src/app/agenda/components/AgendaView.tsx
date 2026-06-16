@@ -416,7 +416,7 @@ export function AgendaView() {
           >
             <Icon name="chevron_left" size={18} />
           </button>
-          <span className="text-[13px] font-medium text-slate-700 min-w-[130px] text-center">{dayLabel}</span>
+          <span className="text-[13px] font-medium text-slate-700 min-w-32.5 text-center">{dayLabel}</span>
           <button
             onClick={() => {
               const newDate = addDays(selectedDate, 1);
@@ -474,7 +474,7 @@ export function AgendaView() {
               <button
                 key={i}
                 onClick={() => setSelectedDate(d)}
-                className={`flex flex-col items-center min-w-[46px] rounded-xl py-2 px-1.5 transition-colors shrink-0 ${
+                className={`flex flex-col items-center min-w-11.5 rounded-xl py-2 px-1.5 transition-colors shrink-0 ${
                   isSel ? "bg-cyan-600" : isTod ? "bg-cyan-50" : "hover:bg-slate-50"
                 }`}
               >
