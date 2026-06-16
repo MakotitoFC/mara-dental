@@ -1,4 +1,3 @@
-import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Topbar } from "@/components/layout/Topbar";
 import { Icon } from "@/components/ui/Icon";
 
@@ -9,9 +8,11 @@ const STATS = [
   { label: "Emergencias",  value: "1",  icon: "priority_high",  color: "text-red-600",    bg: "bg-red-50"    },
 ];
 
-export default function DashboardPage() {
+
+export default async function DashboardPage() {
+
   return (
-    <DashboardShell>
+    <>
       <Topbar title="Inicio" />
       <div className="p-4 sm:p-6 flex flex-col gap-4 sm:gap-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -34,6 +35,6 @@ export default function DashboardPage() {
           </p>
         </div>
       </div>
-    </DashboardShell>
+    </>  
   );
 }

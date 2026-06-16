@@ -37,9 +37,9 @@ export function Sidebar() {
   const visibleNav   = NAV_MAIN.filter((n) => allowedHrefs.includes(n.href));
 
   return (
-    <aside className="hidden md:flex flex-col w-[52px] lg:w-[220px] shrink-0 bg-white h-screen sticky top-0 border-r border-slate-200">
+    <aside className="hidden md:flex flex-col w-13 lg:w-55 shrink-0 bg-white h-screen sticky top-0 border-r border-slate-200">
       {/* Logo */}
-      <div className="flex items-center justify-center lg:justify-start px-3 lg:px-4 h-[52px] border-b border-slate-200 shrink-0 overflow-hidden">
+      <div className="flex items-center justify-center lg:justify-start px-3 lg:px-4 h-13 border-b border-slate-200 shrink-0 overflow-hidden">
         <div className="lg:hidden shrink-0">
           <Image src="/logo.png" alt="Mara Dental" width={32} height={32} className="object-contain" />
         </div>

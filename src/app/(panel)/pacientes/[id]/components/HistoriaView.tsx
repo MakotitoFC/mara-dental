@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { calcEdad, fmtFecha, getNotasPaciente } from "@/lib/mock-pacientes";
 import type { Paciente, NotaClinica } from "@/types/paciente";
 import { RecetaTab } from "./RecetaTab";
-import { ArchivosView } from "@/app/archivos/components/ArchivosView";
+import { ArchivosView } from "@/app/(panel)/archivos/components/ArchivosView";
 
 const TIPO_CFG: Record<NotaClinica["tipo"], { icon: string; bg: string; color: string; label: string }> = {
   consulta:      { icon: "chat_bubble_outline", bg: "#eff6ff", color: "#2563eb", label: "Consulta" },
