@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
-import { calcEdad, fmtFecha, getNotasPaciente } from "@/lib/mock-pacientes";
-import type { Paciente, NotaClinica } from "@/types/paciente";
+import { calcEdad, fmtFecha } from "@/lib/mock-pacientes";
 import { RecetaTab } from "./RecetaTab";
 import { ArchivosView } from "@/app/(panel)/archivos/components/ArchivosView";
+import { crearNotaClinicaAction } from "../actions";
+import { createCitaAction } from "@/app/(panel)/agenda/actions";
 
-const TIPO_CFG: Record<NotaClinica["tipo"], { icon: string; bg: string; color: string; label: string }> = {
+const TIPO_CFG: Record<string, { icon: string; bg: string; color: string; label: string }> = {
   consulta:      { icon: "chat_bubble_outline", bg: "#eff6ff", color: "#2563eb", label: "Consulta" },
   procedimiento: { icon: "medical_services",    bg: "#f0fdf4", color: "#16a34a", label: "Procedimiento" },
   seguimiento:   { icon: "history",             bg: "#fefce8", color: "#b45309", label: "Seguimiento" },
@@ -25,14 +26,15 @@ function initials(nombre: string) {
   return (p[0]?.[0] ?? "") + (p[1]?.[0] ?? "");
 }
 
-type Tab = "resumen" | "historial" | "notas" | "recetas" | "archivos";
+type Tab = "resumen" | "historial" | "consultas" | "recetas" | "archivos";
 
-export function HistoriaView({ paciente: p }: { paciente: Paciente }) {
+export function HistoriaView({ paciente: p, citas, notas: consultasProps }: { paciente: any, citas: any[], notas: any[] }) {
   const [tab, setTab]                     = useState<Tab>("resumen");
   const [showNuevaCita, setShowNuevaCita] = useState(false);
   const [showNuevaNota, setShowNuevaNota] = useState(false);
-  const [notasExtra, setNotasExtra]       = useState<NotaClinica[]>([]);
-  const notas  = [...notasExtra, ...getNotasPaciente(p.id)];
+  
+  const [consultas, setConsultas] = useState<any[]>(consultasProps);
+  useEffect(() => { setConsultas(consultasProps); }, [consultasProps]);
   const edad   = calcEdad(p.fecha_nacimiento);
   const color  = avatarColor(p.id);
 
@@ -104,18 +106,18 @@ export function HistoriaView({ paciente: p }: { paciente: Paciente }) {
 
         {/* Stats rápidos */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-100">
-          <StatBox icon="event" label="Total citas" value={notas.length > 0 ? String(notas.length + 2) : "0"} color="#0891b2" />
+          <StatBox icon="event" label="Total citas" value={consultas.length > 0 ? String(consultas.length + 2) : "0"} color="#0891b2" />
           <StatBox icon="history" label="Última visita" value={p.ultima_visita ? fmtFecha(p.ultima_visita) : "—"} color="#7c3aed" />
           <StatBox icon="event_upcoming" label="Próxima cita" value={p.proxima_cita ? fmtFecha(p.proxima_cita) : "—"} color="#059669" />
-          <StatBox icon="folder_open" label="Notas clínicas" value={String(notas.length)} color="#d97706" />
+          <StatBox icon="folder_open" label="Consultas" value={String(consultas.length)} color="#d97706" />
         </div>
       </div>
 
       {/* Tabs */}
       <div className="overflow-x-auto scrollbar-none">
         <div className="flex items-center gap-0.5 bg-white rounded-xl border border-slate-200 p-1 w-fit">
-          {(["resumen", "historial", "notas", "recetas", "archivos"] as Tab[]).map((t) => {
-            const labels: Record<Tab, string> = { resumen: "Resumen", historial: "Historial", notas: "Notas", recetas: "Recetas", archivos: "Archivos" };
+          {(["resumen", "historial", "consultas", "recetas", "archivos"] as Tab[]).map((t) => {
+            const labels: Record<Tab, string> = { resumen: "Resumen", historial: "Historial", consultas: "Consultas", recetas: "Recetas", archivos: "Archivos" };
             return (
               <button
                 key={t}
@@ -131,8 +133,8 @@ export function HistoriaView({ paciente: p }: { paciente: Paciente }) {
 
       {/* Contenido de tabs */}
       {tab === "resumen"   && <TabResumen paciente={p} />}
-      {tab === "historial" && <TabHistorial paciente={p} />}
-      {tab === "notas"     && <TabNotas notas={notas} onNuevaNote={() => setShowNuevaNota(true)} />}
+      {tab === "historial" && <TabHistorial paciente={p} citas={citas} />}
+      {tab === "consultas" && <TabConsultas consultas={consultas} onNuevaConsulta={() => setShowNuevaNota(true)} />}
       {tab === "recetas"   && <RecetaTab paciente={p} />}
       {tab === "archivos"  && <ArchivosView pacienteId={p.id} />}
 
@@ -140,10 +142,10 @@ export function HistoriaView({ paciente: p }: { paciente: Paciente }) {
         <NuevaCitaModal paciente={p} onClose={() => setShowNuevaCita(false)} />
       )}
       {showNuevaNota && (
-        <NuevaNotaModal
+        <NuevaConsultaModal
           paciente={p}
           onClose={() => setShowNuevaNota(false)}
-          onGuardar={(n) => { setNotasExtra((prev) => [n, ...prev]); setShowNuevaNota(false); }}
+          onSuccess={() => { setShowNuevaNota(false); }}
         />
       )}
     </div>
@@ -152,7 +154,7 @@ export function HistoriaView({ paciente: p }: { paciente: Paciente }) {
 
 // ─── Tab Resumen ──────────────────────────────────────────────────────────────
 
-function TabResumen({ paciente: p }: { paciente: Paciente }) {
+function TabResumen({ paciente: p }: { paciente: any }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Datos de contacto */}
@@ -170,7 +172,7 @@ function TabResumen({ paciente: p }: { paciente: Paciente }) {
           <p className="text-[12px] text-slate-400">Sin alergias registradas</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {p.alergias.map((a) => (
+            {p.alergias.map((a: string) => (
               <span key={a} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-700">
                 <Icon name="warning_amber" size={12} />
                 {a}
@@ -186,7 +188,7 @@ function TabResumen({ paciente: p }: { paciente: Paciente }) {
           <p className="text-[12px] text-slate-400">Sin antecedentes registrados</p>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {p.antecedentes.map((a) => (
+            {p.antecedentes.map((a: string) => (
               <div key={a} className="flex items-center gap-2 text-[12px] text-slate-700">
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shrink-0" />
                 {a}
@@ -209,12 +211,7 @@ function TabResumen({ paciente: p }: { paciente: Paciente }) {
 
 // ─── Tab Historial ────────────────────────────────────────────────────────────
 
-function TabHistorial({ paciente: p }: { paciente: Paciente }) {
-  const citas = [
-    { fecha: p.ultima_visita ?? "2026-06-14", hora: "08:30", servicio: "Limpieza dental + profilaxis", estado: "completada", medico: "Dr. García" },
-    { fecha: "2026-03-10", hora: "10:00", servicio: "Control de ortodoncia", estado: "completada", medico: "Dr. García" },
-    { fecha: "2025-12-05", hora: "09:00", servicio: "Consulta inicial y plan de tratamiento", estado: "completada", medico: "Dr. García" },
-  ];
+function TabHistorial({ paciente: p, citas }: { paciente: any, citas: any[] }) {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -233,7 +230,7 @@ function TabHistorial({ paciente: p }: { paciente: Paciente }) {
               <p className="text-[11px] text-slate-400 truncate">{fmtFecha(c.fecha)} · {c.hora} · {c.medico}</p>
             </div>
             <span className="hidden sm:inline text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 shrink-0">
-              Completada
+              {c.estado}
             </span>
           </div>
         ))}
@@ -242,62 +239,85 @@ function TabHistorial({ paciente: p }: { paciente: Paciente }) {
   );
 }
 
-// ─── Tab Notas ────────────────────────────────────────────────────────────────
+// ─── Tab Consultas ──────────────────────────────────────────────────────────────
 
-function TabNotas({ notas, onNuevaNote }: { notas: NotaClinica[]; onNuevaNote: () => void }) {
+function TabConsultas({ consultas, onNuevaConsulta }: { consultas: any[]; onNuevaConsulta: () => void }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex justify-end">
         <button
-          onClick={onNuevaNote}
-          className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] font-medium transition-colors"
+          onClick={onNuevaConsulta}
+          className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] font-semibold transition-colors shadow-sm"
         >
-          <Icon name="add" size={15} />
-          Nueva nota
+          <Icon name="add" size={16} />
+          Nueva consulta
         </button>
       </div>
-      {notas.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 py-12 text-center text-slate-400">
-          <Icon name="description" size={32} className="mx-auto mb-2 opacity-30" />
-          <p className="text-[13px]">Sin notas clínicas registradas</p>
+
+      {consultas.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 py-16 flex flex-col items-center justify-center text-center">
+          <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4">
+            <Icon name="chat_bubble_outline" size={32} className="text-slate-300" />
+          </div>
+          <p className="text-[14px] font-semibold text-slate-800 mb-1">Sin consultas</p>
+          <p className="text-[12px] text-slate-500 max-w-[250px]">Este paciente aún no tiene consultas clínicas registradas en su historial.</p>
         </div>
       ) : (
-        notas.map((n) => {
-          const cfg = TIPO_CFG[n.tipo];
-          return (
-            <div key={n.id} className="bg-white rounded-2xl border border-slate-200 p-5">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: cfg.bg }}>
-                  <Icon name={cfg.icon} size={18} style={{ color: cfg.color } as React.CSSProperties} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="text-[13px] font-semibold text-slate-900">{n.motivo}</span>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: cfg.bg, color: cfg.color }}>
-                      {cfg.label}
-                    </span>
+        <div className="flex flex-col gap-3">
+          {consultas.map((c) => {
+            const cfg = TIPO_CFG[c.tipo] || TIPO_CFG["consulta"];
+            return (
+              <Link key={c.id} href={`/pacientes/consulta/${c.id}`} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow cursor-pointer block">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: cfg.bg }}>
+                      <Icon name={cfg.icon} size={20} style={{ color: cfg.color }} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-[14px] font-semibold text-slate-800">{cfg.label}</p>
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          {fmtFecha(c.fecha)}
+                        </span>
+                      </div>
+                      <p className="text-[12px] text-slate-500 mt-0.5 flex items-center gap-1.5">
+                        <Icon name="person" size={14} />
+                        {c.doctor_nombre}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-slate-400 mb-2">{fmtFecha(n.fecha)} · {n.doctor_nombre}</p>
-                  {n.observaciones && (
-                    <p className="text-[12px] text-slate-600 leading-relaxed">{n.observaciones}</p>
-                  )}
-                  {n.tratamiento && (
-                    <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                      <p className="text-[11px] font-semibold text-slate-500 mb-1">Tratamiento</p>
-                      <p className="text-[12px] text-slate-700">{n.tratamiento}</p>
+                  <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors">
+                    <Icon name="more_vert" size={18} />
+                  </button>
+                </div>
+
+                <div className="pl-13">
+                  <p className="text-[13px] text-slate-700 font-medium mb-1">{c.motivo}</p>
+                  {c.observaciones && <p className="text-[12px] text-slate-600 leading-relaxed">{c.observaciones}</p>}
+                  
+                  {c.tratamiento && (
+                    <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Tratamiento e indicaciones</p>
+                      <p className="text-[12px] text-slate-700">{c.tratamiento}</p>
                     </div>
                   )}
-                  {n.medicacion && (
-                    <div className="mt-2 p-3 rounded-xl bg-cyan-50 border border-cyan-100">
-                      <p className="text-[11px] font-semibold text-cyan-600 mb-1">Medicación</p>
-                      <p className="text-[12px] text-cyan-800">{n.medicacion}</p>
+
+                  {c.medicacion && (
+                    <div className="mt-3 p-3 rounded-xl bg-blue-50/50 border border-blue-100/50 flex items-start gap-2.5">
+                      <div className="mt-0.5">
+                        <Icon name="medication" size={16} className="text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wide mb-0.5">Medicación prescrita</p>
+                        <p className="text-[12px] text-blue-900 leading-relaxed">{c.medicacion}</p>
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
-          );
-        })
+              </Link>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -352,19 +372,66 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function NuevaCitaModal({ paciente, onClose }: { paciente: Paciente; onClose: () => void }) {
+function NuevaCitaModal({ paciente, onClose }: { paciente: any; onClose: () => void }) {
+  const [fecha, setFecha] = useState("");
+  const [horaInicio, setHoraInicio] = useState("09:00");
+  const [duracion, setDuracion] = useState(60);
+  const [tipoConsulta, setTipoConsulta] = useState("control");
+  const [estado, setEstado] = useState("programada");
+  const [notas, setNotas] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [confirmForce, setConfirmForce] = useState(false);
+
+  const canSave = fecha && horaInicio && !loading;
+
+  async function handleGuardar(force = false) {
+    if (!canSave) return;
+    setLoading(true);
+    setErrorMsg(null);
+
+    const dateObj = new Date(`1970-01-01T${horaInicio}:00`);
+    dateObj.setMinutes(dateObj.getMinutes() + duracion);
+    const endH = String(dateObj.getHours()).padStart(2, "0");
+    const endM = String(dateObj.getMinutes()).padStart(2, "0");
+    const horaFin = `${endH}:${endM}`;
+
+    const res = await createCitaAction({
+      paciente_id: parseInt(paciente.id, 10),
+      fecha,
+      hora_inicio: horaInicio,
+      hora_fin: horaFin,
+      tipo_consulta: tipoConsulta,
+      estado,
+      notas
+    }, force);
+
+    setLoading(false);
+
+    if (res?.requiresConfirmation) {
+      setErrorMsg(res.error || "Requiere confirmación");
+      setConfirmForce(true);
+      return;
+    }
+
+    if (res?.error) {
+      setErrorMsg(res.error);
+      return;
+    }
+
+    onClose();
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
       style={{ background: "rgba(15,23,42,0.45)" }}
-      onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+        className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col"
         style={{ maxHeight: "min(92vh, calc(100dvh - 96px))" }}
-        onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-start justify-between">
+        <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-start justify-between shrink-0">
           <div>
             <p className="text-[14px] font-semibold text-slate-900">Nueva cita</p>
             <p className="text-[11px] text-slate-400 mt-0.5">{paciente.nombre}</p>
@@ -377,7 +444,7 @@ function NuevaCitaModal({ paciente, onClose }: { paciente: Paciente; onClose: ()
           </button>
         </div>
 
-        <div className="px-5 py-4 flex flex-col gap-3">
+        <div className="px-5 py-4 flex flex-col gap-3 overflow-y-auto">
           <Field label="Paciente">
             <input
               readOnly
@@ -387,131 +454,168 @@ function NuevaCitaModal({ paciente, onClose }: { paciente: Paciente; onClose: ()
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Fecha">
-              <input type="date" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
+              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
             </Field>
             <Field label="Hora inicio">
-              <input type="time" defaultValue="09:00" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
+              <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Duración">
-              <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
-                <option>30 min</option>
-                <option>45 min</option>
-                <option value="60" defaultValue="60">60 min</option>
-                <option>90 min</option>
-                <option>120 min</option>
+              <select value={duracion} onChange={(e) => setDuracion(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
+                <option value={30}>30 min</option>
+                <option value={45}>45 min</option>
+                <option value={60}>60 min</option>
+                <option value={90}>90 min</option>
+                <option value={120}>120 min</option>
               </select>
             </Field>
             <Field label="Estado">
-              <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
+              <select value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
                 <option value="programada">Programada</option>
                 <option value="confirmada">Confirmada</option>
               </select>
             </Field>
           </div>
-          <Field label="Tipo de tratamiento">
-            <select className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
-              <option>Limpieza dental</option>
-              <option>Extracción</option>
-              <option>Ortodoncia</option>
-              <option>Blanqueamiento</option>
-              <option>Endodoncia</option>
-              <option>Implante dental</option>
+          <Field label="Tipo de consulta">
+            <select value={tipoConsulta} onChange={(e) => setTipoConsulta(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
+              <option value="primera vez">Primera vez</option>
+              <option value="control">Control</option>
+              <option value="emergencia">Emergencia</option>
             </select>
           </Field>
           <Field label="Notas internas">
             <textarea
               rows={2}
+              value={notas}
+              onChange={(e) => setNotas(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 resize-none"
               placeholder="Observaciones previas al tratamiento…"
             />
           </Field>
+          
+          {errorMsg && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-[12px] flex items-start gap-1.5 border border-red-100 mt-2">
+              <Icon name="warning" size={16} className="shrink-0" />
+              <p className="font-medium">{errorMsg}</p>
+            </div>
+          )}
         </div>
 
-        <div className="px-5 pb-5 flex justify-end gap-2">
+        <div className="px-5 pb-5 pt-3 border-t border-slate-100 flex justify-end gap-2 shrink-0">
           <button
             onClick={onClose}
+            disabled={loading}
             className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
           >
             Cancelar
           </button>
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors"
-          >
-            <Icon name="event_available" size={14} />
-            Guardar cita
-          </button>
+          
+          {confirmForce ? (
+            <button
+              onClick={() => handleGuardar(true)}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+            >
+              <Icon name="warning" size={14} />
+              {loading ? "Guardando..." : "Confirmar excepción"}
+            </button>
+          ) : (
+            <button
+              onClick={() => handleGuardar(false)}
+              disabled={!canSave}
+              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+            >
+              <Icon name="event_available" size={14} />
+              {loading ? "Guardando..." : "Guardar cita"}
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Modal Nueva Nota Clínica ─────────────────────────────────────────────────
+// ─── Modal Nueva Consulta ─────────────────────────────────────────────────
 
-function uid() { return Math.random().toString(36).slice(2, 9); }
-
-function NuevaNotaModal({
+function NuevaConsultaModal({
   paciente,
   onClose,
-  onGuardar,
+  onSuccess,
 }: {
-  paciente: Paciente;
+  paciente: any;
   onClose: () => void;
-  onGuardar: (n: NotaClinica) => void;
+  onSuccess: () => void;
 }) {
   const [motivo,       setMotivo]       = useState("");
-  const [tipo,         setTipo]         = useState<NotaClinica["tipo"]>("consulta");
   const [observaciones,setObservaciones]= useState("");
-  const [tratamiento,  setTratamiento]  = useState("");
-  const [medicacion,   setMedicacion]   = useState("");
+  const [examenFisico, setExamenFisico] = useState<{clave: string; valor: string}[]>([]);
+  
+  const [loading,      setLoading]      = useState(false);
+  const [errorMsg,     setErrorMsg]     = useState<string | null>(null);
 
-  const canGuardar = motivo.trim().length > 0;
+  const canGuardar = motivo.trim().length > 0 && !loading;
 
-  function handleGuardar() {
+  async function handleGuardar() {
     if (!canGuardar) return;
-    const nueva: NotaClinica = {
-      id:           uid(),
-      paciente_id:  paciente.id,
-      doctor_nombre:"Dr. García",
-      fecha:        new Date().toISOString().split("T")[0],
-      motivo:       motivo.trim(),
-      tipo,
+    setLoading(true);
+    setErrorMsg(null);
+
+    const examenFisicoObj: Record<string, string> = {};
+    examenFisico.forEach(ef => {
+      if (ef.clave.trim()) {
+        examenFisicoObj[ef.clave.trim()] = ef.valor.trim();
+      }
+    });
+    
+    examenFisicoObj["tipo"] = "consulta";
+
+    const res = await crearNotaClinicaAction(paciente.id, {
+      motivo: motivo.trim(),
       observaciones: observaciones.trim() || undefined,
-      tratamiento:   tratamiento.trim() || undefined,
-      medicacion:    medicacion.trim() || undefined,
-    };
-    onGuardar(nueva);
+      examen_fisico: Object.keys(examenFisicoObj).length > 0 ? examenFisicoObj : undefined
+    });
+
+    setLoading(false);
+    if (res?.error) {
+      setErrorMsg(res.error);
+      return;
+    }
+    
+    onSuccess();
   }
 
-  const TIPOS: { value: NotaClinica["tipo"]; label: string }[] = [
-    { value: "consulta",      label: "Consulta" },
-    { value: "procedimiento", label: "Procedimiento" },
-    { value: "seguimiento",   label: "Seguimiento" },
-    { value: "urgencia",      label: "Urgencia" },
-  ];
+  function addExamenFisico() {
+    setExamenFisico([...examenFisico, { clave: "", valor: "" }]);
+  }
+
+  function updateExamenFisico(index: number, field: "clave" | "valor", val: string) {
+    const arr = [...examenFisico];
+    arr[index][field] = val;
+    setExamenFisico(arr);
+  }
+
+  function removeExamenFisico(index: number) {
+    setExamenFisico(examenFisico.filter((_, i) => i !== index));
+  }
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
       style={{ background: "rgba(15,23,42,0.5)" }}
-      onClick={onClose}
     >
       <div
         className="bg-white rounded-2xl w-full shadow-2xl overflow-hidden flex flex-col"
-        style={{ maxWidth: 560, maxHeight: "min(92vh, calc(100dvh - 96px))" }}
-        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: 640, maxHeight: "min(92vh, calc(100dvh - 96px))" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center">
-              <Icon name="description" size={18} className="text-cyan-600" />
+              <Icon name="medical_services" size={18} className="text-cyan-600" />
             </div>
             <div>
-              <p className="text-[14px] font-semibold text-slate-900">Nueva nota clínica</p>
+              <p className="text-[14px] font-semibold text-slate-900">Nueva consulta</p>
               <p className="text-[11px] text-slate-400">{paciente.nombre}</p>
             </div>
           </div>
@@ -521,89 +625,96 @@ function NuevaNotaModal({
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 p-5 flex flex-col gap-4">
-          {/* Tipo */}
-          <div>
-            <p className="text-[11px] font-medium text-slate-600 mb-1.5">Tipo de consulta</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {TIPOS.map((t) => {
-                const cfg = TIPO_CFG[t.value];
-                const active = tipo === t.value;
-                return (
-                  <button
-                    key={t.value}
-                    onClick={() => setTipo(t.value)}
-                    className="py-2 px-3 rounded-xl text-[11px] font-semibold border transition-all"
-                    style={{
-                      background:  active ? cfg.bg    : "white",
-                      color:       active ? cfg.color : "#64748b",
-                      borderColor: active ? cfg.color + "66" : "#e2e8f0",
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
+        <div className="overflow-y-auto flex-1 p-5 flex flex-col gap-4 bg-slate-50/50">
+          
+          {/* Motivo */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200">
+            <NField label="Motivo de consulta *">
+              <input
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                placeholder="Ej: Control post-extracción, dolor en molar 46…"
+                className="ninput"
+              />
+            </NField>
           </div>
 
-          {/* Motivo (= consultas.motivo) */}
-          <NField label="Motivo de consulta *">
-            <input
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Ej: Control post-extracción, dolor en molar 46…"
-              className="ninput"
-            />
-          </NField>
+          {/* Examen Físico (Dinámico) */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Examen Físico / Signos Vitales</p>
+              <button onClick={addExamenFisico} className="text-[11px] font-medium text-cyan-600 hover:underline flex items-center gap-1">
+                <Icon name="add" size={14} /> Añadir campo
+              </button>
+            </div>
+            
+            {examenFisico.length === 0 ? (
+              <p className="text-[12px] text-slate-400 py-2 text-center border border-dashed border-slate-200 rounded-lg">No hay signos vitales registrados.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {examenFisico.map((ef, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      placeholder="Ej: Temperatura"
+                      value={ef.clave}
+                      onChange={(e) => updateExamenFisico(idx, "clave", e.target.value)}
+                      className="ninput flex-1"
+                    />
+                    <input
+                      placeholder="Ej: 37.5 °C"
+                      value={ef.valor}
+                      onChange={(e) => updateExamenFisico(idx, "valor", e.target.value)}
+                      className="ninput flex-1"
+                    />
+                    <button onClick={() => removeExamenFisico(idx)} className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-colors">
+                      <Icon name="delete" size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-          {/* Observaciones (= consultas.observaciones) */}
-          <NField label="Observaciones clínicas">
-            <textarea
-              rows={3}
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              placeholder="Hallazgos del examen físico, evolución del paciente…"
-              className="ninput resize-none"
-            />
-          </NField>
-
-          {/* Tratamiento (stored in consultas.examen_fisico jsonb) */}
-          <NField label="Tratamiento indicado">
-            <input
-              value={tratamiento}
-              onChange={(e) => setTratamiento(e.target.value)}
-              placeholder="Ej: Detartraje + pulido coronal, extracción pieza 46…"
-              className="ninput"
-            />
-          </NField>
-
-          {/* Medicación (stored in consultas.examen_fisico jsonb) */}
-          <NField label="Medicación prescrita">
-            <input
-              value={medicacion}
-              onChange={(e) => setMedicacion(e.target.value)}
-              placeholder="Ej: Amoxicilina 500mg c/8h × 5 días…"
-              className="ninput"
-            />
-          </NField>
+          {/* Observaciones */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200">
+            <NField label="Observaciones clínicas generales">
+              <textarea
+                rows={4}
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+                placeholder="Hallazgos del examen clínico, evolución del paciente…"
+                className="ninput resize-none"
+              />
+            </NField>
+          </div>
         </div>
 
+        {errorMsg && (
+          <div className="px-5 pb-3 bg-slate-50/50">
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-[12px] flex items-center gap-1.5 border border-red-100">
+              <Icon name="warning" size={16} />
+              <p className="font-medium">{errorMsg}</p>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-slate-100 shrink-0">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-slate-100 shrink-0 bg-white">
           <button
             onClick={onClose}
+            disabled={loading}
             className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
           >
             Cancelar
           </button>
+          
           <button
             onClick={handleGuardar}
             disabled={!canGuardar}
             className="flex items-center gap-1.5 px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[12px] font-semibold transition-colors"
           >
             <Icon name="save" size={15} />
-            Guardar nota
+            {loading ? "Guardando..." : "Guardar nota"}
           </button>
         </div>
       </div>

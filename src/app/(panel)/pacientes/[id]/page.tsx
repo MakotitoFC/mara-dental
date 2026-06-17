@@ -1,18 +1,22 @@
 import { notFound } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
-import { getPaciente } from "@/lib/mock-pacientes";
 import { HistoriaView } from "./components/HistoriaView";
+import { getDetallePacienteAction } from "./actions";
 
 export default async function PacienteDetallePage({params,}: {params: Promise<{ id: string }>;}) {
   const { id } = await params;
-  const paciente = getPaciente(id);
-  if (!paciente) notFound();
+  const detalle = await getDetallePacienteAction(id);
+  if (!detalle) notFound();
 
   return (
     <>
       <Topbar title="Historia clínica" />
       <div className="flex-1 overflow-y-auto">
-        <HistoriaView paciente={paciente} />
+        <HistoriaView 
+          paciente={detalle.paciente} 
+          citas={detalle.citas} 
+          notas={detalle.notas} 
+        />
       </div>
     </>
   );

@@ -2,18 +2,16 @@
 
 import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
-import type { Paciente } from "@/types/paciente";
-
-function uid() { return "p" + Math.random().toString(36).slice(2, 9); }
+import { createPacienteAction } from "../actions";
 
 interface Props {
   onClose: () => void;
-  onGuardar: (p: Paciente) => void;
+  onSuccess: () => void;
 }
 
-const GRUPOS = ["A+","A−","B+","B−","AB+","AB−","O+","O−"];
+const GRUPOS = ["A+","A−","B+","B−","AB+","AB−","O+","O−","NS"];
 
-export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
+export function NuevoPacienteModal({ onClose, onSuccess }: Props) {
   const [nombre,     setNombre]     = useState("");
   const [apellido,   setApellido]   = useState("");
   const [dni,        setDni]        = useState("");
@@ -21,6 +19,10 @@ export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
   const [telefono,   setTelefono]   = useState("");
   const [email,      setEmail]      = useState("");
   const [grupo,      setGrupo]      = useState("");
+  const [estadoCivil, setEstadoCivil] = useState("no precisa");
+  const [gradoInst,   setGradoInst]   = useState("no precisa");
+  const [loading,    setLoading]    = useState(false);
+  const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
 
   // Alergias (chips)
   const [alergiasInput, setAlergiasInput] = useState("");
@@ -39,24 +41,39 @@ export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
     setter(list.filter((x) => x !== val));
   }
 
-  const canSave = nombre.trim() && apellido.trim() && dni.trim() && telefono.trim() && fechaNac;
+  const canSave = nombre.trim() && apellido.trim() && dni.trim() && telefono.trim() && fechaNac && !loading;
 
-  function handleGuardar() {
+  async function handleGuardar() {
     if (!canSave) return;
-    const nuevo: Paciente = {
-      id:               uid(),
-      nombre:           `${nombre.trim()} ${apellido.trim()}`,
-      dni:              dni.trim(),
+    setLoading(true);
+    setErrorMsg(null);
+
+    const res = await createPacienteAction({
+      nombre,
+      apellido,
+      dni,
       fecha_nacimiento: fechaNac,
-      telefono:         telefono.trim(),
-      email:            email.trim() || undefined,
-      grupo_sanguineo:  grupo || undefined,
+      telefono,
+      email: email || undefined,
+      grupo_sanguineo: grupo === "NS" || !grupo ? undefined : grupo,
+      estado_civil: estadoCivil === "no precisa" ? undefined : estadoCivil,
+      grado_instruccion: gradoInst === "no precisa" ? undefined : gradoInst,
       alergias,
-      antecedentes:     antecedentes,
-      activo:           true,
-    };
-    onGuardar(nuevo);
+      antecedentes
+    });
+
+    setLoading(false);
+
+    if (res?.error) {
+      setErrorMsg(res.error);
+      return;
+    }
+
+    onSuccess();
+    onClose();
   }
+
+  const hoy = new Date().toISOString().split("T")[0];
 
   return (
     <div
@@ -120,6 +137,7 @@ export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
                   <input
                     type="date"
                     value={fechaNac}
+                    max={hoy}
                     onChange={(e) => setFechaNac(e.target.value)}
                     className="input"
                   />
@@ -156,6 +174,32 @@ export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
                     placeholder="paciente@email.com"
                     className="input"
                   />
+                </Field>
+                <Field label="Estado civil">
+                  <select
+                    value={estadoCivil}
+                    onChange={(e) => setEstadoCivil(e.target.value)}
+                    className="input"
+                  >
+                    <option value="no precisa">No precisa</option>
+                    <option value="soltero">Soltero/a</option>
+                    <option value="casado">Casado/a</option>
+                    <option value="viudo">Viudo/a</option>
+                    <option value="divorciado">Divorciado/a</option>
+                  </select>
+                </Field>
+                <Field label="Grado de instrucción">
+                  <select
+                    value={gradoInst}
+                    onChange={(e) => setGradoInst(e.target.value)}
+                    className="input"
+                  >
+                    <option value="no precisa">No precisa</option>
+                    <option value="ninguna">Ninguna</option>
+                    <option value="primaria">Primaria</option>
+                    <option value="secundaria">Secundaria</option>
+                    <option value="superior">Superior</option>
+                  </select>
                 </Field>
               </div>
             </Section>
@@ -200,10 +244,20 @@ export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
           </div>
         </div>
 
+        {errorMsg && (
+          <div className="px-5 pb-3">
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-[12px] flex items-center gap-1.5 border border-red-100">
+              <Icon name="warning" size={16} />
+              <p className="font-medium">{errorMsg}</p>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-slate-100 shrink-0">
           <button
             onClick={onClose}
+            disabled={loading}
             className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
           >
             Cancelar
@@ -214,7 +268,7 @@ export function NuevoPacienteModal({ onClose, onGuardar }: Props) {
             className="flex items-center gap-1.5 px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[12px] font-semibold transition-colors"
           >
             <Icon name="save" size={15} />
-            Registrar paciente
+            {loading ? "Registrando..." : "Registrar paciente"}
           </button>
         </div>
       </div>

@@ -78,6 +78,7 @@ const ICONS: Record<string, LucideIcon> = {
   // Estado / alertas
   check_circle:         CheckCircle,
   cancel:               XCircle,
+  warning:              AlertTriangle,
   warning_amber:        AlertTriangle,
   priority_high:        AlertCircle,
   notifications:        Bell,

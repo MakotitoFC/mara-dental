@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
-import { PACIENTES_MOCK, calcEdad, fmtFecha, estadoPaciente } from "@/lib/mock-pacientes";
+import { calcEdad, fmtFecha } from "@/lib/mock-pacientes";
 import { NuevoPacienteModal } from "./NuevoPacienteModal";
-import type { EstadoPaciente, Paciente } from "@/types/paciente";
+import type { EstadoPaciente } from "@/types/paciente";
+import { getDoctorPacientesAction } from "../actions";
 
 const ESTADO_CFG: Record<EstadoPaciente, { label: string; bg: string; text: string }> = {
   activo:   { label: "Activo",   bg: "#dcfce7", text: "#15803d" },
@@ -30,12 +31,18 @@ export function PacientesView() {
   const [query, setQuery]         = useState("");
   const [filtro, setFiltro]       = useState<EstadoPaciente | "todos">("todos");
   const [showModal, setShowModal] = useState(false);
-  const [extra, setExtra]         = useState<Paciente[]>([]);
+  const [todos, setTodos]         = useState<any[]>([]);
 
-  const todos = [...extra, ...PACIENTES_MOCK];
+  const loadPacientes = () => {
+    getDoctorPacientesAction().then(setTodos);
+  };
+
+  useEffect(() => {
+    loadPacientes();
+  }, []);
 
   const filtrados = todos.filter((p) => {
-    const matchFiltro = filtro === "todos" || estadoPaciente(p) === filtro;
+    const matchFiltro = filtro === "todos" || p.estado === filtro;
     const matchQuery  = query === "" ||
       p.nombre.toLowerCase().includes(query.toLowerCase()) ||
       p.dni.toLowerCase().includes(query.toLowerCase()) ||
@@ -45,15 +52,10 @@ export function PacientesView() {
 
   const totales = {
     todos:    todos.length,
-    activo:   todos.filter((p) => estadoPaciente(p) === "activo").length,
-    nuevo:    todos.filter((p) => estadoPaciente(p) === "nuevo").length,
-    inactivo: todos.filter((p) => estadoPaciente(p) === "inactivo").length,
+    activo:   todos.filter((p) => p.estado === "activo").length,
+    nuevo:    todos.filter((p) => p.estado === "nuevo").length,
+    inactivo: todos.filter((p) => p.estado === "inactivo").length,
   };
-
-  function handleNuevoPaciente(p: Paciente) {
-    setExtra((prev) => [p, ...prev]);
-    setShowModal(false);
-  }
 
   return (
     <div className="p-4 sm:p-5 flex flex-col gap-4 max-w-300">
@@ -148,7 +150,7 @@ export function PacientesView() {
       {showModal && (
         <NuevoPacienteModal
           onClose={() => setShowModal(false)}
-          onGuardar={handleNuevoPaciente}
+          onSuccess={loadPacientes}
         />
       )}
     </div>
@@ -157,9 +159,9 @@ export function PacientesView() {
 
 // ─── Desktop row ──────────────────────────────────────────────────────────────
 
-function PacienteRow({ paciente: p }: { paciente: Paciente }) {
+function PacienteRow({ paciente: p }: { paciente: any }) {
   const router = useRouter();
-  const cfg    = ESTADO_CFG[estadoPaciente(p)];
+  const cfg    = ESTADO_CFG[p.estado as EstadoPaciente];
   const edad   = calcEdad(p.fecha_nacimiento);
   const color  = avatarColor(p.id);
 
@@ -236,9 +238,9 @@ function PacienteRow({ paciente: p }: { paciente: Paciente }) {
 
 // ─── Mobile card ──────────────────────────────────────────────────────────────
 
-function PacienteCard({ paciente: p }: { paciente: Paciente }) {
+function PacienteCard({ paciente: p }: { paciente: any }) {
   const router = useRouter();
-  const cfg    = ESTADO_CFG[estadoPaciente(p)];
+  const cfg    = ESTADO_CFG[p.estado as EstadoPaciente];
   const edad   = calcEdad(p.fecha_nacimiento);
   const color  = avatarColor(p.id);
 
