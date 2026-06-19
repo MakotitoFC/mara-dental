@@ -2,7 +2,6 @@
 
 import { useState, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
-import { Field } from "@/components/ui/Field";
 import { searchCIE10Action, saveDiagnosticoAction } from "../actions";
 import { createClient } from "@/lib/supabase/client";
 
@@ -10,13 +9,13 @@ export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId
   const [diagnostico, setDiagnostico] = useState("");
   const [esTratado, setEsTratado] = useState(true);
   const [esDefinitivo, setEsDefinitivo] = useState(false);
-  
+
   // CIE10 Search
   const [query, setQuery] = useState("");
   const [cieList, setCieList] = useState<any[]>([]);
   const [selectedCie, setSelectedCie] = useState<any>(null);
   const [searchingCie, setSearchingCie] = useState(false);
-  
+
   // Archivos
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [archivos, setArchivos] = useState<File[]>([]);
@@ -44,7 +43,7 @@ export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
       setArchivos([...archivos, ...newFiles]);
-      
+
       const newCats = { ...categorias };
       newFiles.forEach(f => {
         newCats[f.name] = "otros"; // default
@@ -118,8 +117,9 @@ export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId
 
     if (res?.error) {
       setErrorMsg(res.error);
+      return;
     }
-    // Si hay éxito, la página se recargará automáticamente por revalidatePath
+    window.location.reload();
   }
 
   return (
@@ -132,7 +132,7 @@ export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId
       </div>
 
       <div className="p-5 flex flex-col gap-5">
-        
+
         {/* Diagnóstico Text */}
         <div className="flex flex-col gap-1.5">
           <label className="text-[12px] font-semibold text-slate-700">Diagnóstico (Detalle clínico) *</label>
@@ -171,7 +171,7 @@ export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId
                 />
                 {searchingCie && <div className="absolute right-3 top-2.5 w-4 h-4 rounded-full border-2 border-cyan-200 border-t-cyan-600 animate-spin" />}
               </div>
-              
+
               {cieList.length > 0 && (
                 <div className="absolute top-[100%] left-0 w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl max-h-48 overflow-y-auto z-10">
                   {cieList.map(c => (
@@ -190,52 +190,69 @@ export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId
           )}
         </div>
 
-        {/* Opciones (Checkboxes) */}
-        <div className="flex items-center gap-6">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input 
-              type="checkbox" 
-              checked={esTratado} 
-              onChange={(e) => setEsTratado(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-600"
-            />
-            <span className="text-[13px] font-medium text-slate-700">Se tratará en la clínica</span>
-          </label>
-
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input 
-              type="checkbox" 
-              checked={esDefinitivo} 
-              onChange={(e) => setEsDefinitivo(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-600"
-            />
-            <span className="text-[13px] font-medium text-slate-700">Es diagnóstico definitivo</span>
-          </label>
+        {/* Tipo de diagnóstico */}
+        <div className="flex flex-col gap-2">
+          <label className="text-[12px] font-semibold text-slate-700">Tipo de diagnóstico *</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setEsDefinitivo(false)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-[13px] font-semibold transition-all ${!esDefinitivo
+                  ? "bg-amber-50 border-amber-300 text-amber-700"
+                  : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                }`}
+            >
+              <Icon name="pending" size={16} />
+              Presuntivo
+            </button>
+            <button
+              type="button"
+              onClick={() => setEsDefinitivo(true)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-[13px] font-semibold transition-all ${esDefinitivo
+                  ? "bg-blue-50 border-blue-300 text-blue-700"
+                  : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                }`}
+            >
+              <Icon name="verified" size={16} />
+              Definitivo
+            </button>
+          </div>
         </div>
+
+        {/* Se tratará en clínica */}
+        <label className="flex items-center gap-2 cursor-pointer w-fit">
+          <input
+            type="checkbox"
+            checked={esTratado}
+            onChange={(e) => setEsTratado(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-600"
+          />
+          <span className="text-[13px] font-medium text-slate-700">Se tratará en la clínica</span>
+        </label>
 
         {/* Subida de Archivos (solo si es definitivo) */}
         {esDefinitivo && (
           <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <p className="text-[12px] font-semibold text-slate-700">Archivos Probatorios</p>
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 className="text-[11px] font-medium text-cyan-600 hover:underline flex items-center gap-1"
               >
                 <Icon name="attach_file" size={14} /> Adjuntar archivo
               </button>
-              <input 
-                type="file" 
-                multiple 
+              <input
+                type="file"
+                multiple
                 accept="image/*,application/pdf"
-                className="hidden" 
+                className="hidden"
                 ref={fileInputRef}
                 onChange={handleFileChange}
               />
             </div>
 
             {archivos.length === 0 ? (
-              <div 
+              <div
                 className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center text-slate-400 bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
               >
