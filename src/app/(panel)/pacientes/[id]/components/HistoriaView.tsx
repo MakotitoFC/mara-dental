@@ -5,18 +5,19 @@ import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 import { calcEdad, fmtFecha } from "@/lib/mock-pacientes";
 import { RecetaTab } from "./RecetaTab";
+import { OdontogramaTab } from "./OdontogramaTab";
 import { ArchivosView } from "@/app/(panel)/archivos/components/ArchivosView";
 import { crearNotaClinicaAction } from "../actions";
 import { createCitaAction } from "@/app/(panel)/agenda/actions";
 
 const TIPO_CFG: Record<string, { icon: string; bg: string; color: string; label: string }> = {
-  consulta:      { icon: "chat_bubble_outline", bg: "#eff6ff", color: "#2563eb", label: "Consulta" },
-  procedimiento: { icon: "medical_services",    bg: "#f0fdf4", color: "#16a34a", label: "Procedimiento" },
-  seguimiento:   { icon: "history",             bg: "#fefce8", color: "#b45309", label: "Seguimiento" },
-  urgencia:      { icon: "priority_high",       bg: "#fff1f2", color: "#dc2626", label: "Urgencia" },
+  consulta: { icon: "chat_bubble_outline", bg: "#eff6ff", color: "#2563eb", label: "Consulta" },
+  procedimiento: { icon: "medical_services", bg: "#f0fdf4", color: "#16a34a", label: "Procedimiento" },
+  seguimiento: { icon: "history", bg: "#fefce8", color: "#b45309", label: "Seguimiento" },
+  urgencia: { icon: "priority_high", bg: "#fff1f2", color: "#dc2626", label: "Urgencia" },
 };
 
-const AVATAR_COLORS = ["#0891b2","#7c3aed","#db2777","#059669","#d97706","#dc2626","#2563eb","#65a30d"];
+const AVATAR_COLORS = ["#0891b2", "#7c3aed", "#db2777", "#059669", "#d97706", "#dc2626", "#2563eb", "#65a30d"];
 function avatarColor(id: string) {
   const n = parseInt(id.replace(/\D/g, "")) || 0;
   return AVATAR_COLORS[n % AVATAR_COLORS.length];
@@ -26,35 +27,29 @@ function initials(nombre: string) {
   return (p[0]?.[0] ?? "") + (p[1]?.[0] ?? "");
 }
 
-type Tab = "resumen" | "historial" | "consultas" | "recetas" | "archivos";
+type Tab = "resumen" | "historial" | "odontograma" | "consultas" | "recetas" | "archivos";
 
 export function HistoriaView({ paciente: p, citas, notas: consultasProps }: { paciente: any, citas: any[], notas: any[] }) {
-  const [tab, setTab]                     = useState<Tab>("resumen");
+  const [tab, setTab] = useState<Tab>("resumen");
   const [showNuevaCita, setShowNuevaCita] = useState(false);
   const [showNuevaNota, setShowNuevaNota] = useState(false);
-  
+
   const [consultas, setConsultas] = useState<any[]>(consultasProps);
   useEffect(() => { setConsultas(consultasProps); }, [consultasProps]);
-  const edad   = calcEdad(p.fecha_nacimiento);
-  const color  = avatarColor(p.id);
+  const edad = calcEdad(p.fecha_nacimiento);
+  const color = avatarColor(p.id);
 
   const waLink = `https://wa.me/${p.telefono.replace(/\D/g, "")}?text=Hola%20${encodeURIComponent(p.nombre.split(" ")[0])}%2C%20le%20contactamos%20desde%20MaraDental.`;
 
   return (
-    <div className="p-5 flex flex-col gap-5 max-w-240">
-
-      {/* Botón volver */}
-      <Link href="/pacientes" className="flex items-center gap-1.5 text-[12px] text-slate-500 hover:text-slate-900 transition-colors w-fit">
-        <Icon name="arrow_back" size={16} />
-        Volver a pacientes
-      </Link>
+    <div className="p-4 sm:p-5 md:p-6 flex flex-col gap-4 sm:gap-5 pb-24 sm:pb-6">
 
       {/* Header del paciente */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
-        <div className="flex items-start gap-4">
+      <div className="pt-1">
+        <div className="flex items-start gap-3 sm:gap-4">
           {/* Avatar */}
           <div
-            className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-[20px] sm:text-[22px] font-bold text-white shrink-0"
+            className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-[18px] sm:text-[22px] font-bold text-white shrink-0"
             style={{ background: color }}
           >
             {initials(p.nombre)}
@@ -63,41 +58,41 @@ export function HistoriaView({ paciente: p, citas, notas: consultasProps }: { pa
           {/* Info principal */}
           <div className="flex-1 min-w-0">
             <div className="flex items-start gap-2 flex-wrap">
-              <h1 className="text-[16px] sm:text-[18px] font-bold text-slate-900 leading-tight">{p.nombre}</h1>
+              <h1 className="text-[15px] sm:text-[18px] font-bold text-slate-900 leading-tight">{p.nombre}</h1>
               {p.alergias.length > 0 && (
-                <span className="flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full shrink-0">
-                  <Icon name="warning_amber" size={12} />
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full shrink-0">
+                  <Icon name="warning_amber" size={11} />
                   {p.alergias.join(" · ")}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3 mt-1.5 flex-wrap text-[11px] sm:text-[12px] text-slate-500">
+            <div className="flex items-center gap-2 sm:gap-3 mt-1.5 flex-wrap text-[11px] sm:text-[12px] text-slate-500">
               <span className="flex items-center gap-1"><Icon name="badge" size={12} />{p.dni}</span>
               <span className="flex items-center gap-1"><Icon name="cake" size={12} />{edad} años</span>
               {p.grupo_sanguineo && (
                 <span className="flex items-center gap-1"><Icon name="bloodtype" size={12} />{p.grupo_sanguineo}</span>
               )}
             </div>
-            <div className="flex items-center gap-3 mt-1 flex-wrap text-[11px] sm:text-[12px] text-slate-500">
-              <span className="flex items-center gap-1 min-w-0 truncate"><Icon name="phone" size={12} className="shrink-0" />{p.telefono}</span>
+            <div className="flex items-center gap-2 mt-1 text-[11px] sm:text-[12px] text-slate-500">
+              <span className="flex items-center gap-1"><Icon name="phone" size={12} className="shrink-0" />{p.telefono}</span>
             </div>
           </div>
         </div>
 
-        {/* Acciones — fila separada en mobile */}
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+        {/* Acciones */}
+        <div className="flex items-center gap-2 mt-4">
           <a
             href={waLink}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-xl border border-slate-200 text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
           >
             <Icon name="chat" size={15} className="text-[#25D366]" />
             WhatsApp
           </a>
           <button
             onClick={() => setShowNuevaCita(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[12px] font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[12px] font-medium transition-colors"
           >
             <Icon name="event_available" size={15} />
             Nueva cita
@@ -113,30 +108,83 @@ export function HistoriaView({ paciente: p, citas, notas: consultasProps }: { pa
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="overflow-x-auto scrollbar-none">
-        <div className="flex items-center gap-0.5 bg-white rounded-xl border border-slate-200 p-1 w-fit">
-          {(["resumen", "historial", "consultas", "recetas", "archivos"] as Tab[]).map((t) => {
-            const labels: Record<Tab, string> = { resumen: "Resumen", historial: "Historial", consultas: "Consultas", recetas: "Recetas", archivos: "Archivos" };
+      {/* Tabs — Diseño móvil premium con scroll invisible y fade degradado */}
+      <div className="relative -mx-4 sm:-mx-5 border-b border-slate-200 bg-white">
+        {/* Fila scrollable: eliminamos barras de scroll en cualquier navegador */}
+        <div
+          className="flex items-center px-4 sm:px-5 overflow-x-auto select-none gap-1 scrollbar-none"
+          style={{
+            msOverflowStyle: 'none',  /* IE y Edge */
+            scrollbarWidth: 'none',   /* Firefox */
+          }}
+        >
+          {/* Contenedor interno para forzar la anulación de estilos heredados en WebKit */}
+          <style>{`
+      .scrollbar-none::-webkit-scrollbar { display: none; }
+      .tab-btn-clean {
+        border: none !important;
+        outline: none !important;
+        box-shadow: none !important;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background: transparent;
+        WebkitTapHighlightColor: transparent;
+      }
+      .tab-btn-clean:focus, .tab-btn-clean:active, .tab-btn-clean:focus-visible {
+        outline: none !important;
+        border: none !important;
+        background: transparent !important;
+      }
+    `}</style>
+
+          {(["resumen", "historial", "odontograma", "consultas", "recetas", "archivos"] as Tab[]).map((t) => {
+            const labels: Record<Tab, string> = {
+              resumen: "Resumen",
+              historial: "Historial",
+              odontograma: "Odontograma",
+              consultas: "Consultas",
+              recetas: "Recetas",
+              archivos: "Archivos"
+            };
+            const isActive = tab === t;
             return (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[12px] sm:text-[13px] font-medium transition-colors whitespace-nowrap ${tab === t ? "bg-cyan-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"}`}
+                className={`tab-btn-clean flex-none px-4 sm:px-5 py-3.5 min-h-[44px] text-[13px] font-medium whitespace-nowrap transition-all relative ${isActive ? "text-cyan-700 font-semibold" : "text-slate-500 hover:text-slate-800"
+                  }`}
               >
                 {labels[t]}
+                {/* Indicador inferior animado en lugar de usar un shadow inset rústico */}
+                {isActive && (
+                  <div className="absolute bottom-0 left-4 right-4 h-[2px] bg-cyan-600 rounded-full" />
+                )}
               </button>
             );
           })}
         </div>
+
+        {/* Indicador ">" Premium: Degradado suave + Botón flotante con micro-sombra */}
+        <div
+          className="pointer-events-none absolute right-0 top-0 bottom-0 w-14 sm:hidden flex items-center justify-end pr-2.5"
+          style={{
+            background: "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 45%, rgba(255,255,255,1) 100%)"
+          }}
+        >
+          <div className="w-5 h-5 rounded-full bg-white/90 shadow-[0_1px_4px_rgba(0,0,0,0.1)] border border-slate-100 flex items-center justify-center backdrop-blur-[1px]">
+            <Icon name="chevron_right" size={12} className="text-slate-400 animate-pulse" />
+          </div>
+        </div>
       </div>
 
       {/* Contenido de tabs */}
-      {tab === "resumen"   && <TabResumen paciente={p} />}
+      {tab === "resumen" && <TabResumen paciente={p} />}
       {tab === "historial" && <TabHistorial paciente={p} citas={citas} />}
+      {tab === "odontograma" && <OdontogramaTab paciente={p} />}
       {tab === "consultas" && <TabConsultas consultas={consultas} onNuevaConsulta={() => setShowNuevaNota(true)} />}
-      {tab === "recetas"   && <RecetaTab paciente={p} />}
-      {tab === "archivos"  && <ArchivosView pacienteId={p.id} />}
+      {tab === "recetas" && <RecetaTab paciente={p} />}
+      {tab === "archivos" && <ArchivosView pacienteId={p.id} />}
 
       {showNuevaCita && (
         <NuevaCitaModal paciente={p} onClose={() => setShowNuevaCita(false)} />
@@ -159,10 +207,10 @@ function TabResumen({ paciente: p }: { paciente: any }) {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Datos de contacto */}
       <Section title="Datos de contacto" icon="contact_page">
-        <InfoRow icon="badge"  label="DNI"      value={p.dni} />
-        <InfoRow icon="phone"  label="Teléfono" value={p.telefono} />
-        {p.email && <InfoRow icon="email"  label="Email"    value={p.email} />}
-        <InfoRow icon="cake"   label="Nacimiento" value={`${fmtFecha(p.fecha_nacimiento)} (${calcEdad(p.fecha_nacimiento)} años)`} />
+        <InfoRow icon="badge" label="DNI" value={p.dni} />
+        <InfoRow icon="phone" label="Teléfono" value={p.telefono} />
+        {p.email && <InfoRow icon="email" label="Email" value={p.email} />}
+        <InfoRow icon="cake" label="Nacimiento" value={`${fmtFecha(p.fecha_nacimiento)} (${calcEdad(p.fecha_nacimiento)} años)`} />
         {p.grupo_sanguineo && <InfoRow icon="bloodtype" label="Grupo sanguíneo" value={p.grupo_sanguineo} />}
       </Section>
 
@@ -201,7 +249,7 @@ function TabResumen({ paciente: p }: { paciente: any }) {
       {/* Contacto de emergencia */}
       {p.contacto_emergencia_nombre && (
         <Section title="Contacto de emergencia" icon="emergency">
-          <InfoRow icon="person"  label="Nombre"    value={p.contacto_emergencia_nombre} />
+          <InfoRow icon="person" label="Nombre" value={p.contacto_emergencia_nombre} />
           {p.contacto_emergencia_telefono && <InfoRow icon="phone" label="Teléfono" value={p.contacto_emergencia_telefono} />}
         </Section>
       )}
@@ -294,7 +342,7 @@ function TabConsultas({ consultas, onNuevaConsulta }: { consultas: any[]; onNuev
                 <div className="pl-13">
                   <p className="text-[13px] text-slate-700 font-medium mb-1">{c.motivo}</p>
                   {c.observaciones && <p className="text-[12px] text-slate-600 leading-relaxed">{c.observaciones}</p>}
-                  
+
                   {c.tratamiento && (
                     <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Tratamiento e indicaciones</p>
@@ -493,7 +541,7 @@ function NuevaCitaModal({ paciente, onClose }: { paciente: any; onClose: () => v
               placeholder="Observaciones previas al tratamiento…"
             />
           </Field>
-          
+
           {errorMsg && (
             <div className="bg-red-50 text-red-600 p-3 rounded-lg text-[12px] flex items-start gap-1.5 border border-red-100 mt-2">
               <Icon name="warning" size={16} className="shrink-0" />
@@ -510,7 +558,7 @@ function NuevaCitaModal({ paciente, onClose }: { paciente: any; onClose: () => v
           >
             Cancelar
           </button>
-          
+
           {confirmForce ? (
             <button
               onClick={() => handleGuardar(true)}
@@ -547,12 +595,12 @@ function NuevaConsultaModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [motivo,       setMotivo]       = useState("");
-  const [observaciones,setObservaciones]= useState("");
-  const [examenFisico, setExamenFisico] = useState<{clave: string; valor: string}[]>([]);
-  
-  const [loading,      setLoading]      = useState(false);
-  const [errorMsg,     setErrorMsg]     = useState<string | null>(null);
+  const [motivo, setMotivo] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+  const [examenFisico, setExamenFisico] = useState<{ clave: string; valor: string }[]>([]);
+
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const canGuardar = motivo.trim().length > 0 && !loading;
 
@@ -567,7 +615,7 @@ function NuevaConsultaModal({
         examenFisicoObj[ef.clave.trim()] = ef.valor.trim();
       }
     });
-    
+
     examenFisicoObj["tipo"] = "consulta";
 
     const res = await crearNotaClinicaAction(paciente.id, {
@@ -581,7 +629,7 @@ function NuevaConsultaModal({
       setErrorMsg(res.error);
       return;
     }
-    
+
     onSuccess();
   }
 
@@ -626,7 +674,7 @@ function NuevaConsultaModal({
 
         {/* Body */}
         <div className="overflow-y-auto flex-1 p-5 flex flex-col gap-4 bg-slate-50/50">
-          
+
           {/* Motivo */}
           <div className="bg-white p-4 rounded-xl border border-slate-200">
             <NField label="Motivo de consulta *">
@@ -647,7 +695,7 @@ function NuevaConsultaModal({
                 <Icon name="add" size={14} /> Añadir campo
               </button>
             </div>
-            
+
             {examenFisico.length === 0 ? (
               <p className="text-[12px] text-slate-400 py-2 text-center border border-dashed border-slate-200 rounded-lg">No hay signos vitales registrados.</p>
             ) : (
@@ -707,7 +755,7 @@ function NuevaConsultaModal({
           >
             Cancelar
           </button>
-          
+
           <button
             onClick={handleGuardar}
             disabled={!canGuardar}

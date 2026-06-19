@@ -121,6 +121,29 @@ export async function createCitaAction(data: {
   return { success: true };
 }
 
+export async function deleteCitaAction(citaId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("citas").delete().eq("id", citaId);
+  if (error) return { error: "Error al eliminar la cita" };
+  revalidatePath("/agenda");
+  return { success: true };
+}
+
+export async function updateCitaAction(citaId: string, data: {
+  fecha?: string;
+  hora_inicio?: string;
+  hora_fin?: string;
+  tipo_consulta?: string;
+  estado?: string;
+  notas?: string;
+}) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("citas").update(data).eq("id", citaId);
+  if (error) return { error: "Error al actualizar la cita" };
+  revalidatePath("/agenda");
+  return { success: true };
+}
+
 export async function getCitasRealesAction() {
   const supabase = await createClient();
   
@@ -144,6 +167,7 @@ export async function getCitasRealesAction() {
       hora_fin,
       tipo_consulta,
       estado,
+      notas,
       pacientes (
         id,
         nombre,
@@ -180,7 +204,8 @@ export async function getCitasRealesAction() {
       fecha: c.fecha,
       hora_inicio: c.hora_inicio.slice(0, 5),
       hora_fin: c.hora_fin.slice(0, 5),
-      estado: c.estado || "programada"
+      estado: c.estado || "programada",
+      notas: c.notas ?? undefined,
     };
   });
 }
