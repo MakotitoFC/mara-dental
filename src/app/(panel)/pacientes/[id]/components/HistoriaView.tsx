@@ -260,7 +260,7 @@ function TabConsultas({ consultas, onNuevaConsulta }: { consultas: any[]; onNuev
             <Icon name="chat_bubble_outline" size={32} className="text-slate-300" />
           </div>
           <p className="text-[14px] font-semibold text-slate-800 mb-1">Sin consultas</p>
-          <p className="text-[12px] text-slate-500 max-w-[250px]">Este paciente aún no tiene consultas clínicas registradas en su historial.</p>
+          <p className="text-[12px] text-slate-500 max-w-62.5">Este paciente aún no tiene consultas clínicas registradas en su historial.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
