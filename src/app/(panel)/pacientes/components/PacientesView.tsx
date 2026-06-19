@@ -9,8 +9,8 @@ import type { EstadoPaciente } from "@/types/paciente";
 import { getDoctorPacientesAction } from "../actions";
 
 const ESTADO_CFG: Record<EstadoPaciente, { label: string; bg: string; text: string }> = {
-  activo:   { label: "Activo",   bg: "#dcfce7", text: "#15803d" },
-  nuevo:    { label: "Nuevo",    bg: "#dbeafe", text: "#1d4ed8" },
+  activo: { label: "Activo", bg: "#dcfce7", text: "#15803d" },
+  nuevo: { label: "Nuevo", bg: "#dbeafe", text: "#1d4ed8" },
   inactivo: { label: "Inactivo", bg: "#f1f5f9", text: "#64748b" },
 };
 
@@ -20,7 +20,7 @@ function initials(nombre: string) {
 }
 
 const AVATAR_COLORS = [
-  "#0891b2","#7c3aed","#db2777","#059669","#d97706","#dc2626","#2563eb","#65a30d",
+  "#0891b2", "#7c3aed", "#db2777", "#059669", "#d97706", "#dc2626", "#2563eb", "#65a30d",
 ];
 function avatarColor(id: string) {
   const n = parseInt(id.replace(/\D/g, "")) || 0;
@@ -28,10 +28,10 @@ function avatarColor(id: string) {
 }
 
 export function PacientesView() {
-  const [query, setQuery]         = useState("");
-  const [filtro, setFiltro]       = useState<EstadoPaciente | "todos">("todos");
+  const [query, setQuery] = useState("");
+  const [filtro, setFiltro] = useState<EstadoPaciente | "todos">("todos");
   const [showModal, setShowModal] = useState(false);
-  const [todos, setTodos]         = useState<any[]>([]);
+  const [todos, setTodos] = useState<any[]>([]);
 
   const loadPacientes = () => {
     getDoctorPacientesAction().then(setTodos);
@@ -43,7 +43,7 @@ export function PacientesView() {
 
   const filtrados = todos.filter((p) => {
     const matchFiltro = filtro === "todos" || p.estado === filtro;
-    const matchQuery  = query === "" ||
+    const matchQuery = query === "" ||
       p.nombre.toLowerCase().includes(query.toLowerCase()) ||
       p.dni.toLowerCase().includes(query.toLowerCase()) ||
       p.telefono.includes(query);
@@ -51,9 +51,9 @@ export function PacientesView() {
   });
 
   const totales = {
-    todos:    todos.length,
-    activo:   todos.filter((p) => p.estado === "activo").length,
-    nuevo:    todos.filter((p) => p.estado === "nuevo").length,
+    todos: todos.length,
+    activo: todos.filter((p) => p.estado === "activo").length,
+    nuevo: todos.filter((p) => p.estado === "nuevo").length,
     inactivo: todos.filter((p) => p.estado === "inactivo").length,
   };
 
@@ -68,12 +68,12 @@ export function PacientesView() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar nombre, DNI o teléfono…"
-            className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+            className="w-full pl-9 pr-4 py-2.5 md:py-2 min-h-[44px] md:min-h-0 rounded-xl border border-slate-200 bg-white text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
           />
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-medium transition-colors shrink-0"
+          className="flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-medium transition-colors shrink-0"
         >
           <Icon name="person_add" size={16} />
           <span className="hidden sm:inline">Nuevo paciente</span>
@@ -81,30 +81,41 @@ export function PacientesView() {
         </button>
       </div>
 
-      {/* Stats + filtros */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {(["todos", "activo", "nuevo", "inactivo"] as const).map((f) => {
-          const label  = f === "todos" ? "Todos" : ESTADO_CFG[f].label;
-          const count  = totales[f];
-          const active = filtro === f;
-          return (
-            <button
-              key={f}
-              onClick={() => setFiltro(f)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors border ${
-                active
-                  ? "bg-cyan-600 text-white border-cyan-600"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-              }`}
-            >
-              {label}
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
-        <span className="text-[12px] text-slate-400 ml-1">{filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""}</span>
+      {/* Stats + filtros rediseñados en un contenedor unificado */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-1">
+        <div
+          className="flex items-center bg-slate-100/80 p-1 rounded-xl overflow-x-auto scrollbar-none snap-x select-none w-full sm:w-auto"
+          style={{
+            msOverflowStyle: 'none',
+            scrollbarWidth: 'none',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          {(["todos", "activo", "nuevo", "inactivo"] as const).map((f) => {
+            const label = f === "todos" ? "Todos" : ESTADO_CFG[f].label;
+            const count = totales[f];
+            const active = filtro === f;
+            return (
+              <button
+                key={f}
+                onClick={() => setFiltro(f)}
+                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 border-none outline-none focus:outline-none focus:ring-0 snap-shrink min-w-[75px] sm:min-w-0 ${active
+                    ? "bg-white text-cyan-700 shadow-sm font-semibold"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-white/40"
+                  }`}
+              >
+                <span>{label}</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold transition-colors ${active ? "bg-cyan-50 text-cyan-700" : "bg-slate-200/60 text-slate-500"
+                  }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[12px] text-slate-400 self-end sm:self-center px-1">
+          {filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
       {/* Desktop table */}
@@ -161,9 +172,9 @@ export function PacientesView() {
 
 function PacienteRow({ paciente: p }: { paciente: any }) {
   const router = useRouter();
-  const cfg    = ESTADO_CFG[p.estado as EstadoPaciente];
-  const edad   = calcEdad(p.fecha_nacimiento);
-  const color  = avatarColor(p.id);
+  const cfg = ESTADO_CFG[p.estado as EstadoPaciente];
+  const edad = calcEdad(p.fecha_nacimiento);
+  const color = avatarColor(p.id);
 
   return (
     <div
@@ -183,7 +194,7 @@ function PacienteRow({ paciente: p }: { paciente: any }) {
           <p className="text-[13px] font-semibold text-slate-900 truncate">{p.nombre}</p>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-[11px] text-slate-400">{p.dni}</span>
-            {p.alergias.length > 0 && (
+            {p.alergias && p.alergias.length > 0 && (
               <span className="flex items-center gap-1 text-[10px] font-semibold text-orange-600">
                 <Icon name="warning_amber" size={11} />
                 Alergias: {p.alergias.join(", ")}
@@ -207,9 +218,9 @@ function PacienteRow({ paciente: p }: { paciente: any }) {
       {/* Estado */}
       <span
         className="text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit"
-        style={{ background: cfg.bg, color: cfg.text }}
+        style={{ background: cfg?.bg ?? "#f1f5f9", color: cfg?.text ?? "#64748b" }}
       >
-        {cfg.label}
+        {cfg?.label ?? p.estado}
       </span>
 
       {/* Acciones */}
@@ -240,9 +251,9 @@ function PacienteRow({ paciente: p }: { paciente: any }) {
 
 function PacienteCard({ paciente: p }: { paciente: any }) {
   const router = useRouter();
-  const cfg    = ESTADO_CFG[p.estado as EstadoPaciente];
-  const edad   = calcEdad(p.fecha_nacimiento);
-  const color  = avatarColor(p.id);
+  const cfg = ESTADO_CFG[p.estado as EstadoPaciente];
+  const edad = calcEdad(p.fecha_nacimiento);
+  const color = avatarColor(p.id);
 
   return (
     <div
@@ -263,9 +274,9 @@ function PacienteCard({ paciente: p }: { paciente: any }) {
           <p className="text-[13px] font-semibold text-slate-900 truncate">{p.nombre}</p>
           <span
             className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-            style={{ background: cfg.bg, color: cfg.text }}
+            style={{ background: cfg?.bg ?? "#f1f5f9", color: cfg?.text ?? "#64748b" }}
           >
-            {cfg.label}
+            {cfg?.label ?? p.estado}
           </span>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-slate-400 flex-wrap">
@@ -280,7 +291,7 @@ function PacienteCard({ paciente: p }: { paciente: any }) {
             Última visita: {fmtFecha(p.ultima_visita)}
           </p>
         )}
-        {p.alergias.length > 0 && (
+        {p.alergias && p.alergias.length > 0 && (
           <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-600 mt-0.5">
             <Icon name="warning_amber" size={11} />
             {p.alergias.join(", ")}

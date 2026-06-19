@@ -22,4 +22,29 @@
   body {
     @apply bg-background text-foreground; }
   html {
-    @apply font-sans; } }
+    @apply font-sans; }
+  img {
+    max-width: 100%;
+    height: auto; } }
+
+/* Scroll horizontal táctil sin scrollbar visible, sin scroll vertical */
+.scroll-x-touch {
+  overflow-x: auto;
+  overflow-y: hidden;   /* evita que CSS compute overflow-y: auto automáticamente */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scroll-x-touch::-webkit-scrollbar {
+  display: none;
+}
+
+/* Prevent iOS Safari zoom: font-size must be ≥16px on inputs.
+   Inline style={{ fontSize }} on specific inputs overrides this. */
+@media (max-width: 767px) {
+  input:not([style*="font-size"]),
+  select:not([style*="font-size"]),
+  textarea:not([style*="font-size"]) {
+    font-size: 16px;
+  }
+}

@@ -10,12 +10,17 @@ export default async function PacienteDetallePage({params,}: {params: Promise<{ 
 
   return (
     <>
-      <Topbar title="Historia clínica" />
-      <div className="flex-1 overflow-y-auto">
-        <HistoriaView 
-          paciente={detalle.paciente} 
-          citas={detalle.citas} 
-          notas={detalle.notas} 
+      <Topbar
+        breadcrumbs={[
+          { label: "Pacientes", href: "/pacientes" },
+          { label: detalle.paciente.nombre },
+        ]}
+      />
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <HistoriaView
+          paciente={detalle.paciente}
+          citas={detalle.citas}
+          notas={detalle.notas}
         />
       </div>
     </>
