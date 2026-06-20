@@ -18,6 +18,7 @@ import {
   Printer, Share2, MoreVertical, GripVertical,
   MapPin, ZoomIn, ZoomOut, RadioTower,
   PauseCircle, Hospital, BadgeCheck,
+  ChevronDown, ChevronUp,
   Heart, Dna, FlaskConical,
   LogOut, PenTool, Bandage, Lightbulb
 } from "lucide-react";
@@ -50,6 +51,7 @@ const ICONS: Record<string, LucideIcon> = {
   microscope:           Microscope,
   dna:                  Dna,
   healing:              Bandage,
+  dentistry:            Stethoscope,
 
   // Acciones
   search:               Search,
@@ -74,6 +76,8 @@ const ICONS: Record<string, LucideIcon> = {
   // Navegación de flechas
   chevron_left:         ChevronLeft,
   chevron_right:        ChevronRight,
+  expand_more:          ChevronDown,
+  expand_less:          ChevronUp,
   arrow_back:           ArrowLeft,
   arrow_forward:        ArrowRight,
 
