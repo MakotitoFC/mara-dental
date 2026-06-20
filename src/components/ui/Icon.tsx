@@ -9,7 +9,7 @@ import {
   Trash2, Save, Pencil, Download, Upload,
   CloudUpload, Paperclip, Link,
   ChevronLeft, ChevronRight, ArrowLeft, ArrowRight,
-  CheckCircle, AlertTriangle, AlertCircle,
+  CheckCircle, AlertTriangle, AlertCircle, Check, Minus,
   Bell, Clock, RotateCcw,
   IdCard, MessageSquare, MessageCircle, Mail, Phone,
   Folder, FolderOpen, File, StickyNote,
@@ -19,7 +19,7 @@ import {
   MapPin, ZoomIn, ZoomOut, RadioTower,
   PauseCircle, Hospital, BadgeCheck,
   Heart, Dna, FlaskConical,
-  LogOut,
+  LogOut, PenTool, Bandage, Lightbulb
 } from "lucide-react";
 
 interface IconProps {
@@ -49,6 +49,7 @@ const ICONS: Record<string, LucideIcon> = {
   sensors:              Activity,
   microscope:           Microscope,
   dna:                  Dna,
+  healing:              Bandage,
 
   // Acciones
   search:               Search,
@@ -58,6 +59,7 @@ const ICONS: Record<string, LucideIcon> = {
   delete:               Trash2,
   save:                 Save,
   edit:                 Pencil,
+  draw:                 PenTool,
   download:             Download,
   upload:               Upload,
   cloud_upload:         CloudUpload,
@@ -77,6 +79,8 @@ const ICONS: Record<string, LucideIcon> = {
 
   // Estado / alertas
   check_circle:         CheckCircle,
+  check:                Check,
+  remove:               Minus,
   cancel:               XCircle,
   warning:              AlertTriangle,
   warning_amber:        AlertTriangle,
@@ -90,6 +94,7 @@ const ICONS: Record<string, LucideIcon> = {
   // Tiempo
   schedule:             Clock,
   today:                CalendarCheck,
+  calendar_today:       CalendarDays,
   event:                Calendar,
   event_available:      CalendarCheck,
   event_upcoming:       CalendarDays,
@@ -123,6 +128,8 @@ const ICONS: Record<string, LucideIcon> = {
   // Misc
   cake:                 Cake,
   contact_page:         ClipboardList,
+  assignment:           ClipboardList,
+  tips_and_updates:     Lightbulb,
   contact_emergency:    IdCard,
   badge_id:             IdCard,
   info:                 Info,

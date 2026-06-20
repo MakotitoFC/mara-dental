@@ -68,12 +68,12 @@ export function PacientesView() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar nombre, DNI o teléfono…"
-            className="w-full pl-9 pr-4 py-2.5 md:py-2 min-h-[44px] md:min-h-0 rounded-xl border border-slate-200 bg-white text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+            className="w-full pl-9 pr-4 py-2.5 md:py-2 min-h-11 md:min-h-0 rounded-xl border border-slate-200 bg-white text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
           />
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-medium transition-colors shrink-0"
+          className="flex items-center gap-1.5 px-4 py-2.5 min-h-11 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-medium transition-colors shrink-0"
         >
           <Icon name="person_add" size={16} />
           <span className="hidden sm:inline">Nuevo paciente</span>
@@ -99,7 +99,7 @@ export function PacientesView() {
               <button
                 key={f}
                 onClick={() => setFiltro(f)}
-                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 border-none outline-none focus:outline-none focus:ring-0 snap-shrink min-w-[75px] sm:min-w-0 ${active
+                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 border-none outline-none focus:outline-none focus:ring-0 snap-shrink min-w-18.75 sm:min-w-0 ${active
                     ? "bg-white text-cyan-700 shadow-sm font-semibold"
                     : "text-slate-500 hover:text-slate-800 hover:bg-white/40"
                   }`}

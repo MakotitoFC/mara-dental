@@ -3,7 +3,6 @@
 import { useState, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { searchCIE10Action, saveDiagnosticoAction } from "../actions";
-import { createClient } from "@/lib/supabase/client";
 
 export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId: string }) {
   const [diagnostico, setDiagnostico] = useState("");
@@ -46,7 +45,7 @@ export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId
 
       const newCats = { ...categorias };
       newFiles.forEach(f => {
-        newCats[f.name] = "otros"; // default
+        newCats[f.name] = "otros";
       });
       setCategorias(newCats);
     }
@@ -68,50 +67,25 @@ export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId
     setLoading(true);
     setErrorMsg(null);
 
-    const supabase = createClient();
-    const uploadedFiles: any[] = [];
-
-    // Subir archivos a Storage si hay definitivos
-    if (esDefinitivo && archivos.length > 0) {
-      for (const file of archivos) {
-        // Renombrar archivo para evitar colisiones
-        const ext = file.name.split('.').pop();
-        const safeName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-        const filePath = `diagnosticos/${consultaId}/${safeName}`;
-
-        const { data, error } = await supabase.storage
-          .from("archivos_clinico") // user confirmed this bucket name
-          .upload(filePath, file);
-
-        if (error) {
-          setErrorMsg(`Error subiendo el archivo ${file.name}: ${error.message}`);
-          setLoading(false);
-          return;
-        }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from("archivos_clinico")
-          .getPublicUrl(filePath);
-
-        uploadedFiles.push({
-          nombre_archivo: file.name,
-          url: publicUrl,
-          tipo_archivo: file.type.startsWith("image/") ? "imagen" : "pdf",
-          categoria: categorias[file.name] || "otros",
-          tamaño_bytes: file.size
-        });
-      }
+    const formData = new FormData();
+    formData.append("consulta_id", consultaId.toString());
+    formData.append("hc_id", hcId);
+    formData.append("diagnostico", diagnostico.trim());
+    formData.append("es_tratado", esTratado.toString());
+    formData.append("es_definitivo", esDefinitivo.toString());
+    
+    if (selectedCie) {
+      formData.append("cie10_id", selectedCie.id.toString());
     }
 
-    const res = await saveDiagnosticoAction({
-      consulta_id: consultaId,
-      hc_id: hcId,
-      diagnostico: diagnostico.trim(),
-      es_tratado: esTratado,
-      es_definitivo: esDefinitivo,
-      cie10_id: selectedCie?.id || null,
-      archivos: uploadedFiles
-    });
+    if (esDefinitivo && archivos.length > 0) {
+      archivos.forEach(file => {
+        formData.append("archivos", file);
+        formData.append(`categoria_${file.name}`, categorias[file.name] || "otros");
+      });
+    }
+
+    const res = await saveDiagnosticoAction(formData);
 
     setLoading(false);
 
@@ -119,6 +93,7 @@ export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId
       setErrorMsg(res.error);
       return;
     }
+    // Refrescar página para ver cambios
     window.location.reload();
   }
 
@@ -173,7 +148,7 @@ export function DiagnosticoForm({ consultaId, hcId }: { consultaId: number, hcId
               </div>
 
               {cieList.length > 0 && (
-                <div className="absolute top-[100%] left-0 w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl max-h-48 overflow-y-auto z-10">
+                <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl max-h-48 overflow-y-auto z-10">
                   {cieList.map(c => (
                     <button
                       key={c.id}

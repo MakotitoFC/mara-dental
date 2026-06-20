@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
-import { savePlanTrabajoAction, deletePlanTrabajoAction } from "../actions";
+import { savePlanTrabajoAction, deletePlanTrabajoAction, editPlanTrabajoAction } from "../actions";
 
-const ESTADOS = ["pendiente", "en progreso", "completado", "cancelado"] as const;
+const ESTADOS = ["hacer", "haciendo", "hecho"] as const;
 const ESTADO_CFG: Record<string, { bg: string; text: string }> = {
-  "pendiente": { bg: "#fef3c7", text: "#92400e" },
-  "en progreso": { bg: "#dbeafe", text: "#1e40af" },
-  "completado": { bg: "#d1fae5", text: "#064e3b" },
-  "cancelado": { bg: "#fee2e2", text: "#7f1d1d" },
+  "hacer": { bg: "#f1f5f9", text: "#64748b" },
+  "haciendo": { bg: "#fffbeb", text: "#d97706" },
+  "hecho": { bg: "#ecfdf5", text: "#059669" },
 };
 
 interface PlanItem {
@@ -32,7 +31,39 @@ export function PlanTrabajoSection({
   const [etapa, setEtapa] = useState("");
   const [desc, setDesc] = useState("");
   const [tiempo, setTiempo] = useState("");
-  const [estado, setEstado] = useState("pendiente");
+  const [estado, setEstado] = useState("hacer");
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editEtapa, setEditEtapa] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editTiempo, setEditTiempo] = useState("");
+  const [editEstado, setEditEstado] = useState("");
+
+  function startEdit(item: PlanItem) {
+    setEditingId(item.id);
+    setEditEtapa(item.etapa);
+    setEditDesc(item.descripcion);
+    setEditTiempo(item.tiempo_pronostico || "");
+    setEditEstado(item.estado);
+  }
+
+  async function handleEdit() {
+    if (!editingId || !editEtapa.trim()) return;
+    setSaving(true);
+    const res = await editPlanTrabajoAction({
+      id: editingId,
+      etapa: editEtapa,
+      descripcion: editDesc,
+      tiempo_pronostico: editTiempo,
+      estado: editEstado,
+      consulta_id: consultaId
+    });
+    setSaving(false);
+    if (!res?.error) {
+      setItems(prev => prev.map(i => i.id === editingId ? { ...i, etapa: editEtapa, descripcion: editDesc, tiempo_pronostico: editTiempo, estado: editEstado } : i));
+      setEditingId(null);
+    }
+  }
 
   async function handleAdd() {
     if (!etapa.trim()) return;
@@ -120,27 +151,57 @@ export function PlanTrabajoSection({
               <div className="w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[11px] font-bold text-slate-500 shrink-0 mt-0.5">
                 {idx + 1}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[13px] font-semibold text-slate-800">{item.etapa}</span>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                    style={{ background: cfg(item.estado).bg, color: cfg(item.estado).text }}>
-                    {item.estado}
-                  </span>
-                  {item.tiempo_pronostico && (
-                    <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                      <Icon name="schedule" size={11} /> {item.tiempo_pronostico}
-                    </span>
-                  )}
+              
+              {editingId === item.id ? (
+                <div className="flex-1 min-w-0 flex flex-col gap-2">
+                   <div className="grid grid-cols-2 gap-2">
+                      <input value={editEtapa} onChange={e => setEditEtapa(e.target.value)} placeholder="Etapa" className="border border-slate-200 rounded-lg px-2 py-1 text-[13px] outline-none focus:border-cyan-400 bg-white" />
+                      <input value={editTiempo} onChange={e => setEditTiempo(e.target.value)} placeholder="Tiempo" className="border border-slate-200 rounded-lg px-2 py-1 text-[13px] outline-none focus:border-cyan-400 bg-white" />
+                   </div>
+                   <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Descripción" className="border border-slate-200 rounded-lg px-2 py-1 text-[13px] outline-none focus:border-cyan-400 resize-none bg-white" rows={2} />
+                   <div className="flex justify-between items-center">
+                     <select value={editEstado} onChange={e => setEditEstado(e.target.value)} className="border border-slate-200 rounded-lg px-2 py-1 text-[12px] outline-none focus:border-cyan-400 bg-white">
+                        {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
+                     </select>
+                     <div className="flex gap-2">
+                       <button onClick={() => setEditingId(null)} disabled={saving} className="text-slate-500 hover:text-slate-700 font-medium text-[12px] px-2 py-1 transition-colors">Cancelar</button>
+                       <button onClick={handleEdit} disabled={saving || !editEtapa.trim()} className="flex items-center gap-1 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white px-3 py-1 rounded-lg text-[12px] font-semibold transition-colors">
+                         <Icon name="check" size={13} /> Guardar
+                       </button>
+                     </div>
+                   </div>
                 </div>
-                {item.descripcion && (
-                  <p className="text-[12px] text-slate-500 mt-1 leading-relaxed">{item.descripcion}</p>
-                )}
-              </div>
-              <button onClick={() => handleDelete(item.id)}
-                className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 text-slate-400 hover:text-red-500 border-0 transition-colors shrink-0">
-                <Icon name="delete" size={14} />
-              </button>
+              ) : (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[13px] font-semibold text-slate-800">{item.etapa}</span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                        style={{ background: cfg(item.estado).bg, color: cfg(item.estado).text }}>
+                        {item.estado}
+                      </span>
+                      {item.tiempo_pronostico && (
+                        <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                          <Icon name="schedule" size={11} /> {item.tiempo_pronostico}
+                        </span>
+                      )}
+                    </div>
+                    {item.descripcion && (
+                      <p className="text-[12px] text-slate-500 mt-1 leading-relaxed">{item.descripcion}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <button onClick={() => startEdit(item)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-slate-200 text-slate-400 hover:text-slate-600 border-0 transition-colors">
+                      <Icon name="edit" size={14} />
+                    </button>
+                    <button onClick={() => handleDelete(item.id)}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 text-slate-400 hover:text-red-500 border-0 transition-colors">
+                      <Icon name="delete" size={14} />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))
         )}
