@@ -2,10 +2,11 @@
 
 import { useState, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
-import { searchCIE10Action, updateDiagnosticoAction } from "../actions";
+import { searchCIE10Action, updateDiagnosticoAction, deleteArchivoClinicoAction } from "../actions";
 import { createClient } from "@/lib/supabase/client";
+import { VisorModal } from "./VisorModal";
 
-interface Archivo { id: number; nombre_archivo: string; url: string; tipo_archivo: string; categoria: string; }
+interface Archivo { id: number; nombre_archivo: string; url: string; tipo_archivo: string; categoria: string; anotaciones?: any[]; displayUrl?: string; }
 interface CIE10 { id: number; codigo: string; descripcion: string; }
 
 interface Props {
@@ -22,6 +23,7 @@ interface Props {
 
 export function DiagnosticoCard({ diagnostico, consultaId }: Props) {
   const [editing, setEditing] = useState(false);
+  const [visor, setVisor] = useState<Archivo | null>(null);
 
   /* ── estado del formulario de edición ── */
   const [texto, setTexto] = useState(diagnostico.diagnostico_texto);
@@ -36,6 +38,9 @@ export function DiagnosticoCard({ diagnostico, consultaId }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const [fileToDelete, setFileToDelete] = useState<{id: number, url: string, name: string} | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleCieSearch(q: string) {
     setQuery(q);
@@ -57,39 +62,36 @@ export function DiagnosticoCard({ diagnostico, consultaId }: Props) {
     if (!texto.trim()) return;
     setSaving(true); setError("");
 
-    const supabase = createClient();
-    const uploaded: any[] = [];
+    const formData = new FormData();
+    formData.append("diagnostico_id", String(diagnostico.id));
+    formData.append("consulta_id", String(consultaId));
+    formData.append("diagnostico", texto.trim());
+    formData.append("es_tratado", String(esTratado));
+    formData.append("es_definitivo", String(esDefinitivo));
+    if (selectedCie) formData.append("cie10_id", String(selectedCie.id));
 
-    if (esDefinitivo && nuevosFiles.length > 0) {
-      for (const file of nuevosFiles) {
-        const ext = file.name.split(".").pop();
-        const path = `diagnosticos/${consultaId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("archivos_clinico").upload(path, file);
-        if (upErr) { setError(`Error subiendo ${file.name}`); setSaving(false); return; }
-        const { data: { publicUrl } } = supabase.storage.from("archivos_clinico").getPublicUrl(path);
-        uploaded.push({
-          nombre_archivo: file.name,
-          url: publicUrl,
-          tipo_archivo: file.type.startsWith("image/") ? "imagen" : "pdf",
-          categoria: categorias[file.name] ?? "otros",
-          tamaño_bytes: file.size,
-        });
-      }
+    if (esDefinitivo) {
+      nuevosFiles.forEach((f) => {
+        formData.append("archivos", f);
+        formData.append(`categoria_${f.name}`, categorias[f.name] || "otros");
+      });
     }
 
-    const res = await updateDiagnosticoAction({
-      diagnostico_id: diagnostico.id,
-      consulta_id: consultaId,
-      diagnostico: texto.trim(),
-      es_tratado: esTratado,
-      es_definitivo: esDefinitivo,
-      cie10_id: selectedCie?.id ?? null,
-      nuevos_archivos: uploaded,
-    });
+    const res = await updateDiagnosticoAction(formData);
 
     setSaving(false);
     if (res?.error) { setError(res.error); return; }
     window.location.reload();
+  }
+
+  async function confirmDelete() {
+    if (!fileToDelete) return;
+    setDeleting(true);
+    const res = await deleteArchivoClinicoAction(fileToDelete.id, fileToDelete.url, consultaId);
+    setDeleting(false);
+    if (res?.error) { setError(res.error); }
+    setFileToDelete(null);
+    if (!res?.error) window.location.reload();
   }
 
   /* ── Vista ── */
@@ -131,23 +133,40 @@ export function DiagnosticoCard({ diagnostico, consultaId }: Props) {
             <div className="mt-1">
               <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Archivos adjuntos</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {diagnostico.archivos.map(a => (
-                  <a key={a.id} href={a.url} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                    <div className="w-8 h-8 bg-red-50 text-red-500 rounded-lg flex items-center justify-center shrink-0">
-                      <Icon name={a.tipo_archivo === "pdf" ? "description" : "image"} size={16} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-semibold text-slate-800 truncate">{a.nombre_archivo}</p>
-                      <p className="text-[10px] text-slate-500">{a.categoria}</p>
-                    </div>
-                  </a>
-                ))}
+                {diagnostico.archivos.map(a => {
+                  const isImage = a.tipo_archivo === "imagen" || a.nombre_archivo.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                  return (
+                    <button key={a.id} onClick={() => setVisor(a)}
+                      className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-left w-full">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isImage ? "bg-cyan-50 text-cyan-500" : "bg-red-50 text-red-500"}`}>
+                        <Icon name={isImage ? "image" : "description"} size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-semibold text-slate-800 truncate">{a.nombre_archivo}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] text-slate-500">{a.categoria}</p>
+                          {a.anotaciones && a.anotaciones.length > 0 && (
+                             <span className="text-[9px] font-bold bg-cyan-100 text-cyan-700 px-1.5 rounded-full">{a.anotaciones.length}</span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
         </div>
+        
+        {visor && (
+          <VisorModal
+            archivo={visor}
+            todos={diagnostico.archivos}
+            onClose={() => setVisor(null)}
+            onNav={setVisor}
+          />
+        )}
       </div>
     );
   }
@@ -217,7 +236,7 @@ export function DiagnosticoCard({ diagnostico, consultaId }: Props) {
                 {searching && <div className="absolute right-3 top-2.5 w-4 h-4 rounded-full border-2 border-cyan-200 border-t-cyan-600 animate-spin" />}
               </div>
               {cieList.length > 0 && (
-                <div className="absolute top-[100%] left-0 w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl max-h-48 overflow-y-auto z-10">
+                <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl max-h-48 overflow-y-auto z-10">
                   {cieList.map(c => (
                     <button key={c.id} onClick={() => { setSelectedCie(c); setQuery(""); setCieList([]); }}
                       className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 flex gap-2 items-center">
@@ -231,20 +250,34 @@ export function DiagnosticoCard({ diagnostico, consultaId }: Props) {
           )}
         </div>
 
-        {/* Archivos nuevos (solo definitivo) */}
+        {/* Archivos (solo definitivo) */}
         {esDefinitivo && (
           <div className="flex flex-col gap-2 pt-3 border-t border-slate-100">
             <div className="flex items-center justify-between">
-              <p className="text-[12px] font-semibold text-slate-700">Agregar archivos</p>
+              <p className="text-[12px] font-semibold text-slate-700">Archivos clínicos</p>
               <button onClick={() => fileRef.current?.click()}
                 className="text-[11px] font-medium text-cyan-600 hover:underline flex items-center gap-1 border-0">
                 <Icon name="attach_file" size={14} /> Adjuntar
               </button>
               <input type="file" multiple accept="image/*,application/pdf" className="hidden" ref={fileRef} onChange={addFiles} />
             </div>
+
+            {/* Archivos existentes */}
+            {diagnostico.archivos.map(a => (
+              <div key={a.id} className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                <Icon name={a.tipo_archivo === "pdf" ? "description" : "image"} size={15} className="text-slate-500 shrink-0" />
+                <span className="text-[12px] text-slate-700 flex-1 truncate">{a.nombre_archivo}</span>
+                <span className="text-[10px] text-slate-400 px-2 border-r border-slate-200">{a.categoria}</span>
+                <button onClick={() => setFileToDelete({ id: a.id, url: a.url, name: a.nombre_archivo })} className="text-red-400 hover:text-red-600 border-0 px-2">
+                  <Icon name="delete" size={14} />
+                </button>
+              </div>
+            ))}
+
+            {/* Nuevos archivos */}
             {nuevosFiles.length > 0 && nuevosFiles.map(f => (
-              <div key={f.name} className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-100 rounded-lg">
-                <Icon name={f.type.startsWith("image/") ? "image" : "description"} size={15} className="text-slate-400 shrink-0" />
+              <div key={f.name} className="flex items-center gap-2 p-2 bg-blue-50/50 border border-blue-100 rounded-lg">
+                <Icon name={f.type.startsWith("image/") ? "image" : "description"} size={15} className="text-blue-400 shrink-0" />
                 <span className="text-[12px] text-slate-700 flex-1 truncate">{f.name}</span>
                 <select value={categorias[f.name]} onChange={e => setCategorias(p => ({ ...p, [f.name]: e.target.value }))}
                   className="border border-slate-200 rounded-lg px-2 py-1 text-[11px] outline-none bg-white">
@@ -254,8 +287,8 @@ export function DiagnosticoCard({ diagnostico, consultaId }: Props) {
                   <option value="Tomografia">Tomografía</option>
                   <option value="otros">Otros</option>
                 </select>
-                <button onClick={() => setNuevosFiles(p => p.filter(x => x.name !== f.name))} className="text-red-400 hover:text-red-600 border-0">
-                  <Icon name="delete" size={14} />
+                <button onClick={() => setNuevosFiles(p => p.filter(x => x.name !== f.name))} className="text-red-400 hover:text-red-600 border-0 px-2">
+                  <Icon name="close" size={14} />
                 </button>
               </div>
             ))}
@@ -287,6 +320,33 @@ export function DiagnosticoCard({ diagnostico, consultaId }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Modal de Confirmación de Borrado */}
+      {fileToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl p-5 max-w-sm w-full border border-slate-100 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 mb-3">
+              <Icon name="warning" size={24} />
+            </div>
+            <h3 className="text-[16px] font-bold text-slate-800 mb-1">¿Eliminar archivo?</h3>
+            <p className="text-[13px] text-slate-500 mb-4 px-2">
+              Estás a punto de eliminar permanentemente <strong className="text-slate-700">{fileToDelete.name}</strong> y todas sus anotaciones. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3 w-full">
+              <button onClick={() => setFileToDelete(null)} disabled={deleting}
+                className="flex-1 py-2 rounded-xl text-[13px] font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={confirmDelete} disabled={deleting}
+                className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl text-[13px] font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-colors">
+                {deleting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Icon name="delete" size={14} />}
+                {deleting ? "Borrando..." : "Sí, eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

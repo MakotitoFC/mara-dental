@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import { Topbar } from "@/components/layout/Topbar";
-import { getConsultaDetalleAction, getPlanTrabajoAction, getTratamientosAction, getRecetaAction } from "./actions";
+import { getConsultaDetalleAction, getPlanTrabajoAction, getTratamientosAction, getRecetasAction, getRecomendacionesConsultaAction } from "./actions";
 import { Icon } from "@/components/ui/Icon";
 import { DiagnosticoForm } from "./components/DiagnosticoForm";
 import { DiagnosticoCard } from "./components/DiagnosticoCard";
@@ -21,7 +21,8 @@ export default async function ConsultaDetallePage({ params }: { params: Promise<
 
   const planTrabajo = diagnostico ? await getPlanTrabajoAction(diagnostico.id) : [];
   const tratamientos = diagnostico ? await getTratamientosAction(diagnostico.id) : [];
-  const receta = diagnostico ? await getRecetaAction(diagnostico.id) : null;
+  const recetas = diagnostico ? await getRecetasAction(diagnostico.id) : [];
+  const recomendaciones = await getRecomendacionesConsultaAction(Number(id));
 
   return (
     <>
@@ -48,7 +49,7 @@ export default async function ConsultaDetallePage({ params }: { params: Promise<
             <span className="hidden sm:inline w-1 h-1 rounded-full bg-slate-300 shrink-0" />
             <span className="flex items-center gap-1">
               <Icon name="calendar_today" size={13} className="shrink-0" />
-              {new Date(consulta.fecha).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" })}
+              <span suppressHydrationWarning>{new Date(consulta.fecha).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" })}</span>
             </span>
             <span className="hidden sm:inline w-1 h-1 rounded-full bg-slate-300 shrink-0" />
             <span className="flex items-center gap-1">
@@ -125,11 +126,12 @@ export default async function ConsultaDetallePage({ params }: { params: Promise<
                 <RecetaSection
                   diagnosticoId={diagnostico.id}
                   consultaId={Number(consulta.id)}
-                  initial={receta as any}
+                  initial={recetas as any}
                   enabled={diagnostico.es_definitivo}
                 />
                 <RecomendacionesSection
                   consultaId={Number(consulta.id)}
+                  initial={recomendaciones as any}
                   enabled={diagnostico.es_definitivo}
                 />
               </>
