@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { getOdontogramasAction, addFindingAction, updateFindingAction, deleteFindingAction } from "../odontograma.actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -12,7 +13,9 @@ type Service = "medico" | "cosmetico";
 interface SurfaceCondition { surface: Surface; convention: Convention; }
 
 interface SessionFinding {
-  id: string; toothNumber: number;
+  id: string; 
+  db_ids: number[]; // Added to map back to DB
+  toothNumber: number;
   isAll: boolean; allConvention?: Convention;
   surfaceConditions: SurfaceCondition[];
   observaciones: string;
@@ -75,19 +78,6 @@ const TOOTH_NAMES: Record<number, string> = {
 
 const TODAY = new Date().toISOString().split("T")[0];
 
-const INITIAL_SESSIONS: ExamSession[] = [
-  {
-    id: "s1", fecha: "2026-04-15", tipo: "Revisión General",
-    dentista: "Dr. Escalinza", service: "medico",
-    findings: [
-      {
-        id: "sf1", toothNumber: 24, isAll: true, allConvention: "preexistencia", surfaceConditions: [],
-        observaciones: "Restauración antigua en amalgama."
-      },
-    ],
-  }
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function convColor(c: Convention): string {
@@ -100,12 +90,6 @@ function fmtDate(d: string): { day: string; month: string } {
     day: dt.getDate().toString().padStart(2, "0"),
     month: dt.toLocaleDateString("es-PE", { month: "short" }).replace(".", "").toUpperCase(),
   };
-}
-
-function fmtFullDate(d: string): string {
-  return new Date(d + "T12:00:00").toLocaleDateString("es-PE", {
-    day: "numeric", month: "long", year: "numeric",
-  });
 }
 
 // ─── Chart tooth ──────────────────────────────────────────────────────────────
@@ -250,19 +234,30 @@ function SurfaceDiagram({ surfaceConventions, activeSurface, isAll, allConventio
 
 // ─── Session finding row (HISTORIAL) ──────────────────────────────────────────
 
-function SessionFindingRow({ finding, isPast, highlighted, onUpdateObs }: {
+function SessionFindingRow({ finding, isPast, highlighted, onUpdateObs, onDelete }: {
   finding: SessionFinding; isPast: boolean;
   highlighted: boolean;
   onUpdateObs: (obs: string) => void;
+  onDelete: (id: string) => void;
 }) {
+  const [editingObs, setEditingObs] = useState(finding.observaciones);
+  const [isEditing, setIsEditing] = useState(false);
+
   return (
     <div className={`bg-white rounded-xl p-3 border transition-all ${highlighted ? "border-cyan-200 shadow-sm" : "border-slate-100"}`}>
-      <div className="flex items-center gap-1.5 mb-2">
-        <Icon name="dentistry" size={13} className="text-slate-500 shrink-0" />
-        <span className="text-[10px] font-bold text-slate-500">#{finding.toothNumber}</span>
-        <span className="text-[11px] font-medium text-slate-700 truncate">
-          {TOOTH_NAMES[finding.toothNumber]}
-        </span>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <Icon name="dentistry" size={13} className="text-slate-500 shrink-0" />
+          <span className="text-[10px] font-bold text-slate-500">#{finding.toothNumber}</span>
+          <span className="text-[11px] font-medium text-slate-700 truncate">
+            {TOOTH_NAMES[finding.toothNumber]}
+          </span>
+        </div>
+        {!isPast && (
+          <button onClick={() => onDelete(finding.id)} className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors border-0">
+            <Icon name="delete" size={13} />
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-1 mb-2">
@@ -293,14 +288,22 @@ function SessionFindingRow({ finding, isPast, highlighted, onUpdateObs }: {
           </p>
         ) : null
       ) : (
-        <div className="bg-slate-50 rounded-lg border border-slate-100 px-2.5 py-1.5 flex items-start gap-1.5">
-          <Icon name="edit_note" size={12} className="text-slate-400 mt-0.5 shrink-0" />
-          <textarea
-            rows={1} value={finding.observaciones}
-            onChange={e => onUpdateObs(e.target.value)}
-            placeholder="Sin observaciones…"
-            className="flex-1 bg-transparent text-[11px] italic text-slate-500 outline-none resize-none placeholder:text-slate-300"
-          />
+        <div className="flex flex-col gap-1.5">
+          <div className={`bg-slate-50 rounded-lg border px-2.5 py-1.5 flex items-start gap-1.5 transition-colors ${isEditing ? "border-cyan-300 ring-1 ring-cyan-100" : "border-slate-100"}`}>
+            <Icon name="edit_note" size={12} className="text-slate-400 mt-0.5 shrink-0" />
+            <textarea
+              rows={1} value={editingObs}
+              onChange={e => { setEditingObs(e.target.value); setIsEditing(true); }}
+              placeholder="Sin observaciones…"
+              className="flex-1 bg-transparent text-[11px] italic text-slate-600 outline-none resize-none placeholder:text-slate-300"
+            />
+          </div>
+          {isEditing && (
+            <div className="flex justify-end gap-1">
+              <button onClick={() => { setEditingObs(finding.observaciones); setIsEditing(false); }} className="text-[10px] font-semibold text-slate-500 hover:text-slate-700 px-2 py-1 border-0">Cancelar</button>
+              <button onClick={() => { onUpdateObs(editingObs); setIsEditing(false); }} className="text-[10px] font-bold bg-cyan-600 text-white rounded-md px-2.5 py-1 border-0 hover:bg-cyan-700">Guardar</button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -311,7 +314,10 @@ function SessionFindingRow({ finding, isPast, highlighted, onUpdateObs }: {
 
 export function OdontogramaTab({ paciente }: { paciente: any }) {
   const [service, setService] = useState<Service>("medico");
-  const [sessions, setSessions] = useState<ExamSession[]>(INITIAL_SESSIONS);
+  const [sessions, setSessions] = useState<ExamSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
 
@@ -321,7 +327,19 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
   const [allConvention, setAllConvention] = useState<Convention | null>(null);
   const [newObs, setNewObs] = useState("");
 
-  const DENTISTA = "Dr. Escalinza";
+  const [findingToDelete, setFindingToDelete] = useState<SessionFinding | null>(null);
+
+  const fetchOdontogramas = async () => {
+    setLoading(true);
+    const data = await getOdontogramasAction(String(paciente.id));
+    setSessions(data as ExamSession[]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchOdontogramas();
+  }, [paciente.id]);
+
   const isViewingSession = !!expandedSessionId;
   const selectedSession = sessions.find(s => s.id === expandedSessionId) ?? null;
   const isPastSession = selectedSession ? selectedSession.fecha < TODAY : false;
@@ -354,8 +372,6 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
     }
   }
 
-  type UpdateSessionFn = (prev: ExamSession[]) => ExamSession[];
-
   function selectTooth(num: number) {
     setSelectedTooth(p => (p === num ? null : num));
     if (!isViewingSession) resetForm();
@@ -386,41 +402,51 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
     if (activeSurface === s) setActiveSurface(null);
   }
 
-  function addRecord() {
+  async function addRecord() {
     if (isViewingSession || !selectedTooth) return;
     if (isAll && !allConvention) return;
     if (!isAll && Object.keys(surfaceConventions).length === 0) return;
 
-    const newFinding: SessionFinding = {
-      id: "sf" + Date.now(), toothNumber: selectedTooth,
-      isAll, allConvention: isAll ? allConvention! : undefined,
+    setSaving(true);
+    const res = await addFindingAction({
+      paciente_id: Number(paciente.id),
+      tipo_tratamiento: service,
+      diente: selectedTooth,
+      isAll,
+      allConvention: isAll ? allConvention : undefined,
       surfaceConditions: isAll ? [] : Object.entries(surfaceConventions).map(([s, c]) => ({
-        surface: s as Surface, convention: c as Convention,
+        surface: s as string, convention: c as string,
       })),
-      observaciones: newObs,
-    };
-
-    setSessions(p => {
-      const todayIdx = p.findIndex(s => s.fecha === TODAY && s.service === service);
-      if (todayIdx >= 0) {
-        return p.map((s, i) => i === todayIdx
-          ? { ...s, findings: [...s.findings, newFinding] }
-          : s,
-        );
-      }
-      return [{
-        id: "s" + Date.now(), fecha: TODAY, tipo: "Nuevo Registro",
-        dentista: DENTISTA, service, findings: [newFinding],
-      }, ...p];
+      observaciones: newObs
     });
-    resetForm();
+    setSaving(false);
+
+    if (!res?.error) {
+      resetForm();
+      fetchOdontogramas(); // Recargar datos
+    } else {
+      alert("Error al guardar: " + res.error);
+    }
   }
 
-  function updateFindingObs(sessionId: string, findingId: string, obs: string) {
-    setSessions(p => p.map(s => s.id !== sessionId ? s : {
-      ...s,
-      findings: s.findings.map(f => f.id !== findingId ? f : { ...f, observaciones: obs }),
-    }));
+  async function handleUpdateFindingObs(finding: SessionFinding, obs: string) {
+    setSaving(true);
+    const res = await updateFindingAction(finding.db_ids, obs);
+    setSaving(false);
+    if (!res?.error) {
+      fetchOdontogramas();
+    }
+  }
+
+  async function confirmDeleteFinding() {
+    if (!findingToDelete) return;
+    setSaving(true);
+    const res = await deleteFindingAction(findingToDelete.db_ids);
+    setSaving(false);
+    setFindingToDelete(null);
+    if (!res?.error) {
+      fetchOdontogramas();
+    }
   }
 
   const canAdd = isAll ? !!allConvention : Object.keys(surfaceConventions).length > 0;
@@ -433,33 +459,56 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
       : "Condición";
 
   return (
-    <div className="flex flex-col gap-4 w-full">
+    <div className="flex flex-col gap-4 w-full relative">
+      
+      {/* Modal de confirmación de eliminación */}
+      {findingToDelete && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-[2px] rounded-2xl">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-5 w-full max-w-[320px] text-center">
+            <div className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Icon name="warning" size={24} />
+            </div>
+            <h3 className="text-[16px] font-bold text-slate-800 mb-1">Eliminar hallazgo</h3>
+            <p className="text-[13px] text-slate-500 mb-5 leading-relaxed">¿Seguro que deseas eliminar el registro del diente <b>#{findingToDelete.toothNumber}</b>? Esta acción no se puede deshacer.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setFindingToDelete(null)} disabled={saving} className="flex-1 py-2 border rounded-xl text-[12px] font-bold text-slate-600 bg-white border-slate-200">Cancelar</button>
+              <button onClick={confirmDeleteFinding} disabled={saving} className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[12px] font-bold border-0 transition-colors">{saving ? "Borrando..." : "Sí, eliminar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Selector de Servicio */}
       <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
         {(["medico", "cosmetico"] as Service[]).map(s => (
           <button key={s}
             onClick={() => { setService(s); setExpandedSessionId(null); setSelectedTooth(null); resetForm(); }}
-            className={`px-4 py-1.5 rounded-md text-[12px] font-medium transition-colors outline-none ${service === s ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-          >{s === "medico" ? "Médico" : "Cosmético"}</button>
+            className={`px-4 py-1.5 rounded-md text-[12px] font-bold transition-colors outline-none ${service === s ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          >{s === "medico" ? "Odontología Médica" : "Odontología Cosmética"}</button>
         ))}
       </div>
 
-      {/* ESTRUCTURA RESPONSIVA DIFERENTE PC vs MOBILE */}
       <div className="flex flex-col lg:flex-row gap-5 items-start w-full">
 
-        {/* LADO HISTORIAL: Primero en PC (lg:order-first), Abajo en Mobile */}
+        {/* LADO HISTORIAL */}
         <div className="w-full lg:w-80 xl:w-96 shrink-0 order-last lg:order-first flex flex-col gap-3">
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Historial de Exámenes</p>
 
           <div className="flex flex-col gap-2 w-full max-h-[400px] lg:max-h-[600px] overflow-y-auto pr-1">
-            {sessionsSorted.length === 0 ? (
-              <p className="text-[12px] text-slate-400 italic p-3 text-center border border-dashed rounded-xl">Sin registros en este servicio</p>
+            {loading ? (
+              <div className="py-10 flex justify-center">
+                <div className="w-8 h-8 border-2 border-slate-200 border-t-cyan-500 rounded-full animate-spin" />
+              </div>
+            ) : sessionsSorted.length === 0 ? (
+              <div className="text-center p-6 border border-dashed rounded-xl border-slate-200">
+                <Icon name="history" size={24} className="text-slate-300 mx-auto mb-2" />
+                <p className="text-[12px] text-slate-400 italic">Sin registros en este servicio</p>
+              </div>
             ) : sessionsSorted.map(s => {
               const isExpanded = expandedSessionId === s.id;
               const fdate = fmtDate(s.fecha);
               return (
-                <div key={s.id} className={`border rounded-xl transition-all ${isExpanded ? "border-cyan-500 bg-cyan-50/20" : "border-slate-200 bg-white"}`}>
+                <div key={s.id} className={`border rounded-xl transition-all ${isExpanded ? "border-cyan-500 bg-cyan-50/20 shadow-sm" : "border-slate-200 bg-white"}`}>
                   {/* Header de la Sesión */}
                   <div className="flex items-center gap-3 p-3 cursor-pointer select-none" onClick={() => toggleSession(s.id)}>
                     <div className="w-10 h-10 rounded-lg bg-slate-100 flex flex-col items-center justify-center border shrink-0">
@@ -482,7 +531,8 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
                         <SessionFindingRow
                           key={f.id} finding={f} isPast={s.fecha < TODAY}
                           highlighted={selectedTooth === f.toothNumber}
-                          onUpdateObs={(obs) => updateFindingObs(s.id, f.id, obs)}
+                          onUpdateObs={(obs) => handleUpdateFindingObs(f, obs)}
+                          onDelete={() => setFindingToDelete(f)}
                         />
                       ))}
                     </div>
@@ -493,16 +543,21 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
           </div>
         </div>
 
-        {/* LADO REGISTRO + ODONTOGRAMA: Arriba en Mobile, Principal a la derecha en PC */}
+        {/* LADO REGISTRO + ODONTOGRAMA */}
         <div className="flex-1 w-full min-w-0 flex flex-col gap-4">
 
           {isViewingSession ? (
-            <div className="bg-cyan-50 border border-cyan-100 rounded-xl px-4 py-3 flex justify-between items-center">
-              <div>
-                <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-widest">Modo revisión {isPastSession && "· Solo lectura"}</p>
-                <p className="text-[14px] font-bold text-cyan-800 leading-tight">{selectedSession?.tipo}</p>
+            <div className="bg-cyan-50 border border-cyan-100 rounded-xl px-4 py-3 flex justify-between items-center shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center">
+                  <Icon name="history" size={16} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-widest">Modo revisión {isPastSession && "· Solo lectura"}</p>
+                  <p className="text-[14px] font-bold text-cyan-800 leading-tight">{selectedSession?.tipo}</p>
+                </div>
               </div>
-              <button onClick={() => { setExpandedSessionId(null); setSelectedTooth(null); }} className="text-[11px] text-cyan-600 font-semibold hover:underline">Salir</button>
+              <button onClick={() => { setExpandedSessionId(null); setSelectedTooth(null); }} className="text-[11px] text-white bg-cyan-600 hover:bg-cyan-700 px-3 py-1.5 rounded-lg font-bold transition-colors border-0">Salir de revisión</button>
             </div>
           ) : (
             <>
@@ -514,7 +569,7 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
                 <div className="min-w-0">
                   {selectedTooth ? (
                     <>
-                      <p className="text-[10px] text-slate-400 font-medium leading-none mb-0.5">Diente {selectedTooth}</p>
+                      <p className="text-[10px] text-slate-400 font-bold leading-none mb-0.5">Diente {selectedTooth}</p>
                       <p className="text-[13px] font-bold text-slate-800 leading-tight truncate">{TOOTH_NAMES[selectedTooth]}</p>
                     </>
                   ) : (
@@ -527,11 +582,10 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
               <div className={`transition-opacity duration-200 ${!selectedTooth ? "opacity-30 pointer-events-none select-none" : ""}`}>
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Registro de Superficies</p>
-                  <button onClick={toggleAll} className={`text-[11px] font-semibold px-3 py-1.5 rounded-md border ${isAll ? "bg-cyan-600 text-white" : "border-slate-200 text-slate-500 bg-white"}`}>Diente completo</button>
+                  <button onClick={toggleAll} className={`text-[11px] font-bold px-3 py-1.5 rounded-md border ${isAll ? "bg-cyan-600 text-white border-cyan-600" : "border-slate-200 text-slate-500 bg-white"}`}>Diente completo</button>
                 </div>
 
-                {/* Grid Responsivo del Formulario */}
-                <div className="flex flex-col md:flex-row gap-4 bg-slate-50/80 p-4 rounded-2xl border border-slate-200">
+                <div className="flex flex-col md:flex-row gap-4 bg-slate-50/80 p-4 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="flex flex-col sm:flex-row gap-4 shrink-0 items-center sm:items-start">
                     <SurfaceDiagram
                       surfaceConventions={surfaceConventions} activeSurface={activeSurface}
@@ -550,10 +604,10 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
                           >
                             <div className="flex items-center gap-2 truncate">
                               <div className="w-2.5 h-2.5 rounded-full border-[1.5px] shrink-0" style={conv ? { background: conv.color, borderColor: "transparent" } : isActv ? { borderColor: "#22d3ee" } : { borderColor: "#cbd5e1" }} />
-                              <span className="text-[12px] text-slate-600 truncate">{s.label}</span>
+                              <span className="text-[12px] font-medium text-slate-600 truncate">{s.label}</span>
                             </div>
                             {conv && !isAll && (
-                              <button onClick={e => { e.stopPropagation(); removeSurfaceConvention(s.key); }} className="w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[10px] flex items-center justify-center hover:bg-red-200 hover:text-red-600">×</button>
+                              <button onClick={e => { e.stopPropagation(); removeSurfaceConvention(s.key); }} className="w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[10px] flex items-center justify-center hover:bg-red-200 hover:text-red-600 border-0">×</button>
                             )}
                           </div>
                         );
@@ -566,7 +620,6 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{convPickerLabel}</p>
 
-                      {/* SOLUCIÓN RESPONSIVA ETIQUETAS: Grid de 2 columnas en mobile, fila flexible en pc */}
                       <div className={`grid grid-cols-2 sm:flex sm:flex-wrap gap-2 ${!canPickConv ? "opacity-30 pointer-events-none" : ""}`}>
                         {CONVENTIONS.map(c => {
                           const isActive = isAll ? allConvention === c.key : activeSurface ? surfaceConventions[activeSurface] === c.key : false;
@@ -591,9 +644,9 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
                       />
                     </div>
 
-                    <button onClick={addRecord} disabled={!canAdd} className="flex items-center justify-center gap-1.5 py-2.5 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-xl text-[13px] font-semibold transition-colors w-full sm:w-fit sm:self-end">
+                    <button onClick={addRecord} disabled={!canAdd || saving} className="flex items-center justify-center gap-1.5 py-2.5 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-xl text-[13px] font-bold transition-colors w-full sm:w-fit sm:self-end border-0 shadow-sm">
                       <Icon name="add" size={15} />
-                      Agregar registro
+                      {saving ? "Guardando..." : "Agregar registro"}
                     </button>
                   </div>
                 </div>
