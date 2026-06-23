@@ -15,6 +15,8 @@ export async function getConsultaDetalleAction(consultaId: string) {
       motivo,
       observaciones,
       examen_fisico,
+      cita_id,
+      citas ( id, estado ),
       historia_clinica!inner (
         id,
         paciente_id,
@@ -24,7 +26,8 @@ export async function getConsultaDetalleAction(consultaId: string) {
           nombre,
           apellido,
           fecha_nacimiento,
-          dni
+          dni,
+          telefono
         )
       ),
       personal (
@@ -107,6 +110,8 @@ export async function getConsultaDetalleAction(consultaId: string) {
     ? `${(consulta.personal as any).nombre} ${(consulta.personal as any).apellido}`.trim()
     : "Doctor";
 
+  const citaRaw = Array.isArray(consulta.citas) ? consulta.citas[0] : consulta.citas;
+
   return {
     consulta: {
       id: String(consulta.id),
@@ -116,12 +121,16 @@ export async function getConsultaDetalleAction(consultaId: string) {
       examen_fisico: (consulta.examen_fisico as Record<string, string>) || {},
       doctor_nombre: doctorName,
       hc_id,
+      cita_id: consulta.cita_id ?? null,
+      cita_estado: (citaRaw as any)?.estado ?? null,
     },
     paciente: {
       id: String((paciente as any)?.id),
+      paciente_id_num: Number((paciente as any)?.id),
       nombre_completo: `${(paciente as any)?.nombre} ${(paciente as any)?.apellido}`.trim(),
       fecha_nacimiento: (paciente as any)?.fecha_nacimiento,
       dni: (paciente as any)?.dni,
+      telefono: (paciente as any)?.telefono ?? "",
     },
     // diagnostico: el más reciente (null si no hay ninguno)
     diagnostico: diagnosticos.length > 0 ? diagnosticos[0] : null,
@@ -610,5 +619,251 @@ export async function deleteRecomendacionAction(id: number, consultaId: number) 
   const { error } = await supabase.from("recomendacion").delete().eq("id", id);
   if (error) return { error: "No se pudo eliminar la recomendación" };
   revalidatePath(`/pacientes/consulta/${consultaId}`);
+  return { success: true };
+}
+
+// ── Anamnesis (motivo + observaciones) ──────────────────────────────────────────
+
+export async function updateAnamnesisAction(data: { consulta_id: number; motivo: string; observaciones: string; }) {
+  const supabase = await createClient();
+  if (!data.motivo.trim()) return { error: "El motivo de consulta es obligatorio" };
+
+  const { error } = await supabase
+    .from("consultas")
+    .update({
+      motivo: data.motivo.trim(),
+      observaciones: data.observaciones.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", data.consulta_id);
+
+  if (error) {
+    console.error("updateAnamnesisAction error:", error);
+    return { error: "No se pudo guardar la anamnesis" };
+  }
+  revalidatePath(`/pacientes/consulta/${data.consulta_id}`);
+  return { success: true };
+}
+
+// ── Examen físico (jsonb clave/valor) ────────────────────────────────────────────
+
+export async function updateExamenFisicoAction(data: { consulta_id: number; campos: { clave: string; valor: string }[]; }) {
+  const supabase = await createClient();
+
+  const obj: Record<string, string> = { tipo: "consulta" };
+  data.campos.forEach(c => { if (c.clave.trim()) obj[c.clave.trim()] = c.valor.trim(); });
+
+  const { error } = await supabase
+    .from("consultas")
+    .update({ examen_fisico: obj, updated_at: new Date().toISOString() })
+    .eq("id", data.consulta_id);
+
+  if (error) {
+    console.error("updateExamenFisicoAction error:", error);
+    return { error: "No se pudo guardar el examen físico" };
+  }
+  revalidatePath(`/pacientes/consulta/${data.consulta_id}`);
+  return { success: true };
+}
+
+// ── Presupuesto + Pagos ──────────────────────────────────────────────────────────
+
+export async function getMediosPagoAction() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("medio_pago").select("id, nombre").order("id");
+  return data || [];
+}
+
+// Trae el presupuesto más reciente del paciente con sus detalles y pagos
+export async function getPresupuestoActivoAction(pacienteId: number) {
+  const supabase = await createClient();
+
+  const { data: presupuesto } = await supabase
+    .from("presupuestos")
+    .select(`
+      id, fecha_emision, total_bruto, descuento_porcentaje, descuento_monto,
+      estado, fecha_aprobacion, notas,
+      detalle_presupuesto (
+        id, tratamiento_id, cantidad, precio_unitario, subtotal,
+        catalogo_tratamientos ( id, nombre, moneda )
+      ),
+      pagos ( id, monto, fecha_pago, medio_pago_id, referencia, estado, observaciones,
+        medio_pago ( id, nombre )
+      )
+    `)
+    .eq("paciente_id", pacienteId)
+    .order("fecha_emision", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!presupuesto) return null;
+
+  return {
+    id: presupuesto.id,
+    fecha_emision: presupuesto.fecha_emision,
+    total_bruto: Number(presupuesto.total_bruto),
+    descuento_porcentaje: Number(presupuesto.descuento_porcentaje) || 0,
+    descuento_monto: Number(presupuesto.descuento_monto) || 0,
+    estado: presupuesto.estado,
+    fecha_aprobacion: presupuesto.fecha_aprobacion,
+    notas: presupuesto.notas,
+    items: (presupuesto.detalle_presupuesto || []).map((d: any) => ({
+      id: d.id,
+      tratamiento_id: d.tratamiento_id,
+      nombre: d.catalogo_tratamientos?.nombre ?? "Ítem",
+      moneda: d.catalogo_tratamientos?.moneda ?? "PEN",
+      cantidad: Number(d.cantidad) || 1,
+      precio_unitario: Number(d.precio_unitario),
+      subtotal: Number(d.subtotal),
+    })),
+    pagos: (presupuesto.pagos || []).map((p: any) => ({
+      id: p.id,
+      monto: Number(p.monto),
+      fecha_pago: p.fecha_pago,
+      medio_pago_id: p.medio_pago_id,
+      medio_pago_nombre: p.medio_pago?.nombre ?? "—",
+      referencia: p.referencia,
+      estado: p.estado,
+      observaciones: p.observaciones,
+    })),
+  };
+}
+
+export async function crearPresupuestoAction(data: {
+  paciente_id: number;
+  consulta_id: number;
+  items: { catalogo_id: number; cantidad: number; precio_unitario: number }[];
+  descuento_porcentaje: number;
+  notas?: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+  const { data: personal } = await supabase.from("personal").select("id").eq("usuario_id", user.id).single();
+  if (!personal) return { error: "Perfil no encontrado" };
+
+  if (data.items.length === 0) return { error: "Agrega al menos un ítem al presupuesto" };
+
+  const total_bruto = data.items.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0);
+  const descuento_monto = total_bruto * (data.descuento_porcentaje || 0) / 100;
+
+  const { data: presupuesto, error: pErr } = await supabase
+    .from("presupuestos")
+    .insert({
+      paciente_id: data.paciente_id,
+      doctor_id: personal.id,
+      total_bruto,
+      descuento_porcentaje: data.descuento_porcentaje || 0,
+      descuento_monto,
+      estado: "pendiente",
+      notas: data.notas || null,
+    })
+    .select("id")
+    .single();
+
+  if (pErr || !presupuesto) {
+    console.error("crearPresupuestoAction error:", pErr);
+    return { error: "No se pudo crear el presupuesto" };
+  }
+
+  const detalles = data.items.map(it => ({
+    presupuesto_id: presupuesto.id,
+    tratamiento_id: it.catalogo_id,
+    cantidad: it.cantidad,
+    precio_unitario: it.precio_unitario,
+    subtotal: it.cantidad * it.precio_unitario,
+  }));
+
+  const { error: dErr } = await supabase.from("detalle_presupuesto").insert(detalles);
+  if (dErr) {
+    console.error("detalle_presupuesto error:", dErr);
+    return { error: "Presupuesto creado, pero falló el detalle" };
+  }
+
+  revalidatePath(`/pacientes/consulta/${data.consulta_id}`);
+  return { success: true, presupuesto_id: presupuesto.id };
+}
+
+export async function updateEstadoPresupuestoAction(data: { presupuesto_id: number; estado: string; consulta_id: number; }) {
+  const supabase = await createClient();
+  const patch: any = { estado: data.estado };
+  if (data.estado === "aprobado") patch.fecha_aprobacion = new Date().toISOString();
+
+  const { error } = await supabase.from("presupuestos").update(patch).eq("id", data.presupuesto_id);
+  if (error) return { error: "No se pudo actualizar el estado del presupuesto" };
+  revalidatePath(`/pacientes/consulta/${data.consulta_id}`);
+  return { success: true };
+}
+
+export async function deletePresupuestoAction(presupuestoId: number, consultaId: number) {
+  const supabase = await createClient();
+  await supabase.from("pagos").delete().eq("presupuesto_id", presupuestoId);
+  await supabase.from("detalle_presupuesto").delete().eq("presupuesto_id", presupuestoId);
+  await supabase.from("presupuestos").delete().eq("id", presupuestoId);
+  revalidatePath(`/pacientes/consulta/${consultaId}`);
+  return { success: true };
+}
+
+export async function registrarPagoAction(data: {
+  presupuesto_id: number;
+  monto: number;
+  medio_pago_id: number | null;
+  referencia?: string;
+  observaciones?: string;
+  consulta_id: number;
+}) {
+  const supabase = await createClient();
+  if (!data.monto || data.monto <= 0) return { error: "El monto debe ser mayor a 0" };
+
+  const { error } = await supabase.from("pagos").insert({
+    presupuesto_id: data.presupuesto_id,
+    monto: data.monto,
+    medio_pago_id: data.medio_pago_id,
+    referencia: data.referencia || null,
+    observaciones: data.observaciones || null,
+    estado: "hecho",
+  });
+
+  if (error) {
+    console.error("registrarPagoAction error:", error);
+    return { error: "No se pudo registrar el pago" };
+  }
+  revalidatePath(`/pacientes/consulta/${data.consulta_id}`);
+  return { success: true };
+}
+
+export async function anularPagoAction(pagoId: number, consultaId: number) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("pagos").update({ estado: "anulado" }).eq("id", pagoId);
+  if (error) return { error: "No se pudo anular el pago" };
+  revalidatePath(`/pacientes/consulta/${consultaId}`);
+  return { success: true };
+}
+
+// ── Finalizar cita ────────────────────────────────────────────────────────────
+
+export async function finalizarCitaAction(data: { cita_id: number; consulta_id: number; }) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("citas")
+    .update({ estado: "hecha", updated_at: new Date().toISOString() })
+    .eq("id", data.cita_id);
+
+  if (error) {
+    console.error("finalizarCitaAction error:", error);
+    return { error: "No se pudo finalizar la cita" };
+  }
+  revalidatePath(`/pacientes/consulta/${data.consulta_id}`);
+  return { success: true };
+}
+
+export async function reabrirCitaAction(data: { cita_id: number; consulta_id: number; }) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("citas")
+    .update({ estado: "confirmada", updated_at: new Date().toISOString() })
+    .eq("id", data.cita_id);
+  if (error) return { error: "No se pudo reabrir la cita" };
+  revalidatePath(`/pacientes/consulta/${data.consulta_id}`);
   return { success: true };
 }

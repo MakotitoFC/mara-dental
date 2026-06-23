@@ -1,796 +1,800 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 import { calcEdad, fmtFecha } from "@/lib/mock-pacientes";
-import { RecetaTab } from "./RecetaTab";
 import { OdontogramaTab } from "./OdontogramaTab";
+import { RecetaTab } from "./RecetaTab";
+import { iniciarConsultaAction } from "../actions";
 import { ArchivosView } from "@/app/(panel)/archivos/components/ArchivosView";
-import { crearNotaClinicaAction } from "../actions";
-import { createCitaAction } from "@/app/(panel)/agenda/actions";
 
-const TIPO_CFG: Record<string, { icon: string; bg: string; color: string; label: string }> = {
-  consulta: { icon: "chat_bubble_outline", bg: "#eff6ff", color: "#2563eb", label: "Consulta" },
-  procedimiento: { icon: "medical_services", bg: "#f0fdf4", color: "#16a34a", label: "Procedimiento" },
-  seguimiento: { icon: "history", bg: "#fefce8", color: "#b45309", label: "Seguimiento" },
-  urgencia: { icon: "priority_high", bg: "#fff1f2", color: "#dc2626", label: "Urgencia" },
-};
+// ─── Tipos de sección ─────────────────────────────────────────────────────────
 
-const AVATAR_COLORS = ["#0891b2", "#7c3aed", "#db2777", "#059669", "#d97706", "#dc2626", "#2563eb", "#65a30d"];
+type Sec =
+  | "consulta"
+  | "diagnostico"
+  | "historia"
+  | "odontograma"
+  | "plan"
+  | "tratamiento"
+  | "receta"
+  | "recomendacion";
+
+const SECTIONS: { key: Sec; icon: string; label: string }[] = [
+  { key: "consulta",      icon: "stethoscope",     label: "Consulta" },
+  { key: "diagnostico",   icon: "biotech",          label: "Diagnóstico" },
+  { key: "historia",      icon: "person",           label: "Historia clínica" },
+  { key: "odontograma",   icon: "dentistry",        label: "Odontograma" },
+  { key: "plan",          icon: "checklist",        label: "Plan de trabajo" },
+  { key: "tratamiento",   icon: "medical_services", label: "Tratamiento" },
+  { key: "receta",        icon: "medication",       label: "Receta" },
+  { key: "recomendacion", icon: "tips_and_updates", label: "Recomendación" },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const AVATAR_COLORS = [
+  "#0891b2","#7c3aed","#db2777","#059669",
+  "#d97706","#dc2626","#2563eb","#65a30d",
+];
 function avatarColor(id: string) {
-  const n = parseInt(id.replace(/\D/g, "")) || 0;
-  return AVATAR_COLORS[n % AVATAR_COLORS.length];
+  return AVATAR_COLORS[(parseInt(id.replace(/\D/g, "")) || 0) % AVATAR_COLORS.length];
 }
 function initials(nombre: string) {
   const p = nombre.trim().split(" ");
   return (p[0]?.[0] ?? "") + (p[1]?.[0] ?? "");
 }
-
-type Tab = "resumen" | "historial" | "odontograma" | "consultas" | "recetas" | "archivos";
-
-export function HistoriaView({ paciente: p, citas, notas: consultasProps }: { paciente: any, citas: any[], notas: any[] }) {
-  const [tab, setTab] = useState<Tab>("resumen");
-  const [showNuevaCita, setShowNuevaCita] = useState(false);
-  const [showNuevaNota, setShowNuevaNota] = useState(false);
-
-  const [consultas, setConsultas] = useState<any[]>(consultasProps);
-  useEffect(() => { setConsultas(consultasProps); }, [consultasProps]);
-  const edad = calcEdad(p.fecha_nacimiento);
-  const color = avatarColor(p.id);
-
-  const waLink = `https://wa.me/${p.telefono.replace(/\D/g, "")}?text=Hola%20${encodeURIComponent(p.nombre.split(" ")[0])}%2C%20le%20contactamos%20desde%20MaraDental.`;
-
-  return (
-    <div className="p-4 sm:p-5 md:p-6 flex flex-col gap-4 sm:gap-5 pb-24 sm:pb-6">
-
-      {/* Header del paciente */}
-      <div className="pt-1">
-        <div className="flex items-start gap-3 sm:gap-4">
-          {/* Avatar */}
-          <div
-            className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-[18px] sm:text-[22px] font-bold text-white shrink-0"
-            style={{ background: color }}
-          >
-            {initials(p.nombre)}
-          </div>
-
-          {/* Info principal */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start gap-2 flex-wrap">
-              <h1 className="text-[15px] sm:text-[18px] font-bold text-slate-900 leading-tight">{p.nombre}</h1>
-              {p.alergias.length > 0 && (
-                <span className="flex items-center gap-1 text-[10px] font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full shrink-0">
-                  <Icon name="warning_amber" size={11} />
-                  {p.alergias.join(" · ")}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 sm:gap-3 mt-1.5 flex-wrap text-[11px] sm:text-[12px] text-slate-500">
-              <span className="flex items-center gap-1"><Icon name="badge" size={12} />{p.dni}</span>
-              <span className="flex items-center gap-1"><Icon name="cake" size={12} />{edad} años</span>
-              {p.grupo_sanguineo && (
-                <span className="flex items-center gap-1"><Icon name="bloodtype" size={12} />{p.grupo_sanguineo}</span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-1 text-[11px] sm:text-[12px] text-slate-500">
-              <span className="flex items-center gap-1"><Icon name="phone" size={12} className="shrink-0" />{p.telefono}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Acciones */}
-        <div className="flex items-center gap-2 mt-4">
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-xl border border-slate-200 text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <Icon name="chat" size={15} className="text-[#25D366]" />
-            WhatsApp
-          </a>
-          <button
-            onClick={() => setShowNuevaCita(true)}
-            className="flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[12px] font-medium transition-colors"
-          >
-            <Icon name="event_available" size={15} />
-            Nueva cita
-          </button>
-        </div>
-
-        {/* Stats rápidos */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-100">
-          <StatBox icon="event" label="Total citas" value={consultas.length > 0 ? String(consultas.length + 2) : "0"} color="#0891b2" />
-          <StatBox icon="history" label="Última visita" value={p.ultima_visita ? fmtFecha(p.ultima_visita) : "—"} color="#7c3aed" />
-          <StatBox icon="event_upcoming" label="Próxima cita" value={p.proxima_cita ? fmtFecha(p.proxima_cita) : "—"} color="#059669" />
-          <StatBox icon="folder_open" label="Consultas" value={String(consultas.length)} color="#d97706" />
-        </div>
-      </div>
-
-      {/* Tabs — Diseño móvil premium con scroll invisible y fade degradado */}
-      <div className="relative -mx-4 sm:-mx-5 border-b border-slate-200 bg-white">
-        {/* Fila scrollable: eliminamos barras de scroll en cualquier navegador */}
-        <div
-          className="flex items-center px-4 sm:px-5 overflow-x-auto select-none gap-1 scrollbar-none"
-          style={{
-            msOverflowStyle: 'none',  /* IE y Edge */
-            scrollbarWidth: 'none',   /* Firefox */
-          }}
-        >
-          {/* Contenedor interno para forzar la anulación de estilos heredados en WebKit */}
-          <style>{`
-      .scrollbar-none::-webkit-scrollbar { display: none; }
-      .tab-btn-clean {
-        border: none !important;
-        outline: none !important;
-        box-shadow: none !important;
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        appearance: none;
-        background: transparent;
-        WebkitTapHighlightColor: transparent;
-      }
-      .tab-btn-clean:focus, .tab-btn-clean:active, .tab-btn-clean:focus-visible {
-        outline: none !important;
-        border: none !important;
-        background: transparent !important;
-      }
-    `}</style>
-
-          {(["resumen", "historial", "odontograma", "consultas", "recetas", "archivos"] as Tab[]).map((t) => {
-            const labels: Record<Tab, string> = {
-              resumen: "Resumen",
-              historial: "Historial",
-              odontograma: "Odontograma",
-              consultas: "Consultas",
-              recetas: "Recetas",
-              archivos: "Archivos"
-            };
-            const isActive = tab === t;
-            return (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`tab-btn-clean flex-none px-4 sm:px-5 py-3.5 min-h-[44px] text-[13px] font-medium whitespace-nowrap transition-all relative ${isActive ? "text-cyan-700 font-semibold" : "text-slate-500 hover:text-slate-800"
-                  }`}
-              >
-                {labels[t]}
-                {/* Indicador inferior animado en lugar de usar un shadow inset rústico */}
-                {isActive && (
-                  <div className="absolute bottom-0 left-4 right-4 h-[2px] bg-cyan-600 rounded-full" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Indicador ">" Premium: Degradado suave + Botón flotante con micro-sombra */}
-        <div
-          className="pointer-events-none absolute right-0 top-0 bottom-0 w-14 sm:hidden flex items-center justify-end pr-2.5"
-          style={{
-            background: "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.85) 45%, rgba(255,255,255,1) 100%)"
-          }}
-        >
-          <div className="w-5 h-5 rounded-full bg-white/90 shadow-[0_1px_4px_rgba(0,0,0,0.1)] border border-slate-100 flex items-center justify-center backdrop-blur-[1px]">
-            <Icon name="chevron_right" size={12} className="text-slate-400 animate-pulse" />
-          </div>
-        </div>
-      </div>
-
-      {/* Contenido de tabs */}
-      {tab === "resumen" && <TabResumen paciente={p} />}
-      {tab === "historial" && <TabHistorial paciente={p} citas={citas} />}
-      {tab === "odontograma" && <OdontogramaTab paciente={p} />}
-      {tab === "consultas" && <TabConsultas consultas={consultas} onNuevaConsulta={() => setShowNuevaNota(true)} />}
-      {tab === "recetas" && <RecetaTab paciente={p} />}
-      {tab === "archivos" && <ArchivosView pacienteId={p.id} />}
-
-      {showNuevaCita && (
-        <NuevaCitaModal paciente={p} onClose={() => setShowNuevaCita(false)} />
-      )}
-      {showNuevaNota && (
-        <NuevaConsultaModal
-          paciente={p}
-          onClose={() => setShowNuevaNota(false)}
-          onSuccess={() => { setShowNuevaNota(false); }}
-        />
-      )}
-    </div>
-  );
+function money(n: number, m = "PEN") {
+  return `${m === "PEN" ? "S/" : m} ${Number(n).toFixed(2)}`;
 }
+const fmtFull = (d: string) => {
+  try {
+    return new Date(d).toLocaleDateString("es-PE", {
+      day: "numeric", month: "long", year: "numeric",
+    });
+  } catch { return d; }
+};
 
-// ─── Tab Resumen ──────────────────────────────────────────────────────────────
+// ─── Componente principal ─────────────────────────────────────────────────────
 
-function TabResumen({ paciente: p }: { paciente: any }) {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* Datos de contacto */}
-      <Section title="Datos de contacto" icon="contact_page">
-        <InfoRow icon="badge" label="DNI" value={p.dni} />
-        <InfoRow icon="phone" label="Teléfono" value={p.telefono} />
-        {p.email && <InfoRow icon="email" label="Email" value={p.email} />}
-        <InfoRow icon="cake" label="Nacimiento" value={`${fmtFecha(p.fecha_nacimiento)} (${calcEdad(p.fecha_nacimiento)} años)`} />
-        {p.grupo_sanguineo && <InfoRow icon="bloodtype" label="Grupo sanguíneo" value={p.grupo_sanguineo} />}
-      </Section>
-
-      {/* Alergias */}
-      <Section title="Alergias" icon="warning_amber">
-        {p.alergias.length === 0 ? (
-          <p className="text-[12px] text-slate-400">Sin alergias registradas</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {p.alergias.map((a: string) => (
-              <span key={a} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-700">
-                <Icon name="warning_amber" size={12} />
-                {a}
-              </span>
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* Antecedentes médicos */}
-      <Section title="Antecedentes médicos" icon="medical_information">
-        {p.antecedentes.length === 0 ? (
-          <p className="text-[12px] text-slate-400">Sin antecedentes registrados</p>
-        ) : (
-          <div className="flex flex-col gap-1.5">
-            {p.antecedentes.map((a: string) => (
-              <div key={a} className="flex items-center gap-2 text-[12px] text-slate-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 shrink-0" />
-                {a}
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* Contacto de emergencia */}
-      {p.contacto_emergencia_nombre && (
-        <Section title="Contacto de emergencia" icon="emergency">
-          <InfoRow icon="person" label="Nombre" value={p.contacto_emergencia_nombre} />
-          {p.contacto_emergencia_telefono && <InfoRow icon="phone" label="Teléfono" value={p.contacto_emergencia_telefono} />}
-        </Section>
-      )}
-    </div>
-  );
-}
-
-// ─── Tab Historial ────────────────────────────────────────────────────────────
-
-function TabHistorial({ paciente: p, citas }: { paciente: any, citas: any[] }) {
-
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-        <p className="text-[13px] font-semibold text-slate-900">Historial de citas</p>
-        <span className="text-[11px] text-slate-400">{citas.length} registro{citas.length !== 1 ? "s" : ""}</span>
-      </div>
-      <div className="divide-y divide-slate-50">
-        {citas.map((c, i) => (
-          <div key={i} className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-slate-50 transition-colors">
-            <div className="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center shrink-0">
-              <Icon name="event" size={16} className="text-cyan-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-semibold text-slate-900 truncate">{c.servicio}</p>
-              <p className="text-[11px] text-slate-400 truncate">{fmtFecha(c.fecha)} · {c.hora} · {c.medico}</p>
-            </div>
-            <span className="hidden sm:inline text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 shrink-0">
-              {c.estado}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Tab Consultas ──────────────────────────────────────────────────────────────
-
-function TabConsultas({ consultas, onNuevaConsulta }: { consultas: any[]; onNuevaConsulta: () => void }) {
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
-        <button
-          onClick={onNuevaConsulta}
-          className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] font-semibold transition-colors shadow-sm"
-        >
-          <Icon name="add" size={16} />
-          Nueva consulta
-        </button>
-      </div>
-
-      {consultas.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 py-16 flex flex-col items-center justify-center text-center">
-          <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4">
-            <Icon name="chat_bubble_outline" size={32} className="text-slate-300" />
-          </div>
-          <p className="text-[14px] font-semibold text-slate-800 mb-1">Sin consultas</p>
-          <p className="text-[12px] text-slate-500 max-w-62.5">Este paciente aún no tiene consultas clínicas registradas en su historial.</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {consultas.map((c) => {
-            const cfg = TIPO_CFG[c.tipo] || TIPO_CFG["consulta"];
-            return (
-              <Link key={c.id} href={`/pacientes/consulta/${c.id}`} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow cursor-pointer block">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: cfg.bg }}>
-                      <Icon name={cfg.icon} size={20} style={{ color: cfg.color }} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-[14px] font-semibold text-slate-800">{cfg.label}</p>
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                          {fmtFecha(c.fecha)}
-                        </span>
-                      </div>
-                      <p className="text-[12px] text-slate-500 mt-0.5 flex items-center gap-1.5">
-                        <Icon name="person" size={14} />
-                        {c.doctor_nombre}
-                      </p>
-                    </div>
-                  </div>
-                  <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors">
-                    <Icon name="more_vert" size={18} />
-                  </button>
-                </div>
-
-                <div className="pl-13">
-                  <p className="text-[13px] text-slate-700 font-medium mb-1">{c.motivo}</p>
-                  {c.observaciones && <p className="text-[12px] text-slate-600 leading-relaxed">{c.observaciones}</p>}
-
-                  {c.tratamiento && (
-                    <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Tratamiento e indicaciones</p>
-                      <p className="text-[12px] text-slate-700">{c.tratamiento}</p>
-                    </div>
-                  )}
-
-                  {c.medicacion && (
-                    <div className="mt-3 p-3 rounded-xl bg-blue-50/50 border border-blue-100/50 flex items-start gap-2.5">
-                      <div className="mt-0.5">
-                        <Icon name="medication" size={16} className="text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wide mb-0.5">Medicación prescrita</p>
-                        <p className="text-[12px] text-blue-900 leading-relaxed">{c.medicacion}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function Section({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <Icon name={icon} size={16} className="text-cyan-600" />
-        <p className="text-[13px] font-semibold text-slate-900">{title}</p>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-2 py-1.5 border-b border-slate-50 last:border-b-0">
-      <Icon name={icon} size={14} className="text-slate-400 shrink-0 mt-0.5" />
-      <span className="text-[11px] text-slate-400 w-20 sm:w-28 shrink-0">{label}</span>
-      <span className="text-[12px] text-slate-700 font-medium min-w-0 wrap-break-word flex-1">{value}</span>
-    </div>
-  );
-}
-
-function StatBox({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: color + "15" }}>
-        <Icon name={icon} size={16} style={{ color } as React.CSSProperties} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] text-slate-400">{label}</p>
-        <p className="text-[13px] font-semibold text-slate-900 truncate">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Modal Nueva Cita ─────────────────────────────────────────────────────────
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-medium text-slate-600">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function NuevaCitaModal({ paciente, onClose }: { paciente: any; onClose: () => void }) {
-  const [fecha, setFecha] = useState("");
-  const [horaInicio, setHoraInicio] = useState("09:00");
-  const [duracion, setDuracion] = useState(60);
-  const [tipoConsulta, setTipoConsulta] = useState("control");
-  const [estado, setEstado] = useState("programada");
-  const [notas, setNotas] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [confirmForce, setConfirmForce] = useState(false);
-
-  const canSave = fecha && horaInicio && !loading;
-
-  async function handleGuardar(force = false) {
-    if (!canSave) return;
-    setLoading(true);
-    setErrorMsg(null);
-
-    const dateObj = new Date(`1970-01-01T${horaInicio}:00`);
-    dateObj.setMinutes(dateObj.getMinutes() + duracion);
-    const endH = String(dateObj.getHours()).padStart(2, "0");
-    const endM = String(dateObj.getMinutes()).padStart(2, "0");
-    const horaFin = `${endH}:${endM}`;
-
-    const res = await createCitaAction({
-      paciente_id: parseInt(paciente.id, 10),
-      fecha,
-      hora_inicio: horaInicio,
-      hora_fin: horaFin,
-      tipo_consulta: tipoConsulta,
-      estado,
-      notas
-    }, force);
-
-    setLoading(false);
-
-    if (res?.requiresConfirmation) {
-      setErrorMsg(res.error || "Requiere confirmación");
-      setConfirmForce(true);
-      return;
-    }
-
-    if (res?.error) {
-      setErrorMsg(res.error);
-      return;
-    }
-
-    onClose();
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
-      style={{ background: "rgba(15,23,42,0.45)" }}
-    >
-      <div
-        className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col"
-        style={{ maxHeight: "min(92vh, calc(100dvh - 96px))" }}
-      >
-        <div className="px-5 pt-5 pb-4 border-b border-slate-100 flex items-start justify-between shrink-0">
-          <div>
-            <p className="text-[14px] font-semibold text-slate-900">Nueva cita</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">{paciente.nombre}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-50"
-          >
-            <Icon name="close" size={16} />
-          </button>
-        </div>
-
-        <div className="px-5 py-4 flex flex-col gap-3 overflow-y-auto">
-          <Field label="Paciente">
-            <input
-              readOnly
-              value={paciente.nombre}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] bg-slate-50 text-slate-600 outline-none"
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Fecha">
-              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
-            </Field>
-            <Field label="Hora inicio">
-              <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Duración">
-              <select value={duracion} onChange={(e) => setDuracion(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
-                <option value={30}>30 min</option>
-                <option value={45}>45 min</option>
-                <option value={60}>60 min</option>
-                <option value={90}>90 min</option>
-                <option value={120}>120 min</option>
-              </select>
-            </Field>
-            <Field label="Estado">
-              <select value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
-                <option value="programada">Programada</option>
-                <option value="confirmada">Confirmada</option>
-              </select>
-            </Field>
-          </div>
-          <Field label="Tipo de consulta">
-            <select value={tipoConsulta} onChange={(e) => setTipoConsulta(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100">
-              <option value="primera vez">Primera vez</option>
-              <option value="control">Control</option>
-              <option value="emergencia">Emergencia</option>
-            </select>
-          </Field>
-          <Field label="Notas internas">
-            <textarea
-              rows={2}
-              value={notas}
-              onChange={(e) => setNotas(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 resize-none"
-              placeholder="Observaciones previas al tratamiento…"
-            />
-          </Field>
-
-          {errorMsg && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-[12px] flex items-start gap-1.5 border border-red-100 mt-2">
-              <Icon name="warning" size={16} className="shrink-0" />
-              <p className="font-medium">{errorMsg}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="px-5 pb-5 pt-3 border-t border-slate-100 flex justify-end gap-2 shrink-0">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            Cancelar
-          </button>
-
-          {confirmForce ? (
-            <button
-              onClick={() => handleGuardar(true)}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-            >
-              <Icon name="warning" size={14} />
-              {loading ? "Guardando..." : "Confirmar excepción"}
-            </button>
-          ) : (
-            <button
-              onClick={() => handleGuardar(false)}
-              disabled={!canSave}
-              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-            >
-              <Icon name="event_available" size={14} />
-              {loading ? "Guardando..." : "Guardar cita"}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Modal Nueva Consulta ─────────────────────────────────────────────────
-
-function NuevaConsultaModal({
-  paciente,
-  onClose,
-  onSuccess,
+export function HistoriaView({
+  paciente: p,
+  citas,
+  notas: _notas,
+  historial,
 }: {
   paciente: any;
-  onClose: () => void;
-  onSuccess: () => void;
+  citas: any[];
+  notas: any[];
+  historial: any[];
 }) {
-  const [motivo, setMotivo] = useState("");
-  const [observaciones, setObservaciones] = useState("");
-  const [examenFisico, setExamenFisico] = useState<{ clave: string; valor: string }[]>([]);
+  const [sec, setSec]     = useState<Sec>("consulta");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const router = useRouter();
 
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const color   = avatarColor(p.id);
+  const waLink  = `https://wa.me/${p.telefono?.replace(/\D/g, "")}?text=Hola%20${encodeURIComponent(p.nombre?.split(" ")[0] ?? "")}%2C%20le%20contactamos%20desde%20MaraDental.`;
 
-  const canGuardar = motivo.trim().length > 0 && !loading;
-
-  async function handleGuardar() {
-    if (!canGuardar) return;
-    setLoading(true);
-    setErrorMsg(null);
-
-    const examenFisicoObj: Record<string, string> = {};
-    examenFisico.forEach(ef => {
-      if (ef.clave.trim()) {
-        examenFisicoObj[ef.clave.trim()] = ef.valor.trim();
-      }
-    });
-
-    examenFisicoObj["tipo"] = "consulta";
-
-    const res = await crearNotaClinicaAction(paciente.id, {
-      motivo: motivo.trim(),
-      observaciones: observaciones.trim() || undefined,
-      examen_fisico: Object.keys(examenFisicoObj).length > 0 ? examenFisicoObj : undefined
-    });
-
-    setLoading(false);
-    if (res?.error) {
-      setErrorMsg(res.error);
-      return;
-    }
-
-    onSuccess();
-  }
-
-  function addExamenFisico() {
-    setExamenFisico([...examenFisico, { clave: "", valor: "" }]);
-  }
-
-  function updateExamenFisico(index: number, field: "clave" | "valor", val: string) {
-    const arr = [...examenFisico];
-    arr[index][field] = val;
-    setExamenFisico(arr);
-  }
-
-  function removeExamenFisico(index: number) {
-    setExamenFisico(examenFisico.filter((_, i) => i !== index));
-  }
+  const hoy = new Date().toISOString().split("T")[0];
+  const proximaCita = (citas || [])
+    .filter((c) => (c.estado === "programada" || c.estado === "confirmada") && c.fecha >= hoy)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))[0];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
-      style={{ background: "rgba(15,23,42,0.5)" }}
-    >
-      <div
-        className="bg-white rounded-2xl w-full shadow-2xl overflow-hidden flex flex-col"
-        style={{ maxWidth: 640, maxHeight: "min(92vh, calc(100dvh - 96px))" }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center">
-              <Icon name="medical_services" size={18} className="text-cyan-600" />
-            </div>
-            <div>
-              <p className="text-[14px] font-semibold text-slate-900">Nueva consulta</p>
-              <p className="text-[11px] text-slate-400">{paciente.nombre}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-50">
-            <Icon name="close" size={16} />
-          </button>
+    <div className="flex flex-col min-h-full bg-slate-50/40">
+
+      {/* ── Sub-breadcrumb ── */}
+      <div className="flex items-center justify-between px-3 sm:px-6 md:px-8 py-2.5 border-b border-slate-200 bg-white shrink-0 gap-2">
+        <nav className="flex items-center gap-1 min-w-0">
+          <Link href="/pacientes" className="text-[12px] text-slate-400 hover:text-slate-700 font-medium shrink-0">
+            Pacientes
+          </Link>
+          <Icon name="chevron_right" size={14} className="text-slate-300 shrink-0" />
+          <span className="text-[12px] font-semibold text-slate-800 truncate">
+            {[p.nombre, p.apellido].filter(Boolean).join(" ")}
+          </span>
+        </nav>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Link
+            href={`/agenda?paciente=${p.id}`}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[11.5px] font-semibold transition-colors"
+          >
+            <Icon name="event_available" size={14} />
+            <span className="hidden sm:inline">Crear cita</span>
+          </Link>
+          <Link
+            href={`/pacientes/${p.id}/editar`}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11.5px] font-semibold transition-colors border border-slate-200"
+          >
+            <Icon name="edit" size={13} />
+            <span className="hidden sm:inline">Editar</span>
+          </Link>
         </div>
+      </div>
 
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 p-5 flex flex-col gap-4 bg-slate-50/50">
+      {/* ── Header paciente ── */}
+      <div className="px-3 sm:px-6 md:px-8 py-3 sm:py-5 bg-white border-b border-slate-200 shrink-0">
+        <div className="flex items-start gap-2.5 sm:gap-4">
 
-          {/* Motivo */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200">
-            <NField label="Motivo de consulta *">
-              <input
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-                placeholder="Ej: Control post-extracción, dolor en molar 46…"
-                className="ninput"
-              />
-            </NField>
+          {/* Avatar */}
+          <div
+            className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-[15px] sm:text-[22px] font-bold text-white shrink-0 select-none uppercase mt-0.5"
+            style={{ background: color }}
+          >
+            {initials([p.nombre, p.apellido].filter(Boolean).join(" "))}
           </div>
 
-          {/* Examen Físico (Dinámico) */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Examen Físico / Signos Vitales</p>
-              <button onClick={addExamenFisico} className="text-[11px] font-medium text-cyan-600 hover:underline flex items-center gap-1">
-                <Icon name="add" size={14} /> Añadir campo
-              </button>
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            {/* Nombre + alergias en la misma fila */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-[14px] sm:text-[19px] font-bold text-slate-900 leading-snug">
+                {[p.nombre, p.apellido].filter(Boolean).join(" ")}
+              </h1>
+              {Array.isArray(p.alergias) && p.alergias.length > 0 && p.alergias.map((a: string) => (
+                <span key={a} className="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-100 px-1.5 py-0.5 rounded-full">
+                  <Icon name="warning_amber" size={10} className="shrink-0" />{a}
+                </span>
+              ))}
             </div>
 
-            {examenFisico.length === 0 ? (
-              <p className="text-[12px] text-slate-400 py-2 text-center border border-dashed border-slate-200 rounded-lg">No hay signos vitales registrados.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {examenFisico.map((ef, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      placeholder="Ej: Temperatura"
-                      value={ef.clave}
-                      onChange={(e) => updateExamenFisico(idx, "clave", e.target.value)}
-                      className="ninput flex-1"
-                    />
-                    <input
-                      placeholder="Ej: 37.5 °C"
-                      value={ef.valor}
-                      onChange={(e) => updateExamenFisico(idx, "valor", e.target.value)}
-                      className="ninput flex-1"
-                    />
-                    <button onClick={() => removeExamenFisico(idx)} className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-colors">
-                      <Icon name="delete" size={16} />
-                    </button>
-                  </div>
-                ))}
+            {/* Chips — flex wrap, una sola fila en mobile */}
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              <Chip icon="badge"    label={`DNI ${p.dni}`} />
+              <Chip icon="cake"     label={`${calcEdad(p.fecha_nacimiento)} años`} />
+              {p.telefono       && <Chip icon="phone"     label={p.telefono} />}
+              {p.grupo_sanguineo && <Chip icon="bloodtype" label={p.grupo_sanguineo} highlight />}
+            </div>
+
+            {/* Próxima cita — solo sm+ para no saturar mobile */}
+            <div className="hidden sm:block mt-2.5">
+              <ProximaCitaDisplay fecha={proximaCita?.fecha ?? null} />
+            </div>
+          </div>
+
+          {/* Menú 3 puntos */}
+          <div className="relative shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+              className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors"
+            >
+              <Icon name="more_vert" size={17} />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1.5 z-30 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden w-44"
+                onClick={(e) => e.stopPropagation()}>
+                <a href={waLink} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-2.5 px-4 py-3 text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                  <Icon name="chat" size={16} className="text-[#25D366]" />WhatsApp
+                </a>
+                <button className="w-full flex items-center gap-2.5 px-4 py-3 text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100 border-0">
+                  <Icon name="picture_as_pdf" size={16} className="text-red-500" />Exportar PDF
+                </button>
               </div>
             )}
           </div>
-
-          {/* Observaciones */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200">
-            <NField label="Observaciones clínicas generales">
-              <textarea
-                rows={4}
-                value={observaciones}
-                onChange={(e) => setObservaciones(e.target.value)}
-                placeholder="Hallazgos del examen clínico, evolución del paciente…"
-                className="ninput resize-none"
-              />
-            </NField>
-          </div>
-        </div>
-
-        {errorMsg && (
-          <div className="px-5 pb-3 bg-slate-50/50">
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-[12px] flex items-center gap-1.5 border border-red-100">
-              <Icon name="warning" size={16} />
-              <p className="font-medium">{errorMsg}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-slate-100 shrink-0 bg-white">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            Cancelar
-          </button>
-
-          <button
-            onClick={handleGuardar}
-            disabled={!canGuardar}
-            className="flex items-center gap-1.5 px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[12px] font-semibold transition-colors"
-          >
-            <Icon name="save" size={15} />
-            {loading ? "Guardando..." : "Guardar nota"}
-          </button>
         </div>
       </div>
 
-      <style>{`
-        .ninput {
-          width: 100%;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          padding: 8px 12px;
-          font-size: 12px;
-          outline: none;
-          transition: border-color 0.15s, box-shadow 0.15s;
-        }
-        .ninput:focus {
-          border-color: #06b6d4;
-          box-shadow: 0 0 0 3px rgba(6,182,212,0.12);
-        }
-      `}</style>
+      {/* ── Layout: sidebar + content ── */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+
+        {/* Sidebar — desktop md+ */}
+        <aside className="hidden md:flex flex-col shrink-0 w-52 bg-white border-r border-slate-200 overflow-y-auto">
+          <div className="p-3 flex flex-col gap-0.5">
+            {SECTIONS.map(({ key, icon, label }) => {
+              const active = sec === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSec(key)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all border-0 ${
+                    active
+                      ? "bg-cyan-50 text-cyan-700"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+                  }`}
+                >
+                  <Icon name={icon} size={17} className={active ? "text-cyan-600" : "text-slate-400"} />
+                  <span className="text-[13px] font-medium">{label}</span>
+                  {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-cyan-500" />}
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        {/* Columna principal: tabs móvil + contenido */}
+        <div className="flex flex-col flex-1 min-h-0 min-w-0">
+
+          {/* Tabs móvil — scroll horizontal, sticky bajo el header */}
+          <div className="md:hidden sticky top-0 z-10 bg-white border-b border-slate-200 overflow-x-auto flex shrink-0"
+            style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+            {SECTIONS.map(({ key, icon, label }) => {
+              const active = sec === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSec(key)}
+                  className={`flex-none flex flex-col items-center gap-1 px-3.5 py-2.5 transition-colors border-0 relative whitespace-nowrap ${
+                    active ? "text-cyan-600" : "text-slate-400"
+                  }`}
+                >
+                  {active && (
+                    <span className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-cyan-500 rounded-t-full" />
+                  )}
+                  <Icon name={icon} size={18} />
+                  <span className="text-[10px] font-semibold">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Contenido principal */}
+          <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
+            {sec === "consulta"      && <SecConsulta historial={historial} pacienteId={p.id} />}
+            {sec === "diagnostico"   && <SecDiagnostico historial={historial} />}
+            {sec === "historia"      && <SecHistoria paciente={p} />}
+            {sec === "odontograma"   && <OdontogramaTab paciente={p} />}
+            {sec === "plan"          && <SecPlan historial={historial} />}
+            {sec === "tratamiento"   && <SecTratamiento historial={historial} />}
+            {sec === "receta"        && <RecetaTab paciente={p} />}
+            {sec === "recomendacion" && <SecRecomendacion historial={historial} />}
+          </main>
+
+        </div>{/* fin columna principal */}
+      </div>{/* fin flex layout */}
     </div>
   );
 }
 
-function NField({ label, children }: { label: string; children: React.ReactNode }) {
+// ─── 1. CONSULTA ──────────────────────────────────────────────────────────────
+
+function SecConsulta({ historial, pacienteId }: { historial: any[]; pacienteId: string }) {
+  const router = useRouter();
+  const [iniciando, setIniciando] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleNuevaConsulta() {
+    setIniciando(true); setErr("");
+    const res = await iniciarConsultaAction(pacienteId);
+    if ((res as any)?.consultaId) {
+      router.push(`/pacientes/consulta/${(res as any).consultaId}`);
+    } else {
+      setErr("No se pudo iniciar la consulta.");
+      setIniciando(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header sección */}
+      <div className="flex items-center justify-between">
+        <SecHeader icon="stethoscope" title="Consultas" count={historial.length} />
+        <button
+          onClick={handleNuevaConsulta}
+          disabled={iniciando}
+          className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-[12.5px] font-semibold transition-colors border-0"
+        >
+          {iniciando
+            ? <span className="w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+            : <Icon name="add" size={16} />
+          }
+          {iniciando ? "Iniciando…" : "Nueva consulta"}
+        </button>
+      </div>
+
+      {err && (
+        <div className="px-3 py-2 bg-red-50 border border-red-100 rounded-lg text-[12px] text-red-600 flex items-center gap-2">
+          <Icon name="warning" size={13} /> {err}
+        </div>
+      )}
+
+      {historial.length === 0 ? (
+        <EmptyState icon="stethoscope" text="No hay consultas registradas. Inicia una nueva para comenzar el registro clínico." />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {historial.map((c: any) => (
+            <Link
+              key={c.id}
+              href={`/pacientes/consulta/${c.id}`}
+              className="bg-white rounded-2xl border border-slate-200 p-4 hover:shadow-md hover:border-cyan-200 transition-all block group"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-cyan-50 flex items-center justify-center shrink-0">
+                  <Icon name="stethoscope" size={18} className="text-cyan-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-[13px] font-bold text-slate-900 truncate">
+                      {c.motivo || "Consulta sin motivo"}
+                    </p>
+                    <Icon name="chevron_right" size={15} className="text-slate-300 group-hover:text-cyan-400 transition-colors shrink-0" />
+                  </div>
+                  <p className="text-[11.5px] text-slate-500">{fmtFull(c.fecha)}</p>
+                  {c.doctor && (
+                    <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                      <Icon name="person" size={12} />{c.doctor}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {c.observaciones && (
+                <p className="mt-2.5 text-[12px] text-slate-500 leading-relaxed line-clamp-2 pl-13">
+                  {c.observaciones}
+                </p>
+              )}
+              {/* Badges resumen */}
+              {c.diagnosticos?.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5 pl-13">
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-semibold">
+                    {c.diagnosticos.length} dx
+                  </span>
+                  {c.diagnosticos[0]?.tratamientos?.length > 0 && (
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-semibold">
+                      {c.diagnosticos[0].tratamientos.length} trat.
+                    </span>
+                  )}
+                </div>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 2. DIAGNÓSTICO ───────────────────────────────────────────────────────────
+
+function SecDiagnostico({ historial }: { historial: any[] }) {
+  const all = historial.flatMap((c: any) =>
+    (c.diagnosticos || []).map((d: any) => ({
+      ...d,
+      consultaFecha: c.fecha,
+      consultaId: c.id,
+      consultaMotivo: c.motivo,
+    }))
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <SecHeader icon="biotech" title="Diagnósticos" count={all.length} />
+
+      {all.length === 0 ? (
+        <EmptyState icon="biotech" text="No hay diagnósticos registrados aún." />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {all.map((d: any) => (
+            <div key={d.id} className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col gap-3">
+              {/* Cabecera */}
+              <div className="flex items-start gap-2 justify-between">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                    d.es_definitivo ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"
+                  }`}>
+                    {d.es_definitivo ? "Definitivo" : "Presuntivo"}
+                  </span>
+                  {d.es_tratado && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700">
+                      Se trata
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10.5px] text-slate-400 shrink-0">{fmtFull(d.consultaFecha)}</span>
+              </div>
+
+              <p className="text-[13px] font-semibold text-slate-800 leading-snug">{d.texto}</p>
+
+              {d.cie10 && (
+                <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-slate-100 rounded-lg w-fit">
+                  <span className="text-[10.5px] font-bold text-slate-500">{d.cie10.codigo}</span>
+                  <span className="text-[11.5px] text-slate-600">{d.cie10.descripcion}</span>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                <Icon name="stethoscope" size={12} />
+                Consulta: {d.consultaMotivo || "—"}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 3. HISTORIA CLÍNICA ──────────────────────────────────────────────────────
+
+function SecHistoria({ paciente: p }: { paciente: any }) {
+  const antecedentes = Array.isArray(p.antecedentes) ? p.antecedentes : (p.antecedentes ? [p.antecedentes] : []);
+  const ant = p.antecedentes_estructurados || {
+    cronicas: antecedentes,
+    medicacion_habitual: [],
+    quirurgicos: [],
+  };
+  const alergias = Array.isArray(p.alergias) ? p.alergias : [];
+
+  function v(x: any) {
+    return x !== null && x !== undefined && x !== "" ? String(x) : null;
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <SecHeader icon="person" title="Historia clínica" />
+
+      {/* Datos personales */}
+      <InfoCard title="Datos personales">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+          {v(p.nombre)           && <DataField label="Nombre"           value={p.nombre} />}
+          {v(p.apellido)         && <DataField label="Apellido"         value={p.apellido} />}
+          {v(p.dni)              && <DataField label="DNI"              value={p.dni} />}
+          {v(p.fecha_nacimiento) && <DataField label="Nacimiento"       value={`${fmtFecha(p.fecha_nacimiento)} · ${calcEdad(p.fecha_nacimiento)} años`} />}
+          {v(p.sexo)             && <DataField label="Sexo"             value={p.sexo} />}
+          {v(p.lugar_nacimiento) && <DataField label="Lugar nac."       value={p.lugar_nacimiento} />}
+          {v(p.raza)             && <DataField label="Raza"             value={p.raza} />}
+        </div>
+      </InfoCard>
+
+      {/* Contacto y domicilio */}
+      <InfoCard title="Contacto y domicilio">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+          {v(p.telefono)          && <DataField label="Teléfono"   value={p.telefono} />}
+          {v(p.email)             && <DataField label="Email"      value={p.email} />}
+          {v(p.direccion)         && <DataField label="Dirección"  value={p.direccion} />}
+          {v(p.domicilio)         && <DataField label="Domicilio"  value={p.domicilio} />}
+          {v(p.lugar_procedencia) && <DataField label="Procedencia" value={p.lugar_procedencia} />}
+        </div>
+      </InfoCard>
+
+      {/* Datos socioeconómicos */}
+      <InfoCard title="Datos socioeconómicos">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+          {v(p.ocupacion)         && <DataField label="Ocupación"   value={p.ocupacion} />}
+          {v(p.grado_instruccion) && <DataField label="Instrucción" value={p.grado_instruccion} />}
+          {v(p.estado_civil)      && <DataField label="Estado civil" value={p.estado_civil} />}
+          {v(p.religion)          && <DataField label="Religión"    value={p.religion} />}
+        </div>
+      </InfoCard>
+
+      {/* Datos clínicos + alergias */}
+      <InfoCard title="Datos clínicos">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+          {v(p.grupo_sanguineo) && <DataField label="Grupo sanguíneo" value={p.grupo_sanguineo} />}
+          {alergias.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] text-slate-400 font-medium">Alergias</span>
+              <div className="flex flex-wrap gap-1">
+                {alergias.map((a: string) => (
+                  <span key={a} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-100">
+                    <Icon name="warning_amber" size={11} />{a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        {v(p.enfermedad_actual) && (
+          <div className="mt-4 flex flex-col gap-1.5">
+            <span className="text-[11px] text-slate-400 font-medium">Enfermedad actual</span>
+            <p className="text-[13px] font-medium text-slate-700 leading-relaxed">{p.enfermedad_actual}</p>
+          </div>
+        )}
+      </InfoCard>
+
+      {/* Antecedentes patológicos */}
+      <InfoCard title="Antecedentes patológicos">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <AntecedenteGrupo titulo="Enfermedades crónicas"   items={ant.cronicas}           color="rose" />
+          <AntecedenteGrupo titulo="Medicación habitual"     items={ant.medicacion_habitual} color="cyan" />
+          <AntecedenteGrupo titulo="Antecedentes quirúrgicos" items={ant.quirurgicos}        color="violet" />
+        </div>
+      </InfoCard>
+    </div>
+  );
+}
+
+// ─── 4. PLAN DE TRABAJO ───────────────────────────────────────────────────────
+
+const PLAN_CFG: Record<string, { bg: string; text: string; label: string }> = {
+  hacer:    { bg: "bg-slate-100",    text: "text-slate-600",   label: "Por hacer" },
+  haciendo: { bg: "bg-amber-100",   text: "text-amber-700",   label: "Haciendo" },
+  hecho:    { bg: "bg-emerald-100", text: "text-emerald-700", label: "Hecho" },
+};
+
+function SecPlan({ historial }: { historial: any[] }) {
+  const all = historial.flatMap((c: any) =>
+    (c.diagnosticos || []).flatMap((d: any) =>
+      (d.plan || []).map((p: any) => ({
+        ...p,
+        dxTexto: d.texto,
+        consultaFecha: c.fecha,
+      }))
+    )
+  );
+
+  const pending = all.filter((p: any) => p.estado !== "hecho");
+  const done    = all.filter((p: any) => p.estado === "hecho");
+
+  return (
+    <div className="flex flex-col gap-4">
+      <SecHeader icon="checklist" title="Plan de trabajo" count={all.length} />
+
+      {all.length === 0 ? (
+        <EmptyState icon="checklist" text="No hay plan de trabajo registrado." />
+      ) : (
+        <>
+          {pending.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Pendientes ({pending.length})</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {pending.map((p: any) => <PlanCard key={p.id} item={p} />)}
+              </div>
+            </div>
+          )}
+          {done.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Completados ({done.length})</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {done.map((p: any) => <PlanCard key={p.id} item={p} />)}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+const PLAN_ICON: Record<string, string> = {
+  hacer:    "radio_button_unchecked",
+  haciendo: "pending",
+  hecho:    "task_alt",
+};
+
+function PlanCard({ item: p }: { item: any }) {
+  const cfg  = PLAN_CFG[p.estado] ?? PLAN_CFG.hacer;
+  const icon = PLAN_ICON[p.estado] ?? "radio_button_unchecked";
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex items-start gap-3 min-h-[72px]">
+      {/* Icono identificador de estado */}
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cfg.bg}`}>
+        <Icon name={icon} size={20} className={cfg.text} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[13px] font-semibold text-slate-800 leading-snug">{p.etapa}</p>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide shrink-0 ${cfg.bg} ${cfg.text}`}>
+            {cfg.label}
+          </span>
+        </div>
+        {p.descripcion && <p className="text-[11.5px] text-slate-500 mt-0.5 leading-relaxed">{p.descripcion}</p>}
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+          {p.dxTexto && <span className="text-[10.5px] text-slate-400 truncate max-w-[120px]">{p.dxTexto}</span>}
+          {p.tiempo  && <span className="text-[10px] text-slate-400 flex items-center gap-0.5"><Icon name="schedule" size={11} />{p.tiempo}</span>}
+          <span className="text-[10px] text-slate-300">·</span>
+          <span className="text-[10px] text-slate-400">{fmtFull(p.consultaFecha)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 5. TRATAMIENTO ───────────────────────────────────────────────────────────
+
+function SecTratamiento({ historial }: { historial: any[] }) {
+  const all = historial.flatMap((c: any) =>
+    (c.diagnosticos || []).flatMap((d: any) =>
+      (d.tratamientos || []).map((t: any) => ({
+        ...t,
+        dxTexto: d.texto,
+        consultaFecha: c.fecha,
+      }))
+    )
+  );
+
+  const total = all.reduce((sum: number, t: any) => sum + Number(t.precio || 0), 0);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <SecHeader icon="medical_services" title="Tratamientos" count={all.length} />
+        {all.length > 0 && (
+          <div className="text-right shrink-0">
+            <p className="text-[10.5px] text-slate-400">Total acumulado</p>
+            <p className="text-[15px] font-bold text-slate-800">{money(total)}</p>
+          </div>
+        )}
+      </div>
+
+      {all.length === 0 ? (
+        <EmptyState icon="medical_services" text="No hay tratamientos registrados." />
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          {all.map((t: any, i: number) => (
+            <div key={t.id ?? i} className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors">
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-slate-800 truncate">{t.nombre}</p>
+                <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                  <p className="text-[11px] text-slate-400 truncate">{t.dxTexto}</p>
+                  <span className="text-[10.5px] text-slate-300">·</span>
+                  <p className="text-[11px] text-slate-400">{fmtFull(t.consultaFecha)}</p>
+                </div>
+                {t.notas && <p className="text-[11.5px] text-slate-500 mt-0.5">{t.notas}</p>}
+              </div>
+              <span className="text-[13px] font-bold text-slate-700 shrink-0">{money(t.precio, t.moneda)}</span>
+            </div>
+          ))}
+          {/* Total */}
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-200">
+            <span className="text-[12px] font-semibold text-slate-600">Total</span>
+            <span className="text-[14px] font-bold text-slate-900">{money(total)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 6. RECOMENDACIÓN ────────────────────────────────────────────────────────
+
+function SecRecomendacion({ historial }: { historial: any[] }) {
+  const all = historial.flatMap((c: any) =>
+    (c.recomendaciones || []).map((r: any) => ({
+      ...r,
+      consultaFecha: c.fecha,
+    }))
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <SecHeader icon="tips_and_updates" title="Recomendaciones" count={all.length} />
+
+      {all.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 flex flex-col items-center text-center gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center">
+            <Icon name="tips_and_updates" size={26} className="text-amber-400" />
+          </div>
+          <p className="text-[13px] font-medium text-slate-600">Sin recomendaciones registradas</p>
+          <p className="text-[12px] text-slate-400 max-w-xs">
+            Las recomendaciones se agregan desde la pestaña de Receta dentro de cada consulta.
+          </p>
+          <Link
+            href="#"
+            onClick={e => { e.preventDefault(); }}
+            className="mt-1 text-[12px] text-cyan-600 hover:underline font-medium"
+          >
+            Ir a una consulta para agregar →
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {all.map((r: any, i: number) => (
+            <div key={r.id ?? i} className="bg-white rounded-2xl border border-slate-200 p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                  <Icon name="tips_and_updates" size={16} className="text-amber-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-semibold text-slate-800">{r.titulo || "Recomendación"}</p>
+                  {r.descripcion && <p className="text-[12px] text-slate-500 mt-1 leading-relaxed">{r.descripcion}</p>}
+                  <p className="text-[10.5px] text-slate-400 mt-1.5">{fmtFull(r.consultaFecha)}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Componentes comunes ──────────────────────────────────────────────────────
+
+function SecHeader({
+  icon, title, count,
+}: { icon: string; title: string; count?: number }) {
+  return (
+    <div className="flex items-center gap-2.5 mb-1">
+      <div className="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center shrink-0">
+        <Icon name={icon} size={16} className="text-cyan-600" />
+      </div>
+      <h2 className="text-[16px] font-bold text-slate-900">{title}</h2>
+      {count !== undefined && (
+        <span className="ml-1 px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[11px] font-semibold">
+          {count}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 md:p-6">
+      <div className="flex items-center gap-2 mb-3 sm:mb-4">
+        <div className="w-[3px] h-[14px] bg-cyan-500 rounded-full shrink-0" />
+        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function DataField({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-medium text-slate-600">{label}</label>
-      {children}
+      <span className="text-[11px] text-slate-400 font-medium">{label}</span>
+      <span className="text-[13px] font-semibold text-slate-800">{value}</span>
+    </div>
+  );
+}
+
+function EmptyState({ icon, text }: { icon: string; text: string }) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 py-14 flex flex-col items-center justify-center text-center px-6 gap-3">
+      <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
+        <Icon name={icon} size={26} className="text-slate-300" />
+      </div>
+      <p className="text-[13px] text-slate-400 max-w-xs">{text}</p>
+    </div>
+  );
+}
+
+function Chip({ icon, label, highlight }: { icon: string; label: string; highlight?: boolean }) {
+  return (
+    <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium ${
+      highlight ? "bg-red-50 text-red-700 border border-red-100" : "bg-slate-100 text-slate-600"
+    }`}>
+      <Icon name={icon} size={11} className="shrink-0" />{label}
+    </span>
+  );
+}
+
+function ProximaCitaDisplay({ fecha }: { fecha: string | null }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+        <Icon name="event" size={16} className="text-emerald-500" />
+      </div>
+      <div>
+        <p className="text-[10px] text-slate-400 font-medium leading-tight uppercase tracking-wide">
+          Próxima cita
+        </p>
+        <p className="text-[13px] font-semibold text-slate-700 leading-tight">
+          {fecha ? fmtFull(fecha) : "Sin cita programada"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+const ANT_COLORS: Record<string, string> = {
+  rose:   "bg-rose-50 text-rose-700 border-rose-100",
+  cyan:   "bg-cyan-50 text-cyan-700 border-cyan-100",
+  violet: "bg-violet-50 text-violet-700 border-violet-100",
+};
+
+function AntecedenteGrupo({
+  titulo, items, color,
+}: { titulo: string; items?: string[]; color: string }) {
+  const list = Array.isArray(items) ? items : [];
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[11px] text-slate-400 font-medium">{titulo}</span>
+      {list.length === 0 ? (
+        <span className="text-[12px] text-slate-300">—</span>
+      ) : (
+        <div className="flex flex-wrap gap-1">
+          {list.map((it) => (
+            <span key={it} className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${ANT_COLORS[color]}`}>
+              {it}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
