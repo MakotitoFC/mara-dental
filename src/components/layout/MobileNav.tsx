@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 
 type NavItem = { href: string; icon: string; label: string };
 
+
 const NAV_BY_ROLE: Record<string, NavItem[]> = {
   Administrador: [
     { href: "/dashboard",  icon: "space_dashboard", label: "Inicio" },
@@ -43,7 +44,7 @@ const DEFAULT_NAV: NavItem[] = [
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
@@ -73,14 +74,6 @@ export function MobileNav() {
           );
         })}
 
-        {/* Botón logout siempre visible */}
-        <button
-          onClick={logout}
-          className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-slate-400 hover:text-red-500 transition-colors"
-        >
-          <Icon name="logout" size={22} />
-          <span className="text-[10px] font-medium">Salir</span>
-        </button>
       </div>
     </nav>
   );

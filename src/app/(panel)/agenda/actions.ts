@@ -209,3 +209,14 @@ export async function getCitasRealesAction() {
     };
   });
 }
+
+export async function getPatientByIdAction(pacienteId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("pacientes")
+    .select("id, nombre, apellido, dni")
+    .eq("id", pacienteId)
+    .single();
+  if (!data) return null;
+  return { id: String(data.id), nombre: data.nombre, apellido: data.apellido, dni: data.dni };
+}

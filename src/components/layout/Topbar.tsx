@@ -93,6 +93,15 @@ export function Topbar({ title, breadcrumbs, actions }: TopbarProps) {
           <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white" />
         </button>
 
+        {/* Salir — solo mobile */}
+        <button
+          onClick={logout}
+          className="md:hidden w-8 h-8 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors"
+          title="Cerrar sesión"
+        >
+          <Icon name="logout" size={17} />
+        </button>
+
         {/* Avatar (desktop) */}
         <div
           className="hidden md:flex w-8 h-8 rounded-full bg-cyan-50 border-2 border-cyan-200 items-center justify-center"
@@ -100,7 +109,6 @@ export function Topbar({ title, breadcrumbs, actions }: TopbarProps) {
         >
           <span className="text-[11px] font-bold text-cyan-700">{user?.initials ?? "…"}</span>
         </div>
-
       </div>
     </header>
   );

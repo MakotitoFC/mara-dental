@@ -85,11 +85,20 @@ export async function createPacienteAction(data: {
   fecha_nacimiento: string;
   telefono: string;
   email?: string;
+  sexo?: string;
+  lugar_nacimiento?: string;
+  raza?: string;
+  direccion?: string;
+  domicilio?: string;
+  lugar_procedencia?: string;
+  ocupacion?: string;
+  religion?: string;
   grupo_sanguineo?: string;
   estado_civil?: string;
   grado_instruccion?: string;
+  enfermedad_actual?: string;
   alergias?: string[];
-  antecedentes?: string[];
+  antecedentes?: { cronicas: string[]; medicacion_habitual: string[]; quirurgicos: string[] };
 }) {
   const supabase = await createClient();
 
@@ -98,20 +107,29 @@ export async function createPacienteAction(data: {
     return { error: "La fecha de nacimiento no puede ser mayor a la fecha actual." };
   }
 
-  const { error } = await supabase.from("pacientes").insert({
-    nombre: data.nombre.trim(),
-    apellido: data.apellido.trim(),
-    dni: data.dni.trim(),
-    fecha_nacimiento: data.fecha_nacimiento,
-    telefono: data.telefono.trim(),
-    email: data.email || null,
-    grupo_sanguineo: data.grupo_sanguineo || null,
-    estado_civil: data.estado_civil || null,
+  const { data: inserted, error } = await supabase.from("pacientes").insert({
+    nombre:            data.nombre.trim(),
+    apellido:          data.apellido.trim(),
+    dni:               data.dni.trim(),
+    fecha_nacimiento:  data.fecha_nacimiento,
+    telefono:          data.telefono.trim(),
+    email:             data.email             || null,
+    sexo:              data.sexo              || null,
+    lugar_nacimiento:  data.lugar_nacimiento  || null,
+    raza:              data.raza              || null,
+    direccion:         data.direccion         || null,
+    domicilio:         data.domicilio         || null,
+    lugar_procedencia: data.lugar_procedencia || null,
+    ocupacion:         data.ocupacion         || null,
+    religion:          data.religion          || null,
+    grupo_sanguineo:   data.grupo_sanguineo   || null,
+    estado_civil:      data.estado_civil      || null,
     grado_instruccion: data.grado_instruccion || null,
-    alergias: data.alergias || [],
-    antecedentes: data.antecedentes || [],
+    enfermedad_actual: data.enfermedad_actual || null,
+    alergias:          data.alergias          || [],
+    antecedentes:      data.antecedentes      || { cronicas: [], medicacion_habitual: [], quirurgicos: [] },
     activo: true
-  });
+  }).select("id").single();
 
   if (error) {
     console.error("Error insertando paciente:", error);
@@ -122,5 +140,5 @@ export async function createPacienteAction(data: {
   }
 
   revalidatePath("/pacientes");
-  return { success: true };
+  return { success: true, id: inserted?.id ? String(inserted.id) : undefined };
 }

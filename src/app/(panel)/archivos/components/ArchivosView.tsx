@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { ARCHIVOS_MOCK, TIPO_CFG, fmtFechaArchivo, getArchivosPaciente } from "@/lib/mock-archivos";
 import { PACIENTES_MOCK } from "@/lib/mock-pacientes";
@@ -8,14 +8,19 @@ import type { Archivo, TipoArchivo } from "@/types/archivo";
 
 type FiltroTipo = TipoArchivo | "todos" | "imagenes" | "documentos";
 
-const FILTROS: { key: FiltroTipo; label: string; icon: string }[] = [
-  { key: "todos", label: "Todos", icon: "folder" },
-  { key: "imagenes", label: "Imágenes", icon: "image" },
-  { key: "documentos", label: "Documentos", icon: "description" },
-  { key: "radiografia_panoramica", label: "Rx Panorámica", icon: "panorama" },
-  { key: "radiografia_periapical", label: "Rx Periapical", icon: "sensors" },
-  { key: "foto_intraoral", label: "Foto intraoral", icon: "photo_camera" },
-  { key: "tomografia", label: "Tomografía", icon: "biotech" },
+const FILTROS_GLOBAL: { key: FiltroTipo; label: string; icon: string }[] = [
+  { key: "todos",                  label: "Todos",           icon: "folder"       },
+  { key: "imagenes",               label: "Imágenes",        icon: "image"        },
+  { key: "documentos",             label: "Documentos",      icon: "description"  },
+  { key: "radiografia_panoramica", label: "Rx Panorámica",   icon: "panorama"     },
+  { key: "radiografia_periapical", label: "Rx Periapical",   icon: "sensors"      },
+  { key: "foto_intraoral",         label: "Foto intraoral",  icon: "photo_camera" },
+  { key: "tomografia",             label: "Tomografía",      icon: "biotech"      },
+];
+
+const FILTROS_SIDEBAR: { key: FiltroTipo; label: string; icon: string }[] = [
+  { key: "imagenes",   label: "Imágenes",    icon: "image"   },
+  { key: "tomografia", label: "Tomografías", icon: "biotech" },
 ];
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
@@ -28,13 +33,14 @@ interface Annotation {
   fecha: string;
 }
 
-export function ArchivosView({ pacienteId }: { pacienteId?: string }) {
+export function ArchivosView({ pacienteId, sidebarMode }: { pacienteId?: string; sidebarMode?: boolean }) {
   const esVistaGlobal = !pacienteId;
+  const FILTROS = sidebarMode ? FILTROS_SIDEBAR : FILTROS_GLOBAL;
 
   const [archivos, setArchivos] = useState<Archivo[]>(() =>
     pacienteId ? getArchivosPaciente(pacienteId) : [...ARCHIVOS_MOCK]
   );
-  const [filtro, setFiltro] = useState<FiltroTipo>("todos");
+  const [filtro, setFiltro] = useState<FiltroTipo>(sidebarMode ? "imagenes" : "todos");
   const [query, setQuery] = useState("");
   const [visor, setVisor] = useState<Archivo | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -259,6 +265,8 @@ function ArchivoCard({
 
 // ─── Visor / Lightbox con anotaciones ────────────────────────────────────────
 
+type DrawPath = { x: number; y: number }[];
+
 function VisorModal({
   archivo: a, todos, annotations, onAddAnnotation, onClose, onNav,
 }: {
@@ -274,11 +282,60 @@ function VisorModal({
   const prev = idx > 0 ? todos[idx - 1] : null;
   const next = idx < todos.length - 1 ? todos[idx + 1] : null;
 
-  const [annotating, setAnnotating] = useState(false);
+  const [mode, setMode] = useState<"none" | "pin" | "trazo">("none");
   const [pendingPin, setPendingPin] = useState<{ x: number; y: number } | null>(null);
   const [pinNota, setPinNota] = useState("");
   const [hoveredAnn, setHoveredAnn] = useState<string | null>(null);
   const imgContainerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [drawPaths, setDrawPaths] = useState<DrawPath[]>([]);
+  const [currentPath, setCurrentPath] = useState<DrawPath>([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+
+  const annotating = mode === "pin";
+  const tracing    = mode === "trazo";
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const all = currentPath.length > 1 ? [...drawPaths, currentPath] : drawPaths;
+    all.forEach(path => {
+      if (path.length < 2) return;
+      ctx.beginPath();
+      ctx.strokeStyle = "#ef4444";
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.moveTo(path[0].x, path[0].y);
+      path.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.stroke();
+    });
+  }, [drawPaths, currentPath]);
+
+  function getCanvasXY(e: React.MouseEvent<HTMLCanvasElement>) {
+    const c = canvasRef.current!;
+    const r = c.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) };
+  }
+
+  function handleCanvasDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (!tracing) return;
+    setIsDrawing(true);
+    setCurrentPath([getCanvasXY(e)]);
+  }
+  function handleCanvasMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (!tracing || !isDrawing) return;
+    setCurrentPath(p => [...p, getCanvasXY(e)]);
+  }
+  function handleCanvasUp() {
+    if (!tracing || !isDrawing) return;
+    setIsDrawing(false);
+    if (currentPath.length > 1) setDrawPaths(p => [...p, currentPath]);
+    setCurrentPath([]);
+  }
 
   function handleImageAreaClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!annotating || !a.es_imagen) return;
@@ -303,8 +360,8 @@ function VisorModal({
     setPinNota("");
   }
 
-  function toggleAnnotating() {
-    setAnnotating((v) => !v);
+  function toggleMode(m: "pin" | "trazo") {
+    setMode(v => v === m ? "none" : m);
     setPendingPin(null);
   }
 
@@ -323,64 +380,44 @@ function VisorModal({
         <div
           ref={imgContainerRef}
           className="relative overflow-hidden min-h-45 h-[48vw] md:h-auto md:flex-1"
-          style={{
-            background: "#0f172a",
-            cursor: annotating && a.es_imagen ? "crosshair" : "default",
-          }}
+          style={{ background: "#0f172a", cursor: annotating ? "crosshair" : tracing ? "crosshair" : "default" }}
           onClick={handleImageAreaClick}
         >
           {a.es_imagen && a.preview_url ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={a.preview_url}
-                alt={a.nombre}
-                className="absolute inset-0 w-full h-full object-contain select-none"
-                draggable={false}
+              <img src={a.preview_url} alt={a.nombre}
+                className="absolute inset-0 w-full h-full object-contain select-none" draggable={false} />
+
+              {/* Canvas de trazos */}
+              <canvas
+                ref={canvasRef}
+                width={800} height={600}
+                className="absolute inset-0 w-full h-full"
+                style={{ zIndex: 8, pointerEvents: tracing ? "auto" : "none" }}
+                onMouseDown={handleCanvasDown}
+                onMouseMove={handleCanvasMove}
+                onMouseUp={handleCanvasUp}
+                onMouseLeave={handleCanvasUp}
               />
 
               {/* Pins existentes */}
               {annotations.map((ann, i) => {
                 const isHov = hoveredAnn === ann.id;
                 return (
-                  <div
-                    key={ann.id}
-                    data-pin="true"
-                    className="absolute"
-                    style={{
-                      left: `${ann.x}%`,
-                      top: `${ann.y}%`,
-                      transform: "translate(-50%, -50%)",
-                      zIndex: 10,
-                    }}
+                  <div key={ann.id} data-pin="true" className="absolute"
+                    style={{ left: `${ann.x}%`, top: `${ann.y}%`, transform: "translate(-50%, -50%)", zIndex: 10 }}
                     onMouseEnter={() => setHoveredAnn(ann.id)}
                     onMouseLeave={() => setHoveredAnn(null)}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white select-none"
-                      style={{
-                        background: isHov ? "#ef4444" : "#0891b2",
-                        border: "2.5px solid white",
-                        boxShadow: "0 2px 10px rgba(0,0,0,0.5)",
-                        transition: "background 0.15s",
-                      }}
-                    >
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white select-none"
+                      style={{ background: isHov ? "#ef4444" : "#0891b2", border: "2.5px solid white", boxShadow: "0 2px 10px rgba(0,0,0,0.5)", transition: "background 0.15s" }}>
                       {i + 1}
                     </div>
-
                     {isHov && (
-                      <div
-                        className="absolute z-20 bg-white rounded-xl p-3 shadow-2xl"
-                        style={{
-                          left: ann.x > 70 ? "auto" : "34px",
-                          right: ann.x > 70 ? "34px" : "auto",
-                          top: ann.y > 70 ? "auto" : 0,
-                          bottom: ann.y > 70 ? 0 : "auto",
-                          width: 200,
-                          border: "1px solid #e2e8f0",
-                        }}
-                      >
+                      <div className="absolute z-20 bg-white rounded-xl p-3 shadow-2xl"
+                        style={{ left: ann.x > 70 ? "auto" : "34px", right: ann.x > 70 ? "34px" : "auto", top: ann.y > 70 ? "auto" : 0, bottom: ann.y > 70 ? 0 : "auto", width: 200, border: "1px solid #e2e8f0" }}>
                         <p className="text-[11px] font-semibold text-slate-700 mb-1">Nota #{i + 1}</p>
                         <p className="text-[11px] text-slate-600 leading-relaxed">{ann.nota}</p>
                         <p className="text-[9px] text-slate-400 mt-1.5">{ann.fecha}</p>
@@ -392,49 +429,23 @@ function VisorModal({
 
               {/* Pin pendiente */}
               {pendingPin && (
-                <div
-                  data-pin="true"
-                  className="absolute"
-                  style={{
-                    left: `${pendingPin.x}%`,
-                    top: `${pendingPin.y}%`,
-                    transform: "translate(-50%, -50%)",
-                    zIndex: 20,
-                  }}
+                <div data-pin="true" className="absolute"
+                  style={{ left: `${pendingPin.x}%`, top: `${pendingPin.y}%`, transform: "translate(-50%, -50%)", zIndex: 20 }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center animate-pulse"
-                    style={{
-                      background: "#f59e0b",
-                      border: "2.5px solid white",
-                      boxShadow: "0 2px 10px rgba(0,0,0,0.5)",
-                    }}
-                  >
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center animate-pulse"
+                    style={{ background: "#f59e0b", border: "2.5px solid white", boxShadow: "0 2px 10px rgba(0,0,0,0.5)" }}>
                     <Icon name="add" size={12} className="text-white" />
                   </div>
-
-                  <div
-                    className="absolute z-30 bg-white rounded-2xl shadow-2xl p-3.5"
-                    style={{
-                      left: pendingPin.x > 65 ? "auto" : "34px",
-                      right: pendingPin.x > 65 ? "34px" : "auto",
-                      top: pendingPin.y > 65 ? "auto" : 0,
-                      bottom: pendingPin.y > 65 ? 0 : "auto",
-                      width: 220,
-                      border: "1px solid #e2e8f0",
-                    }}
-                  >
+                  <div className="absolute z-30 bg-white rounded-2xl shadow-2xl p-3.5"
+                    style={{ left: pendingPin.x > 65 ? "auto" : "34px", right: pendingPin.x > 65 ? "34px" : "auto", top: pendingPin.y > 65 ? "auto" : 0, bottom: pendingPin.y > 65 ? 0 : "auto", width: 220, border: "1px solid #e2e8f0" }}>
                     <div className="flex items-center gap-1.5 mb-2">
                       <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ background: "#f59e0b" }}>
                         <Icon name="pin_drop" size={9} className="text-white" />
                       </div>
                       <p className="text-[11px] font-semibold text-slate-700">Nueva anotación</p>
                     </div>
-                    <textarea
-                      autoFocus
-                      rows={3}
-                      value={pinNota}
+                    <textarea autoFocus rows={3} value={pinNota}
                       onChange={(e) => setPinNota(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey) saveAnnotation(); }}
                       placeholder="Describe la zona o hallazgo clínico…"
@@ -443,20 +454,11 @@ function VisorModal({
                     />
                     <p className="text-[9px] text-slate-400 mt-1 mb-2">Ctrl+Enter para guardar</p>
                     <div className="flex gap-1.5">
-                      <button
-                        onClick={saveAnnotation}
-                        disabled={!pinNota.trim()}
+                      <button onClick={saveAnnotation} disabled={!pinNota.trim()}
                         className="flex-1 py-1.5 text-[11px] font-semibold text-white rounded-lg disabled:opacity-40 transition-opacity"
-                        style={{ background: "#0891b2" }}
-                      >
-                        Guardar
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setPendingPin(null); }}
-                        className="flex-1 py-1.5 text-[11px] font-medium text-slate-600 rounded-lg border border-slate-200 hover:bg-slate-50"
-                      >
-                        Cancelar
-                      </button>
+                        style={{ background: "#0891b2" }}>Guardar</button>
+                      <button onClick={(e) => { e.stopPropagation(); setPendingPin(null); }}
+                        className="flex-1 py-1.5 text-[11px] font-medium text-slate-600 rounded-lg border border-slate-200 hover:bg-slate-50">Cancelar</button>
                     </div>
                   </div>
                 </div>
@@ -469,27 +471,22 @@ function VisorModal({
               </div>
               <p className="text-white font-medium text-[13px]">{a.nombre}</p>
               <button className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[12px] transition-colors">
-                <Icon name="download" size={15} />
-                Descargar
+                <Icon name="download" size={15} />Descargar
               </button>
             </div>
           )}
 
           {prev && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onNav(prev); }}
+            <button onClick={(e) => { e.stopPropagation(); onNav(prev); }}
               className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors"
-              style={{ zIndex: 5 }}
-            >
+              style={{ zIndex: 5 }}>
               <Icon name="chevron_left" size={22} />
             </button>
           )}
           {next && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onNav(next); }}
+            <button onClick={(e) => { e.stopPropagation(); onNav(next); }}
               className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors"
-              style={{ zIndex: 5 }}
-            >
+              style={{ zIndex: 5 }}>
               <Icon name="chevron_right" size={22} />
             </button>
           )}
@@ -498,13 +495,11 @@ function VisorModal({
             {idx + 1} / {todos.length}
           </span>
 
-          {annotating && (
-            <div
-              className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white"
-              style={{ background: "rgba(8,145,178,0.9)", backdropFilter: "blur(4px)", zIndex: 5 }}
-            >
-              <Icon name="pin_drop" size={13} />
-              Modo anotación — haz clic en la imagen
+          {mode !== "none" && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white"
+              style={{ background: mode === "pin" ? "rgba(8,145,178,0.9)" : "rgba(239,68,68,0.9)", backdropFilter: "blur(4px)", zIndex: 15 }}>
+              <Icon name={mode === "pin" ? "pin_drop" : "draw"} size={13} />
+              {mode === "pin" ? "Modo pin — clic para anotar" : "Modo trazo — dibuja libremente"}
             </div>
           )}
         </div>
@@ -520,18 +515,29 @@ function VisorModal({
             </span>
             <div className="flex items-center gap-1.5">
               {a.es_imagen && (
-                <button
-                  onClick={toggleAnnotating}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors border"
-                  style={
-                    annotating
+                <>
+                  <button onClick={() => toggleMode("pin")}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors border"
+                    style={mode === "pin"
                       ? { background: "#e0f2fe", color: "#0369a1", borderColor: "#7dd3fc" }
-                      : { background: "white", color: "#475569", borderColor: "#e2e8f0" }
-                  }
-                >
-                  <Icon name="pin_drop" size={12} />
-                  {annotating ? "Salir" : "Anotar"}
-                </button>
+                      : { background: "white", color: "#475569", borderColor: "#e2e8f0" }}>
+                    <Icon name="pin_drop" size={12} />Pin
+                  </button>
+                  <button onClick={() => toggleMode("trazo")}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors border"
+                    style={mode === "trazo"
+                      ? { background: "#fee2e2", color: "#b91c1c", borderColor: "#fca5a5" }
+                      : { background: "white", color: "#475569", borderColor: "#e2e8f0" }}>
+                    <Icon name="draw" size={12} />Trazar
+                  </button>
+                  {drawPaths.length > 0 && (
+                    <button onClick={() => setDrawPaths([])}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors border"
+                      style={{ background: "white", color: "#ef4444", borderColor: "#fca5a5" }}>
+                      <Icon name="delete" size={12} />Borrar
+                    </button>
+                  )}
+                </>
               )}
               <button onClick={onClose} className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-50">
                 <Icon name="close" size={15} />

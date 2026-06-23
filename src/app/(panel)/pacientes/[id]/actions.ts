@@ -45,18 +45,71 @@ export async function getDetallePacienteAction(pacienteId: string) {
     .order("fecha_consulta", { ascending: false });
 
   // Procesar para la vista
-  // Alergias
-  let alergiasArr: string[] = [];
-  if (Array.isArray(paciente.alergias)) alergiasArr = paciente.alergias;
-  else if (typeof paciente.alergias === "string") {
-    try { alergiasArr = JSON.parse(paciente.alergias); } catch {}
+  // Convierte cualquier valor (string, object JSONB, array) a string seguro para React
+  function toStr(val: unknown): string | undefined {
+    if (val == null || val === "") return undefined;
+    if (typeof val === "string") return val || undefined;
+    if (Array.isArray(val)) return val.map(v => toStr(v)).filter(Boolean).join(", ") || undefined;
+    if (typeof val === "object") {
+      const values = Object.values(val as Record<string, unknown>).map(v => toStr(v)).filter(Boolean);
+      return values.join(" · ") || undefined;
+    }
+    return String(val) || undefined;
   }
-  // Antecedentes
-  let antArr: string[] = [];
-  if (Array.isArray(paciente.antecedentes)) antArr = paciente.antecedentes;
-  else if (typeof paciente.antecedentes === "string") {
-    try { antArr = JSON.parse(paciente.antecedentes); } catch {}
+
+  // Convierte campo array/JSONB a array de strings
+  function toStringArray(val: unknown): string[] {
+    if (Array.isArray(val)) {
+      return val.map(item => toStr(item)).filter((s): s is string => Boolean(s));
+    }
+    if (typeof val === "string") {
+      try {
+        const p = JSON.parse(val);
+        if (Array.isArray(p)) return p.map(item => toStr(item)).filter((s): s is string => Boolean(s));
+        if (typeof p === "object" && p !== null) {
+          // {enfermedad: true/false} → solo claves con true
+          return Object.entries(p as Record<string, unknown>)
+            .filter(([, v]) => v === true)
+            .map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
+        }
+        return [val];
+      } catch { return [val]; }
+    }
+    if (typeof val === "object" && val !== null) {
+      const entries = Object.entries(val as Record<string, unknown>);
+      // {enfermedad: true/false} → solo claves con true
+      if (entries.every(([, v]) => typeof v === "boolean")) {
+        return entries
+          .filter(([, v]) => v === true)
+          .map(([k]) => k.charAt(0).toUpperCase() + k.slice(1));
+      }
+      // Otro tipo de objeto JSONB → tratar cada valor como string
+      return entries.map(([, v]) => toStr(v)).filter((s): s is string => Boolean(s));
+    }
+    return [];
   }
+
+  // Antecedentes patológicos enriquecidos: { cronicas, medicacion_habitual, quirurgicos }
+  // Compatible con datos antiguos (lista plana o {enf:true} → se vuelcan a 'cronicas')
+  function parseAntecedentes(val: unknown): { cronicas: string[]; medicacion_habitual: string[]; quirurgicos: string[] } {
+    let obj: any = val;
+    if (typeof val === "string") { try { obj = JSON.parse(val); } catch { obj = [val]; } }
+    const arr = (v: unknown) => toStringArray(v);
+    if (obj && typeof obj === "object" && !Array.isArray(obj) &&
+        ("cronicas" in obj || "medicacion_habitual" in obj || "quirurgicos" in obj)) {
+      return {
+        cronicas: arr(obj.cronicas),
+        medicacion_habitual: arr(obj.medicacion_habitual),
+        quirurgicos: arr(obj.quirurgicos),
+      };
+    }
+    // Formato antiguo → todo a crónicas
+    return { cronicas: toStringArray(obj), medicacion_habitual: [], quirurgicos: [] };
+  }
+
+  const alergiasArr = toStringArray(paciente.alergias);
+  const antArr      = toStringArray(paciente.antecedentes);
+  const antEstruct  = parseAntecedentes(paciente.antecedentes);
 
   // Parsear jsonb de examen_fisico donde metemos tratamiento y medicacion del mock
   const notasMap = (consultas || []).map((c: any) => {
@@ -95,17 +148,30 @@ export async function getDetallePacienteAction(pacienteId: string) {
 
   const pFinal = {
     id: String(paciente.id),
-    nombre: `${paciente.nombre} ${paciente.apellido}`.trim(),
-    dni: paciente.dni,
-    fecha_nacimiento: paciente.fecha_nacimiento,
-    telefono: paciente.telefono,
-    email: paciente.email || undefined,
-    grupo_sanguineo: paciente.grupo_sanguineo || undefined,
-    alergias: alergiasArr,
-    antecedentes: antArr,
-    activo: paciente.activo,
-    ultima_visita: citasMap.length > 0 ? citasMap[0].fecha : undefined,
-    proxima_cita: citasMap.find((c: any) => c.estado === 'programada' || c.estado === 'confirmada')?.fecha
+    nombre:            toStr(paciente.nombre)             ?? "",
+    apellido:          toStr(paciente.apellido),
+    dni:               toStr(paciente.dni)                ?? "",
+    fecha_nacimiento:  toStr(paciente.fecha_nacimiento),
+    sexo:              toStr(paciente.sexo),
+    lugar_nacimiento:  toStr(paciente.lugar_nacimiento),
+    raza:              toStr(paciente.raza),
+    telefono:          toStr(paciente.telefono)           ?? "",
+    email:             toStr(paciente.email),
+    direccion:         toStr(paciente.direccion),
+    domicilio:         toStr(paciente.domicilio),
+    lugar_procedencia: toStr(paciente.lugar_procedencia),
+    ocupacion:         toStr(paciente.ocupacion),
+    grado_instruccion: toStr(paciente.grado_instruccion),
+    estado_civil:      toStr(paciente.estado_civil),
+    religion:          toStr(paciente.religion),
+    enfermedad_actual: toStr(paciente.enfermedad_actual),
+    grupo_sanguineo:   toStr(paciente.grupo_sanguineo),
+    alergias:          alergiasArr,
+    antecedentes:      antArr,
+    antecedentes_estructurados: antEstruct,
+    activo:            paciente.activo,
+    ultima_visita:     citasMap.length > 0 ? citasMap[0].fecha : undefined,
+    proxima_cita:      citasMap.find((c: any) => c.estado === 'programada' || c.estado === 'confirmada')?.fecha
   };
 
   return {
@@ -212,7 +278,7 @@ export async function crearNotaClinicaAction(pacienteId: string, data: any) {
   const cita_id = citasHoy && citasHoy.length > 0 ? citasHoy[0].id : null;
 
   // 2. Insertar Consulta
-  const { error } = await supabase.from("consultas").insert({
+  const { data: nuevaConsulta, error } = await supabase.from("consultas").insert({
     id_historia_clinica: hc.id,
     doctor_id: personal.id,
     cita_id,
@@ -220,7 +286,7 @@ export async function crearNotaClinicaAction(pacienteId: string, data: any) {
     motivo: data.motivo,
     observaciones: data.observaciones || null,
     examen_fisico: data.examen_fisico || {}
-  });
+  }).select("id").single();
 
   if (error) {
     console.error("Error insertando consulta:", error);
@@ -228,5 +294,258 @@ export async function crearNotaClinicaAction(pacienteId: string, data: any) {
   }
 
   revalidatePath(`/pacientes/${pacienteId}`);
-  return { success: true };
+  return { success: true, consultaId: nuevaConsulta?.id };
+}
+
+// Inicia una consulta vacía y devuelve su id para entrar directo al wizard de atención
+export async function iniciarConsultaAction(pacienteId: string) {
+  const res = await crearNotaClinicaAction(pacienteId, { motivo: "", observaciones: undefined, examen_fisico: undefined });
+  if ((res as any)?.error) return res;
+  return { success: true, consultaId: (res as any).consultaId };
+}
+
+// ─── Historial de consultas (vista completa por consulta) ─────────────────────
+
+export async function getHistorialConsultasAction(pacienteId: string) {
+  const supabase = await createClient();
+  const pid = Number(pacienteId);
+
+  const [consultasRes, presupuestosRes] = await Promise.all([
+    supabase
+      .from("consultas")
+      .select(`
+        id, fecha_consulta, motivo, observaciones, examen_fisico,
+        personal ( nombre, apellido ),
+        historia_clinica!inner ( paciente_id ),
+        diagnostico!diagnostico_consulta_origen_id_fkey (
+          id, diagnostico, es_definitivo, es_tratado,
+          cie10 ( codigo, descripcion ),
+          tratamiento ( id, notas, catalogo_tratamientos ( nombre, precio, moneda ) ),
+          plan_trabajo ( id, etapa, descripcion, estado, tiempo_pronostico ),
+          recetas ( id, estado, fecha_emision, receta_medicamento ( medicamento_nombre, dosis, frecuencia, indicaciones ) )
+        )
+      `)
+      .eq("historia_clinica.paciente_id", pid)
+      .order("fecha_consulta", { ascending: false }),
+    supabase
+      .from("presupuestos")
+      .select(`id, fecha_emision, total_bruto, descuento_monto, estado,
+        detalle_presupuesto ( cantidad, subtotal, catalogo_tratamientos ( nombre ) ),
+        pagos ( monto, estado )`)
+      .eq("paciente_id", pid),
+  ]);
+
+  // Presupuestos indexados por día (se asocian a la consulta del mismo día)
+  const presuPorDia = new Map<string, any[]>();
+  for (const p of presupuestosRes.data || []) {
+    const dia = (p.fecha_emision || "").split("T")[0];
+    const neto = Number(p.total_bruto) - Number(p.descuento_monto || 0);
+    const pagado = ((p as any).pagos || []).filter((x: any) => x.estado !== "anulado").reduce((a: number, x: any) => a + Number(x.monto), 0);
+    const item = {
+      id: p.id,
+      estado: p.estado,
+      neto,
+      pagado,
+      saldo: neto - pagado,
+      items: ((p as any).detalle_presupuesto || []).map((d: any) => ({
+        nombre: d.catalogo_tratamientos?.nombre ?? "Ítem",
+        cantidad: d.cantidad,
+        subtotal: Number(d.subtotal),
+      })),
+    };
+    if (!presuPorDia.has(dia)) presuPorDia.set(dia, []);
+    presuPorDia.get(dia)!.push(item);
+  }
+
+  return (consultasRes.data || []).map((c: any) => {
+    const dr = c.personal ? `Dr. ${c.personal.nombre} ${c.personal.apellido}`.trim() : "Doctor";
+    const dia = (c.fecha_consulta || "").split("T")[0];
+    const examen = Object.entries(c.examen_fisico || {}).filter(([k]) => k !== "tipo").map(([k, v]) => ({ clave: k, valor: String(v) }));
+
+    const diagnosticos = (c.diagnostico || []).map((d: any) => ({
+      id: d.id,
+      texto: d.diagnostico,
+      es_definitivo: d.es_definitivo,
+      es_tratado: d.es_tratado,
+      cie10: d.cie10 ? { codigo: d.cie10.codigo, descripcion: d.cie10.descripcion } : null,
+      tratamientos: (d.tratamiento || []).map((t: any) => ({
+        id: t.id,
+        notas: t.notas,
+        nombre: t.catalogo_tratamientos?.nombre ?? "Tratamiento",
+        precio: Number(t.catalogo_tratamientos?.precio) || 0,
+        moneda: t.catalogo_tratamientos?.moneda ?? "PEN",
+      })),
+      plan: (d.plan_trabajo || []).map((p: any) => ({
+        id: p.id, etapa: p.etapa, descripcion: p.descripcion, estado: p.estado, tiempo: p.tiempo_pronostico,
+      })),
+      recetas: (d.recetas || []).map((r: any) => ({
+        id: r.id, estado: r.estado,
+        medicamentos: (r.receta_medicamento || []).map((m: any) => ({
+          nombre: m.medicamento_nombre, dosis: m.dosis, frecuencia: m.frecuencia, indicaciones: m.indicaciones,
+        })),
+      })),
+    }));
+
+    return {
+      id: String(c.id),
+      fecha: c.fecha_consulta,
+      motivo: c.motivo || "Consulta",
+      observaciones: c.observaciones || "",
+      doctor: dr,
+      examen,
+      diagnosticos,
+      presupuestos: presuPorDia.get(dia) || [],
+    };
+  });
+}
+
+// ─── Línea de tiempo clínica ──────────────────────────────────────────────────
+// Feed cronológico unificado: consultas, recetas, imágenes, presupuestos, odontogramas.
+
+export type TimelineEvent = {
+  id: string;
+  type: "consulta" | "receta" | "imagen" | "presupuesto" | "odontograma";
+  fecha: string;          // ISO
+  title: string;
+  sub: string;
+  doctor?: string;        // "Dr. X" cuando aplica
+  meta?: any;             // datos para el detalle expandible
+};
+
+export async function getTimelineAction(pacienteId: string): Promise<TimelineEvent[]> {
+  const supabase = await createClient();
+  const pid = Number(pacienteId);
+
+  const [consultasRes, recetasRes, archivosRes, presupuestosRes, odontogramasRes] = await Promise.all([
+    supabase
+      .from("consultas")
+      .select(`id, fecha_consulta, motivo, observaciones, examen_fisico,
+        historia_clinica!inner ( paciente_id ),
+        personal ( nombre, apellido )`)
+      .eq("historia_clinica.paciente_id", pid),
+    supabase
+      .from("recetas")
+      .select(`id, fecha_emision, estado,
+        personal ( nombre, apellido ),
+        receta_medicamento ( id, medicamento_nombre, dosis, frecuencia, indicaciones ),
+        diagnostico!inner ( historia_clinica!inner ( paciente_id ) )`)
+      .eq("diagnostico.historia_clinica.paciente_id", pid),
+    supabase
+      .from("archivos_clinicos")
+      .select(`id, nombre_archivo, categoria, tipo_archivo, fecha_subida, url, anotaciones,
+        diagnostico!inner ( historia_clinica!inner ( paciente_id ) )`)
+      .eq("diagnostico.historia_clinica.paciente_id", pid),
+    supabase
+      .from("presupuestos")
+      .select(`id, fecha_emision, total_bruto, descuento_monto, estado,
+        detalle_presupuesto ( id, cantidad, subtotal, catalogo_tratamientos ( nombre ) ),
+        pagos ( monto, estado )`)
+      .eq("paciente_id", pid),
+    supabase
+      .from("odontograma")
+      .select(`id, created_at, tipo_tratamiento, odontograma_diente ( id, diente, condicion )`)
+      .eq("paciente_id", pid),
+  ]);
+
+  const events: TimelineEvent[] = [];
+
+  for (const c of consultasRes.data || []) {
+    const dr = (c as any).personal ? `Dr. ${(c as any).personal.nombre} ${(c as any).personal.apellido}`.trim() : "Doctor";
+    const examen = (c as any).examen_fisico || {};
+    const hallazgos = Object.keys(examen).filter(k => k !== "tipo").length;
+    events.push({
+      id: `consulta-${c.id}`,
+      type: "consulta",
+      fecha: c.fecha_consulta || new Date().toISOString(),
+      title: c.motivo || "Consulta",
+      sub: dr,
+      doctor: dr,
+      meta: {
+        consultaId: c.id,
+        observaciones: (c as any).observaciones || "",
+        hallazgos,
+        examen,
+      },
+    });
+  }
+
+  for (const r of recetasRes.data || []) {
+    const meds = (r as any).receta_medicamento || [];
+    const dr = (r as any).personal ? `Dr. ${(r as any).personal.nombre} ${(r as any).personal.apellido}`.trim() : undefined;
+    events.push({
+      id: `receta-${r.id}`,
+      type: "receta",
+      fecha: r.fecha_emision || new Date().toISOString(),
+      title: meds.length > 0 ? meds.map((m: any) => m.medicamento_nombre).filter(Boolean).slice(0, 2).join(" · ") : "Receta",
+      sub: `${meds.length} medicamento${meds.length !== 1 ? "s" : ""} · ${r.estado}`,
+      doctor: dr,
+      meta: { recetaId: r.id, estado: r.estado, medicamentos: meds },
+    });
+  }
+
+  const archivosSigned = await Promise.all((archivosRes.data || []).map(async (a: any) => {
+    let displayUrl = a.url;
+    if (a.url && !String(a.url).startsWith("http")) {
+      const { data: signed } = await supabase.storage.from("archivos_clinicos").createSignedUrl(a.url, 60 * 60);
+      displayUrl = signed?.signedUrl || a.url;
+    }
+    return { ...a, displayUrl };
+  }));
+
+  for (const a of archivosSigned) {
+    const isImg = a.tipo_archivo === "imagen" || /\.(jpg|jpeg|png|webp|gif)$/i.test(a.nombre_archivo || "");
+    events.push({
+      id: `imagen-${a.id}`,
+      type: "imagen",
+      fecha: a.fecha_subida || new Date().toISOString(),
+      title: a.nombre_archivo || "Imagen clínica",
+      sub: `${a.categoria || "archivo"}${isImg ? "" : " · PDF"}${(a.anotaciones?.length ?? 0) > 0 ? ` · ${a.anotaciones.length} anotación(es)` : ""}`,
+      meta: {
+        archivoId: a.id,
+        nombre_archivo: a.nombre_archivo,
+        categoria: a.categoria,
+        tipo: a.tipo_archivo,
+        url: a.url,
+        displayUrl: a.displayUrl,
+        anotaciones: a.anotaciones || [],
+        isImg,
+      },
+    });
+  }
+
+  for (const p of presupuestosRes.data || []) {
+    const neto = Number((p as any).total_bruto) - Number((p as any).descuento_monto || 0);
+    const pagos = ((p as any).pagos || []).filter((x: any) => x.estado !== "anulado");
+    const pagado = pagos.reduce((acc: number, x: any) => acc + Number(x.monto), 0);
+    const saldo = neto - pagado;
+    const items = ((p as any).detalle_presupuesto || []).map((d: any) => ({
+      nombre: d.catalogo_tratamientos?.nombre ?? "Ítem",
+      cantidad: d.cantidad,
+      subtotal: Number(d.subtotal),
+    }));
+    events.push({
+      id: `presupuesto-${p.id}`,
+      type: "presupuesto",
+      fecha: (p as any).fecha_emision || new Date().toISOString(),
+      title: `S/ ${neto.toFixed(2)}`,
+      sub: saldo > 0 ? `${(p as any).estado} · saldo S/ ${saldo.toFixed(2)}` : `${(p as any).estado} · pagado`,
+      meta: { presupuestoId: p.id, estado: (p as any).estado, neto, pagado, saldo, items },
+    });
+  }
+
+  for (const o of odontogramasRes.data || []) {
+    const dientes = (o as any).odontograma_diente || [];
+    const piezas = new Set(dientes.map((d: any) => d.diente)).size;
+    events.push({
+      id: `odontograma-${o.id}`,
+      type: "odontograma",
+      fecha: (o as any).created_at || new Date().toISOString(),
+      title: `${piezas} pieza${piezas !== 1 ? "s" : ""} marcada${piezas !== 1 ? "s" : ""}`,
+      sub: (o as any).tipo_tratamiento || "evaluación odontológica",
+      meta: { odontogramaId: o.id, hallazgos: dientes.map((d: any) => ({ diente: d.diente, condicion: d.condicion })) },
+    });
+  }
+
+  events.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  return events;
 }

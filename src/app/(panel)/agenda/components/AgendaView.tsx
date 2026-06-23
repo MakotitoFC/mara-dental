@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import type { Cita, EstadoCita } from "@/types/agenda";
-import { searchPatients, createCitaAction, updateCitaAction, deleteCitaAction, getCitasRealesAction } from "../actions";
+import { searchPatients, createCitaAction, updateCitaAction, deleteCitaAction, getCitasRealesAction, getPatientByIdAction } from "../actions";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -92,20 +92,32 @@ const EST: Record<EstadoCita, {
 
 interface MenuPos { x: number; y: number; }
 
-// Panel de detalle lateral — se abre DENTRO del layout al clicar ≡
-// No es un modal; el componente vive en el flujo del DOM del AgendaView
+// ─── AppointmentDetailPanel — Zendenta style ─────────────────────────────────
+
 function AppointmentDetailPanel({
-  cita, onClose, onEdit, onDeleted,
-}: { cita: Cita; onClose: () => void; onEdit: () => void; onDeleted: () => void }) {
+  cita, onClose, onEdit, onDeleted, onFinalizado,
+}: {
+  cita: Cita;
+  onClose: () => void;
+  onEdit: () => void;
+  onDeleted: () => void;
+  onFinalizado: () => void;
+}) {
   const cfg    = EST[cita.estado];
   const router = useRouter();
 
-  const [confirm,  setConfirm]  = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [confirmDel,     setConfirmDel]     = useState(false);
+  const [deleting,       setDeleting]       = useState(false);
+  const [confirmFin,     setConfirmFin]     = useState(false);
+  const [finalizing,     setFinalizing]     = useState(false);
+  const [statusOpen,     setStatusOpen]     = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const dateLabel = new Date(cita.fecha + "T12:00:00").toLocaleDateString("es-PE", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
+  const avatarIni = initials(cita.paciente_nombre);
+  const yaFinalizada = cita.estado === "hecha";
 
   async function handleDelete() {
     setDeleting(true);
@@ -114,113 +126,196 @@ function AppointmentDetailPanel({
     onClose();
   }
 
+  async function handleFinalizar() {
+    setFinalizing(true);
+    await updateCitaAction(cita.id, { estado: "hecha" });
+    setFinalizing(false);
+    setConfirmFin(false);
+    onFinalizado();
+  }
+
+  async function handleStatusChange(newEstado: EstadoCita) {
+    setUpdatingStatus(true);
+    await updateCitaAction(cita.id, { estado: newEstado });
+    setUpdatingStatus(false);
+    setStatusOpen(false);
+    onFinalizado(); // recarga citas
+  }
+
   return (
-    <div className="w-72 xl:w-80 shrink-0 border-r border-slate-200 flex flex-col bg-slate-50/60 overflow-hidden">
-      {/* Top bar — iconos de acción alineados a la derecha */}
-      <div className="flex items-center justify-end gap-0.5 px-2 py-2 bg-white border-b border-slate-200 shrink-0">
+    <div className="w-80 xl:w-88 shrink-0 border-r border-slate-200 flex flex-col bg-white overflow-hidden"
+      style={{ minWidth: 300, maxWidth: 340 }}>
+
+      {/* ── Top bar ── */}
+      <div className="flex items-center justify-end gap-0.5 px-2 py-2 border-b border-slate-200 shrink-0 bg-slate-50/80">
         <button onClick={onEdit} title="Editar cita"
-          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 text-slate-500 border-0 transition-colors">
-          <Icon name="edit" size={16} />
+          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white text-slate-500 border-0 transition-colors">
+          <Icon name="edit" size={15} />
         </button>
-        {!confirm ? (
-          <button onClick={() => setConfirm(true)} title="Eliminar cita"
+        {!confirmDel ? (
+          <button onClick={() => setConfirmDel(true)} title="Eliminar cita"
             className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 text-slate-500 hover:text-red-500 border-0 transition-colors">
-            <Icon name="delete" size={16} />
+            <Icon name="delete" size={15} />
           </button>
         ) : (
           <div className="flex items-center gap-1 px-1">
             <span className="text-[10px] text-red-500 font-semibold">¿Eliminar?</span>
-            <button onClick={() => setConfirm(false)}
-              className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-slate-100 text-slate-400 border-0 text-[10px] font-bold">✕</button>
+            <button onClick={() => setConfirmDel(false)}
+              className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-slate-100 text-slate-400 border-0 text-[10px]">✕</button>
             <button onClick={handleDelete} disabled={deleting}
-              className="w-6 h-6 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white border-0 disabled:opacity-50 text-[10px] font-bold">
+              className="w-6 h-6 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white border-0 disabled:opacity-50 text-[10px]">
               {deleting ? "…" : "✓"}
             </button>
           </div>
         )}
-        <button onClick={() => router.push(`/pacientes/${cita.paciente_id}`)} title="Ver historia del paciente"
-          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 text-slate-500 border-0 transition-colors">
-          <Icon name="history" size={16} />
+        <button onClick={() => router.push(`/pacientes/${cita.paciente_id}`)} title="Ver ficha del paciente"
+          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white text-slate-500 border-0 transition-colors">
+          <Icon name="open_in_new" size={15} />
         </button>
         <div className="w-px h-4 bg-slate-200 mx-0.5" />
         <button onClick={onClose}
-          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 text-slate-500 border-0 transition-colors">
-          <Icon name="close" size={16} />
+          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white text-slate-500 border-0 transition-colors">
+          <Icon name="close" size={15} />
         </button>
       </div>
 
-      {/* Nombre del paciente */}
+      {/* ── Patient card ── */}
       <div className="px-5 pt-5 pb-4 bg-white border-b border-slate-100 shrink-0">
-        <div className="flex items-start gap-3">
-          <div className="w-3 h-3 rounded-sm mt-1.5 shrink-0" style={{ background: cfg.solid }} />
-          <div>
-            <h2 className="text-[18px] font-semibold text-slate-900 leading-tight">{cita.paciente_nombre}</h2>
-            <p className="text-[12px] text-slate-500 mt-1 capitalize">{dateLabel}</p>
+        <div className="flex items-center gap-3">
+          {/* Avatar */}
+          <div className="w-11 h-11 rounded-full bg-cyan-600 text-white flex items-center justify-center text-[15px] font-bold shrink-0 uppercase select-none">
+            {avatarIni}
           </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[15px] font-bold text-slate-900 leading-snug truncate">{cita.paciente_nombre}</h2>
+            <p className="text-[11.5px] text-slate-500 capitalize truncate">{dateLabel}</p>
+          </div>
+        </div>
+
+        {/* Status badge — clic abre dropdown */}
+        <div className="relative mt-3">
+          <button
+            onClick={() => setStatusOpen(o => !o)}
+            disabled={updatingStatus}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[11.5px] font-semibold border transition-all hover:opacity-80 disabled:opacity-60"
+            style={{ background: cfg.pillBg, color: cfg.pillText, borderColor: cfg.solid + "40" }}
+          >
+            {updatingStatus
+              ? <span className="w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              : <Icon name={cfg.icon} size={13} />
+            }
+            {cfg.label}
+            <Icon name="expand_more" size={13} className="ml-0.5 opacity-60" />
+          </button>
+
+          {statusOpen && (
+            <div className="absolute top-full left-0 mt-1.5 z-20 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden min-w-[160px]">
+              {(["programada", "confirmada", "hecha", "cancelada"] as EstadoCita[]).map(e => {
+                const c = EST[e];
+                return (
+                  <button key={e} onClick={() => handleStatusChange(e)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 text-left transition-colors border-0">
+                    <Icon name={c.icon} size={14} style={{ color: c.solid } as React.CSSProperties} />
+                    <span className="text-[12.5px] font-medium text-slate-700">{c.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Detalles scrollables */}
-      <div className="flex-1 overflow-y-auto py-2">
-        <div className="px-5 py-3 flex flex-col gap-4 border-b border-slate-100">
-          {/* Hora */}
-          <div className="flex items-start gap-4">
-            <Icon name="schedule" size={17} className="text-slate-400 shrink-0 mt-0.5" />
-            <p className="text-[13px] font-medium text-slate-800">{cita.hora_inicio} – {cita.hora_fin}</p>
-          </div>
-          {/* Tipo */}
-          <div className="flex items-center gap-4">
-            <Icon name="event_note" size={17} className="text-slate-400 shrink-0" />
-            <span className="text-[13px] text-slate-600 capitalize">{cita.tipo_consulta}</span>
-          </div>
-          {/* Estado */}
-          <div className="flex items-center gap-4">
-            <Icon name={cfg.icon} size={17} className="shrink-0" style={{ color: cfg.solid } as React.CSSProperties} />
-            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
-              style={{ background: cfg.pillBg, color: cfg.pillText }}>{cfg.label}</span>
-          </div>
-          {/* Alergias */}
-          {cita.alergias.length > 0 && (
-            <div className="flex items-center gap-4">
-              <Icon name="warning_amber" size={17} className="text-orange-500 shrink-0" />
-              <span className="text-[12px] text-orange-600 font-medium">{cita.alergias.join(", ")}</span>
-            </div>
-          )}
-          {/* Notas */}
-          {cita.notas && (
-            <div className="flex items-start gap-4">
-              <Icon name="notes" size={17} className="text-slate-400 shrink-0 mt-0.5" />
-              <span className="text-[12px] text-slate-500 leading-relaxed">{cita.notas}</span>
-            </div>
-          )}
-          {/* Doctor */}
-          <div className="flex items-center gap-4">
-            <Icon name="stethoscope" size={17} className="text-slate-400 shrink-0" />
-            <span className="text-[13px] text-slate-600">{cita.doctor_nombre}</span>
-          </div>
+      {/* ── Info rows ── */}
+      <div className="px-5 py-4 flex flex-col gap-3 border-b border-slate-100 shrink-0">
+        <div className="flex items-center gap-3">
+          <Icon name="schedule" size={15} className="text-slate-400 shrink-0" />
+          <span className="text-[12.5px] font-medium text-slate-700">{cita.hora_inicio} – {cita.hora_fin}</span>
         </div>
+        <div className="flex items-center gap-3">
+          <Icon name="event_note" size={15} className="text-slate-400 shrink-0" />
+          <span className="text-[12.5px] text-slate-600 capitalize">{cita.tipo_consulta}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <Icon name="stethoscope" size={15} className="text-slate-400 shrink-0" />
+          <span className="text-[12.5px] text-slate-600 truncate">{cita.doctor_nombre}</span>
+        </div>
+        {cita.alergias.length > 0 && (
+          <div className="flex items-center gap-3 px-2.5 py-1.5 bg-orange-50 border border-orange-100 rounded-lg">
+            <Icon name="warning_amber" size={15} className="text-orange-500 shrink-0" />
+            <span className="text-[12px] text-orange-700 font-medium truncate">{cita.alergias.join(", ")}</span>
+          </div>
+        )}
+        {cita.notas && (
+          <div className="flex items-start gap-3">
+            <Icon name="notes" size={15} className="text-slate-400 shrink-0 mt-0.5" />
+            <span className="text-[12px] text-slate-500 leading-relaxed line-clamp-3">{cita.notas}</span>
+          </div>
+        )}
+      </div>
 
-        {/* Acciones secundarias */}
-        <div className="py-1">
-          <PanelAction icon="chat" label="Enviar recordatorio por WhatsApp" iconColor="#25D366" />
-          <PanelAction icon="folder_open" label="Abrir ficha médica"
-            onClick={() => router.push(`/pacientes/${cita.paciente_id}`)} />
-          <PanelAction icon="payments" label="Realizar cobro" />
+      {/* ── Acciones ── */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+
+        {/* Ficha del paciente */}
+        <button
+          onClick={() => router.push(`/pacientes/${cita.paciente_id}`)}
+          className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-left transition-colors border border-slate-200 group"
+        >
+          <div className="w-8 h-8 rounded-lg bg-cyan-50 group-hover:bg-cyan-100 flex items-center justify-center shrink-0 transition-colors">
+            <Icon name="person" size={18} className="text-cyan-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold leading-tight text-slate-800">Ficha del paciente</p>
+            <p className="text-[10.5px] text-slate-500 mt-0.5">Historia clínica, diagnóstico y registro médico</p>
+          </div>
+          <Icon name="chevron_right" size={18} className="ml-auto shrink-0 text-slate-400" />
+        </button>
+
+        {/* Cobro */}
+        <button className="w-full flex items-center gap-3 px-4 py-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-left transition-colors border border-slate-200 group">
+          <div className="w-8 h-8 rounded-lg bg-slate-200 group-hover:bg-slate-300 flex items-center justify-center shrink-0 transition-colors">
+            <Icon name="payments" size={18} className="text-slate-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold leading-tight text-slate-800">Realizar cobro</p>
+            <p className="text-[10.5px] text-slate-500 mt-0.5">Registrar pago o generar recibo</p>
+          </div>
+          <Icon name="chevron_right" size={18} className="ml-auto shrink-0 text-slate-400" />
+        </button>
+
+        {/* Finalizar cita */}
+        <div className="mt-auto pt-2">
+          {yaFinalizada ? (
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-[12.5px] text-blue-700 font-medium">
+              <Icon name="task_alt" size={16} />
+              Cita finalizada
+            </div>
+          ) : !confirmFin ? (
+            <button
+              onClick={() => setConfirmFin(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[13px] font-semibold transition-colors"
+            >
+              <Icon name="task_alt" size={16} />
+              Marcar como hecha
+            </button>
+          ) : (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex flex-col gap-2.5">
+              <p className="text-[12.5px] font-semibold text-emerald-800 text-center">¿Confirmar que la cita fue atendida?</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmFin(false)}
+                  className="flex-1 py-2 border border-slate-200 rounded-lg text-[12px] font-medium text-slate-600 hover:bg-white transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={handleFinalizar} disabled={finalizing}
+                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-[12px] font-semibold transition-colors border-0">
+                  {finalizing ? "…" : "Confirmar"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
-  );
-}
-
-function PanelAction({
-  icon, label, iconColor = "#64748b", labelColor = "#334155", onClick,
-}: { icon: string; label: string; iconColor?: string; labelColor?: string; onClick?: () => void }) {
-  return (
-    <button onClick={onClick}
-      className="w-full flex items-center gap-4 px-5 py-3 text-left hover:bg-white transition-colors border-0">
-      <Icon name={icon} size={18} style={{ color: iconColor } as React.CSSProperties} />
-      <span className="text-[13px]" style={{ color: labelColor }}>{label}</span>
-    </button>
   );
 }
 
@@ -263,110 +358,116 @@ function EditCitaModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-white flex flex-col overflow-hidden">
-      {/* ── Header ──────────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-4 px-6 py-4 border-b border-slate-200 shrink-0">
-        <button onClick={onClose}
-          className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-slate-100 text-slate-500 border-0 transition-colors shrink-0">
-          <Icon name="close" size={20} />
-        </button>
-        {/* Nombre del paciente (no editable aquí, es solo identificador) */}
-        <h1 className="flex-1 text-[22px] font-semibold text-slate-900 truncate">{cita.paciente_nombre}</h1>
-        <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-2 px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-full text-[14px] font-semibold border-0 transition-colors shrink-0">
-          {saving ? "Guardando…" : "Guardar"}
-        </button>
-      </div>
+    <div className="fixed inset-0 z-[70] flex justify-end">
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
 
-      {/* Error banner */}
-      {error && (
-        <div className="mx-6 mt-3 px-4 py-2.5 bg-red-50 border border-red-100 rounded-lg text-[13px] text-red-600 flex items-center gap-2 shrink-0">
-          <Icon name="warning" size={16} className="shrink-0" />
-          {error}
+      {/* Drawer lateral */}
+      <div className="relative w-full sm:w-[460px] max-w-full bg-white h-full flex flex-col shadow-2xl overflow-hidden">
+
+        {/* ── Header ── */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-200 shrink-0">
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 text-slate-500 border-0 transition-colors shrink-0">
+            <Icon name="close" size={18} />
+          </button>
+          <h1 className="flex-1 text-[15px] font-semibold text-slate-900 truncate">{cita.paciente_nombre}</h1>
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-[13px] font-semibold border-0 transition-colors shrink-0">
+            {saving ? "Guardando…" : "Guardar"}
+          </button>
         </div>
-      )}
 
-      {/* ── Body ────────────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-6 py-8 flex flex-col gap-0">
-
-          {/* Fecha y hora — chips estilo Google Calendar */}
-          <div className="flex items-center gap-3 mb-8 flex-wrap">
-            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-[14px] font-medium text-slate-800 border-0 outline-none focus:ring-2 focus:ring-cyan-300 cursor-pointer transition-colors" />
-            <input type="time" value={hrIni} onChange={e => setHrIni(e.target.value)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-[14px] font-medium text-slate-800 border-0 outline-none focus:ring-2 focus:ring-cyan-300 cursor-pointer transition-colors" />
-            <span className="text-[14px] text-slate-500 font-medium">a</span>
-            <input type="time" value={hrFin} onChange={e => setHrFin(e.target.value)}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-[14px] font-medium text-slate-800 border-0 outline-none focus:ring-2 focus:ring-cyan-300 cursor-pointer transition-colors" />
-            <span className="text-[13px] text-slate-400 capitalize ml-1 hidden sm:block">{dateLabel}</span>
+        {/* Error banner */}
+        {error && (
+          <div className="mx-5 mt-3 px-4 py-2.5 bg-red-50 border border-red-100 rounded-lg text-[12px] text-red-600 flex items-center gap-2 shrink-0">
+            <Icon name="warning" size={15} className="shrink-0" />
+            {error}
           </div>
+        )}
 
-          {/* Tipo de consulta */}
-          <div className="flex items-center gap-5 py-4 border-b border-slate-100">
-            <Icon name="event_note" size={20} className="text-slate-400 shrink-0" />
-            <div className="flex-1">
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Tipo de consulta</label>
-              <select value={tipo} onChange={e => setTipo(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[14px] text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-colors">
-                <option value="primera vez">Primera vez</option>
-                <option value="control">Control</option>
-                <option value="emergencia">Emergencia</option>
-              </select>
+        {/* ── Body ── */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-5 py-4 flex flex-col gap-0">
+
+            {/* Fecha y hora */}
+            <div className="flex items-center gap-2 mb-5 flex-wrap">
+              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[13px] font-medium text-slate-800 border-0 outline-none focus:ring-2 focus:ring-cyan-300 cursor-pointer transition-colors" />
+              <input type="time" value={hrIni} onChange={e => setHrIni(e.target.value)}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[13px] font-medium text-slate-800 border-0 outline-none focus:ring-2 focus:ring-cyan-300 cursor-pointer transition-colors" />
+              <span className="text-[13px] text-slate-400">a</span>
+              <input type="time" value={hrFin} onChange={e => setHrFin(e.target.value)}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[13px] font-medium text-slate-800 border-0 outline-none focus:ring-2 focus:ring-cyan-300 cursor-pointer transition-colors" />
+              <span className="text-[12px] text-slate-400 capitalize hidden sm:block">{dateLabel}</span>
             </div>
-          </div>
 
-          {/* Estado */}
-          <div className="flex items-center gap-5 py-4 border-b border-slate-100">
-            <Icon name="flag" size={20} className="text-slate-400 shrink-0" />
-            <div className="flex-1">
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Estado</label>
-              <div className="flex gap-2 flex-wrap">
-                {(["programada","confirmada","hecha","cancelada"] as const).map(e => {
-                  const c = EST[e];
-                  return (
-                    <button key={e} onClick={() => setEstado(e)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border-2 transition-all ${
-                        estado === e ? "border-current shadow-sm scale-105" : "border-transparent opacity-60 hover:opacity-80"
-                      }`}
-                      style={{ background: c.pillBg, color: c.pillText, borderColor: estado === e ? c.solid : "transparent" }}>
-                      <Icon name={c.icon} size={13} />
-                      {c.label}
-                    </button>
-                  );
-                })}
+            {/* Tipo de consulta */}
+            <div className="flex items-center gap-4 py-3.5 border-b border-slate-100">
+              <Icon name="event_note" size={17} className="text-slate-400 shrink-0" />
+              <div className="flex-1">
+                <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Tipo de consulta</label>
+                <select value={tipo} onChange={e => setTipo(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-[13px] text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-colors">
+                  <option value="primera vez">Primera vez</option>
+                  <option value="control">Control</option>
+                  <option value="emergencia">Emergencia</option>
+                </select>
               </div>
             </div>
-          </div>
 
-          {/* Alergias (solo lectura) */}
-          {cita.alergias.length > 0 && (
-            <div className="flex items-center gap-5 py-4 border-b border-slate-100">
-              <Icon name="warning_amber" size={20} className="text-orange-400 shrink-0" />
+            {/* Estado */}
+            <div className="flex items-center gap-4 py-3.5 border-b border-slate-100">
+              <Icon name="flag" size={17} className="text-slate-400 shrink-0" />
+              <div className="flex-1">
+                <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Estado</label>
+                <div className="flex gap-2 flex-wrap">
+                  {(["programada","confirmada","hecha","cancelada"] as const).map(e => {
+                    const c = EST[e];
+                    return (
+                      <button key={e} onClick={() => setEstado(e)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border-2 transition-all ${
+                          estado === e ? "border-current shadow-sm scale-105" : "border-transparent opacity-60 hover:opacity-80"
+                        }`}
+                        style={{ background: c.pillBg, color: c.pillText, borderColor: estado === e ? c.solid : "transparent" }}>
+                        <Icon name={c.icon} size={12} />
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Alergias (solo lectura) */}
+            {cita.alergias.length > 0 && (
+              <div className="flex items-center gap-4 py-3.5 border-b border-slate-100">
+                <Icon name="warning_amber" size={17} className="text-orange-400 shrink-0" />
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Alergias</label>
+                  <p className="text-[13px] text-orange-600 font-medium">{cita.alergias.join(", ")}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Doctor */}
+            <div className="flex items-center gap-4 py-3.5 border-b border-slate-100">
+              <Icon name="stethoscope" size={17} className="text-slate-400 shrink-0" />
               <div>
-                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Alergias</label>
-                <p className="text-[14px] text-orange-600 font-medium">{cita.alergias.join(", ")}</p>
+                <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Médico</label>
+                <p className="text-[13px] text-slate-700">{cita.doctor_nombre}</p>
               </div>
             </div>
-          )}
 
-          {/* Doctor */}
-          <div className="flex items-center gap-5 py-4 border-b border-slate-100">
-            <Icon name="stethoscope" size={20} className="text-slate-400 shrink-0" />
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Médico</label>
-              <p className="text-[14px] text-slate-700">{cita.doctor_nombre}</p>
-            </div>
-          </div>
-
-          {/* Notas / Descripción */}
-          <div className="flex items-start gap-5 py-4">
-            <Icon name="notes" size={20} className="text-slate-400 shrink-0 mt-1" />
-            <div className="flex-1">
-              <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Notas internas</label>
-              <textarea rows={5} value={notas} onChange={e => setNotas(e.target.value)}
-                placeholder="Agrega una descripción o notas del tratamiento…"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[14px] text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 resize-none placeholder:text-slate-300 transition-colors" />
+            {/* Notas */}
+            <div className="flex items-start gap-4 py-3.5">
+              <Icon name="notes" size={17} className="text-slate-400 shrink-0 mt-1" />
+              <div className="flex-1">
+                <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Notas internas</label>
+                <textarea rows={5} value={notas} onChange={e => setNotas(e.target.value)}
+                  placeholder="Agrega una descripción o notas…"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] text-slate-800 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 resize-none placeholder:text-slate-300 transition-colors" />
+              </div>
             </div>
           </div>
         </div>
@@ -378,8 +479,8 @@ function EditCitaModal({
 // Popup de cita existente — diseño Google Calendar (imagen 1)
 // Iconos en barra superior: ✏️ 🗑️ 💬 ×
 function AppointmentPopup({
-  cita, pos, onClose, onDeleted, onEdit,
-}: { cita: Cita; pos: MenuPos; onClose: () => void; onDeleted: () => void; onEdit: () => void }) {
+  cita, pos, onClose, onDeleted, onEdit, onOpenDetail,
+}: { cita: Cita; pos: MenuPos; onClose: () => void; onDeleted: () => void; onEdit: () => void; onOpenDetail?: () => void }) {
   const ref    = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const cfg    = EST[cita.estado];
@@ -495,6 +596,15 @@ function AppointmentPopup({
             <Icon name="stethoscope" size={16} className="text-slate-400 shrink-0" />
             <span className="text-[12px] text-slate-600">{cita.doctor_nombre}</span>
           </div>
+
+          {/* CTA */}
+          {onOpenDetail && (
+            <button onClick={() => { onOpenDetail(); onClose(); }}
+              className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12.5px] font-semibold transition-colors border-0">
+              <Icon name="clinical_notes" size={14} />
+              Ver detalle de atención
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -743,17 +853,18 @@ function QuickCreatePopup({
 interface CreatePanelState { date: string; hour: string; }
 
 function CreateSidePanel({
-  initial, onClose, onSuccess, onDateChange,
+  initial, onClose, onSuccess, onDateChange, preloadedPatient,
 }: {
   initial: CreatePanelState;
   onClose: () => void;
   onSuccess: () => void;
   onDateChange: (date: string) => void;
+  preloadedPatient?: { id: string; nombre: string; apellido: string } | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery]               = useState("");
   const [patients, setPatients]         = useState<{ id: string; nombre: string; apellido: string; dni: string }[]>([]);
-  const [selectedPatient, setSelected]  = useState<{ id: string; nombre: string; apellido: string } | null>(null);
+  const [selectedPatient, setSelected]  = useState<{ id: string; nombre: string; apellido: string } | null>(preloadedPatient ?? null);
   const [fecha,        setFecha]        = useState(initial.date);
   const [horaInicio,   setHoraInicio]   = useState(initial.hour);
   const [duracion,     setDuracion]     = useState("30");
@@ -794,31 +905,33 @@ function CreateSidePanel({
 
   return (
     <div className="w-72 xl:w-80 shrink-0 border-l border-slate-200 flex flex-col bg-white overflow-hidden">
-      {/* Top bar — altura fija que coincide con el header del calendario (day names + numbers row ≈ 73px) */}
-      <div className="flex items-center justify-end gap-1 px-2 border-b border-slate-200 shrink-0" style={{ minHeight: 73 }}>
+      {/* Top bar */}
+      <div className="flex items-center justify-between gap-1 px-4 py-3 border-b border-slate-200 shrink-0">
+        <p className="text-[13px] font-semibold text-slate-800">Nueva cita</p>
         <button onClick={onClose}
-          className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 text-slate-400 border-0 transition-colors">
-          <Icon name="close" size={16} />
+          className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-100 text-slate-400 border-0 transition-colors">
+          <Icon name="close" size={15} />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* Paciente (título) */}
-        <div className="px-5 pt-5 pb-4 border-b border-slate-100">
+        {/* Paciente */}
+        <div className="px-4 pt-3 pb-3 border-b border-slate-100">
           {selectedPatient ? (
-            <div className="flex items-center justify-between border-b-2 border-cyan-500 pb-1.5">
-              <span className="text-[20px] font-semibold text-slate-900 leading-tight">
+            <div className="flex items-center justify-between bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-2">
+              <span className="text-[13px] font-semibold text-cyan-900 leading-tight truncate">
                 {selectedPatient.nombre} {selectedPatient.apellido}
               </span>
-              <button onClick={() => { setSelected(null); setQuery(""); }} className="text-slate-400 hover:text-slate-600 border-0 shrink-0 ml-2">
-                <Icon name="close" size={16} />
+              <button onClick={() => { setSelected(null); setQuery(""); }} className="text-cyan-400 hover:text-cyan-600 border-0 shrink-0 ml-2">
+                <Icon name="close" size={14} />
               </button>
             </div>
           ) : (
             <div className="relative">
               <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
                 placeholder="Buscar paciente…"
-                className="w-full border-0 border-b-2 border-slate-200 focus:border-cyan-500 outline-none pb-1.5 text-[20px] font-semibold text-slate-900 placeholder:text-slate-300 bg-transparent transition-colors" />
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-[13px] pr-8 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-colors" />
+              <Icon name="search" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               {patients.length > 0 && (
                 <div className="absolute z-10 w-full bg-white border border-slate-200 rounded-lg mt-1 shadow-lg max-h-40 overflow-y-auto">
                   {patients.map(p => (
@@ -1490,9 +1603,11 @@ type CalView = "day" | "week" | "month" | "year";
 
 const VIEW_LABELS: Record<CalView, string> = { day: "Día", week: "Semana", month: "Mes", year: "Año" };
 
-export function AgendaView() {
+function AgendaViewInner() {
   const todayDate = new Date(); todayDate.setHours(0, 0, 0, 0);
   const today = todayDate;
+  const searchParams = useSearchParams();
+  const preselectedPacienteId = searchParams?.get("paciente") ?? null;
 
   const [view,         setView]       = useState<CalView>("month");
   const [selectedDate, setSelectedDate] = useState(today);
@@ -1509,17 +1624,48 @@ export function AgendaView() {
   const [snapPreview,  setSnapPreview] = useState(false);
   const [citas,        setCitas]      = useState<Cita[]>([]);
   const [mobileDate,   setMobileDate] = useState(today);
+  const [loadingCitas, setLoadingCitas] = useState(true);
+  const [preloadedPatient, setPreloadedPatient] = useState<{ id: string; nombre: string; apellido: string } | null>(null);
 
   const weekScrollRef = useRef<HTMLDivElement>(null);
   const dayScrollRef  = useRef<HTMLDivElement>(null);
 
-  const loadCitas = () => getCitasRealesAction().then(setCitas);
+  const loadCitas = async () => {
+    setLoadingCitas(true);
+    await getCitasRealesAction().then(setCitas);
+    setLoadingCitas(false);
+  };
   useEffect(() => { loadCitas(); }, []);
+
+  // Si viene ?paciente=id desde la ficha del paciente, carga el paciente y abre CreateSidePanel
+  useEffect(() => {
+    if (!preselectedPacienteId) return;
+    getPatientByIdAction(preselectedPacienteId).then(p => {
+      if (p) {
+        setPreloadedPatient(p);
+        setCreatePanel({ date: toDateStr(today), hour: "09:00" });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectedPacienteId]);
 
   function openMenu(cita: Cita, e: React.MouseEvent) {
     e.stopPropagation();
-    setMenuCita(cita);
-    setMenuPos({ x: e.clientX, y: e.clientY });
+    // Desktop: abre el panel clínico directamente sin pasar por el popup
+    if (typeof window !== "undefined" && window.innerWidth >= 768) {
+      setDetailCita(cita);
+      setMenuCita(null);
+    } else {
+      setMenuCita(cita);
+      setMenuPos({ x: e.clientX, y: e.clientY });
+    }
+    setQuickCreate(null);
+    setCreatePanel(null);
+  }
+
+  function openDetail(cita: Cita) {
+    setDetailCita(cita);
+    setMenuCita(null);
     setQuickCreate(null);
     setCreatePanel(null);
   }
@@ -1655,10 +1801,6 @@ export function AgendaView() {
           <span className="hidden sm:inline">Nueva cita</span>
         </button>
 
-        {/* Hint en desktop: clic en celda para crear */}
-        <p className="hidden md:block text-[11px] text-slate-400 font-medium">
-          Clic en celda para agregar
-        </p>
       </div>
 
       {/* ── MOBILE BODY ───────────────────────────────────────────────────────── */}
@@ -1702,7 +1844,18 @@ export function AgendaView() {
       </div>
 
       {/* ── DESKTOP BODY ──────────────────────────────────────────────────────── */}
-      <div className="hidden md:flex flex-1 min-h-0 overflow-hidden">
+      <div className="hidden md:flex flex-1 min-h-0 overflow-hidden relative">
+
+        {/* Loading overlay */}
+        {loadingCitas && (
+          <div className="absolute inset-0 z-20 bg-white/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3">
+            <div className="relative w-10 h-10">
+              <div className="absolute inset-0 rounded-full border-3 border-slate-200" />
+              <div className="absolute inset-0 rounded-full border-3 border-t-cyan-500 animate-spin" style={{ borderWidth: 3 }} />
+            </div>
+            <p className="text-[12px] font-medium text-slate-500">Cargando citas…</p>
+          </div>
+        )}
 
         {/* Panel izquierdo: detalle de cita existente */}
         {detailCita && !createPanel && (
@@ -1711,6 +1864,7 @@ export function AgendaView() {
             onClose={() => setDetailCita(null)}
             onEdit={() => { setEditCita(detailCita); setDetailCita(null); }}
             onDeleted={() => { loadCitas(); setDetailCita(null); }}
+            onFinalizado={() => { loadCitas(); setDetailCita(null); }}
           />
         )}
 
@@ -1773,8 +1927,9 @@ export function AgendaView() {
             {createPanel ? (
               <CreateSidePanel
                 initial={createPanel}
-                onClose={() => setCreatePanel(null)}
-                onSuccess={() => { loadCitas(); setCreatePanel(null); }}
+                onClose={() => { setCreatePanel(null); setPreloadedPatient(null); }}
+                onSuccess={() => { loadCitas(); setCreatePanel(null); setPreloadedPatient(null); }}
+                preloadedPatient={preloadedPatient}
                 onDateChange={d => {
                   const date = new Date(d + "T12:00:00");
                   setSelectedDate(date);
@@ -1805,6 +1960,7 @@ export function AgendaView() {
           onClose={() => setMenuCita(null)}
           onDeleted={() => { loadCitas(); setMenuCita(null); }}
           onEdit={() => { setEditCita(menuCita); setMenuCita(null); }}
+          onOpenDetail={() => openDetail(menuCita)}
         />
       )}
 
@@ -1831,5 +1987,13 @@ export function AgendaView() {
       {/* Modal nueva cita — solo para mobile */}
       {showModal && <NewCitaModal onClose={() => setShowModal(false)} onSuccess={loadCitas} />}
     </div>
+  );
+}
+
+export function AgendaView() {
+  return (
+    <Suspense fallback={null}>
+      <AgendaViewInner />
+    </Suspense>
   );
 }
