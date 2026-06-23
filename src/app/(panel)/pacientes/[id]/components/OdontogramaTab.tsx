@@ -413,7 +413,7 @@ export function OdontogramaTab({ paciente }: { paciente: any }) {
       tipo_tratamiento: service,
       diente: selectedTooth,
       isAll,
-      allConvention: isAll ? allConvention : undefined,
+      allConvention: isAll ? (allConvention ?? undefined) : undefined,
       surfaceConditions: isAll ? [] : Object.entries(surfaceConventions).map(([s, c]) => ({
         surface: s as string, convention: c as string,
       })),
