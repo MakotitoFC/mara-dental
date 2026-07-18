@@ -233,6 +233,8 @@ export function VisorModal({
     redrawCanvas();
   }
 
+  const [isSendingTelegram, setIsSendingTelegram] = useState(false);
+
   async function forceDownload() {
     try {
       const res = await fetch(imgUrl);
@@ -247,6 +249,45 @@ export function VisorModal({
       window.URL.revokeObjectURL(blobUrl);
     } catch (e) {
       window.open(imgUrl, "_blank");
+    }
+  }
+
+  async function sendToTelegram() {
+    if (!imgRef.current || !canvasRef.current) return;
+    setIsSendingTelegram(true);
+    try {
+      // 1. Crear canvas offline
+      const offCanvas = document.createElement("canvas");
+      offCanvas.width = imgRef.current.naturalWidth;
+      offCanvas.height = imgRef.current.naturalHeight;
+      const ctx = offCanvas.getContext("2d");
+      if (!ctx) throw new Error("No se pudo crear contexto 2d");
+
+      // 2. Dibujar imagen de fondo
+      ctx.drawImage(imgRef.current, 0, 0);
+
+      // 3. Dibujar el canvas de anotaciones escalado
+      ctx.drawImage(canvasRef.current, 0, 0, offCanvas.width, offCanvas.height);
+
+      // 4. Convertir a Blob
+      const blob = await new Promise<Blob | null>(res => offCanvas.toBlob(res, "image/png"));
+      if (!blob) throw new Error("No se pudo generar la imagen");
+
+      // 5. Enviar a nuestra API de Telegram
+      const formData = new FormData();
+      formData.append("archivoId", a.id.toString());
+      formData.append("caption", `Anotaciones Clínicas - ${a.nombre_archivo}`);
+      formData.append("photo", blob, "anotacion.png");
+
+      const resp = await fetch("/api/telegram", { method: "POST", body: formData });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Error al enviar a Telegram");
+      
+      alert("¡Enviado a Telegram exitosamente!");
+    } catch (err: any) {
+      alert(err.message || "Ocurrió un error");
+    } finally {
+      setIsSendingTelegram(false);
     }
   }
 
@@ -582,6 +623,14 @@ export function VisorModal({
           </div>
 
           <div className="p-4 border-t border-slate-100 flex flex-col gap-2">
+            <button 
+              onClick={sendToTelegram} 
+              disabled={isSendingTelegram}
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-cyan-200 bg-cyan-50 text-[12px] text-cyan-700 font-bold hover:bg-cyan-100 transition-colors w-full disabled:opacity-50"
+            >
+              <Icon name="send" size={14} className={isSendingTelegram ? "animate-pulse" : ""} />
+              {isSendingTelegram ? "Enviando al paciente..." : "Enviar Imagen a Telegram"}
+            </button>
             <button onClick={forceDownload} className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-[12px] text-slate-700 hover:bg-slate-50 transition-colors w-full">
               <Icon name="download" size={14} className="text-cyan-600" />
               Descargar Archivo Original

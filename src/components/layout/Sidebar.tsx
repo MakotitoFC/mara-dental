@@ -7,12 +7,17 @@ import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
 
 const NAV_MAIN = [
-  { href: "/dashboard",    icon: "space_dashboard", label: "Inicio" },
-  { href: "/agenda",       icon: "calendar_month",  label: "Calendario" },
-  { href: "/pacientes",    icon: "person",          label: "Pacientes" },
-  { href: "/archivos",     icon: "photo_library",   label: "Archivos" },
-  { href: "/presupuestos", icon: "payments",        label: "Presupuestos" },
-  { href: "/plantillas",   icon: "article",         label: "Plantillas" },
+  { href: "/dashboard",       icon: "space_dashboard", label: "Inicio Médico" },
+  { href: "/admin/dashboard", icon: "monitoring",      label: "Dashboard Admin" },
+  { href: "/admin/pacientes", icon: "groups",          label: "Pacientes 360" },
+  { href: "/admin/auditoria", icon: "admin_panel_settings", label: "Auditoría" },
+  { href: "/admin/reportes",  icon: "analytics",       label: "Reportes" },
+  { href: "/admin/catalogo",  icon: "medical_information", label: "Catálogo Precios" },
+  { href: "/agenda",          icon: "calendar_month",  label: "Calendario" },
+  { href: "/pacientes",       icon: "person",          label: "Pacientes" },
+  { href: "/archivos",        icon: "photo_library",   label: "Archivos" },
+  { href: "/presupuestos",    icon: "payments",        label: "Presupuestos Clínicos" },
+  { href: "/plantillas",      icon: "article",         label: "Plantillas" },
 ];
 
 const NAV_BOTTOM = [
@@ -20,10 +25,10 @@ const NAV_BOTTOM = [
 ];
 
 const ROLE_HREFS: Record<string, string[]> = {
-  Administrador: ["/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
-  Doctor:        ["/dashboard", "/agenda", "/pacientes", "/archivos"],
-  Asistente:     ["/dashboard", "/agenda", "/pacientes", "/archivos"],
-  Contador:      ["/dashboard", "/presupuestos", "/archivos"],
+  admin:     ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
+  doctor:    ["/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
+  asistente: ["/dashboard", "/agenda", "/pacientes", "/archivos"],
+  contador:  ["/dashboard", "/presupuestos", "/archivos"],
 };
 
 export function Sidebar() {

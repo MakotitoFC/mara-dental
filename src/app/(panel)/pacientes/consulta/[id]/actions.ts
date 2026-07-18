@@ -50,7 +50,7 @@ export async function getConsultaDetalleAction(consultaId: string) {
     .select(`
       id, 
       diagnostico, 
-      es_tratado, 
+      esTratado, 
       es_definitivo, 
       fecha_deteccion, 
       cie10(id, codigo, descripcion),
@@ -173,14 +173,18 @@ export async function saveDiagnosticoAction(formData: FormData) {
   const cie10_id_str = formData.get("cie10_id") as string | null;
   const cie10_id = cie10_id_str ? Number(cie10_id_str) : null;
 
+  // Buscar nota_clinica_id asociado a la consulta
+  const { data: consultaData } = await supabase.from("consultas").select("nota_clinica_id").eq("id", consulta_id).single();
+  const nota_clinica_id = consultaData?.nota_clinica_id;
+
   // 1. Insert Diagnóstico
   const { data: diagRes, error: diagError } = await supabase
     .from("diagnostico")
     .insert({
-      id_historia_clinica: hc_id,
+      nota_clinica_id,
       consulta_origen_id: consulta_id,
       diagnostico: diagnosticoStr,
-      es_tratado: es_tratado,
+      esTratado: es_tratado,
       es_definitivo: es_definitivo,
       cie10_id: cie10_id,
       fecha_deteccion: new Date().toISOString()
@@ -282,7 +286,7 @@ export async function updateDiagnosticoAction(formData: FormData) {
     .from("diagnostico")
     .update({
       diagnostico: diagnosticoStr,
-      es_tratado: es_tratado,
+      esTratado: es_tratado,
       es_definitivo: es_definitivo,
       cie10_id: cie10_id,
     })
