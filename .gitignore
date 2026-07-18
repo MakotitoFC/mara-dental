@@ -38,3 +38,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 bd.md
+mock_data.sql
+permisos.sql

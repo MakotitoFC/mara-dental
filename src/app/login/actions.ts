@@ -9,7 +9,7 @@ export async function loginAction(formData: FormData){
 
     const supabase = await createClient();
 
-    const {error} = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
     });
@@ -18,7 +18,23 @@ export async function loginAction(formData: FormData){
         return { error: "Credenciales incorrectas o usuario no encontrado." };
     }
 
-    redirect("/dashboard");
+    // Buscar rol del usuario para redirección
+    const { data: usuario } = await supabase
+      .from("usuarios")
+      .select(`
+        rol:rol_id (rol)
+      `)
+      .eq("id", data.user.id)
+      .single();
+
+    // @ts-ignore
+    const roleName = (usuario?.rol?.rol || "").toLowerCase();
+
+    if (roleName === "administrador" || roleName === "admin") {
+        redirect("/admin/dashboard");
+    } else {
+        redirect("/dashboard");
+    }
 }
 
 export async function resetPasswordAction(formData: FormData){

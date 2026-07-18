@@ -20,7 +20,8 @@ import {
   PauseCircle, Hospital, BadgeCheck,
   ChevronDown, ChevronUp,
   Heart, Dna, FlaskConical,
-  LogOut, PenTool, Bandage, Lightbulb
+  LogOut, PenTool, Bandage, Lightbulb,
+  LineChart, Users, Shield, BarChart, UsersRound
 } from "lucide-react";
 
 interface IconProps {
@@ -39,6 +40,10 @@ const ICONS: Record<string, LucideIcon> = {
   payments:             CreditCard,
   article:              FileText,
   settings:             Settings,
+  monitoring:           LineChart,
+  groups:               UsersRound,
+  admin_panel_settings: Shield,
+  analytics:            BarChart,
 
   // Médico / clínico
   medical_services:     Hospital,

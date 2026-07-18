@@ -1,4 +1,5 @@
-import { AuthProvider, AuthUser } from "./AuthProvider";
+import { AuthProvider } from "./AuthProvider";
+import { AuthUser } from "@/types/auth";
 import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 

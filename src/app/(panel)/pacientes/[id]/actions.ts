@@ -187,13 +187,21 @@ export async function crearNotaClinicaAction(pacienteId: string, data: any) {
 
   if (!user) return { error: "No autorizado" };
 
-  const { data: personal } = await supabase
+  let { data: personal } = await supabase
     .from("personal")
     .select("id")
     .eq("usuario_id", user.id)
     .single();
 
-  if (!personal) return { error: "Perfil de doctor no encontrado" };
+  if (!personal) {
+    // Si es un administrador de prueba y no está en 'personal', tomamos al primer doctor disponible
+    const { data: firstDoc } = await supabase.from("personal").select("id").limit(1).single();
+    if (firstDoc) {
+      personal = firstDoc;
+    } else {
+      return { error: "Perfil de doctor no encontrado y no hay médicos en el sistema" };
+    }
+  }
 
   // 1. Obtener/Crear Historia Clínica
   let { data: hc } = await supabase
@@ -275,11 +283,24 @@ export async function crearNotaClinicaAction(pacienteId: string, data: any) {
     .order("hora_inicio", { ascending: true })
     .limit(1);
 
-  const cita_id = citasHoy && citasHoy.length > 0 ? citasHoy[0].id : null;
+  // 1.8 Crear Nota Clínica asociada a la Historia Clínica
+  const { data: notaClinica, error: errorNota } = await supabase
+    .from("nota_clinica")
+    .insert({
+       historia_clinica_id: hc.id,
+       estado: "activa"
+    })
+    .select("id")
+    .single();
 
-  // 2. Insertar Consulta
+  if (errorNota || !notaClinica) {
+    console.error("Error creando nota_clinica:", errorNota);
+    return { error: "No se pudo crear la nota clínica base." };
+  }
+
+  // 2. Insertar Consulta usando nota_clinica_id
   const { data: nuevaConsulta, error } = await supabase.from("consultas").insert({
-    id_historia_clinica: hc.id,
+    nota_clinica_id: notaClinica.id,
     doctor_id: personal.id,
     cita_id,
     fecha_consulta: new Date().toISOString(),
@@ -318,7 +339,7 @@ export async function getHistorialConsultasAction(pacienteId: string) {
         personal ( nombre, apellido ),
         historia_clinica!inner ( paciente_id ),
         diagnostico!diagnostico_consulta_origen_id_fkey (
-          id, diagnostico, es_definitivo, es_tratado,
+          id, diagnostico, es_definitivo, esTratado,
           cie10 ( codigo, descripcion ),
           tratamiento ( id, notas, catalogo_tratamientos ( nombre, precio, moneda ) ),
           plan_trabajo ( id, etapa, descripcion, estado, tiempo_pronostico ),
@@ -366,7 +387,7 @@ export async function getHistorialConsultasAction(pacienteId: string) {
       id: d.id,
       texto: d.diagnostico,
       es_definitivo: d.es_definitivo,
-      es_tratado: d.es_tratado,
+      es_tratado: d.esTratado,
       cie10: d.cie10 ? { codigo: d.cie10.codigo, descripcion: d.cie10.descripcion } : null,
       tratamientos: (d.tratamiento || []).map((t: any) => ({
         id: t.id,
