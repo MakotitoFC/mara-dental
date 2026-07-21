@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -6,15 +7,161 @@
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #c8d5e8; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #a0b4cc; }
-* { scrollbar-width: thin; scrollbar-color: #c8d5e8 transparent; }
+::-webkit-scrollbar-thumb { background: #b7c2c6; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #95a5a6; }
+* { scrollbar-width: thin; scrollbar-color: #b7c2c6 transparent; }
+
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+.dark { scrollbar-color: #475569 transparent; }
+
+html.dark { color-scheme: dark; }
+
+/* ============================================================
+   MaraDental — Design System v1.0
+   Redefine Tailwind's built-in palettes to the brand system.
+   The app already uses slate, cyan, red, emerald and amber as its
+   neutrals, primary and semantic colors, so overriding them here
+   re-skins every existing color utility in the app at once.
+   ============================================================ */
+@theme {
+  --font-sans: var(--font-poppins), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-poppins: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Consolas, monospace;
+
+  /* Neutrals — fondo primario F7F8FA · terciario/divider EDF0F4 · borde input D5D8DC
+     texto terciario/metálico 95A5A6 · secundario 5D6D7E · lujo 2C3E50 · primario 1A1A2E */
+  --color-slate-50:  #F7F8FA;
+  --color-slate-100: #F1F3F6;
+  --color-slate-200: #EDF0F4;
+  --color-slate-300: #D5D8DC;
+  --color-slate-400: #95A5A6;
+  --color-slate-500: #5D6D7E;
+  --color-slate-600: #3A4A5C;
+  --color-slate-700: #2C3E50;
+  --color-slate-800: #212E3D;
+  --color-slate-900: #1A1A2E;
+
+  /* Primario — cian profundo 0A8EA0 · hover 0D7377 · subtle E0F2F1 */
+  --color-cyan-50:  #E0F2F1;
+  --color-cyan-100: #C7E7E4;
+  --color-cyan-200: #9DD5D1;
+  --color-cyan-300: #6BBEBC;
+  --color-cyan-400: #3CA6A9;
+  --color-cyan-500: #1D95A0;
+  --color-cyan-600: #0A8EA0;
+  --color-cyan-700: #0D7377;
+  --color-cyan-800: #0A5A5D;
+  --color-cyan-900: #073D42;
+  --color-teal-700: #0D7377;
+  --color-teal-800: #0A5A5D;
+  --color-teal-900: #073D42;
+
+  /* Error — E74C3C · hover C0392B · bg FADBD8 (rose = alias, mismo rol) */
+  --color-red-50:  #FADBD8;
+  --color-red-100: #F5C6C1;
+  --color-red-200: #EDA89F;
+  --color-red-300: #E4897D;
+  --color-red-400: #E1685A;
+  --color-red-500: #E45A49;
+  --color-red-600: #E74C3C;
+  --color-red-700: #C0392B;
+  --color-red-800: #9A2D22;
+  --color-red-900: #6E2018;
+  --color-rose-50:  #FADBD8;
+  --color-rose-100: #F5C6C1;
+  --color-rose-500: #E45A49;
+  --color-rose-600: #E74C3C;
+  --color-rose-700: #C0392B;
+
+  /* Éxito — 27AE60 · hover 229954 · bg D5F5E3 (green = alias) */
+  --color-emerald-50:  #D5F5E3;
+  --color-emerald-100: #B9EED0;
+  --color-emerald-200: #94E2B4;
+  --color-emerald-300: #6BD494;
+  --color-emerald-400: #45C57A;
+  --color-emerald-500: #34B76B;
+  --color-emerald-600: #27AE60;
+  --color-emerald-700: #229954;
+  --color-emerald-800: #1B7A43;
+  --color-emerald-900: #135C32;
+  --color-green-50:  #D5F5E3;
+  --color-green-600: #27AE60;
+  --color-green-700: #229954;
+
+  /* Advertencia — F39C12 · bg FCF3CF (orange = alias) */
+  --color-amber-50:  #FCF3CF;
+  --color-amber-100: #F9E7A8;
+  --color-amber-200: #F5D67D;
+  --color-amber-300: #F1C452;
+  --color-amber-400: #F2AE2D;
+  --color-amber-500: #F1A31D;
+  --color-amber-600: #F39C12;
+  --color-amber-700: #D4820A;
+  --color-amber-800: #A8650A;
+  --color-amber-900: #7A4A08;
+  --color-orange-50:  #FCF3CF;
+  --color-orange-100: #F9E7A8;
+  --color-orange-600: #F39C12;
+  --color-orange-700: #D4820A;
+
+  /* Información — 3498DB · bg D6EAF8 (violet/indigo = alias, mismo rol informativo) */
+  --color-blue-50:  #D6EAF8;
+  --color-blue-100: #B8DCF2;
+  --color-blue-200: #8FC7EA;
+  --color-blue-300: #64B0E1;
+  --color-blue-400: #4AA0DA;
+  --color-blue-500: #4AA0DA;
+  --color-blue-600: #3498DB;
+  --color-blue-700: #2E7DBC;
+  --color-blue-800: #256394;
+  --color-blue-900: #1C4A70;
+  --color-violet-50:  #D6EAF8;
+  --color-violet-600: #3498DB;
+  --color-violet-700: #2E7DBC;
+  --color-indigo-50:  #D6EAF8;
+  --color-indigo-600: #3498DB;
+  --color-indigo-700: #2E7DBC;
+}
 
 @theme inline { --font-heading: var(--font-sans); --font-sans: var(--font-sans); --color-sidebar-ring: var(--sidebar-ring); --color-sidebar-border: var(--sidebar-border); --color-sidebar-accent-foreground: var(--sidebar-accent-foreground); --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-primary-foreground: var(--sidebar-primary-foreground); --color-sidebar-primary: var(--sidebar-primary); --color-sidebar-foreground: var(--sidebar-foreground); --color-sidebar: var(--sidebar); --color-chart-5: var(--chart-5); --color-chart-4: var(--chart-4); --color-chart-3: var(--chart-3); --color-chart-2: var(--chart-2); --color-chart-1: var(--chart-1); --color-ring: var(--ring); --color-input: var(--input); --color-border: var(--border); --color-destructive: var(--destructive); --color-accent-foreground: var(--accent-foreground); --color-accent: var(--accent); --color-muted-foreground: var(--muted-foreground); --color-muted: var(--muted); --color-secondary-foreground: var(--secondary-foreground); --color-secondary: var(--secondary); --color-primary-foreground: var(--primary-foreground); --color-primary: var(--primary); --color-popover-foreground: var(--popover-foreground); --color-popover: var(--popover); --color-card-foreground: var(--card-foreground); --color-card: var(--card); --color-foreground: var(--foreground); --color-background: var(--background); --radius-sm: calc(var(--radius) * 0.6); --radius-md: calc(var(--radius) * 0.8); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) * 1.4); --radius-2xl: calc(var(--radius) * 1.8); --radius-3xl: calc(var(--radius) * 2.2); --radius-4xl: calc(var(--radius) * 2.6); }
 
-:root { --background: oklch(1 0 0); --foreground: oklch(0.145 0 0); --card: oklch(1 0 0); --card-foreground: oklch(0.145 0 0); --popover: oklch(1 0 0); --popover-foreground: oklch(0.145 0 0); --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0); --secondary: oklch(0.97 0 0); --secondary-foreground: oklch(0.205 0 0); --muted: oklch(0.97 0 0); --muted-foreground: oklch(0.556 0 0); --accent: oklch(0.97 0 0); --accent-foreground: oklch(0.205 0 0); --destructive: oklch(0.577 0.245 27.325); --border: oklch(0.922 0 0); --input: oklch(0.922 0 0); --ring: oklch(0.708 0 0); --chart-1: oklch(0.87 0 0); --chart-2: oklch(0.556 0 0); --chart-3: oklch(0.439 0 0); --chart-4: oklch(0.371 0 0); --chart-5: oklch(0.269 0 0); --radius: 0.625rem; --sidebar: oklch(0.985 0 0); --sidebar-foreground: oklch(0.145 0 0); --sidebar-primary: oklch(0.205 0 0); --sidebar-primary-foreground: oklch(0.985 0 0); --sidebar-accent: oklch(0.97 0 0); --sidebar-accent-foreground: oklch(0.205 0 0); --sidebar-border: oklch(0.922 0 0); --sidebar-ring: oklch(0.708 0 0); }
+:root { --background: #F7F8FA; --foreground: #1A1A2E; --card: #FFFFFF; --card-foreground: #1A1A2E; --popover: #FFFFFF; --popover-foreground: #1A1A2E; --primary: #0A8EA0; --primary-foreground: #FFFFFF; --secondary: #EDF0F4; --secondary-foreground: #2C3E50; --muted: #EDF0F4; --muted-foreground: #5D6D7E; --accent: #E0F2F1; --accent-foreground: #0A8EA0; --destructive: #E74C3C; --border: #EDF0F4; --input: #D5D8DC; --ring: #0A8EA0; --chart-1: #0A8EA0; --chart-2: #27AE60; --chart-3: #F39C12; --chart-4: #3498DB; --chart-5: #2C3E50; --radius: 0.5rem; --sidebar: #FFFFFF; --sidebar-foreground: #1A1A2E; --sidebar-primary: #0A8EA0; --sidebar-primary-foreground: #FFFFFF; --sidebar-accent: #E0F2F1; --sidebar-accent-foreground: #0A8EA0; --sidebar-border: #EDF0F4; --sidebar-ring: #0A8EA0;
+  /* Tipo de cita — light */
+  --tipo-endodoncia-solid: #E74C3C; --tipo-endodoncia-bg: #FDECEA; --tipo-endodoncia-text: #B93327;
+  --tipo-ortodoncia-solid: #3498DB; --tipo-ortodoncia-bg: #EAF4FC; --tipo-ortodoncia-text: #25689E;
+  --tipo-cirugia-solid:    #F39C12; --tipo-cirugia-bg:    #FEF4E3; --tipo-cirugia-text:    #B4740D;
+  --tipo-limpieza-solid:   #27AE60; --tipo-limpieza-bg:   #E9F8EF; --tipo-limpieza-text:   #1D8449;
+  --tipo-revision-solid:   #0A8EA0; --tipo-revision-bg:   #E5F5F7; --tipo-revision-text:   #076977;
+  --tipo-otros-solid:      #5D6D7E; --tipo-otros-bg:      #EEF1F3; --tipo-otros-text:      #48545F;
+  /* Estado de cita — light */
+  --estado-programada-solid: #06b6d4; --estado-programada-bg: #cffafe; --estado-programada-text: #0e7490;
+  --estado-confirmada-solid: #16a34a; --estado-confirmada-bg: #dcfce7; --estado-confirmada-text: #15803d;
+  --estado-atendida-solid:   #2563eb; --estado-atendida-bg:   #dbeafe; --estado-atendida-text:   #1d4ed8;
+  --estado-cancelada-solid:  #94a3b8; --estado-cancelada-bg:  #f1f5f9; --estado-cancelada-text:  #94a3b8;
+}
 
-.dark { --background: oklch(0.145 0 0); --foreground: oklch(0.985 0 0); --card: oklch(0.205 0 0); --card-foreground: oklch(0.985 0 0); --popover: oklch(0.205 0 0); --popover-foreground: oklch(0.985 0 0); --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0); --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0); --muted: oklch(0.269 0 0); --muted-foreground: oklch(0.708 0 0); --accent: oklch(0.269 0 0); --accent-foreground: oklch(0.985 0 0); --destructive: oklch(0.704 0.191 22.216); --border: oklch(1 0 0 / 10%); --input: oklch(1 0 0 / 15%); --ring: oklch(0.556 0 0); --chart-1: oklch(0.87 0 0); --chart-2: oklch(0.556 0 0); --chart-3: oklch(0.439 0 0); --chart-4: oklch(0.371 0 0); --chart-5: oklch(0.269 0 0); --sidebar: oklch(0.205 0 0); --sidebar-foreground: oklch(0.985 0 0); --sidebar-primary: oklch(0.488 0.243 264.376); --sidebar-primary-foreground: oklch(0.985 0 0); --sidebar-accent: oklch(0.269 0 0); --sidebar-accent-foreground: oklch(0.985 0 0); --sidebar-border: oklch(1 0 0 / 10%); --sidebar-ring: oklch(0.556 0 0); }
+.dark { --background: #11151C; --foreground: #EDF0F4; --card: #171C25; --card-foreground: #EDF0F4; --popover: #171C25; --popover-foreground: #EDF0F4; --primary: #2BB9CC; --primary-foreground: #08161A; --secondary: #1F2530; --secondary-foreground: #C9D4E0; --muted: #1F2530; --muted-foreground: #9AA7B8; --accent: #123039; --accent-foreground: #2BB9CC; --destructive: #F1685C; --border: #1F2530; --input: #2B323F; --ring: #2BB9CC; --chart-1: #2BB9CC; --chart-2: #34C77A; --chart-3: #F5A623; --chart-4: #4FA8E8; --chart-5: #C9D4E0; --sidebar: #171C25; --sidebar-foreground: #EDF0F4; --sidebar-primary: #2BB9CC; --sidebar-primary-foreground: #08161A; --sidebar-accent: #123039; --sidebar-accent-foreground: #2BB9CC; --sidebar-border: #1F2530; --sidebar-ring: #2BB9CC;
+  /* Tipo de cita — dark (tinte translúcido sobre --card, texto claro) */
+  --tipo-endodoncia-solid: #F1685C; --tipo-endodoncia-bg: rgba(241,104,92,0.16); --tipo-endodoncia-text: #FCA69D;
+  --tipo-ortodoncia-solid: #4FA8E8; --tipo-ortodoncia-bg: rgba(79,168,232,0.16); --tipo-ortodoncia-text: #9CCBF2;
+  --tipo-cirugia-solid:    #F5A623; --tipo-cirugia-bg:    rgba(245,166,35,0.16); --tipo-cirugia-text:    #F7C978;
+  --tipo-limpieza-solid:   #34C77A; --tipo-limpieza-bg:   rgba(52,199,122,0.16); --tipo-limpieza-text:   #8FE3B5;
+  --tipo-revision-solid:   #2BB9CC; --tipo-revision-bg:   rgba(43,185,204,0.16); --tipo-revision-text:   #8FDDE6;
+  --tipo-otros-solid:      #9AA7B8; --tipo-otros-bg:      rgba(154,167,184,0.16); --tipo-otros-text:      #C9D4E0;
+  /* Estado de cita — dark */
+  --estado-programada-solid: #22D3EE; --estado-programada-bg: rgba(34,211,238,0.16); --estado-programada-text: #67E8F9;
+  --estado-confirmada-solid: #34C77A; --estado-confirmada-bg: rgba(52,199,122,0.16); --estado-confirmada-text: #8FE3B5;
+  --estado-atendida-solid:   #4FA8E8; --estado-atendida-bg:   rgba(79,168,232,0.16); --estado-atendida-text:   #9CCBF2;
+  --estado-cancelada-solid:  #7A8699; --estado-cancelada-bg:  rgba(122,134,153,0.16); --estado-cancelada-text:  #A7B1BE;
+}
+
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--background) 50%, var(--muted) 100%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
 
 @layer base {
   * {
@@ -23,6 +170,8 @@
     @apply bg-background text-foreground; }
   html {
     @apply font-sans; }
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em; }
   img {
     max-width: 100%;
     height: auto; } }
@@ -35,7 +184,21 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
+/* Force Poppins globally (override any fallback or component-level fonts) */
+html, body, input, textarea, select, button {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
 .scroll-x-touch::-webkit-scrollbar {
+  display: none;
+}
+
+/* Oculta el scrollbar (cualquier dirección) sin quitar la capacidad de scroll. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 
@@ -45,6 +208,6 @@
   input:not([style*="font-size"]),
   select:not([style*="font-size"]),
   textarea:not([style*="font-size"]) {
-    font-size: 16px;
+    font-size: 14px;
   }
 }

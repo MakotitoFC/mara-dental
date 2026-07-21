@@ -100,7 +100,7 @@ export default function LoginPage() {
 
           {/* Logo */}
           <motion.div custom={0} initial="hidden" animate="visible" variants={fadeUp} className="mb-7">
-            <Image src="/logo.png" alt="Mara Dental Group" width={220} height={90} className="object-contain max-w-[220px] h-auto" priority />
+            <Image src="/Cian_MaraDental.png" alt="Mara Dental Group" width={220} height={90} className="object-contain max-w-[220px] h-auto" priority />
           </motion.div>
 
           {/* Título */}
