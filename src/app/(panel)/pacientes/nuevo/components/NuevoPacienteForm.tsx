@@ -3,12 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
+import { Select } from "@/components/ui/Select";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { createPacienteAction } from "../../actions";
 
 const GRUPOS_SANGUINEOS = ["A+", "A−", "B+", "B−", "AB+", "AB−", "O+", "O−"];
 const SEXOS             = ["Masculino", "Femenino", "Otro"];
 const ESTADOS_CIVILES   = ["Soltero/a", "Casado/a", "Conviviente", "Viudo/a", "Divorciado/a"];
 const GRADOS_INST       = ["Ninguna", "Primaria", "Secundaria", "Técnica", "Superior"];
+
+const SEXO_OPTIONS = SEXOS.map((s) => ({ value: s, label: s }));
+const ESTADO_CIVIL_OPTIONS = ESTADOS_CIVILES.map((s) => ({ value: s, label: s }));
+const GRUPO_OPTIONS = GRUPOS_SANGUINEOS.map((g) => ({ value: g, label: g }));
+const GRADO_INST_OPTIONS = GRADOS_INST.map((g) => ({ value: g, label: g }));
 
 export function NuevoPacienteForm() {
   const router = useRouter();
@@ -91,10 +98,9 @@ export function NuevoPacienteForm() {
 
     setLoading(false);
 
-    if (res?.error) { setErrorMsg(res.error); return; }
+    if ("error" in res) { setErrorMsg(res.error ?? "Ocurrió un error"); return; }
 
-    if (res?.id) router.push(`/pacientes/${res.id}`);
-    else         router.push("/pacientes");
+    router.push(`/pacientes/${res.id}`);
   }
 
   return (
@@ -125,19 +131,13 @@ export function NuevoPacienteForm() {
               <input value={dni} onChange={e => setDni(e.target.value)} placeholder="12345678" className="inp" />
             </FormField>
             <FormField label="Fecha de nacimiento *">
-              <input type="date" value={fechaNac} max={hoy} onChange={e => setFechaNac(e.target.value)} className="inp" />
+              <DatePicker value={fechaNac} max={hoy} onChange={setFechaNac} />
             </FormField>
             <FormField label="Sexo">
-              <select value={sexo} onChange={e => setSexo(e.target.value)} className="inp">
-                <option value="">— Seleccionar —</option>
-                {SEXOS.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Select value={sexo} onChange={setSexo} options={SEXO_OPTIONS} placeholder="— Seleccionar —" />
             </FormField>
             <FormField label="Estado civil">
-              <select value={estadoCivil} onChange={e => setEstadoCivil(e.target.value)} className="inp">
-                <option value="">— Seleccionar —</option>
-                {ESTADOS_CIVILES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <Select value={estadoCivil} onChange={setEstadoCivil} options={ESTADO_CIVIL_OPTIONS} placeholder="— Seleccionar —" />
             </FormField>
             <FormField label="Religión">
               <input value={religion} onChange={e => setReligion(e.target.value)} placeholder="Católica, Evangélica…" className="inp" />
@@ -172,19 +172,13 @@ export function NuevoPacienteForm() {
           {/* ── Columna 3: Clínico ── */}
           <FormCard title="Información clínica" icon="medical_services">
             <FormField label="Grupo sanguíneo">
-              <select value={grupoSanguineo} onChange={e => setGrupo(e.target.value)} className="inp">
-                <option value="">— No especificado —</option>
-                {GRUPOS_SANGUINEOS.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
+              <Select value={grupoSanguineo} onChange={setGrupo} options={GRUPO_OPTIONS} placeholder="— No especificado —" />
             </FormField>
             <FormField label="Ocupación">
               <input value={ocupacion} onChange={e => setOcupacion(e.target.value)} placeholder="Docente, Ingeniero…" className="inp" />
             </FormField>
             <FormField label="Grado de instrucción">
-              <select value={gradoInst} onChange={e => setGradoInst(e.target.value)} className="inp">
-                <option value="">— Seleccionar —</option>
-                {GRADOS_INST.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
+              <Select value={gradoInst} onChange={setGradoInst} options={GRADO_INST_OPTIONS} placeholder="— Seleccionar —" />
             </FormField>
 
             <FormField label="Alergias">
@@ -282,11 +276,14 @@ export function NuevoPacienteForm() {
           border: 1px solid #e2e8f0;
           border-radius: 10px;
           padding: 8px 12px;
-          font-size: 13px;
+          font-size: 16px;
           outline: none;
           background: white;
           color: #1e293b;
           transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        @media (min-width: 640px) {
+          .inp { font-size: 13px; }
         }
         .inp:focus {
           border-color: #06b6d4;

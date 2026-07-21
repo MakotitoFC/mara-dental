@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon, LucideProps } from "lucide-react";
 import {
-  LayoutDashboard, CalendarDays, CalendarCheck, Calendar,
+  LayoutDashboard, CalendarDays, CalendarCheck, Calendar, CalendarRange,
   User, UserPlus, UserX, UserSearch, UserCircle,
   Images, CreditCard, FileText, Settings,
   Stethoscope, Pill, FileHeart, Droplets,
@@ -20,7 +20,10 @@ import {
   PauseCircle, Hospital, BadgeCheck,
   ChevronDown, ChevronUp,
   Heart, Dna, FlaskConical,
-  LogOut, PenTool, Bandage, Lightbulb
+  LogOut, PenTool, Bandage, Lightbulb,
+  Briefcase, GraduationCap, Church,
+  Sun, Moon, Laptop, ListChecks, Home,
+  Eraser, Type, MoveUpRight
 } from "lucide-react";
 
 interface IconProps {
@@ -30,9 +33,24 @@ interface IconProps {
   style?: CSSProperties;
 }
 
+// lucide-react no trae un ícono de diente dedicado — SVG propio, mismo estilo
+// de trazo (24x24, stroke actual, extremos redondeados) que el resto del set.
+function ToothIcon({ size = 24, strokeWidth = 1.75, className, style, ...props }: LucideProps) {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+      className={className} style={style} {...props}
+    >
+      <path d="M12 3.2c-1.9 0-2.9.9-4.4.9C5.9 4.1 4.2 3.5 4.2 6c0 2.6.8 4.6 1.3 7.1.4 2 .8 5.5 2.4 5.5 1.7 0 1.5-4.1 2.5-4.7.4-.25 1-.25 1.4 0 1 .6.8 4.7 2.5 4.7 1.6 0 2-3.5 2.4-5.5.5-2.5 1.3-4.5 1.3-7.1 0-2.5-1.7-1.9-3.4-1.9-1.5 0-2.5-.9-4.4-.9Z" />
+    </svg>
+  );
+}
+
 const ICONS: Record<string, LucideIcon> = {
   // Navegación
   space_dashboard:      LayoutDashboard,
+  home:                 Home,
   calendar_month:       CalendarDays,
   person:               User,
   photo_library:        Images,
@@ -102,6 +120,7 @@ const ICONS: Record<string, LucideIcon> = {
   event:                Calendar,
   event_available:      CalendarCheck,
   event_upcoming:       CalendarDays,
+  calendar_range:       CalendarRange,
   history:              RotateCcw,
 
   // Personas
@@ -133,6 +152,7 @@ const ICONS: Record<string, LucideIcon> = {
   cake:                 Cake,
   contact_page:         ClipboardList,
   assignment:           ClipboardList,
+  clinical_notes:       ClipboardList,
   tips_and_updates:     Lightbulb,
   contact_emergency:    IdCard,
   badge_id:             IdCard,
@@ -146,10 +166,36 @@ const ICONS: Record<string, LucideIcon> = {
   location_on:          MapPin,
   heart:                Heart,
   logout:               LogOut,
+  work:                 Briefcase,
+  school:               GraduationCap,
+  church:               Church,
+
+  // Consulta clínica (diagnóstico / presupuesto)
+  pending:              Clock,
+  verified:             BadgeCheck,
+  receipt_long:         FileText,
+  undo:                 RotateCcw,
+  block:                XCircle,
+  category:             Folder,
+  edit_note:            Pencil,
+  eraser:               Eraser,
+  text_fields:          Type,
+  arrow_diagonal:       MoveUpRight,
+
+  // Tema / vistas de agenda
+  light_mode:           Sun,
+  dark_mode:            Moon,
+  devices:              Laptop,
+  schedule_view:        ListChecks,
+};
+
+// Iconos con SVG propio (no vienen de lucide-react) — mismo contrato de props.
+const CUSTOM_ICONS: Record<string, (props: LucideProps) => React.JSX.Element> = {
+  tooth: ToothIcon,
 };
 
 export function Icon({ name, size = 20, className = "", style }: IconProps) {
-  const LucideIcon = ICONS[name];
+  const LucideIcon = ICONS[name] ?? CUSTOM_ICONS[name];
 
   if (!LucideIcon) {
     if (process.env.NODE_ENV === "development") {

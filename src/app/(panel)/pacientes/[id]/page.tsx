@@ -1,7 +1,5 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { Topbar } from "@/components/layout/Topbar";
-import { Icon } from "@/components/ui/Icon";
+import { Header } from "@/components/layout/Header";
 import { HistoriaView } from "./components/HistoriaView";
 import { getDetallePacienteAction, getHistorialConsultasAction } from "./actions";
 
@@ -13,9 +11,11 @@ export default async function PacienteDetallePage({params,}: {params: Promise<{ 
   ]);
   if (!detalle) notFound();
 
+  const nombreCompleto = [detalle.paciente.nombre, detalle.paciente.apellido].filter(Boolean).join(" ") || "Paciente";
+
   return (
     <>
-      <Topbar title="Pacientes" />
+      <Header breadcrumbs={[{ label: "Pacientes", href: "/pacientes" }, { label: nombreCompleto }]} />
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <HistoriaView
           paciente={detalle.paciente}

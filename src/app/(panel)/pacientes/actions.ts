@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { resolveOrCrearHistoriaClinica } from "./historia.helpers";
 
 export async function getDoctorPacientesAction() {
   const supabase = await createClient();
@@ -51,11 +52,11 @@ export async function getDoctorPacientesAction() {
       try { alergiasArr = JSON.parse(p.alergias); } catch { /* ignore */ }
     }
 
-    const citasInfo = Array.isArray(p.citas) ? p.citas : [];
+    const citasInfo: any[] = Array.isArray(p.citas) ? p.citas : [];
     const numCitas = citasInfo.length;
-    
+
     // Sort descending by date to get latest
-    citasInfo.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+    citasInfo.sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
     const ultima_visita = citasInfo.length > 0 ? citasInfo[0].fecha : null;
 
     let estado = "activo";
@@ -139,6 +140,12 @@ export async function createPacienteAction(data: {
     return { error: "Ocurrió un error al guardar el paciente." };
   }
 
+  const pacienteId = inserted!.id as number;
+  const historia = await resolveOrCrearHistoriaClinica(
+    supabase, pacienteId, data.nombre.trim(), data.apellido.trim(), data.fecha_nacimiento,
+  );
+  if ("error" in historia) return historia;
+
   revalidatePath("/pacientes");
-  return { success: true, id: inserted?.id ? String(inserted.id) : undefined };
+  return { success: true, id: String(pacienteId), historia };
 }
