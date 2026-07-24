@@ -1,4 +1,4 @@
-import { Topbar } from "@/components/layout/Topbar";
+import { Header } from "@/components/layout/Header";
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={`bg-slate-200 rounded-lg animate-pulse ${className ?? ""}`} />;
@@ -7,7 +7,7 @@ function Skeleton({ className }: { className?: string }) {
 export default function LoadingArchivos() {
   return (
     <>
-      <Topbar title="Archivos Clínicos" />
+      <Header title="Archivos Clínicos" />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4">
 
         {/* Filtros + búsqueda */}

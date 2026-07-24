@@ -22,18 +22,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const email = realUser.email ?? "";
     try {
       const [userRes,personalRes] = await Promise.all([
-        supabase.from("usuarios").select(`rol_id, rol (rol)`).eq("id",userId).single(),
-        supabase.from("personal").select("nombre, apellido").eq("usuario_id",userId).single()
+        supabase.from("usuarios").select(`rol_id, rol (rol), sede (nombre_clinica)`).eq("id",userId).single(),
+        supabase.from("personal").select("nombre, apellido, especialidad (especialidad)").eq("usuario_id",userId).single()
       ]);
 
       const roleName = (userRes.data?.rol as any)?.rol || "Sin rol";
-      const fullName = personalRes.data ? `${personalRes.data.nombre} ${personalRes.data.apellido}`:email.split("@")[0];
+      const sedeNombre = (userRes.data?.sede as any)?.nombre_clinica as string | undefined;
+      const especialidadNombre = (personalRes.data?.especialidad as any)?.especialidad as string | undefined;
+      const rawName = personalRes.data ? `${personalRes.data.nombre} ${personalRes.data.apellido}` : email.split("@")[0];
+      const fullName = personalRes.data ? `Dr. ${rawName}` : rawName;
 
       currentUser = {
         name: fullName,
         email,
         rol: roleName,
-        initials: getInitials(fullName)
+        initials: getInitials(rawName),
+        especialidad: especialidadNombre,
+        sede: sedeNombre,
       };
     } catch (error) {
       console.error("Error cargando perfil en el servidor:", error);

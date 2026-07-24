@@ -1,59 +1,59 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
-import { ARCHIVOS_MOCK, TIPO_CFG, fmtFechaArchivo, getArchivosPaciente } from "@/lib/mock-archivos";
-import { PACIENTES_MOCK } from "@/lib/mock-pacientes";
-import type { Archivo, TipoArchivo } from "@/types/archivo";
+import { VisorModal } from "@/app/(panel)/pacientes/[id]/components/consulta/VisorModal";
+import { getArchivosGlobalAction, type ArchivoGlobal } from "../actions";
 
-type FiltroTipo = TipoArchivo | "todos" | "imagenes" | "documentos";
+type FiltroTipo = "todos" | "imagenes" | "documentos" | "Rx panoramica" | "Rx periapical" | "Foto intraoral" | "Tomografia";
 
-const FILTROS_GLOBAL: { key: FiltroTipo; label: string; icon: string }[] = [
-  { key: "todos",                  label: "Todos",           icon: "folder"       },
-  { key: "imagenes",               label: "Imágenes",        icon: "image"        },
-  { key: "documentos",             label: "Documentos",      icon: "description"  },
-  { key: "radiografia_panoramica", label: "Rx Panorámica",   icon: "panorama"     },
-  { key: "radiografia_periapical", label: "Rx Periapical",   icon: "sensors"      },
-  { key: "foto_intraoral",         label: "Foto intraoral",  icon: "photo_camera" },
-  { key: "tomografia",             label: "Tomografía",      icon: "biotech"      },
+const FILTROS: { key: FiltroTipo; label: string; icon: string }[] = [
+  { key: "todos",           label: "Todos",          icon: "folder" },
+  { key: "imagenes",        label: "Imágenes",       icon: "image" },
+  { key: "documentos",      label: "Documentos",     icon: "description" },
+  { key: "Rx panoramica",   label: "Rx Panorámica",  icon: "panorama" },
+  { key: "Rx periapical",   label: "Rx Periapical",  icon: "sensors" },
+  { key: "Foto intraoral",  label: "Foto intraoral", icon: "photo_camera" },
+  { key: "Tomografia",      label: "Tomografía",     icon: "biotech" },
 ];
 
-const FILTROS_SIDEBAR: { key: FiltroTipo; label: string; icon: string }[] = [
-  { key: "imagenes",   label: "Imágenes",    icon: "image"   },
-  { key: "tomografia", label: "Tomografías", icon: "biotech" },
-];
+const CATEGORIA_CFG: Record<string, { color: string; bg: string }> = {
+  "Rx panoramica":  { color: "#7c3aed", bg: "#7c3aed15" },
+  "Rx periapical":  { color: "#0891b2", bg: "#0891b215" },
+  "Foto intraoral": { color: "#059669", bg: "#05966915" },
+  "Tomografia":     { color: "#dc2626", bg: "#dc262615" },
+  otros:            { color: "#64748b", bg: "#64748b15" },
+};
 
-function uid() { return Math.random().toString(36).slice(2, 9); }
-
-interface Annotation {
-  id: string;
-  x: number;
-  y: number;
-  nota: string;
-  fecha: string;
+function fmtFechaArchivo(iso: string) {
+  try { return new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" }); }
+  catch { return iso; }
 }
 
-export function ArchivosView({ pacienteId, sidebarMode }: { pacienteId?: string; sidebarMode?: boolean }) {
-  const esVistaGlobal = !pacienteId;
-  const FILTROS = sidebarMode ? FILTROS_SIDEBAR : FILTROS_GLOBAL;
+function isImagen(a: ArchivoGlobal) {
+  return a.tipo_archivo === "image" || /\.(jpg|jpeg|png|gif|webp)$/i.test(a.nombre_archivo);
+}
 
-  const [archivos, setArchivos] = useState<Archivo[]>(() =>
-    pacienteId ? getArchivosPaciente(pacienteId) : [...ARCHIVOS_MOCK]
-  );
-  const [filtro, setFiltro] = useState<FiltroTipo>(sidebarMode ? "imagenes" : "todos");
+export function ArchivosView() {
+  const [archivos, setArchivos] = useState<ArchivoGlobal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filtro, setFiltro] = useState<FiltroTipo>("todos");
   const [query, setQuery] = useState("");
-  const [visor, setVisor] = useState<Archivo | null>(null);
-  const [showUpload, setShowUpload] = useState(false);
-  const [annMap, setAnnMap] = useState<Record<string, Annotation[]>>({});
+  const [visor, setVisor] = useState<ArchivoGlobal | null>(null);
+
+  useEffect(() => {
+    getArchivosGlobalAction().then((data) => { setArchivos(data); setLoading(false); });
+  }, []);
 
   const filtrados = archivos.filter((a) => {
     const matchTipo =
       filtro === "todos" ? true :
-        filtro === "imagenes" ? a.es_imagen :
-          filtro === "documentos" ? !a.es_imagen :
-            a.tipo === filtro;
+      filtro === "imagenes" ? isImagen(a) :
+      filtro === "documentos" ? !isImagen(a) :
+      a.categoria === filtro;
     const matchQuery = query === "" ||
-      a.nombre.toLowerCase().includes(query.toLowerCase()) ||
+      a.nombre_archivo.toLowerCase().includes(query.toLowerCase()) ||
       a.paciente_nombre.toLowerCase().includes(query.toLowerCase()) ||
       (a.descripcion ?? "").toLowerCase().includes(query.toLowerCase());
     return matchTipo && matchQuery;
@@ -61,66 +61,35 @@ export function ArchivosView({ pacienteId, sidebarMode }: { pacienteId?: string;
 
   const stats = {
     total: archivos.length,
-    imagenes: archivos.filter((a) => a.es_imagen).length,
-    docs: archivos.filter((a) => !a.es_imagen).length,
-    rx: archivos.filter((a) => a.tipo.startsWith("radiografia")).length,
+    imagenes: archivos.filter(isImagen).length,
+    docs: archivos.filter((a) => !isImagen(a)).length,
+    rx: archivos.filter((a) => a.categoria?.startsWith("Rx")).length,
   };
-
-  function handleSubir(nuevo: Archivo) {
-    setArchivos((p) => [nuevo, ...p]);
-    setShowUpload(false);
-  }
-
-  function handleAddAnnotation(archivoId: string, ann: Annotation) {
-    setAnnMap((prev) => ({
-      ...prev,
-      [archivoId]: [...(prev[archivoId] ?? []), ann],
-    }));
-  }
 
   return (
     <div className="p-0 sm:p-2 flex flex-col gap-4">
 
-      {/* Stats — solo en vista global */}
-      {esVistaGlobal && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard icon="folder_open" label="Total archivos" value={stats.total} color="#0891b2" />
-          <StatCard icon="image" label="Imágenes" value={stats.imagenes} color="#059669" />
-          <StatCard icon="description" label="Documentos" value={stats.docs} color="#7c3aed" />
-          <StatCard icon="sensors" label="Radiografías" value={stats.rx} color="#d97706" />
-        </div>
-      )}
-
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-45">
-          <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nombre, paciente o descripción…"
-            className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-          />
-        </div>
-        <button
-          onClick={() => setShowUpload(true)}
-          className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] font-medium transition-colors shrink-0 w-full sm:w-auto justify-center min-h-[40px]"
-        >
-          <Icon name="upload_file" size={15} />
-          Subir archivo
-        </button>
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard icon="folder_open" label="Total archivos" value={stats.total} color="#0891b2" />
+        <StatCard icon="image" label="Imágenes" value={stats.imagenes} color="#059669" />
+        <StatCard icon="description" label="Documentos" value={stats.docs} color="#7c3aed" />
+        <StatCard icon="sensors" label="Radiografías" value={stats.rx} color="#d97706" />
       </div>
 
-      {/* SUB-TABS INTERNOS: Corregido el conflicto del texto blanco y diseño superior */}
+      {/* Buscador */}
+      <div className="relative">
+        <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar por nombre, paciente o descripción…"
+          className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40" />
+      </div>
+
+      {/* Filtros */}
       <div className="relative -mx-4 px-4 overflow-hidden">
-        <div
-          className="flex items-center gap-1.5 overflow-x-auto pb-2 pr-12 select-none"
-          style={{
-            msOverflowStyle: 'none',
-            scrollbarWidth: 'none',
-            WebkitOverflowScrolling: 'touch'
-          }}
-        >
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-2 pr-12 select-none">
           {FILTROS.map((f) => {
             const active = filtro === f.key;
             return (
@@ -129,7 +98,7 @@ export function ArchivosView({ pacienteId, sidebarMode }: { pacienteId?: string;
                 onClick={() => setFiltro(f.key)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all shrink-0 border outline-none focus:outline-none ${active
                     ? "bg-cyan-600 border-cyan-600 text-white"
-                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                    : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
                   }`}
               >
                 <Icon name={f.icon} size={13} />
@@ -137,657 +106,83 @@ export function ArchivosView({ pacienteId, sidebarMode }: { pacienteId?: string;
               </button>
             );
           })}
-          <span className="text-[11px] text-slate-400 ml-1 whitespace-nowrap shrink-0">
-            {filtrados.length} ({filtro === 'todos' ? 'Total' : 'Filtrados'})
+          <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-1 whitespace-nowrap shrink-0">
+            {filtrados.length} ({filtro === "todos" ? "Total" : "Filtrados"})
           </span>
-        </div>
-
-        {/* Indicador ">" Flotante */}
-        <div
-          className="pointer-events-none absolute right-0 top-0 bottom-2 w-10 sm:hidden flex items-center justify-end pr-2"
-          style={{
-            background: "linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 60%, rgba(255,255,255,1) 100%)"
-          }}
-        >
-          <div className="w-5 h-5 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center">
-            <Icon name="chevron_right" size={11} className="text-slate-400" />
-          </div>
         </div>
       </div>
 
-      {/* GRID DE ARCHIVOS: Modificado a 1 columna en móvil (`grid-cols-1`) */}
-      {filtrados.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 py-16 text-center text-slate-400">
+      {/* Grid */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="skeleton-shimmer rounded-2xl aspect-square sm:aspect-4/3" />
+          ))}
+        </div>
+      ) : filtrados.length === 0 ? (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 py-16 text-center text-slate-400 dark:text-slate-500">
           <Icon name="folder_open" size={36} className="mx-auto mb-2 opacity-30" />
           <p className="text-[13px]">No se encontraron archivos</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {filtrados.map((a) => (
-            <ArchivoCard
-              key={a.id}
-              archivo={a}
-              annotationCount={(annMap[a.id] ?? []).length}
-              onClick={() => setVisor(a)}
-              esVistaGlobal={esVistaGlobal}
-            />
+            <ArchivoCard key={a.id} archivo={a} onClick={() => setVisor(a)} />
           ))}
         </div>
       )}
 
       {/* Visor */}
-      {visor && (
-        <VisorModal
-          archivo={visor}
-          todos={filtrados}
-          annotations={annMap[visor.id] ?? []}
-          onAddAnnotation={(ann) => handleAddAnnotation(visor.id, ann)}
-          onClose={() => setVisor(null)}
-          onNav={(a) => setVisor(a)}
-        />
-      )}
-
-      {/* Upload modal */}
-      {showUpload && (
-        <SubirModal
-          pacienteId={pacienteId}
-          onClose={() => setShowUpload(false)}
-          onSubir={handleSubir}
-        />
-      )}
+      <AnimatePresence>
+        {visor && (
+          <VisorModal
+            archivo={visor as any}
+            todos={filtrados as any}
+            paciente={{ id: visor.paciente_id ?? "", nombre: visor.paciente_nombre }}
+            onClose={() => setVisor(null)}
+            onNav={(a) => setVisor(a as any)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 // ─── Card de archivo ──────────────────────────────────────────────────────────
 
-function ArchivoCard({
-  archivo: a, onClick, esVistaGlobal, annotationCount,
-}: {
-  archivo: Archivo;
-  onClick: () => void;
-  esVistaGlobal: boolean;
-  annotationCount: number;
-}) {
-  const cfg = TIPO_CFG[a.tipo];
-  const [imgError, setImgError] = useState(false);
-  const showImg = a.es_imagen && a.preview_url && !imgError;
+function ArchivoCard({ archivo: a, onClick }: { archivo: ArchivoGlobal; onClick: () => void }) {
+  const cfg = CATEGORIA_CFG[a.categoria] ?? CATEGORIA_CFG.otros;
+  const showImg = isImagen(a) && a.displayUrl;
 
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-2xl border border-slate-200 overflow-hidden cursor-pointer hover:shadow-md hover:border-slate-300 transition-all group flex sm:flex-col"
+      className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden cursor-pointer hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all group flex sm:flex-col"
     >
-      {/* Thumbnail */}
-      <div className="relative aspect-square sm:aspect-4/3 w-28 sm:w-full shrink-0 overflow-hidden" style={{ background: cfg.bg }}>
+      <div className="relative aspect-square sm:aspect-4/3 w-28 sm:w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-900" style={{ background: cfg.bg }}>
         {showImg ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={a.preview_url}
-            alt={a.nombre}
-            onError={() => setImgError(true)}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
+          <img src={a.displayUrl} alt={a.nombre_archivo} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-1.5">
-            <Icon name={cfg.icon} size={28} style={{ color: cfg.color } as React.CSSProperties} />
+            <Icon name={isImagen(a) ? "image" : "description"} size={28} style={{ color: cfg.color }} />
             <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: cfg.color }}>
-              {a.nombre.split(".").pop()?.toUpperCase()}
+              {a.nombre_archivo.split(".").pop()?.toUpperCase()}
             </span>
           </div>
         )}
-        {/* Badge tipo */}
         <span
           className="absolute top-1.5 left-1.5 text-[8px] sm:text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
           style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}33` }}
         >
-          {cfg.label}
+          {a.categoria}
         </span>
-        {/* Badge anotaciones */}
-        {annotationCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ background: "#0891b2" }}>
-            {annotationCount}
-          </span>
-        )}
       </div>
 
-      {/* Info */}
       <div className="p-3 flex flex-col justify-center min-w-0 flex-1">
-        <p className="text-[12px] sm:text-[11px] font-semibold text-slate-800 truncate">{a.nombre}</p>
-        {esVistaGlobal && (
-          <p className="text-[11px] sm:text-[10px] text-slate-400 truncate mt-0.5">{a.paciente_nombre}</p>
-        )}
-        <p className="text-[11px] sm:text-[10px] text-slate-400 mt-0.5">{fmtFechaArchivo(a.fecha)}</p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Visor / Lightbox con anotaciones ────────────────────────────────────────
-
-type DrawPath = { x: number; y: number }[];
-
-function VisorModal({
-  archivo: a, todos, annotations, onAddAnnotation, onClose, onNav,
-}: {
-  archivo: Archivo;
-  todos: Archivo[];
-  annotations: Annotation[];
-  onAddAnnotation: (ann: Annotation) => void;
-  onClose: () => void;
-  onNav: (a: Archivo) => void;
-}) {
-  const cfg = TIPO_CFG[a.tipo];
-  const idx = todos.findIndex((x) => x.id === a.id);
-  const prev = idx > 0 ? todos[idx - 1] : null;
-  const next = idx < todos.length - 1 ? todos[idx + 1] : null;
-
-  const [mode, setMode] = useState<"none" | "pin" | "trazo">("none");
-  const [pendingPin, setPendingPin] = useState<{ x: number; y: number } | null>(null);
-  const [pinNota, setPinNota] = useState("");
-  const [hoveredAnn, setHoveredAnn] = useState<string | null>(null);
-  const imgContainerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [drawPaths, setDrawPaths] = useState<DrawPath[]>([]);
-  const [currentPath, setCurrentPath] = useState<DrawPath>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
-
-  const annotating = mode === "pin";
-  const tracing    = mode === "trazo";
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const all = currentPath.length > 1 ? [...drawPaths, currentPath] : drawPaths;
-    all.forEach(path => {
-      if (path.length < 2) return;
-      ctx.beginPath();
-      ctx.strokeStyle = "#ef4444";
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.moveTo(path[0].x, path[0].y);
-      path.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
-      ctx.stroke();
-    });
-  }, [drawPaths, currentPath]);
-
-  function getCanvasXY(e: React.MouseEvent<HTMLCanvasElement>) {
-    const c = canvasRef.current!;
-    const r = c.getBoundingClientRect();
-    return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) };
-  }
-
-  function handleCanvasDown(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!tracing) return;
-    setIsDrawing(true);
-    setCurrentPath([getCanvasXY(e)]);
-  }
-  function handleCanvasMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!tracing || !isDrawing) return;
-    setCurrentPath(p => [...p, getCanvasXY(e)]);
-  }
-  function handleCanvasUp() {
-    if (!tracing || !isDrawing) return;
-    setIsDrawing(false);
-    if (currentPath.length > 1) setDrawPaths(p => [...p, currentPath]);
-    setCurrentPath([]);
-  }
-
-  function handleImageAreaClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (!annotating || !a.es_imagen) return;
-    if ((e.target as HTMLElement).closest("[data-pin]")) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setPendingPin({ x, y });
-    setPinNota("");
-  }
-
-  function saveAnnotation() {
-    if (!pendingPin || !pinNota.trim()) return;
-    onAddAnnotation({
-      id: uid(),
-      x: pendingPin.x,
-      y: pendingPin.y,
-      nota: pinNota.trim(),
-      fecha: new Date().toISOString().split("T")[0],
-    });
-    setPendingPin(null);
-    setPinNota("");
-  }
-
-  function toggleMode(m: "pin" | "trazo") {
-    setMode(v => v === m ? "none" : m);
-    setPendingPin(null);
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
-      style={{ background: "rgba(0,0,0,0.82)" }}
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl overflow-hidden flex flex-col md:flex-row w-full shadow-2xl"
-        style={{ maxWidth: 900, maxHeight: "min(92vh, calc(100dvh - 96px))" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Panel imagen */}
-        <div
-          ref={imgContainerRef}
-          className="relative overflow-hidden min-h-45 h-[48vw] md:h-auto md:flex-1"
-          style={{ background: "#0f172a", cursor: annotating ? "crosshair" : tracing ? "crosshair" : "default" }}
-          onClick={handleImageAreaClick}
-        >
-          {a.es_imagen && a.preview_url ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={a.preview_url} alt={a.nombre}
-                className="absolute inset-0 w-full h-full object-contain select-none" draggable={false} />
-
-              {/* Canvas de trazos */}
-              <canvas
-                ref={canvasRef}
-                width={800} height={600}
-                className="absolute inset-0 w-full h-full"
-                style={{ zIndex: 8, pointerEvents: tracing ? "auto" : "none" }}
-                onMouseDown={handleCanvasDown}
-                onMouseMove={handleCanvasMove}
-                onMouseUp={handleCanvasUp}
-                onMouseLeave={handleCanvasUp}
-              />
-
-              {/* Pins existentes */}
-              {annotations.map((ann, i) => {
-                const isHov = hoveredAnn === ann.id;
-                return (
-                  <div key={ann.id} data-pin="true" className="absolute"
-                    style={{ left: `${ann.x}%`, top: `${ann.y}%`, transform: "translate(-50%, -50%)", zIndex: 10 }}
-                    onMouseEnter={() => setHoveredAnn(ann.id)}
-                    onMouseLeave={() => setHoveredAnn(null)}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white select-none"
-                      style={{ background: isHov ? "#ef4444" : "#0891b2", border: "2.5px solid white", boxShadow: "0 2px 10px rgba(0,0,0,0.5)", transition: "background 0.15s" }}>
-                      {i + 1}
-                    </div>
-                    {isHov && (
-                      <div className="absolute z-20 bg-white rounded-xl p-3 shadow-2xl"
-                        style={{ left: ann.x > 70 ? "auto" : "34px", right: ann.x > 70 ? "34px" : "auto", top: ann.y > 70 ? "auto" : 0, bottom: ann.y > 70 ? 0 : "auto", width: 200, border: "1px solid #e2e8f0" }}>
-                        <p className="text-[11px] font-semibold text-slate-700 mb-1">Nota #{i + 1}</p>
-                        <p className="text-[11px] text-slate-600 leading-relaxed">{ann.nota}</p>
-                        <p className="text-[9px] text-slate-400 mt-1.5">{ann.fecha}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Pin pendiente */}
-              {pendingPin && (
-                <div data-pin="true" className="absolute"
-                  style={{ left: `${pendingPin.x}%`, top: `${pendingPin.y}%`, transform: "translate(-50%, -50%)", zIndex: 20 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center animate-pulse"
-                    style={{ background: "#f59e0b", border: "2.5px solid white", boxShadow: "0 2px 10px rgba(0,0,0,0.5)" }}>
-                    <Icon name="add" size={12} className="text-white" />
-                  </div>
-                  <div className="absolute z-30 bg-white rounded-2xl shadow-2xl p-3.5"
-                    style={{ left: pendingPin.x > 65 ? "auto" : "34px", right: pendingPin.x > 65 ? "34px" : "auto", top: pendingPin.y > 65 ? "auto" : 0, bottom: pendingPin.y > 65 ? 0 : "auto", width: 220, border: "1px solid #e2e8f0" }}>
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ background: "#f59e0b" }}>
-                        <Icon name="pin_drop" size={9} className="text-white" />
-                      </div>
-                      <p className="text-[11px] font-semibold text-slate-700">Nueva anotación</p>
-                    </div>
-                    <textarea autoFocus rows={3} value={pinNota}
-                      onChange={(e) => setPinNota(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey) saveAnnotation(); }}
-                      placeholder="Describe la zona o hallazgo clínico…"
-                      className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-[11px] outline-none resize-none focus:border-cyan-400"
-                      style={{ lineHeight: 1.5 }}
-                    />
-                    <p className="text-[9px] text-slate-400 mt-1 mb-2">Ctrl+Enter para guardar</p>
-                    <div className="flex gap-1.5">
-                      <button onClick={saveAnnotation} disabled={!pinNota.trim()}
-                        className="flex-1 py-1.5 text-[11px] font-semibold text-white rounded-lg disabled:opacity-40 transition-opacity"
-                        style={{ background: "#0891b2" }}>Guardar</button>
-                      <button onClick={(e) => { e.stopPropagation(); setPendingPin(null); }}
-                        className="flex-1 py-1.5 text-[11px] font-medium text-slate-600 rounded-lg border border-slate-200 hover:bg-slate-50">Cancelar</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-              <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ background: cfg.bg }}>
-                <Icon name={cfg.icon} size={40} style={{ color: cfg.color } as React.CSSProperties} />
-              </div>
-              <p className="text-white font-medium text-[13px]">{a.nombre}</p>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[12px] transition-colors">
-                <Icon name="download" size={15} />Descargar
-              </button>
-            </div>
-          )}
-
-          {prev && (
-            <button onClick={(e) => { e.stopPropagation(); onNav(prev); }}
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors"
-              style={{ zIndex: 5 }}>
-              <Icon name="chevron_left" size={22} />
-            </button>
-          )}
-          {next && (
-            <button onClick={(e) => { e.stopPropagation(); onNav(next); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center text-white transition-colors"
-              style={{ zIndex: 5 }}>
-              <Icon name="chevron_right" size={22} />
-            </button>
-          )}
-
-          <span className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-white/50" style={{ zIndex: 5 }}>
-            {idx + 1} / {todos.length}
-          </span>
-
-          {mode !== "none" && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white"
-              style={{ background: mode === "pin" ? "rgba(8,145,178,0.9)" : "rgba(239,68,68,0.9)", backdropFilter: "blur(4px)", zIndex: 15 }}>
-              <Icon name={mode === "pin" ? "pin_drop" : "draw"} size={13} />
-              {mode === "pin" ? "Modo pin — clic para anotar" : "Modo trazo — dibuja libremente"}
-            </div>
-          )}
-        </div>
-
-        {/* Panel info */}
-        <div className="w-full md:w-64 md:shrink-0 flex flex-col border-t border-slate-100 md:border-t-0 md:border-l overflow-hidden flex-1 md:flex-none">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 gap-2">
-            <span
-              className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0"
-              style={{ background: cfg.bg, color: cfg.color }}
-            >
-              {cfg.label}
-            </span>
-            <div className="flex items-center gap-1.5">
-              {a.es_imagen && (
-                <>
-                  <button onClick={() => toggleMode("pin")}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors border"
-                    style={mode === "pin"
-                      ? { background: "#e0f2fe", color: "#0369a1", borderColor: "#7dd3fc" }
-                      : { background: "white", color: "#475569", borderColor: "#e2e8f0" }}>
-                    <Icon name="pin_drop" size={12} />Pin
-                  </button>
-                  <button onClick={() => toggleMode("trazo")}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors border"
-                    style={mode === "trazo"
-                      ? { background: "#fee2e2", color: "#b91c1c", borderColor: "#fca5a5" }
-                      : { background: "white", color: "#475569", borderColor: "#e2e8f0" }}>
-                    <Icon name="draw" size={12} />Trazar
-                  </button>
-                  {drawPaths.length > 0 && (
-                    <button onClick={() => setDrawPaths([])}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors border"
-                      style={{ background: "white", color: "#ef4444", borderColor: "#fca5a5" }}>
-                      <Icon name="delete" size={12} />Borrar
-                    </button>
-                  )}
-                </>
-              )}
-              <button onClick={onClose} className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-50">
-                <Icon name="close" size={15} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-            <p className="text-[12px] font-semibold text-slate-900 break-all">{a.nombre}</p>
-            <InfoLine icon="person" label="Paciente" value={a.paciente_nombre} />
-            <InfoLine icon="today" label="Fecha" value={fmtFechaArchivo(a.fecha)} />
-            <InfoLine icon="stethoscope" label="Médico" value={a.doctor_nombre} />
-
-            {a.descripcion && (
-              <div className="bg-slate-50 rounded-xl p-3">
-                <p className="text-[10px] font-semibold text-slate-500 mb-1">Descripción</p>
-                <p className="text-[11px] text-slate-700 leading-relaxed">{a.descripcion}</p>
-              </div>
-            )}
-
-            {annotations.length > 0 && (
-              <div>
-                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                  Anotaciones ({annotations.length})
-                </p>
-                <div className="flex flex-col gap-1.5">
-                  {annotations.map((ann, i) => {
-                    const isHov = hoveredAnn === ann.id;
-                    return (
-                      <div
-                        key={ann.id}
-                        className="flex items-start gap-2 p-2.5 rounded-xl border transition-colors cursor-pointer"
-                        style={{ borderColor: isHov ? "#7dd3fc" : "#f1f5f9", background: isHov ? "#f0f9ff" : "white" }}
-                        onMouseEnter={() => setHoveredAnn(ann.id)}
-                        onMouseLeave={() => setHoveredAnn(null)}
-                      >
-                        <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 mt-0.5"
-                          style={{ background: isHov ? "#ef4444" : "#0891b2", transition: "background 0.15s" }}
-                        >
-                          {i + 1}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] text-slate-700 leading-snug">{ann.nota}</p>
-                          <p className="text-[9px] text-slate-400 mt-0.5">{ann.fecha}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="p-4 border-t border-slate-100 flex flex-col gap-2">
-            <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-[12px] text-slate-700 hover:bg-slate-50 transition-colors w-full">
-              <Icon name="download" size={14} className="text-cyan-600" />
-              Descargar archivo
-            </button>
-            <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-red-100 text-[12px] text-red-500 hover:bg-red-50 transition-colors w-full">
-              <Icon name="delete" size={14} />
-              Eliminar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Modal subir archivo ──────────────────────────────────────────────────────
-
-function SubirModal({
-  pacienteId, onClose, onSubir,
-}: {
-  pacienteId?: string;
-  onClose: () => void;
-  onSubir: (a: Archivo) => void;
-}) {
-  const today = new Date().toISOString().split("T")[0];
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const [selectedPaciente, setSelectedPaciente] = useState(pacienteId ?? "");
-  const [tipo, setTipo] = useState<TipoArchivo>("radiografia_periapical");
-  const [notas, setNotas] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
-
-  function handleFile(f: File) {
-    setFile(f);
-    if (f.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = (e) => setPreview(e.target?.result as string);
-      reader.readAsDataURL(f);
-    } else {
-      setPreview(null);
-    }
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f) handleFile(f);
-  }
-
-  function handleSubir() {
-    if (!selectedPaciente || !file) return;
-    const pac = PACIENTES_MOCK.find((p) => p.id === selectedPaciente);
-    const esImagen = file.type.startsWith("image/");
-    const nuevo: Archivo = {
-      id: uid(),
-      paciente_id: selectedPaciente,
-      paciente_nombre: pac?.nombre ?? "Paciente",
-      tipo,
-      nombre: file.name,
-      fecha: today,
-      doctor_nombre: "Dr. García",
-      descripcion: notas || undefined,
-      es_imagen: esImagen,
-      preview_url: preview ?? undefined,
-    };
-    onSubir(nuevo);
-  }
-
-  const canSubir = selectedPaciente && file;
-  const cfg = TIPO_CFG[tipo];
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 pb-20 md:pb-4"
-      style={{ background: "rgba(15,23,42,0.5)" }}
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl w-full shadow-2xl overflow-hidden"
-        style={{ maxWidth: 560, maxHeight: "min(92vh, calc(100dvh - 96px))" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <p className="text-[14px] font-semibold text-slate-900">Subir archivo clínico</p>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-50">
-            <Icon name="close" size={16} />
-          </button>
-        </div>
-
-        <div className="p-5 flex flex-col gap-4">
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => inputRef.current?.click()}
-            className={`border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-colors ${dragging ? "border-cyan-400 bg-cyan-50" : "border-slate-200 hover:border-cyan-300 hover:bg-slate-50"
-              }`}
-            style={{ minHeight: 160 }}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*,.pdf,.dcm"
-              className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-            />
-            {preview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={preview} alt="preview" className="max-h-36 rounded-xl object-contain" />
-            ) : file ? (
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: cfg.bg }}>
-                  <Icon name={cfg.icon} size={24} style={{ color: cfg.color } as React.CSSProperties} />
-                </div>
-                <p className="text-[12px] font-medium text-slate-700">{file.name}</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2 text-slate-400">
-                <Icon name="cloud_upload" size={32} />
-                <p className="text-[13px] font-medium">Arrastra o haz clic para seleccionar</p>
-                <p className="text-[11px]">JPEG, PNG, PDF · Máx. 50 MB</p>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {!pacienteId && (
-              <div className="col-span-2">
-                <FormLabel>Paciente</FormLabel>
-                <select
-                  value={selectedPaciente}
-                  onChange={(e) => setSelectedPaciente(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] outline-none focus:border-cyan-500"
-                >
-                  <option value="">— Seleccionar paciente —</option>
-                  {PACIENTES_MOCK.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div>
-              <FormLabel>Tipo de archivo</FormLabel>
-              <select
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value as TipoArchivo)}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] outline-none focus:border-cyan-500"
-              >
-                {(Object.keys(TIPO_CFG) as TipoArchivo[]).map((k) => (
-                  <option key={k} value={k}>{TIPO_CFG[k].label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <FormLabel>Fecha</FormLabel>
-              <input
-                type="date"
-                defaultValue={today}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] outline-none focus:border-cyan-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <FormLabel>Descripción / Notas</FormLabel>
-            <textarea
-              rows={2}
-              value={notas}
-              onChange={(e) => setNotas(e.target.value)}
-              placeholder="Detalles opcionales sobre el archivo..."
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] outline-none focus:border-cyan-500 resize-none"
-            />
-          </div>
-
-          <div className="flex gap-2 justify-end mt-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSubir}
-              disabled={!canSubir}
-              className="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-xl text-[12px] font-semibold transition-colors"
-            >
-              Subir archivo
-            </button>
-          </div>
-        </div>
+        <p className="text-[12px] sm:text-[11px] font-semibold text-slate-800 dark:text-slate-100 truncate">{a.nombre_archivo}</p>
+        <p className="text-[11px] sm:text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">{a.paciente_nombre}</p>
+        <p className="text-[11px] sm:text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{fmtFechaArchivo(a.fecha_subida)}</p>
       </div>
     </div>
   );
@@ -795,28 +190,14 @@ function SubirModal({
 
 function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
   return (
-    <div className="bg-white p-3.5 rounded-2xl border border-slate-200 flex items-center gap-3">
+    <div className="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-3">
       <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: color + "10", color }}>
         <Icon name={icon} size={18} />
       </div>
       <div>
-        <p className="text-[16px] font-bold text-slate-800 leading-none">{value}</p>
-        <p className="text-[10px] text-slate-400 font-medium mt-1">{label}</p>
+        <p className="text-[16px] font-bold text-slate-800 dark:text-slate-100 leading-none">{value}</p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-1">{label}</p>
       </div>
-    </div>
-  );
-}
-
-function FormLabel({ children }: { children: React.ReactNode }) {
-  return <label className="block text-[11px] font-semibold text-slate-500 mb-1">{children}</label>;
-}
-
-function InfoLine({ icon, label, value }: { icon: string; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2 text-[11px]">
-      <Icon name={icon} size={13} className="text-slate-400 shrink-0" />
-      <span className="text-slate-400 w-14 shrink-0">{label}:</span>
-      <span className="text-slate-700 font-medium truncate">{value}</span>
     </div>
   );
 }
