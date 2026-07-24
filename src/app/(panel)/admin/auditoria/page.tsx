@@ -12,21 +12,48 @@ export default function AdminAuditoriaPage() {
   const [comms, setComms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Caché de los datos ya cargados para no volver a pedirlos
+  const [loadedLogs, setLoadedLogs] = useState(false);
+  const [loadedPersonal, setLoadedPersonal] = useState(false);
+  const [loadedComms, setLoadedComms] = useState(false);
+
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      const [dataLogs, dataPersonal, dataComms] = await Promise.all([
-        getAuditoriaLogsAction(),
-        getMetricasPersonalAction(),
-        getComunicacionesAction()
-      ]);
-      setLogs(dataLogs);
-      setPersonal(dataPersonal);
-      setComms(dataComms);
-      setLoading(false);
+    let cancelled = false;
+
+    async function loadActiveTab() {
+      if (activeTab === "logs" && !loadedLogs) {
+        setLoading(true);
+        const data = await getAuditoriaLogsAction();
+        if (!cancelled) {
+          setLogs(data);
+          setLoadedLogs(true);
+          setLoading(false);
+        }
+      } else if (activeTab === "personal" && !loadedPersonal) {
+        setLoading(true);
+        const data = await getMetricasPersonalAction();
+        if (!cancelled) {
+          setPersonal(data);
+          setLoadedPersonal(true);
+          setLoading(false);
+        }
+      } else if (activeTab === "comms" && !loadedComms) {
+        setLoading(true);
+        const data = await getComunicacionesAction();
+        if (!cancelled) {
+          setComms(data);
+          setLoadedComms(true);
+          setLoading(false);
+        }
+      }
     }
-    loadData();
-  }, []);
+
+    loadActiveTab();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, loadedLogs, loadedPersonal, loadedComms]);
 
   return (
     <div className="p-6 max-w-6xl mx-auto w-full flex flex-col gap-6">
@@ -56,13 +83,13 @@ export default function AdminAuditoriaPage() {
         />
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col min-h-[400px]">
-        {loading ? (
-           <div className="flex-1 flex flex-col items-center justify-center gap-2 text-slate-400 py-20">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col min-h-100 relative">
+        {loading && (
+           <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center gap-2 text-slate-400">
              <div className="w-8 h-8 border-2 border-t-cyan-500 rounded-full animate-spin" />
-             <p className="text-sm">Cargando datos de auditoría...</p>
+             <p className="text-sm font-medium">Cargando datos...</p>
            </div>
-        ) : (
+        )}
           <>
             {/* TABS CONTENT */}
             {activeTab === "logs" && (
@@ -96,7 +123,7 @@ export default function AdminAuditoriaPage() {
                             </span>
                           </td>
                           <td className="px-5 py-3 text-slate-600 font-mono text-xs">{log.tabla_afectada}</td>
-                          <td className="px-5 py-3 text-slate-500 font-mono text-[11px] truncate max-w-[120px]" title={log.usuario_id}>
+                          <td className="px-5 py-3 text-slate-500 font-mono text-[11px] truncate max-w-30" title={log.usuario_id}>
                             {log.usuario_id}
                           </td>
                           <td className="px-5 py-3 text-slate-500 font-mono text-xs">{log.ip_address || "Local"}</td>
@@ -194,9 +221,8 @@ export default function AdminAuditoriaPage() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </>
-        )}
+          )}
+        </>
       </div>
     </div>
   );

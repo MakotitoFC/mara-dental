@@ -4,6 +4,27 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { resolveOrCrearHistoriaClinica } from "./historia.helpers";
 
+export async function getPreviewPacienteAction(pacienteId: string) {
+  const supabase = await createClient();
+  const { data: paciente } = await supabase
+    .from("pacientes")
+    .select("sexo, grupo_sanguineo, telefono, alergias")
+    .eq("id", pacienteId)
+    .single();
+
+  if (paciente) {
+    let alergiasArr: string[] = [];
+    if (Array.isArray(paciente.alergias)) {
+      alergiasArr = paciente.alergias;
+    } else if (typeof paciente.alergias === "string") {
+      try { alergiasArr = JSON.parse(paciente.alergias); } catch { /* ignore */ }
+    }
+    paciente.alergias = alergiasArr as any;
+  }
+
+  return { paciente };
+}
+
 export async function getDoctorPacientesAction() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -18,32 +39,15 @@ export async function getDoctorPacientesAction() {
 
   if (!personal) return [];
 
+  // Llama a la función optimizada en la BD
   const { data, error } = await supabase
-    .from("pacientes")
-    .select(`
-      id,
-      nombre,
-      apellido,
-      dni,
-      fecha_nacimiento,
-      telefono,
-      alergias,
-      activo,
-      citas!inner (
-        id,
-        fecha
-      )
-    `)
-    .eq("citas.doctor_id", personal.id);
+    .rpc("get_doctor_pacientes_summary", { p_doctor_id: personal.id });
 
   if (error || !data) {
-    console.error("Error obteniendo pacientes:", error);
+    console.error("Error obteniendo pacientes optimizados:", error);
     return [];
   }
 
-  // Use a map to filter distinct patients, since !inner join returns one row per cita matching if not grouped or distinct. 
-  // Wait, Supabase (PostgREST) returns one row per parent (pacientes) with an array of children (citas). 
-  // It handles the nesting automatically!
   return data.map((p: any) => {
     let alergiasArr: string[] = [];
     if (Array.isArray(p.alergias)) {
@@ -52,17 +56,10 @@ export async function getDoctorPacientesAction() {
       try { alergiasArr = JSON.parse(p.alergias); } catch { /* ignore */ }
     }
 
-    const citasInfo: any[] = Array.isArray(p.citas) ? p.citas : [];
-    const numCitas = citasInfo.length;
-
-    // Sort descending by date to get latest
-    citasInfo.sort((a: any, b: any) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-    const ultima_visita = citasInfo.length > 0 ? citasInfo[0].fecha : null;
-
     let estado = "activo";
     if (!p.activo) {
       estado = "inactivo";
-    } else if (numCitas === 1) {
+    } else if (Number(p.total_citas) === 1) {
       estado = "nuevo";
     }
 
@@ -74,7 +71,7 @@ export async function getDoctorPacientesAction() {
       telefono: p.telefono,
       alergias: alergiasArr,
       estado,
-      ultima_visita
+      ultima_visita: p.ultima_visita
     };
   });
 }
