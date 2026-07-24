@@ -9,7 +9,7 @@ export default function LoadingPacientes() {
 
         {/* Barra de búsqueda + botón */}
         <div className="flex items-center gap-3">
-          <Skeleton className="h-10 w-full max-w-[280px] rounded-xl" />
+          <Skeleton className="h-10 w-full max-w-70 rounded-xl" />
           <Skeleton className="hidden md:block h-10 w-28 rounded-xl shrink-0 ml-auto" />
         </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -8,11 +8,10 @@ import { Icon } from "@/components/ui/Icon";
 import { calcEdad, fmtFecha } from "@/lib/date-utils";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import type { EstadoPaciente } from "@/types/paciente";
-import { getDoctorPacientesAction } from "../actions";
-import { getDetallePacienteAction } from "../[id]/actions";
+import { getDoctorPacientesAction, getPreviewPacienteAction } from "../actions";
 import { NuevoPacienteModal } from "./NuevoPacienteModal";
 
-type DetallePaciente = Awaited<ReturnType<typeof getDetallePacienteAction>>;
+type DetallePaciente = Awaited<ReturnType<typeof getPreviewPacienteAction>>;
 
 type PacienteListItem = {
   id: string;
@@ -115,6 +114,14 @@ export function PacientesView() {
     router.push(`/pacientes/${id}`);
   }
 
+  const handleHoverStart = useCallback((id: string) => {
+    setHoveredId(id);
+  }, []);
+
+  const handleHoverEnd = useCallback((id: string) => {
+    setHoveredId((prev) => (prev === id ? null : prev));
+  }, []);
+
   const filtrados = todos.filter((p) => {
     if (query === "") return true;
     const q = query.toLowerCase();
@@ -143,7 +150,7 @@ export function PacientesView() {
     let cancelled = false;
     const t = setTimeout(() => {
       setDetalleLoading(true);
-      getDetallePacienteAction(activeId).then((d) => {
+      getPreviewPacienteAction(activeId).then((d) => {
         if (!cancelled) {
           setDetalle(d);
           setDetalleLoading(false);
@@ -206,8 +213,8 @@ export function PacientesView() {
                 key={p.id}
                 paciente={p}
                 active={p.id === activeId}
-                onHoverStart={() => setHoveredId(p.id)}
-                onHoverEnd={() => setHoveredId((id) => (id === p.id ? null : id))}
+                onHoverStart={handleHoverStart}
+                onHoverEnd={handleHoverEnd}
               />
             ))}
           </motion.div>
@@ -239,7 +246,7 @@ export function PacientesView() {
 
 // ─── Card ───────────────────────────────────────────────────────────────────
 
-function PacienteCard({
+function PacienteCardBase({
   paciente: p,
   active,
   onHoverStart,
@@ -247,8 +254,8 @@ function PacienteCard({
 }: {
   paciente: PacienteListItem;
   active: boolean;
-  onHoverStart: () => void;
-  onHoverEnd: () => void;
+  onHoverStart: (id: string) => void;
+  onHoverEnd: (id: string) => void;
 }) {
   const edad = calcEdad(p.fecha_nacimiento);
   const avatar = avatarStyle(p.id);
@@ -256,7 +263,7 @@ function PacienteCard({
   const tieneAlergias = p.alergias && p.alergias.length > 0;
 
   return (
-    <motion.div variants={staggerItem} onMouseEnter={onHoverStart} onMouseLeave={onHoverEnd}>
+    <motion.div variants={staggerItem} onMouseEnter={() => onHoverStart(p.id)} onMouseLeave={() => onHoverEnd(p.id)}>
       <Link
         href={`/pacientes/${p.id}`}
         className={`flex items-start gap-3 bg-white dark:bg-slate-800 rounded-2xl border p-4 hover:border-cyan-300 dark:hover:border-cyan-700 hover:shadow-sm active:scale-[0.99] transition-all ${
@@ -412,3 +419,5 @@ function PacientePreviewPanel({
     </motion.div>
   );
 }
+
+const PacienteCard = memo(PacienteCardBase);
