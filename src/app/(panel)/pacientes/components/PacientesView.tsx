@@ -1,344 +1,414 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
-import { calcEdad, fmtFecha } from "@/lib/mock-pacientes";
+import { calcEdad, fmtFecha } from "@/lib/date-utils";
+import { staggerContainer, staggerItem } from "@/lib/animations";
 import type { EstadoPaciente } from "@/types/paciente";
 import { getDoctorPacientesAction } from "../actions";
+import { getDetallePacienteAction } from "../[id]/actions";
+import { NuevoPacienteModal } from "./NuevoPacienteModal";
 
-const ESTADO_CFG: Record<EstadoPaciente, { label: string; bg: string; text: string }> = {
-  activo: { label: "Activo", bg: "#dcfce7", text: "#15803d" },
-  nuevo: { label: "Nuevo", bg: "#dbeafe", text: "#1d4ed8" },
-  inactivo: { label: "Inactivo", bg: "#f1f5f9", text: "#64748b" },
+type DetallePaciente = Awaited<ReturnType<typeof getDetallePacienteAction>>;
+
+type PacienteListItem = {
+  id: string;
+  nombre: string;
+  dni: string;
+  fecha_nacimiento: string;
+  telefono: string;
+  alergias: string[];
+  estado: EstadoPaciente;
+  ultima_visita: string | null;
 };
 
+// Paleta de avatares — variedad visual determinística por paciente, coherente con
+// el lenguaje cyan del design system (Header/Sidebar usan bg-cyan-50/border-cyan-200/text-cyan-700).
+const AVATAR_PALETTE = [
+  { bg: "bg-cyan-50", border: "border-cyan-200", text: "text-cyan-700" },
+  { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700" },
+  { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700" },
+  { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700" },
+] as const;
+
 function initials(nombre: string) {
-  const p = nombre.trim().split(" ");
-  return (p[0]?.[0] ?? "") + (p[1]?.[0] ?? "");
+  const partes = nombre.trim().split(/\s+/);
+  return ((partes[0]?.[0] ?? "") + (partes[1]?.[0] ?? "")).toUpperCase();
 }
 
-const AVATAR_COLORS = [
-  "#0891b2", "#7c3aed", "#db2777", "#059669", "#d97706", "#dc2626", "#2563eb", "#65a30d",
-];
-function avatarColor(id: string) {
-  const n = parseInt(id.replace(/\D/g, "")) || 0;
-  return AVATAR_COLORS[n % AVATAR_COLORS.length];
+function avatarStyle(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
 }
 
-function SkeletonRow() {
-  return (
-    <div className="grid items-center px-4 py-3 border-b border-slate-50 gap-3 animate-pulse"
-      style={{ gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) 80px minmax(0,1fr) 100px 72px" }}>
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-slate-200 shrink-0" />
-        <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-          <div className="h-3 bg-slate-200 rounded w-3/4" />
-          <div className="h-2.5 bg-slate-100 rounded w-1/2" />
-        </div>
-      </div>
-      <div className="h-3 bg-slate-200 rounded w-4/5" />
-      <div className="h-3 bg-slate-200 rounded w-8" />
-      <div className="h-3 bg-slate-200 rounded w-3/4" />
-      <div className="h-5 bg-slate-200 rounded-full w-16" />
-      <div className="h-7 bg-slate-100 rounded-lg w-10 ml-auto" />
-    </div>
-  );
+function isBirthdayToday(fechaNacimiento: string): boolean {
+  if (!fechaNacimiento) return false;
+  const hoy = new Date();
+  const nac = new Date(fechaNacimiento);
+  return hoy.getMonth() === nac.getMonth() && hoy.getDate() === nac.getDate();
 }
 
 function SkeletonCard() {
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 animate-pulse">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-slate-200 shrink-0" />
-        <div className="flex-1 flex flex-col gap-2">
-          <div className="h-3.5 bg-slate-200 rounded w-3/4" />
-          <div className="h-2.5 bg-slate-100 rounded w-1/2" />
-        </div>
-        <div className="h-5 w-14 bg-slate-200 rounded-full" />
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex items-center gap-3 animate-pulse">
+      <div className="w-11 h-11 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
+      <div className="flex-1 flex flex-col gap-2">
+        <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-2/5" />
+        <div className="h-2.5 bg-slate-100 dark:bg-slate-700/60 rounded w-3/5" />
+        <div className="h-2.5 bg-slate-100 dark:bg-slate-700/60 rounded w-1/3" />
       </div>
-      <div className="flex gap-2">
-        <div className="h-5 w-20 bg-slate-100 rounded-full" />
-        <div className="h-5 w-16 bg-slate-100 rounded-full" />
+    </div>
+  );
+}
+
+function EmptyState({ hasPatients, onNuevo }: { hasPatients: boolean; onNuevo: () => void }) {
+  return (
+    <div className="py-16 px-6 text-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center gap-3">
+      <div className="w-14 h-14 rounded-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center">
+        <Icon name="person_search" size={26} className="text-slate-300 dark:text-slate-500" />
       </div>
+      <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
+        {hasPatients ? "No se encontraron pacientes" : "Aún no tienes pacientes registrados"}
+      </p>
+      {!hasPatients && (
+        <button
+          onClick={onNuevo}
+          className="mt-1 inline-flex items-center gap-1.5 px-4 py-2.5 min-h-11 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-medium transition-colors"
+        >
+          <Icon name="person_add" size={16} />
+          Registrar paciente
+        </button>
+      )}
     </div>
   );
 }
 
 export function PacientesView() {
-  const [query, setQuery] = useState("");
-  const [filtro, setFiltro] = useState<EstadoPaciente | "todos">("todos");
   const router = useRouter();
-  const [todos, setTodos] = useState<any[]>([]);
+  const [query, setQuery] = useState("");
+  const [todos, setTodos] = useState<PacienteListItem[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const loadPacientes = async () => {
-    setLoading(true);
-    const data = await getDoctorPacientesAction();
-    setTodos(data);
-    setLoading(false);
-  };
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [showNuevoModal, setShowNuevoModal] = useState(false);
 
   useEffect(() => {
-    loadPacientes();
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const data = await getDoctorPacientesAction();
+      if (!cancelled) {
+        setTodos(data as PacienteListItem[]);
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  function handlePacienteCreado(id: string) {
+    setShowNuevoModal(false);
+    router.push(`/pacientes/${id}`);
+  }
+
   const filtrados = todos.filter((p) => {
-    const matchFiltro = filtro === "todos" || p.estado === filtro;
-    const matchQuery = query === "" ||
-      p.nombre.toLowerCase().includes(query.toLowerCase()) ||
-      p.dni.toLowerCase().includes(query.toLowerCase()) ||
-      p.telefono.includes(query);
-    return matchFiltro && matchQuery;
+    if (query === "") return true;
+    const q = query.toLowerCase();
+    return (
+      p.nombre.toLowerCase().includes(q) ||
+      p.dni.toLowerCase().includes(q) ||
+      p.telefono.includes(query)
+    );
   });
 
-  const totales = {
-    todos: todos.length,
-    activo: todos.filter((p) => p.estado === "activo").length,
-    nuevo: todos.filter((p) => p.estado === "nuevo").length,
-    inactivo: todos.filter((p) => p.estado === "inactivo").length,
-  };
+  // El panel de la derecha es fijo — siempre muestra a alguien: el paciente sobre
+  // el que está el mouse, o si no hay hover, el primero de la lista filtrada.
+  const activeId = hoveredId && filtrados.some((p) => p.id === hoveredId) ? hoveredId : filtrados[0]?.id ?? null;
+  const active = filtrados.find((p) => p.id === activeId) ?? null;
+
+  // Carga el detalle completo (antecedentes, contacto, próxima cita...) del paciente activo,
+  // con un pequeño debounce para no disparar una consulta por cada tarjeta que el mouse cruza.
+  const [detalle, setDetalle] = useState<DetallePaciente | null>(null);
+  const [detalleLoading, setDetalleLoading] = useState(false);
+
+  useEffect(() => {
+    if (!activeId) {
+      setDetalle(null);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      setDetalleLoading(true);
+      getDetallePacienteAction(activeId).then((d) => {
+        if (!cancelled) {
+          setDetalle(d);
+          setDetalleLoading(false);
+        }
+      });
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [activeId]);
 
   return (
-    <div className="p-4 sm:p-5 flex flex-col gap-4 max-w-300">
-
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-0">
-          <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar nombre, DNI o teléfono…"
-            className="w-full pl-9 pr-4 py-2.5 md:py-2 min-h-11 md:min-h-0 rounded-xl border border-slate-200 bg-white text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
-          />
-        </div>
-        <button
-          onClick={() => router.push("/pacientes/nuevo")}
-          className="flex items-center gap-1.5 px-4 py-2.5 min-h-11 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-medium transition-colors shrink-0"
-        >
-          <Icon name="person_add" size={16} />
-          <span className="hidden sm:inline">Nuevo paciente</span>
-          <span className="sm:hidden">Nuevo</span>
-        </button>
-      </div>
-
-      {/* Stats + filtros rediseñados en un contenedor unificado */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-1">
-        <div
-          className="flex items-center bg-slate-100/80 p-1 rounded-xl overflow-x-auto scrollbar-none snap-x select-none w-full sm:w-auto"
-          style={{
-            msOverflowStyle: 'none',
-            scrollbarWidth: 'none',
-            WebkitOverflowScrolling: 'touch'
-          }}
-        >
-          {(["todos", "activo", "nuevo", "inactivo"] as const).map((f) => {
-            const label = f === "todos" ? "Todos" : ESTADO_CFG[f].label;
-            const count = totales[f];
-            const active = filtro === f;
-            return (
-              <button
-                key={f}
-                onClick={() => setFiltro(f)}
-                className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 border-none outline-none focus:outline-none focus:ring-0 snap-shrink min-w-18.75 sm:min-w-0 min-h-[40px] ${active
-                    ? "bg-white text-cyan-700 shadow-sm font-semibold"
-                    : "text-slate-500 hover:text-slate-800 hover:bg-white/40"
-                  }`}
-              >
-                <span>{label}</span>
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold transition-colors ${active ? "bg-cyan-50 text-cyan-700" : "bg-slate-200/60 text-slate-500"
-                  }`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <span className="text-[12px] text-slate-400 self-end sm:self-center px-1">
-          {filtrados.length} resultado{filtrados.length !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      {/* Desktop table */}
-      <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div
-          className="grid text-[11px] font-semibold text-slate-400 uppercase tracking-wide px-4 py-3 border-b border-slate-100"
-          style={{ gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) 80px minmax(0,1fr) 100px 72px" }}
-        >
-          <span>Paciente</span>
-          <span>Teléfono</span>
-          <span>Edad</span>
-          <span>Última visita</span>
-          <span>Estado</span>
-          <span />
+    <div className="flex-1 flex flex-col lg:flex-row gap-5 p-4 sm:p-5 lg:items-start">
+      <div className="flex-1 min-w-0 flex flex-col gap-4">
+        {/* Toolbar */}
+        <div className="flex items-center gap-3">
+          <div className="relative w-full max-w-[280px]">
+            <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por nombre o DNI…"
+              className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-cyan-500 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 transition-colors text-[16px] sm:text-[13px]"
+            />
+          </div>
+          <button
+            onClick={() => setShowNuevoModal(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[13px] font-medium transition-colors shrink-0"
+          >
+            <Icon name="add" size={15} />
+            Nuevo
+          </button>
         </div>
 
-        {loading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
-
-        {!loading && filtrados.length === 0 && (
-          <div className="py-16 text-center text-slate-400">
-            <Icon name="person_search" size={36} className="mx-auto mb-2 opacity-30" />
-            <p className="text-[13px]">No se encontraron pacientes</p>
+        {/* Loading */}
+        {loading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
           </div>
         )}
 
-        {!loading && filtrados.map((p) => (
-          <PacienteRow key={p.id} paciente={p} />
-        ))}
-      </div>
-
-      {/* Mobile card list */}
-      <div className="md:hidden flex flex-col gap-2">
-        {loading && Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
-
+        {/* Empty */}
         {!loading && filtrados.length === 0 && (
-          <div className="py-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200">
-            <Icon name="person_search" size={36} className="mx-auto mb-2 opacity-30" />
-            <p className="text-[13px]">No se encontraron pacientes</p>
-          </div>
+          <EmptyState hasPatients={todos.length > 0} onNuevo={() => setShowNuevoModal(true)} />
         )}
-        {!loading && filtrados.map((p) => (
-          <PacienteCard key={p.id} paciente={p} />
-        ))}
+
+        {/* Lista — grid responsive que llena el espacio disponible */}
+        {!loading && filtrados.length > 0 && (
+          <motion.div
+            variants={staggerContainer(0.04)}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3"
+          >
+            {filtrados.map((p) => (
+              <PacienteCard
+                key={p.id}
+                paciente={p}
+                active={p.id === activeId}
+                onHoverStart={() => setHoveredId(p.id)}
+                onHoverEnd={() => setHoveredId((id) => (id === p.id ? null : id))}
+              />
+            ))}
+          </motion.div>
+        )}
       </div>
+
+      {/* Panel de detalle — fijo a la derecha, solo desktop */}
+      <div className="hidden lg:block w-[320px] shrink-0 sticky top-[68px]">
+        <AnimatePresence mode="wait">
+          {active ? (
+            <PacientePreviewPanel key={active.id} paciente={active} detalle={detalle} detalleLoading={detalleLoading} />
+          ) : (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 flex flex-col items-center gap-2.5 text-center">
+              <Icon name="person" size={22} className="text-slate-300 dark:text-slate-600" />
+              <p className="text-[12.5px] text-slate-400 dark:text-slate-500">Sin pacientes que mostrar</p>
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <AnimatePresence>
+        {showNuevoModal && (
+          <NuevoPacienteModal onClose={() => setShowNuevoModal(false)} onCreated={handlePacienteCreado} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// ─── Desktop row ──────────────────────────────────────────────────────────────
+// ─── Card ───────────────────────────────────────────────────────────────────
 
-function PacienteRow({ paciente: p }: { paciente: any }) {
-  const router = useRouter();
-  const cfg = ESTADO_CFG[p.estado as EstadoPaciente];
+function PacienteCard({
+  paciente: p,
+  active,
+  onHoverStart,
+  onHoverEnd,
+}: {
+  paciente: PacienteListItem;
+  active: boolean;
+  onHoverStart: () => void;
+  onHoverEnd: () => void;
+}) {
   const edad = calcEdad(p.fecha_nacimiento);
-  const color = avatarColor(p.id);
+  const avatar = avatarStyle(p.id);
+  const cumpleHoy = isBirthdayToday(p.fecha_nacimiento);
+  const tieneAlergias = p.alergias && p.alergias.length > 0;
 
   return (
-    <div
-      onClick={() => router.push(`/pacientes/${p.id}`)}
-      className="grid items-center px-4 py-3 border-b border-slate-50 last:border-b-0 hover:bg-slate-50 transition-colors group cursor-pointer"
-      style={{ gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) 80px minmax(0,1fr) 100px 72px" }}
-    >
-      {/* Paciente */}
-      <div className="flex items-center gap-3 min-w-0">
+    <motion.div variants={staggerItem} onMouseEnter={onHoverStart} onMouseLeave={onHoverEnd}>
+      <Link
+        href={`/pacientes/${p.id}`}
+        className={`flex items-start gap-3 bg-white dark:bg-slate-800 rounded-2xl border p-4 hover:border-cyan-300 dark:hover:border-cyan-700 hover:shadow-sm active:scale-[0.99] transition-all ${
+          active ? "border-cyan-400 dark:border-cyan-600 ring-1 ring-cyan-100 dark:ring-cyan-900/40" : "border-slate-200 dark:border-slate-700"
+        }`}
+      >
+        {/* Avatar */}
         <div
-          className="w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold text-white shrink-0"
-          style={{ background: color }}
+          className={`relative w-11 h-11 rounded-full border-2 flex items-center justify-center shrink-0 font-bold text-[13px] ${avatar.bg} ${avatar.border} ${avatar.text}`}
         >
+          {initials(p.nombre)}
+          {cumpleHoy && (
+            <span
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center"
+              title="Cumpleaños hoy"
+            >
+              <Icon name="cake" size={11} className="text-amber-600" />
+            </span>
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-[14px] font-bold text-slate-900 dark:text-slate-100 truncate">{p.nombre}</p>
+          <p className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+            DNI {p.dni} · {edad} años
+          </p>
+          <p className="text-[12px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+            Última consulta: {p.ultima_visita ? fmtFecha(p.ultima_visita) : "Sin consultas"}
+          </p>
+        </div>
+
+        {/* Pills */}
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          {p.estado === "nuevo" && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-400 whitespace-nowrap">
+              1 cita
+            </span>
+          )}
+          {tieneAlergias && (
+            <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 whitespace-nowrap">
+              <Icon name="warning_amber" size={10} />
+              Alergias
+            </span>
+          )}
+        </div>
+      </Link>
+    </motion.div>
+  );
+}
+
+// ─── Panel de detalle (fijo, desktop) ──────────────────────────────────────
+
+function PacientePreviewPanel({
+  paciente: p,
+  detalle,
+  detalleLoading,
+}: {
+  paciente: PacienteListItem;
+  detalle: DetallePaciente | null;
+  detalleLoading: boolean;
+}) {
+  const edad = calcEdad(p.fecha_nacimiento);
+  const avatar = avatarStyle(p.id);
+  const info = detalle?.paciente;
+  const alergias: string[] = info?.alergias ?? p.alergias ?? [];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      transition={{ duration: 0.15 }}
+      className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3"
+    >
+      {/* Encabezado */}
+      <div className="flex items-center gap-3">
+        <div className={`w-11 h-11 rounded-full border-2 flex items-center justify-center shrink-0 font-bold text-[14px] ${avatar.bg} ${avatar.border} ${avatar.text}`}>
           {initials(p.nombre)}
         </div>
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-slate-900 truncate">{p.nombre}</p>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-[11px] text-slate-400">{p.dni}</span>
-            {p.alergias && p.alergias.length > 0 && (
-              <span className="flex items-center gap-1 text-[10px] font-semibold text-orange-600">
-                <Icon name="warning_amber" size={11} />
-                Alergias: {p.alergias.join(", ")}
-              </span>
-            )}
-          </div>
+          <p className="text-[14px] font-bold text-slate-900 dark:text-slate-100 truncate">{p.nombre}</p>
+          <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">
+            DNI {p.dni} · {edad} años{info?.sexo ? ` · ${info.sexo}` : ""}
+          </p>
         </div>
       </div>
 
-      {/* Teléfono */}
-      <span className="text-[12px] text-slate-600 truncate">{p.telefono}</span>
-
-      {/* Edad */}
-      <span className="text-[12px] text-slate-600">{edad} años</span>
-
-      {/* Última visita */}
-      <span className="text-[12px] text-slate-500">
-        {p.ultima_visita ? fmtFecha(p.ultima_visita) : <span className="text-slate-300">—</span>}
-      </span>
-
-      {/* Estado */}
-      <span
-        className="text-[11px] font-semibold px-2.5 py-1 rounded-full w-fit"
-        style={{ background: cfg?.bg ?? "#f1f5f9", color: cfg?.text ?? "#64748b" }}
-      >
-        {cfg?.label ?? p.estado}
-      </span>
+      {detalleLoading ? (
+        <div className="flex flex-col gap-1.5">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5 text-[12px] text-slate-600 dark:text-slate-300 border-t border-slate-100 dark:border-slate-700 pt-2.5">
+          <p className="flex items-center gap-1.5">
+            <Icon name="phone" size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
+            {info?.telefono || p.telefono || "—"}
+          </p>
+          {info?.grupo_sanguineo && (
+            <p className="flex items-center gap-1.5">
+              <Icon name="bloodtype" size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
+              {info.grupo_sanguineo}
+            </p>
+          )}
+          <p className="flex items-center gap-1.5">
+            <Icon name="history" size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
+            Última consulta: {p.ultima_visita ? fmtFecha(p.ultima_visita) : "Sin consultas"}
+          </p>
+          {alergias.length > 0 && (
+            <div className="pt-0.5">
+              <p className="flex items-center gap-1 text-[10.5px] font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wide mb-1">
+                <Icon name="warning_amber" size={11} />
+                Alergias
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {alergias.map((a) => (
+                  <span key={a} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-800">
+                    {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Acciones */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <a
-          href={`https://wa.me/${p.telefono.replace(/\D/g, "")}?text=Hola%20${encodeURIComponent(p.nombre.split(" ")[0])}%2C%20le%20recordamos%20su%20cita%20en%20MaraDental.`}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-green-50 transition-colors"
-          title="WhatsApp"
+      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+        <Link
+          href={`/pacientes/${p.id}`}
+          className="flex items-center justify-center gap-1.5 h-9 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[12px] font-medium transition-colors"
         >
-          <Icon name="chat" size={16} className="text-[#25D366]" />
-        </a>
-        <button
-          onClick={(e) => { e.stopPropagation(); router.push(`/pacientes/${p.id}`); }}
-          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-cyan-50 transition-colors"
-          title="Ver ficha"
+          <Icon name="contact_page" size={14} />
+          Ver Ficha
+        </Link>
+        <Link
+          href={`/agenda?paciente=${p.id}`}
+          className="flex items-center justify-center gap-1.5 h-9 rounded-xl border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-medium transition-colors"
         >
-          <Icon name="folder_open" size={16} className="text-cyan-600" />
-        </button>
+          <Icon name="calendar_today" size={14} />
+          Nueva Cita
+        </Link>
+        <Link
+          href={`/pacientes/${p.id}?tab=presupuestos`}
+          className="col-span-2 flex items-center justify-center gap-1.5 h-9 rounded-xl border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-medium transition-colors"
+        >
+          <Icon name="payments" size={14} />
+          Presupuestos
+        </Link>
       </div>
-    </div>
-  );
-}
-
-// ─── Mobile card ──────────────────────────────────────────────────────────────
-
-function PacienteCard({ paciente: p }: { paciente: any }) {
-  const router = useRouter();
-  const cfg = ESTADO_CFG[p.estado as EstadoPaciente];
-  const edad = calcEdad(p.fecha_nacimiento);
-  const color = avatarColor(p.id);
-
-  return (
-    <div
-      onClick={() => router.push(`/pacientes/${p.id}`)}
-      className="bg-white rounded-2xl border border-slate-200 px-4 py-3 flex items-center gap-3 active:bg-slate-50 cursor-pointer"
-    >
-      {/* Avatar */}
-      <div
-        className="w-11 h-11 rounded-full flex items-center justify-center text-[13px] font-bold text-white shrink-0"
-        style={{ background: color }}
-      >
-        {initials(p.nombre)}
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-          <p className="text-[13px] font-semibold text-slate-900 truncate">{p.nombre}</p>
-          <span
-            className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-            style={{ background: cfg?.bg ?? "#f1f5f9", color: cfg?.text ?? "#64748b" }}
-          >
-            {cfg?.label ?? p.estado}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 flex-wrap">
-          <span>{p.dni}</span>
-          <span>·</span>
-          <span>{edad} años</span>
-          <span>·</span>
-          <span>{p.telefono}</span>
-        </div>
-        {p.ultima_visita && (
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Última visita: {fmtFecha(p.ultima_visita)}
-          </p>
-        )}
-        {p.alergias && p.alergias.length > 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-600 mt-0.5">
-            <Icon name="warning_amber" size={11} />
-            {p.alergias.join(", ")}
-          </span>
-        )}
-      </div>
-
-      {/* Chevron */}
-      <Icon name="chevron_right" size={20} className="text-slate-300 shrink-0" />
-    </div>
+    </motion.div>
   );
 }

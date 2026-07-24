@@ -2,7 +2,7 @@
 export type EstadoCita =
   | "programada"   // citas.estado default
   | "confirmada"
-  | "hecha"
+  | "atendida"
   | "cancelada";
 
 // Maps to public.citas

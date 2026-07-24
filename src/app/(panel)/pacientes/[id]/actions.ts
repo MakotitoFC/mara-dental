@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { resolveOrCrearHistoriaClinica } from "../historia.helpers";
+import { getSedeInfoAction } from "./consulta.actions";
 
 export async function getDetallePacienteAction(pacienteId: string) {
   const supabase = await createClient();
@@ -111,7 +113,7 @@ export async function getDetallePacienteAction(pacienteId: string) {
   const antArr      = toStringArray(paciente.antecedentes);
   const antEstruct  = parseAntecedentes(paciente.antecedentes);
 
-  // Parsear jsonb de examen_fisico donde metemos tratamiento y medicacion del mock
+  // Parsear jsonb de examen_fisico donde se guardan tratamiento y medicación
   const notasMap = (consultas || []).map((c: any) => {
     let tr = undefined;
     let med = undefined;
@@ -181,6 +183,71 @@ export async function getDetallePacienteAction(pacienteId: string) {
   };
 }
 
+export async function updatePacienteAction(pacienteId: string, data: {
+  nombre: string;
+  apellido: string;
+  dni: string;
+  fecha_nacimiento: string;
+  telefono: string;
+  email?: string;
+  sexo?: string;
+  lugar_nacimiento?: string;
+  raza?: string;
+  direccion?: string;
+  domicilio?: string;
+  lugar_procedencia?: string;
+  ocupacion?: string;
+  religion?: string;
+  grupo_sanguineo?: string;
+  estado_civil?: string;
+  grado_instruccion?: string;
+  enfermedad_actual?: string;
+  alergias?: string[];
+  antecedentes?: { cronicas: string[]; medicacion_habitual: string[]; quirurgicos: string[] };
+}) {
+  const supabase = await createClient();
+
+  const hoy = new Date().toISOString().split("T")[0];
+  if (data.fecha_nacimiento > hoy) {
+    return { error: "La fecha de nacimiento no puede ser mayor a la fecha actual." };
+  }
+
+  const { error } = await supabase.from("pacientes").update({
+    nombre:            data.nombre.trim(),
+    apellido:          data.apellido.trim(),
+    dni:               data.dni.trim(),
+    fecha_nacimiento:  data.fecha_nacimiento,
+    telefono:          data.telefono.trim(),
+    email:             data.email             || null,
+    sexo:              data.sexo              || null,
+    lugar_nacimiento:  data.lugar_nacimiento  || null,
+    raza:              data.raza              || null,
+    direccion:         data.direccion         || null,
+    domicilio:         data.domicilio         || null,
+    lugar_procedencia: data.lugar_procedencia || null,
+    ocupacion:         data.ocupacion         || null,
+    religion:          data.religion          || null,
+    grupo_sanguineo:   data.grupo_sanguineo   || null,
+    estado_civil:      data.estado_civil      || null,
+    grado_instruccion: data.grado_instruccion || null,
+    enfermedad_actual: data.enfermedad_actual || null,
+    alergias:          data.alergias          || [],
+    antecedentes:      data.antecedentes      || { cronicas: [], medicacion_habitual: [], quirurgicos: [] },
+  }).eq("id", pacienteId);
+
+  if (error) {
+    console.error("Error actualizando paciente:", error);
+    if (error.code === '23505') {
+      return { error: "Ya existe otro paciente registrado con ese DNI." };
+    }
+    return { error: "Ocurrió un error al guardar los cambios." };
+  }
+
+  revalidatePath(`/pacientes/${pacienteId}`);
+  revalidatePath("/pacientes");
+  return { success: true };
+}
+
 export async function crearNotaClinicaAction(pacienteId: string, data: any) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -204,72 +271,18 @@ export async function crearNotaClinicaAction(pacienteId: string, data: any) {
   }
 
   // 1. Obtener/Crear Historia Clínica
-  let { data: hc } = await supabase
-    .from("historia_clinica")
-    .select("id")
-    .eq("paciente_id", pacienteId)
-    .maybeSingle();
+  const { data: paciente } = await supabase
+    .from("pacientes")
+    .select("nombre, apellido, fecha_nacimiento")
+    .eq("id", pacienteId)
+    .single();
 
-  if (!hc) {
-    // Necesitamos paciente para iniciales y fecha_nacimiento
-    const { data: paciente } = await supabase
-      .from("pacientes")
-      .select("nombre, apellido, fecha_nacimiento")
-      .eq("id", pacienteId)
-      .single();
+  if (!paciente) return { error: "Paciente no encontrado" };
 
-    if (!paciente) return { error: "Paciente no encontrado" };
-
-    // Construir base del código: 4 iniciales + YYMMDD
-    const full = `${paciente.nombre} ${paciente.apellido}`.trim().split(/\s+/);
-    let inits = full.map(w => w[0].toUpperCase()).join("");
-    if (inits.length < 4) inits = inits.padEnd(4, "X");
-    inits = inits.substring(0, 4);
-
-    const f = paciente.fecha_nacimiento; // YYYY-MM-DD
-    const yymmdd = f.substring(2, 4) + f.substring(5, 7) + f.substring(8, 10);
-    const prefix = `${inits}${yymmdd}`; // 10 chars
-
-    // Buscar en BD el máximo correlativo
-    const { data: existentes } = await supabase
-      .from("historia_clinica")
-      .select("codigo_historia")
-      .like("codigo_historia", `${prefix}%`)
-      .order("codigo_historia", { ascending: false })
-      .limit(1);
-
-    let num = 0;
-    if (existentes && existentes.length > 0) {
-      const highest = existentes[0].codigo_historia;
-      const parsedNum = parseInt(highest.substring(10), 10);
-      if (!isNaN(parsedNum)) {
-        num = parsedNum + 1;
-      }
-    }
-
-    const codigo_historia = `${prefix}${String(num).padStart(3, "0")}`; // 13 chars (4 + 6 + 3)
-
-    // Es uuid, supabase lo auto-genera si usamos uuid_generate_v4(), o insertamos sin id
-    // Para postgres UUID, dejamos que Supabase asigne el ID si lo soporta. Pero el schema de BD.md dice:
-    // "id" uuid PRIMARY KEY. No dice DEFAULT uuid_generate_v4(). 
-    // Así que lo proveeremos por código.
-    const newId = crypto.randomUUID();
-    const insertRes = await supabase
-      .from("historia_clinica")
-      .insert({
-         id: newId,
-         paciente_id: parseInt(pacienteId, 10),
-         codigo_historia
-      })
-      .select("id")
-      .single();
-
-    if (insertRes.error) {
-       console.error("Error creando historia:", insertRes.error);
-       return { error: "No se pudo crear la historia clínica." };
-    }
-    hc = insertRes.data;
-  }
+  const hc = await resolveOrCrearHistoriaClinica(
+    supabase, parseInt(pacienteId, 10), paciente.nombre, paciente.apellido, paciente.fecha_nacimiento,
+  );
+  if ("error" in hc) return hc;
 
   // 1.5 Buscar Cita del Día
   const hoyStr = new Date().toLocaleDateString("en-CA"); // Formato YYYY-MM-DD
@@ -318,36 +331,60 @@ export async function crearNotaClinicaAction(pacienteId: string, data: any) {
   return { success: true, consultaId: nuevaConsulta?.id };
 }
 
-// Inicia una consulta vacía y devuelve su id para entrar directo al wizard de atención
-export async function iniciarConsultaAction(pacienteId: string) {
-  const res = await crearNotaClinicaAction(pacienteId, { motivo: "", observaciones: undefined, examen_fisico: undefined });
-  if ((res as any)?.error) return res;
-  return { success: true, consultaId: (res as any).consultaId };
-}
-
 // ─── Historial de consultas (vista completa por consulta) ─────────────────────
 
-export async function getHistorialConsultasAction(pacienteId: string) {
+export async function getHistorialConsultasAction(
+  pacienteId: string,
+  opts?: { fechaDesde?: string; fechaHasta?: string },
+) {
   const supabase = await createClient();
   const pid = Number(pacienteId);
 
+  // consultas no tiene FK directa a historia_clinica — la cadena real es
+  // historia_clinica → nota_clinica → consultas. Resolvemos en dos pasos en
+  // vez de un filtro anidado de 2 niveles (soporte incierto en PostgREST).
+  const { data: hc } = await supabase
+    .from("historia_clinica")
+    .select("id")
+    .eq("paciente_id", pid)
+    .maybeSingle();
+
+  if (!hc) return [];
+
+  const { data: notasClinicas } = await supabase
+    .from("nota_clinica")
+    .select("id")
+    .eq("historia_clinica_id", hc.id);
+
+  const notaIds = (notasClinicas || []).map((n) => n.id);
+  if (notaIds.length === 0) return [];
+
+  let consultasQuery = supabase
+    .from("consultas")
+    .select(`
+      id, fecha_consulta, motivo, observaciones, examen_fisico,
+      personal ( nombre, apellido, url_firma_digital, especialidad ( especialidad ) ),
+      diagnostico!diagnostico_consulta_origen_id_fkey (
+        id, diagnostico, es_definitivo, "esTratado",
+        cie10 ( codigo, descripcion ),
+        tratamiento (
+          id, tratamiento,
+          plan_tratamiento (
+            id, fase, orden, descripcion, tiempo_estimado, estado,
+            tratamiento_catalogo_planeado ( id, estado, catalogo_tratamientos ( nombre, precio, moneda ) )
+          )
+        ),
+        recetas ( id, estado, fecha_emision, receta_medicamento ( medicamento_nombre, dosis, frecuencia, indicaciones ) )
+      )
+    `)
+    .in("nota_clinica_id", notaIds)
+    .order("fecha_consulta", { ascending: false });
+
+  if (opts?.fechaDesde) consultasQuery = consultasQuery.gte("fecha_consulta", opts.fechaDesde);
+  if (opts?.fechaHasta) consultasQuery = consultasQuery.lte("fecha_consulta", `${opts.fechaHasta}T23:59:59`);
+
   const [consultasRes, presupuestosRes] = await Promise.all([
-    supabase
-      .from("consultas")
-      .select(`
-        id, fecha_consulta, motivo, observaciones, examen_fisico,
-        personal ( nombre, apellido ),
-        historia_clinica!inner ( paciente_id ),
-        diagnostico!diagnostico_consulta_origen_id_fkey (
-          id, diagnostico, es_definitivo, esTratado,
-          cie10 ( codigo, descripcion ),
-          tratamiento ( id, notas, catalogo_tratamientos ( nombre, precio, moneda ) ),
-          plan_trabajo ( id, etapa, descripcion, estado, tiempo_pronostico ),
-          recetas ( id, estado, fecha_emision, receta_medicamento ( medicamento_nombre, dosis, frecuencia, indicaciones ) )
-        )
-      `)
-      .eq("historia_clinica.paciente_id", pid)
-      .order("fecha_consulta", { ascending: false }),
+    consultasQuery,
     supabase
       .from("presupuestos")
       .select(`id, fecha_emision, total_bruto, descuento_monto, estado,
@@ -355,6 +392,70 @@ export async function getHistorialConsultasAction(pacienteId: string) {
         pagos ( monto, estado )`)
       .eq("paciente_id", pid),
   ]);
+
+  const consultaIds = (consultasRes.data || []).map((c: any) => c.id);
+  const diagIdsPorConsulta = new Map<number, number[]>();
+  for (const c of consultasRes.data || []) {
+    diagIdsPorConsulta.set(c.id, (c.diagnostico || []).map((d: any) => d.id));
+  }
+  const todosDiagIds = Array.from(diagIdsPorConsulta.values()).flat();
+
+  const [archivosPorConsultaRes, archivosPorDiagRes, odontogramasRes] = await Promise.all([
+    consultaIds.length > 0
+      ? supabase.from("archivos_clinicos")
+          .select("id, nombre_archivo, url, tipo_archivo, categoria, fecha_subida, consulta_id")
+          .in("consulta_id", consultaIds)
+      : Promise.resolve({ data: [] as any[] }),
+    todosDiagIds.length > 0
+      ? supabase.from("archivos_clinicos")
+          .select("id, nombre_archivo, url, tipo_archivo, categoria, fecha_subida, diagnostico_id")
+          .in("diagnostico_id", todosDiagIds)
+      : Promise.resolve({ data: [] as any[] }),
+    consultaIds.length > 0
+      ? supabase.from("odontograma")
+          .select("id, consulta_id, tipo_tratamiento, odontograma_diente ( diente )")
+          .in("consulta_id", consultaIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+
+  const archivosPorId = new Map<number, any>();
+  for (const a of [...(archivosPorConsultaRes.data || []), ...(archivosPorDiagRes.data || [])]) {
+    archivosPorId.set(a.id, a);
+  }
+  const archivosSignedList = await Promise.all(
+    Array.from(archivosPorId.values()).map(async (a: any) => {
+      let displayUrl = a.url;
+      if (a.url && !String(a.url).startsWith("http")) {
+        const { data: signed } = await supabase.storage.from("archivos_clinicos").createSignedUrl(a.url, 60 * 60);
+        displayUrl = signed?.signedUrl || a.url;
+      }
+      return { ...a, displayUrl };
+    }),
+  );
+
+  const archivosPorConsulta = new Map<number, any[]>();
+  for (const a of archivosSignedList) {
+    if (a.consulta_id != null) {
+      if (!archivosPorConsulta.has(a.consulta_id)) archivosPorConsulta.set(a.consulta_id, []);
+      archivosPorConsulta.get(a.consulta_id)!.push(a);
+    }
+  }
+  for (const [consultaId, diagIds] of diagIdsPorConsulta) {
+    for (const a of archivosSignedList) {
+      if (a.diagnostico_id != null && diagIds.includes(a.diagnostico_id)) {
+        if (!archivosPorConsulta.has(consultaId)) archivosPorConsulta.set(consultaId, []);
+        const list = archivosPorConsulta.get(consultaId)!;
+        if (!list.some((x) => x.id === a.id)) list.push(a);
+      }
+    }
+  }
+
+  const odontogramaPorConsulta = new Map<number, { piezas: number; tipo: string | null }>();
+  for (const o of odontogramasRes.data || []) {
+    if (o.consulta_id == null) continue;
+    const piezas = new Set((o.odontograma_diente || []).map((d: any) => d.diente)).size;
+    odontogramaPorConsulta.set(o.consulta_id, { piezas, tipo: o.tipo_tratamiento || null });
+  }
 
   // Presupuestos indexados por día (se asocian a la consulta del mismo día)
   const presuPorDia = new Map<string, any[]>();
@@ -383,29 +484,42 @@ export async function getHistorialConsultasAction(pacienteId: string) {
     const dia = (c.fecha_consulta || "").split("T")[0];
     const examen = Object.entries(c.examen_fisico || {}).filter(([k]) => k !== "tipo").map(([k, v]) => ({ clave: k, valor: String(v) }));
 
-    const diagnosticos = (c.diagnostico || []).map((d: any) => ({
-      id: d.id,
-      texto: d.diagnostico,
-      es_definitivo: d.es_definitivo,
-      es_tratado: d.esTratado,
-      cie10: d.cie10 ? { codigo: d.cie10.codigo, descripcion: d.cie10.descripcion } : null,
-      tratamientos: (d.tratamiento || []).map((t: any) => ({
-        id: t.id,
-        notas: t.notas,
-        nombre: t.catalogo_tratamientos?.nombre ?? "Tratamiento",
-        precio: Number(t.catalogo_tratamientos?.precio) || 0,
-        moneda: t.catalogo_tratamientos?.moneda ?? "PEN",
-      })),
-      plan: (d.plan_trabajo || []).map((p: any) => ({
-        id: p.id, etapa: p.etapa, descripcion: p.descripcion, estado: p.estado, tiempo: p.tiempo_pronostico,
-      })),
-      recetas: (d.recetas || []).map((r: any) => ({
-        id: r.id, estado: r.estado,
-        medicamentos: (r.receta_medicamento || []).map((m: any) => ({
-          nombre: m.medicamento_nombre, dosis: m.dosis, frecuencia: m.frecuencia, indicaciones: m.indicaciones,
+    const diagnosticos = (c.diagnostico || []).map((d: any) => {
+      // Ítems de catálogo planeados, aplanados desde tratamiento → plan_tratamiento →
+      // tratamiento_catalogo_planeado (relación real; puede haber varios por diagnóstico).
+      const catalogoItems = (d.tratamiento || []).flatMap((t: any) =>
+        (t.plan_tratamiento || []).flatMap((p: any) =>
+          (p.tratamiento_catalogo_planeado || []).map((tc: any) => tc.catalogo_tratamientos).filter(Boolean)
+        )
+      );
+      const primerItem = catalogoItems[0];
+
+      return {
+        id: d.id,
+        texto: d.diagnostico,
+        es_definitivo: d.es_definitivo,
+        es_tratado: d.esTratado,
+        cie10: d.cie10 ? { codigo: d.cie10.codigo, descripcion: d.cie10.descripcion } : null,
+        tratamientos: (d.tratamiento || []).map((t: any) => ({
+          id: t.id,
+          notas: t.tratamiento,
+          nombre: primerItem?.nombre ?? "Tratamiento",
+          precio: Number(primerItem?.precio) || 0,
+          moneda: primerItem?.moneda ?? "PEN",
         })),
-      })),
-    }));
+        plan: (d.tratamiento || []).flatMap((t: any) =>
+          (t.plan_tratamiento || []).map((p: any) => ({
+            id: p.id, etapa: p.fase, descripcion: p.descripcion, estado: p.estado, tiempo: p.tiempo_estimado,
+          }))
+        ),
+        recetas: (d.recetas || []).map((r: any) => ({
+          id: r.id, estado: r.estado,
+          medicamentos: (r.receta_medicamento || []).map((m: any) => ({
+            nombre: m.medicamento_nombre, dosis: m.dosis, frecuencia: m.frecuencia, indicaciones: m.indicaciones,
+          })),
+        })),
+      };
+    });
 
     return {
       id: String(c.id),
@@ -413,11 +527,94 @@ export async function getHistorialConsultasAction(pacienteId: string) {
       motivo: c.motivo || "Consulta",
       observaciones: c.observaciones || "",
       doctor: dr,
+      doctorEspecialidad: c.personal?.especialidad?.especialidad ?? null,
+      doctorFirmaUrl: c.personal?.url_firma_digital ?? null,
       examen,
       diagnosticos,
       presupuestos: presuPorDia.get(dia) || [],
+      archivos: (archivosPorConsulta.get(c.id) || []).map((a: any) => ({
+        id: a.id,
+        nombre_archivo: a.nombre_archivo,
+        categoria: a.categoria,
+        tipo_archivo: a.tipo_archivo,
+        fecha_subida: a.fecha_subida,
+        displayUrl: a.displayUrl,
+      })),
+      odontograma: odontogramaPorConsulta.get(c.id) || null,
     };
   });
+}
+
+// ─── Expediente clínico completo (para exportación PDF) ────────────────────────
+
+export async function getExpedienteCompletoAction(pacienteId: string, opts?: {
+  fechaDesde?: string; fechaHasta?: string;
+}) {
+  const supabase = await createClient();
+
+  const [detalle, historial, sede] = await Promise.all([
+    getDetallePacienteAction(pacienteId),
+    getHistorialConsultasAction(pacienteId, opts),
+    getSedeInfoAction(),
+  ]);
+
+  if (!detalle) return null;
+
+  const { data: hc } = await supabase
+    .from("historia_clinica")
+    .select("id, codigo_historia, fecha_creacion, estado")
+    .eq("paciente_id", pacienteId)
+    .maybeSingle();
+
+  // Odontograma pieza por pieza, agrupado por consulta (real: odontograma.consulta_id).
+  const consultaIds = historial.map((c: any) => Number(c.id));
+  const odontogramasPorConsulta = new Map<number, any[]>();
+
+  if (consultaIds.length > 0) {
+    const { data: odontos } = await supabase
+      .from("odontograma")
+      .select(`
+        id, consulta_id, tipo_tratamiento,
+        personal ( nombre, apellido ),
+        odontograma_diente ( id, diente, superficie, descripcion, condicion ( condicion ) )
+      `)
+      .in("consulta_id", consultaIds);
+
+    for (const o of odontos || []) {
+      const grouped = new Map<string, any>();
+      for (const d of (o.odontograma_diente || []) as any[]) {
+        const key = `${d.diente}_${d.descripcion || ""}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, { toothNumber: Number(d.diente), isAll: false, surfaceConditions: [] as any[], observaciones: d.descripcion || "" });
+        }
+        const g = grouped.get(key)!;
+        const condicionNombre = (d.condicion as any)?.condicion ?? "hallazgo";
+        if (d.superficie === "diente completo") {
+          g.isAll = true;
+          g.allConvention = condicionNombre;
+        } else if (!g.surfaceConditions.find((s: any) => s.surface === d.superficie)) {
+          g.surfaceConditions.push({ surface: d.superficie, convention: condicionNombre });
+        }
+      }
+      const doctor = o.personal ? `${(o.personal as any).nombre} ${(o.personal as any).apellido}`.trim() : null;
+      const entry = { id: o.id, tipo: o.tipo_tratamiento, doctor, findings: Array.from(grouped.values()) };
+      const list = odontogramasPorConsulta.get(o.consulta_id) || [];
+      list.push(entry);
+      odontogramasPorConsulta.set(o.consulta_id, list);
+    }
+  }
+
+  const consultas = historial.map((c: any) => ({
+    ...c,
+    odontogramaDetalle: odontogramasPorConsulta.get(Number(c.id)) || [],
+  }));
+
+  return {
+    paciente: detalle.paciente,
+    historiaClinica: hc || null,
+    sede,
+    consultas,
+  };
 }
 
 // ─── Línea de tiempo clínica ──────────────────────────────────────────────────
