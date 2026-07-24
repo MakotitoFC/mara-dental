@@ -21,7 +21,7 @@ import {
   ChevronDown, ChevronUp,
   Heart, Dna, FlaskConical,
   LogOut, PenTool, Bandage, Lightbulb,
-  LineChart, Users, Shield, BarChart, UsersRound
+  LineChart, Users, Shield, BarChart, UsersRound, Tags
 } from "lucide-react";
 
 interface IconProps {
@@ -107,6 +107,7 @@ const ICONS: Record<string, LucideIcon> = {
   event:                Calendar,
   event_available:      CalendarCheck,
   event_upcoming:       CalendarDays,
+  event_note:           CalendarDays,
   history:              RotateCcw,
 
   // Personas
@@ -135,6 +136,7 @@ const ICONS: Record<string, LucideIcon> = {
   photo_library_alt:    Images,
 
   // Misc
+  category:             Tags,
   cake:                 Cake,
   contact_page:         ClipboardList,
   assignment:           ClipboardList,

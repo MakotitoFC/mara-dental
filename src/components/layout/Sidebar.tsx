@@ -13,6 +13,7 @@ const NAV_MAIN = [
   { href: "/admin/auditoria", icon: "admin_panel_settings", label: "Auditoría" },
   { href: "/admin/reportes",  icon: "analytics",       label: "Reportes" },
   { href: "/admin/catalogo",  icon: "medical_information", label: "Catálogo Precios" },
+  { href: "/admin/configuracion-tipos", icon: "category", label: "Config. Tipos" },
   { href: "/agenda",          icon: "calendar_month",  label: "Calendario" },
   { href: "/pacientes",       icon: "person",          label: "Pacientes" },
   { href: "/archivos",        icon: "photo_library",   label: "Archivos" },
@@ -25,7 +26,7 @@ const NAV_BOTTOM = [
 ];
 
 const ROLE_HREFS: Record<string, string[]> = {
-  admin:     ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
+  admin:     ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
   doctor:    ["/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
   asistente: ["/dashboard", "/agenda", "/pacientes", "/archivos"],
   contador:  ["/dashboard", "/presupuestos", "/archivos"],
