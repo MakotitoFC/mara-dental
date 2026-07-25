@@ -21,7 +21,7 @@ import {
   addDays, getMonday, toDateStr, MONTHS_L,
 } from "./agendaUtils";
 
-function AgendaViewInner() {
+function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
   const todayDate = new Date();
   todayDate.setHours(0, 0, 0, 0);
   const today = todayDate;
@@ -35,8 +35,8 @@ function AgendaViewInner() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [tipoFiltro, setTipoFiltro] = useState<TipoFiltro>("todos");
 
-  const [citas, setCitas] = useState<Cita[]>([]);
-  const [loadingCitas, setLoadingCitas] = useState(true);
+  const [citas, setCitas] = useState<Cita[]>(initialCitas || []);
+  const [loadingCitas, setLoadingCitas] = useState(false);
 
   const citasFiltradas = tipoFiltro === "todos" ? citas : citas.filter(c => c.tipo_consulta_id === tipoFiltro);
 
@@ -50,7 +50,7 @@ function AgendaViewInner() {
     setCitas(data);
     setLoadingCitas(false);
   };
-  useEffect(() => { loadCitas(); }, []);
+  // Se elimina el useEffect que cargaba citas inicialmente porque ya vienen en initialCitas
 
   // ?paciente=id — viene desde la ficha del paciente, abre el formulario de creación precargado
   useEffect(() => {
@@ -258,10 +258,10 @@ function AgendaViewInner() {
   );
 }
 
-export function AgendaView() {
+export function AgendaView({ initialCitas }: { initialCitas: Cita[] }) {
   return (
     <Suspense fallback={null}>
-      <AgendaViewInner />
+      <AgendaViewInner initialCitas={initialCitas} />
     </Suspense>
   );
 }

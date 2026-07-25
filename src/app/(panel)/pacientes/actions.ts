@@ -64,7 +64,9 @@ export async function getDoctorPacientesAction() {
       telefono: p.telefono,
       alergias: alergiasArr,
       estado,
-      ultima_visita: p.ultima_visita
+      ultima_visita: p.ultima_visita,
+      sexo: p.sexo,
+      grupo_sanguineo: p.grupo_sanguineo
     };
   });
 }

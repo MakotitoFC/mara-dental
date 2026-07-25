@@ -22,6 +22,8 @@ type PacienteListItem = {
   alergias: string[];
   estado: EstadoPaciente;
   ultima_visita: string | null;
+  sexo?: string;
+  grupo_sanguineo?: string;
 };
 
 // Paleta de avatares — variedad visual determinística por paciente, coherente con
@@ -86,28 +88,14 @@ function EmptyState({ hasPatients, onNuevo }: { hasPatients: boolean; onNuevo: (
   );
 }
 
-export function PacientesView() {
+export function PacientesView({ initialData }: { initialData: any[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [todos, setTodos] = useState<PacienteListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Inicializamos directamente con initialData, eliminando el estado de carga
+  const [todos, setTodos] = useState<PacienteListItem[]>(initialData || []);
+  const loading = false;
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [showNuevoModal, setShowNuevoModal] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const data = await getDoctorPacientesAction();
-      if (!cancelled) {
-        setTodos(data as PacienteListItem[]);
-        setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   function handlePacienteCreado(id: string) {
     setShowNuevoModal(false);
@@ -137,31 +125,18 @@ export function PacientesView() {
   const activeId = hoveredId && filtrados.some((p) => p.id === hoveredId) ? hoveredId : filtrados[0]?.id ?? null;
   const active = filtrados.find((p) => p.id === activeId) ?? null;
 
-  // Carga el detalle completo (antecedentes, contacto, próxima cita...) del paciente activo,
-  // con un pequeño debounce para no disparar una consulta por cada tarjeta que el mouse cruza.
-  const [detalle, setDetalle] = useState<DetallePaciente | null>(null);
-  const [detalleLoading, setDetalleLoading] = useState(false);
-
-  useEffect(() => {
-    if (!activeId) {
-      setDetalle(null);
-      return;
+  // Carga el detalle completo de manera instantánea ya que ahora get_doctor_pacientes_summary
+  // nos devuelve todo lo que necesitamos para el panel de la derecha (sexo, grupo sanguineo, etc).
+  // Ya no usamos getPreviewPacienteAction ni setTimeout.
+  const detalle = active ? {
+    paciente: {
+      sexo: active.sexo,
+      grupo_sanguineo: active.grupo_sanguineo,
+      telefono: active.telefono,
+      alergias: active.alergias
     }
-    let cancelled = false;
-    const t = setTimeout(() => {
-      setDetalleLoading(true);
-      getPreviewPacienteAction(activeId).then((d) => {
-        if (!cancelled) {
-          setDetalle(d);
-          setDetalleLoading(false);
-        }
-      });
-    }, 150);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [activeId]);
+  } : null;
+  const detalleLoading = false;
 
   return (
     <div className="flex-1 flex flex-col lg:flex-row gap-5 p-4 sm:p-5 lg:items-start">
