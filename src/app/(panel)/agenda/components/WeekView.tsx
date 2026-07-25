@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { Cita } from "@/types/agenda";
-import { resolveTipoCita, tipoCitaVars, estadoCitaVars } from "@/lib/colors";
+import { estadoCitaVars } from "@/lib/colors";
+import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { DAY_SHORT, HOURS, SLOT_H, FIRST_H, shortName, timeToMin, toDateStr } from "./agendaUtils";
 
 function NowLine() {
@@ -38,6 +39,7 @@ export function WeekView({
     const s = timeToMin(hr);
     return getCitas(d).filter(c => { const t = timeToMin(c.hora_inicio); return t >= s && t < s + 60; });
   };
+  const { getVars } = useTipoConsultaVars();
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white dark:bg-slate-800">
@@ -88,7 +90,7 @@ export function WeekView({
                       className={`border-l border-slate-100 dark:border-slate-700 p-0.5 overflow-hidden ${blocks.length === 0 ? "cursor-pointer hover:bg-cyan-50/40 dark:hover:bg-cyan-900/20" : ""}`}
                     >
                       {blocks.map(c => {
-                        const tipoVars = tipoCitaVars(resolveTipoCita(c.tipo_consulta));
+                        const tipoVars = getVars(c.tipo_consulta_id);
                         const estVars = estadoCitaVars(c.estado);
                         return (
                           <div

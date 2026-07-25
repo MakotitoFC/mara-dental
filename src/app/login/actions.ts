@@ -3,11 +3,24 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
+import { headers, cookies } from "next/headers";
+
 export async function loginAction(formData: FormData){
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
     const supabase = await createClient();
+    const headersList = await headers();
+    const ip = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || "unknown";
+
+    // 1. Obtener usuario_id desde la tabla personal para registrar sesión en caso de fallo
+    const { data: personalData } = await supabase
+        .from("personal")
+        .select("usuario_id")
+        .eq("email", email)
+        .single();
+    
+    const usuarioId = personalData?.usuario_id;
 
     const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -15,22 +28,67 @@ export async function loginAction(formData: FormData){
     });
 
     if(error){
+        if (usuarioId) {
+            await supabase.rpc("registrar_sesion", {
+                p_usuario_id: usuarioId,
+                p_ip: ip,
+                p_user_agent: "Fallo: Credenciales incorrectas o usuario inactivo"
+            });
+        }
         return { error: "Credenciales incorrectas o usuario no encontrado." };
     }
 
-    // Buscar rol del usuario para redirección
+    const actualUserId = data.user.id;
+
+    // 2. Buscar rol del usuario para redirección
     const { data: usuario } = await supabase
       .from("usuarios")
       .select(`
         rol:rol_id (rol)
       `)
-      .eq("id", data.user.id)
+      .eq("id", actualUserId)
       .single();
 
     // @ts-ignore
     const roleName = (usuario?.rol?.rol || "").toLowerCase();
 
-    if (roleName === "administrador" || roleName === "admin") {
+    if (!roleName) {
+        // Bloquear acceso si no tiene rol definido
+        await supabase.auth.signOut();
+        const { data: sesionId } = await supabase.rpc("registrar_sesion", {
+            p_usuario_id: actualUserId,
+            p_ip: ip,
+            p_user_agent: "Fallo: Rol no asignado o usuario sin permisos"
+        });
+        
+        if (sesionId) {
+            await supabase.rpc("cerrar_sesion", {
+                p_sesion_id: sesionId,
+                p_voluntario: false
+            });
+        }
+        
+        return { error: "Hubo un problema con su autenticación, comuniquese con el administrador" };
+    }
+
+    // Registrar sesión exitosa
+    const { data: sesionId } = await supabase.rpc("registrar_sesion", {
+        p_usuario_id: actualUserId,
+        p_ip: ip,
+        p_user_agent: `Éxito: Login exitoso como ${roleName}`
+    });
+
+    if (sesionId) {
+        const cookieStore = await cookies();
+        cookieStore.set("mara_sesion_id", sesionId, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 60 * 60 * 24 * 7, // 7 días
+            path: "/"
+        });
+    }
+
+    if (roleName === "administrador" || roleName === "admin" || roleName === "superadmin") {
         redirect("/admin/dashboard");
     } else {
         redirect("/dashboard");
@@ -52,6 +110,17 @@ export async function resetPasswordAction(formData: FormData){
 
 export async function logoutAction() {
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  const sesionId = cookieStore.get("mara_sesion_id")?.value;
+
+  if (sesionId) {
+      await supabase.rpc("cerrar_sesion", {
+          p_sesion_id: sesionId,
+          p_voluntario: true
+      });
+      cookieStore.delete("mara_sesion_id");
+  }
+
   await supabase.auth.signOut(); // Esto borra las cookies seguras en el servidor
   redirect('/login');
 }

@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { Cita } from "@/types/agenda";
-import { resolveTipoCita, tipoCitaVars } from "@/lib/colors";
+import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { DAY_SHORT, MONTHS_L, getMonthGrid, toDateStr } from "./agendaUtils";
 
@@ -17,13 +17,12 @@ export function YearView({
 }) {
   const todayStr = toDateStr(today);
 
-  // Tipo dominante por día (para un punto de color en la mini-cuadrícula).
-  const tipoByDay = new Map<string, ReturnType<typeof resolveTipoCita>>();
-  for (const c of citas) {
-    if (!tipoByDay.has(c.fecha)) tipoByDay.set(c.fecha, resolveTipoCita(c.tipo_consulta));
-  }
+  const firstCitaByDay = new Map<string, Cita>();
   const countByDay = new Map<string, number>();
-  for (const c of citas) countByDay.set(c.fecha, (countByDay.get(c.fecha) ?? 0) + 1);
+  for (const c of citas) {
+    if (!firstCitaByDay.has(c.fecha)) firstCitaByDay.set(c.fecha, c);
+    countByDay.set(c.fecha, (countByDay.get(c.fecha) ?? 0) + 1);
+  }
 
   return (
     <motion.div
@@ -64,7 +63,8 @@ export function YearView({
                   const inMonth = day.getMonth() === month;
                   const isToday = ds === todayStr;
                   const count = countByDay.get(ds) ?? 0;
-                  const tipo = tipoByDay.get(ds);
+                  const firstCita = firstCitaByDay.get(ds);
+                  const vars = firstCita ? getVars(firstCita.tipo_consulta_id) : null;
 
                   return (
                     <button
@@ -83,7 +83,7 @@ export function YearView({
                       {inMonth && count > 0 && !isToday && (
                         <span
                           className="absolute bottom-[1px] w-[3px] h-[3px] rounded-full"
-                          style={{ background: tipo ? tipoCitaVars(tipo).solid : "var(--tipo-otros-solid)" }}
+                          style={{ background: vars ? vars.solid : "var(--tipo-otros-solid)" }}
                         />
                       )}
                     </button>

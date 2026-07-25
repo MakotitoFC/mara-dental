@@ -6,7 +6,8 @@ import { Icon } from "@/components/ui/Icon";
 import type { Cita, EstadoCita } from "@/types/agenda";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { deleteCitaAction, updateCitaAction } from "../actions";
-import { resolveTipoCita, tipoCitaVars, estadoCitaVars, ESTADO_CITA_LABEL, TIPO_CITA_LABEL } from "@/lib/colors";
+import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
+import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { ESTADO_ICON, ESTADO_ORDER, initials } from "./agendaUtils";
 
 export function AppointmentDetailSheet({
@@ -24,8 +25,8 @@ export function AppointmentDetailSheet({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
-  const tipo = resolveTipoCita(cita.tipo_consulta);
-  const tipoVars = tipoCitaVars(tipo);
+  const { getVars } = useTipoConsultaVars();
+  const tipoVars = getVars(cita.tipo_consulta_id);
   const estVars = estadoCitaVars(cita.estado);
 
   const dateLabel = new Date(cita.fecha + "T12:00:00").toLocaleDateString("es-PE", {
@@ -186,7 +187,7 @@ export function AppointmentDetailSheet({
               <p className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Tipo de cita</p>
               <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-2 py-0.5 mt-0.5 rounded-full" style={{ background: tipoVars.bg, color: tipoVars.text }}>
                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: tipoVars.solid }} />
-                {TIPO_CITA_LABEL[tipo]}
+                {tipoVars.label}
               </span>
             </div>
           </div>

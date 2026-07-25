@@ -24,9 +24,10 @@ export async function getDetallePacienteAction(pacienteId: string) {
       id,
       fecha,
       hora_inicio,
-      tipo_consulta,
+      tipo_consulta_id,
       estado,
-      personal ( nombre, apellido )
+      notas,
+      tipo_consulta:tipo_consulta_id ( tipo_consulta, color )
     `)
     .eq("paciente_id", pacienteId)
     .order("fecha", { ascending: false });
@@ -142,8 +143,11 @@ export async function getDetallePacienteAction(pacienteId: string) {
       id: String(c.id),
       fecha: c.fecha,
       hora: c.hora_inicio,
-      servicio: c.tipo_consulta || "Consulta general",
+      hora_inicio: c.hora_inicio,
+      servicio: c.tipo_consulta?.tipo_consulta || "Consulta general",
+      tipo_consulta: c.tipo_consulta,
       estado: c.estado,
+      notas: c.notas,
       medico: drName
     };
   });
@@ -254,47 +258,40 @@ export async function crearNotaClinicaAction(pacienteId: string, data: any) {
 
   if (!user) return { error: "No autorizado" };
 
-  let { data: personal } = await supabase
-    .from("personal")
-    .select("id")
-    .eq("usuario_id", user.id)
-    .single();
-
-  if (!personal) {
-    // Si es un administrador de prueba y no está en 'personal', tomamos al primer doctor disponible
-    const { data: firstDoc } = await supabase.from("personal").select("id").limit(1).single();
-    if (firstDoc) {
-      personal = firstDoc;
-    } else {
-      return { error: "Perfil de doctor no encontrado y no hay médicos en el sistema" };
-    }
-  }
+  // No necesitamos la tabla 'personal', usamos user.id directamente
 
   // 1. Obtener/Crear Historia Clínica
-  const { data: paciente } = await supabase
+  const { data: paciente, error: errorPaciente } = await supabase
     .from("pacientes")
-    .select("nombre, apellido, fecha_nacimiento")
+    .select("nombre, apellido, fecha_nacimiento, dni")
     .eq("id", pacienteId)
     .single();
 
-  if (!paciente) return { error: "Paciente no encontrado" };
+  if (errorPaciente || !paciente) {
+    console.error("Error buscando paciente:", errorPaciente);
+    return { error: "Paciente no encontrado o sin acceso." };
+  }
 
-  const hc = await resolveOrCrearHistoriaClinica(
-    supabase, parseInt(pacienteId, 10), paciente.nombre, paciente.apellido, paciente.fecha_nacimiento,
-  );
+  const hc = await resolveOrCrearHistoriaClinica(supabase, pacienteId, paciente.dni);
   if ("error" in hc) return hc;
 
   // 1.5 Buscar Cita del Día
   const hoyStr = new Date().toLocaleDateString("en-CA"); // Formato YYYY-MM-DD
   const { data: citasHoy } = await supabase
     .from("citas")
-    .select("id")
+    .select("id, tipo_consulta_id")
     .eq("paciente_id", pacienteId)
-    .eq("doctor_id", personal.id)
+    .eq("doctor_id", user.id)
     .eq("fecha", hoyStr)
     .in("estado", ["programada", "confirmada"])
     .order("hora_inicio", { ascending: true })
     .limit(1);
+
+  let tipoConsultaIdFallback = citasHoy?.[0]?.tipo_consulta_id;
+  if (!tipoConsultaIdFallback) {
+    const { data: tc } = await supabase.from("tipo_consulta").select("id").limit(1).single();
+    if (tc) tipoConsultaIdFallback = tc.id;
+  }
 
   // 1.8 Crear Nota Clínica asociada a la Historia Clínica
   const { data: notaClinica, error: errorNota } = await supabase
@@ -314,8 +311,9 @@ export async function crearNotaClinicaAction(pacienteId: string, data: any) {
   // 2. Insertar Consulta usando nota_clinica_id
   const { data: nuevaConsulta, error } = await supabase.from("consultas").insert({
     nota_clinica_id: notaClinica.id,
-    doctor_id: personal.id,
-    cita_id,
+    doctor_id: user.id,
+    cita_id: citasHoy?.[0]?.id || null,
+    tipo_consulta_id: tipoConsultaIdFallback,
     fecha_consulta: new Date().toISOString(),
     motivo: data.motivo,
     observaciones: data.observaciones || null,

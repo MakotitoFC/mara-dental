@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { Cita } from "@/types/agenda";
-import { resolveTipoCita, tipoCitaVars } from "@/lib/colors";
+import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { DAY_SHORT, getMonthGrid, timeToMin, toDateStr } from "./agendaUtils";
 
@@ -20,6 +20,7 @@ export function MonthView({
 }) {
   const grid = getMonthGrid(year, month);
   const todayStr = toDateStr(today);
+  const { getVars } = useTipoConsultaVars();
 
   const citasByDay = (d: Date) =>
     citas
@@ -72,7 +73,7 @@ export function MonthView({
               {inMonth && shown.length > 0 && (
                 <div className="flex flex-col gap-1 min-w-0">
                   {shown.map(c => {
-                    const vars = tipoCitaVars(resolveTipoCita(c.tipo_consulta));
+                    const vars = getVars(c.tipo_consulta_id);
                     return (
                       <span
                         key={c.id}

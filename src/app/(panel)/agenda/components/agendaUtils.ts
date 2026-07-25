@@ -86,12 +86,11 @@ export const FIRST_H = 7;
 
 export const ESTADO_ICON: Record<EstadoCita, string> = {
   programada: "schedule",
-  confirmada: "check_circle",
-  atendida: "event_available",
+  hecho: "check_circle",
   cancelada: "cancel",
 };
 
-export const ESTADO_ORDER: EstadoCita[] = ["programada", "confirmada", "atendida", "cancelada"];
+export const ESTADO_ORDER: EstadoCita[] = ["programada", "hecho", "cancelada"];
 
 // Tipos de consulta ofrecidos al crear/editar — alineados con TIPO_CITA_ORDER
 // (src/lib/colors.ts) para que el sistema de colores tenga sentido en toda la agenda.

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server'; // o donde tengas tu cliente servidor
 import {DashboardShell} from '@/components/layout/DashboardShell';
 import { AuthUser } from '@/types/auth';
+import { TipoConsultaProvider, TipoConsulta } from '@/providers/TipoConsultaProvider';
 
 
 function getInitials(name:string){
@@ -13,6 +14,8 @@ function getInitials(name:string){
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient(); // instanciar cliente
   let currentUser: AuthUser | null = null;
+  let tiposConsulta: TipoConsulta[] = [];
+  
   const {data:{user:realUser}} = await supabase.auth.getUser();
 
   if (!realUser) {
@@ -21,10 +24,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const userId = realUser.id;
     const email = realUser.email ?? "";
     try {
-      const [userRes,personalRes] = await Promise.all([
+      const [userRes, personalRes, tiposRes] = await Promise.all([
         supabase.from("usuarios").select(`rol_id, rol (rol), sede (nombre_clinica)`).eq("id",userId).single(),
-        supabase.from("personal").select("nombre, apellido, especialidad (especialidad)").eq("usuario_id",userId).single()
+        supabase.from("personal").select("nombre, apellido, especialidad (especialidad)").eq("usuario_id",userId).single(),
+        supabase.from("tipo_consulta").select("id, tipo_consulta, color").order("tipo_consulta", { ascending: true })
       ]);
+      
+      if (tiposRes.data) tiposConsulta = tiposRes.data as TipoConsulta[];
 
       const roleName = (userRes.data?.rol as any)?.rol || "Sin rol";
       const sedeNombre = (userRes.data?.sede as any)?.nombre_clinica as string | undefined;
@@ -46,8 +52,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <DashboardShell initialUser={currentUser}>
-        {children}
-    </DashboardShell>
+    <TipoConsultaProvider tipos={tiposConsulta}>
+      <DashboardShell initialUser={currentUser}>
+          {children}
+      </DashboardShell>
+    </TipoConsultaProvider>
   );
 }

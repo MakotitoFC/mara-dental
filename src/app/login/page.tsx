@@ -27,10 +27,20 @@ const FEATURES = [
 ];
 
 const TEST_USERS = [
-  { email: "israjm19@gmail.com",       password: "M@ria10ijmrasmr", name: "Israel García",  rol: "Administrador", color: "bg-violet-100 text-violet-700" },
-  { email: "t1513300521@unitru.edu.pe", password: "J@elito12",       name: "Jael Torres",    rol: "Asistente",     color: "bg-blue-100 text-blue-700" },
-  { email: "escalinza14@gmail.com",       password: "Takemy2026",      name: "Dr. Escalinza",  rol: "Doctor",        color: "bg-cyan-100 text-cyan-700" },
-  { email: "almen042919@gmail.com",      password: "Almen2029",       name: "Almen Pérez",    rol: "Contador",      color: "bg-emerald-100 text-emerald-700" },
+  { email: "superadmin2026@gmail.com", password: "SuperAdmin2026", name: "Juan Pablo Escalante", rol: "SuperAdmin (S1)", color: "bg-purple-100 text-purple-700" },
+  { email: "israjm19@gmail.com", password: "M@ria10ijmrasmr", name: "María Isabel Gutiérrez", rol: "Admin (S1)", color: "bg-violet-100 text-violet-700" },
+  { email: "admin1sede2@gmail.com", password: "Admin1Sede2", name: "Luis Fernando López", rol: "Admin (S2)", color: "bg-violet-100 text-violet-700" },
+  { email: "escalinza14@gmail.com", password: "Takemy2026", name: "Dr. Carlos Rodríguez", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
+  { email: "doctor2sede1@gmail.com", password: "Doctor2Sede1", name: "Dr. Miguel Ángel Díaz", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
+  { email: "doctor3sede1@gmail.com", password: "Doctor3Sede1", name: "Dr. Marco Torres", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
+  { email: "doctor1sede2@gmail.com", password: "Doctor1Sede2", name: "Dr. José María Romero", rol: "Doctor (S2)", color: "bg-cyan-100 text-cyan-700" },
+  { email: "doctor2sede2@gmail.com", password: "Doctor2Sede2", name: "Dr. Santiago Castro", rol: "Doctor (S2)", color: "bg-cyan-100 text-cyan-700" },
+  { email: "doctor3sede2@gmail.com", password: "Doctor3Sede2", name: "Dr. Carlos Mendoza", rol: "Doctor (S2)", color: "bg-cyan-100 text-cyan-700" },
+  { email: "almen042919@gmail.com", password: "Almen2029", name: "Ana Patricia Fernández", rol: "Cajero (S1)", color: "bg-emerald-100 text-emerald-700" },
+  { email: "cajero1sede2@gmail.com", password: "Cajero1Sede2", name: "Rosa María Chávez", rol: "Cajero (S2)", color: "bg-emerald-100 text-emerald-700" },
+  { email: "cajero2sede2@gmail.com", password: "Cajero2Sede2", name: "María Fernanda Salazar", rol: "Cajero (S2)", color: "bg-emerald-100 text-emerald-700" },
+  { email: "t1513300521@gmail.com", password: "J@elito12", name: "José Luis Martínez", rol: "Asistente (S1)", color: "bg-blue-100 text-blue-700" },
+  { email: "asistente1sede2@gmail.com", password: "Asistente1Sede2", name: "Laura Patricia Ramos", rol: "Asistente (S2)", color: "bg-blue-100 text-blue-700" },
 ];
 
 export default function LoginPage() {
@@ -272,7 +282,7 @@ export default function LoginPage() {
             <p className="text-[11px] font-medium text-slate-400 mb-2.5 text-center tracking-wide uppercase">
               Accesos de prueba
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
               {TEST_USERS.map((u) => (
                 <button
                   key={u.email}

@@ -5,11 +5,11 @@ import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import type { CalView } from "./agendaUtils";
 import { VIEW_LABELS, VIEW_ICONS } from "./agendaUtils";
-import { type TipoCita, TIPO_CITA_LABEL, TIPO_CITA_ORDER, tipoCitaVars } from "@/lib/colors";
+import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 
 const VIEWS: CalView[] = ["day", "week", "month", "year", "cronograma"];
 
-export type TipoFiltro = TipoCita | "todos";
+export type TipoFiltro = string | "todos"; // string is tipo_consulta_id
 
 function ViewSelector({ view, onViewChange }: { view: CalView; onViewChange: (v: CalView) => void }) {
   const [open, setOpen] = useState(false);
@@ -52,8 +52,10 @@ function ViewSelector({ view, onViewChange }: { view: CalView; onViewChange: (v:
 
 function TipoFiltroSelector({ value, onChange }: { value: TipoFiltro; onChange: (v: TipoFiltro) => void }) {
   const [open, setOpen] = useState(false);
-  const vars = value !== "todos" ? tipoCitaVars(value) : null;
-  const label = value === "todos" ? "Todos los tipos" : TIPO_CITA_LABEL[value];
+  const { getVars, tipos } = useTipoConsultaVars();
+  
+  const vars = value !== "todos" ? getVars(value as string) : null;
+  const label = value === "todos" ? "Todos los tipos" : (vars?.label || "Desconocido");
 
   return (
     <div className="relative flex-1 md:flex-none">
@@ -82,17 +84,17 @@ function TipoFiltroSelector({ value, onChange }: { value: TipoFiltro; onChange: 
             <span className="w-2 h-2 rounded-full shrink-0 bg-slate-400 dark:bg-slate-500" />
             Todos los tipos
           </button>
-          {TIPO_CITA_ORDER.map((tipo) => {
-            const v = tipoCitaVars(tipo);
+          {tipos.map((tipo) => {
+            const v = getVars(tipo.id);
             return (
               <button
-                key={tipo}
-                onMouseDown={() => onChange(tipo)}
-                className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-700 ${value === tipo ? "font-semibold" : "text-slate-600 dark:text-slate-300"}`}
-                style={value === tipo ? { color: v.text } : undefined}
+                key={tipo.id}
+                onMouseDown={() => onChange(tipo.id)}
+                className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-700 ${value === tipo.id ? "font-semibold" : "text-slate-600 dark:text-slate-300"}`}
+                style={value === tipo.id ? { color: v.text } : undefined}
               >
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: v.solid }} />
-                {TIPO_CITA_LABEL[tipo]}
+                {tipo.tipo_consulta}
               </button>
             );
           })}
