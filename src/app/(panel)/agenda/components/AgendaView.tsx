@@ -16,7 +16,6 @@ import { DayAppointmentsSheet } from "./DayAppointmentsSheet";
 import { AppointmentDetailSheet } from "./AppointmentDetailSheet";
 import { CitaFormSheet, type CitaFormState, type PatientLite } from "./CitaFormSheet";
 import { scaleIn } from "@/lib/animations";
-import { resolveTipoCita } from "@/lib/colors";
 import {
   type CalView,
   addDays, getMonday, toDateStr, MONTHS_L,
@@ -39,7 +38,7 @@ function AgendaViewInner() {
   const [citas, setCitas] = useState<Cita[]>([]);
   const [loadingCitas, setLoadingCitas] = useState(true);
 
-  const citasFiltradas = tipoFiltro === "todos" ? citas : citas.filter(c => resolveTipoCita(c.tipo_consulta) === tipoFiltro);
+  const citasFiltradas = tipoFiltro === "todos" ? citas : citas.filter(c => c.tipo_consulta_id === tipoFiltro);
 
   const [daySheetDate, setDaySheetDate] = useState<Date | null>(null);
   const [detailCita, setDetailCita] = useState<Cita | null>(null);

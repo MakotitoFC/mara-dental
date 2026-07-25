@@ -4,7 +4,8 @@ import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import type { Cita } from "@/types/agenda";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
-import { resolveTipoCita, tipoCitaVars, estadoCitaVars, ESTADO_CITA_LABEL, TIPO_CITA_LABEL } from "@/lib/colors";
+import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
+import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 
 export function DayAppointmentsSheet({
@@ -16,6 +17,7 @@ export function DayAppointmentsSheet({
   onSelectCita: (c: Cita) => void;
   onNewCita: () => void;
 }) {
+  const { getVars } = useTipoConsultaVars();
   const raw = date.toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" });
   const label = raw.charAt(0).toUpperCase() + raw.slice(1);
 
@@ -41,8 +43,7 @@ export function DayAppointmentsSheet({
       ) : (
         <motion.div variants={staggerContainer(0.05)} initial="hidden" animate="visible" className="flex flex-col gap-2 py-1">
           {citas.map(c => {
-            const tipo = resolveTipoCita(c.tipo_consulta);
-            const tipoVars = tipoCitaVars(tipo);
+            const tipoVars = getVars(c.tipo_consulta_id);
             const estVars = estadoCitaVars(c.estado);
             return (
               <motion.button
@@ -59,8 +60,8 @@ export function DayAppointmentsSheet({
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate">{c.paciente_nombre}</p>
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                    <span className="text-[10.5px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: tipoVars.bg, color: tipoVars.text }}>
-                      {TIPO_CITA_LABEL[tipo]}
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: tipoVars.bg, color: tipoVars.text }}>
+                      {tipoVars.label}
                     </span>
                     <span className="text-[10.5px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: estVars.bg, color: estVars.text }}>
                       {ESTADO_CITA_LABEL[c.estado]}

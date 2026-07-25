@@ -26,7 +26,7 @@ const NAV_MAIN = [
 const NAV_BOTTOM = [{ href: "/configuracion", icon: "settings", label: "Configuración" }];
 
 const ROLE_HREFS: Record<string, string[]> = {
-  admin:     ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
+  admin:     ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
   doctor:    ["/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
   asistente: ["/dashboard", "/agenda", "/pacientes", "/archivos"],
   contador:  ["/dashboard", "/presupuestos", "/archivos"],

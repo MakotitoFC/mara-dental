@@ -235,6 +235,7 @@ export default function ConfiguracionTiposPage() {
                 <input
                   type="text"
                   required
+                  autoFocus
                   value={consultaForm.tipo_consulta}
                   onChange={(e) => setConsultaForm({...consultaForm, tipo_consulta: e.target.value})}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all"
@@ -301,6 +302,7 @@ export default function ConfiguracionTiposPage() {
                 <input
                   type="text"
                   required
+                  autoFocus
                   value={archivoForm.tipo_archivo}
                   onChange={(e) => setArchivoForm({...archivoForm, tipo_archivo: e.target.value})}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all uppercase"

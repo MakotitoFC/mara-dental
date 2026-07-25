@@ -761,7 +761,7 @@ export function VisorModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-100">
       <motion.div
         variants={fadeIn}
         initial="hidden"
@@ -775,7 +775,7 @@ export function VisorModal({
         initial="hidden"
         animate="visible"
         exit="exit"
-        className="fixed inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl md:absolute md:inset-0 md:m-auto md:bottom-auto md:h-fit md:max-h-[min(92vh,calc(100dvh-96px))] md:max-w-[1120px] md:rounded-2xl bg-white dark:bg-slate-800 overflow-hidden flex flex-col md:flex-row shadow-2xl"
+        className="fixed inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl md:absolute md:inset-0 md:m-auto md:bottom-auto md:h-fit md:max-h-[min(92vh,calc(100dvh-96px))] md:max-w-280 md:rounded-2xl bg-white dark:bg-slate-800 overflow-hidden flex flex-col md:flex-row shadow-2xl"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1064,7 +1064,7 @@ export function VisorModal({
           {/* Selector de color — solo para Dibujar / Flecha */}
           {isImage && (mode === "draw" || mode === "arrow") && (
             <div
-              className="absolute bottom-[66px] left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-white rounded-full shadow-lg border border-slate-200/70 px-2.5 py-1.5"
+              className="absolute bottom-16.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-white rounded-full shadow-lg border border-slate-200/70 px-2.5 py-1.5"
               style={{ zIndex: 20 }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1112,7 +1112,7 @@ export function VisorModal({
               <button
                 type="button"
                 onClick={zoomReset}
-                className="px-1.5 text-[10.5px] font-bold text-slate-500 hover:text-slate-700 transition-colors min-w-[34px] text-center"
+                className="px-1.5 text-[10.5px] font-bold text-slate-500 hover:text-slate-700 transition-colors min-w-8.5 text-center"
               >
                 {Math.round(zoom * 100)}%
               </button>
@@ -1129,7 +1129,7 @@ export function VisorModal({
         </div>
 
         {/* CONTROLES */}
-        <div className="w-full md:w-[340px] md:shrink-0 flex flex-col border-t border-slate-100 dark:border-slate-700 md:border-t-0 md:border-l overflow-hidden flex-1 md:flex-none">
+        <div className="w-full md:w-85 md:shrink-0 flex flex-col border-t border-slate-100 dark:border-slate-700 md:border-t-0 md:border-l overflow-hidden flex-1 md:flex-none">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700 gap-2">
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 uppercase bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
               {a.tipo_archivo}
@@ -1324,7 +1324,7 @@ export function VisorModal({
 
       {/* Modal de confirmación de eliminación de anotación */}
       {annotationToDelete && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-110 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]" onClick={(e) => e.stopPropagation()}>
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-5 max-w-xs w-full border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-red-500 dark:text-red-400 mb-3">
               <Icon name="warning" size={24} />

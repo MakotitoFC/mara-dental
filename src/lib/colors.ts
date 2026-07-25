@@ -40,18 +40,22 @@ export const TIPO_CITA_LABEL: Record<TipoCita, string> = {
 
 export const TIPO_CITA_ORDER: TipoCita[] = ["endodoncia", "ortodoncia", "cirugia", "limpieza", "revision", "otros"];
 
-/** Lee los tokens --estado-{estado}-solid/bg/text definidos en globals.css. */
 export function estadoCitaVars(estado: EstadoCita) {
+  const fallbacks = {
+    programada: { solid: "#06b6d4", bg: "#cffafe", text: "#0e7490" },
+    hecho: { solid: "#16a34a", bg: "#dcfce7", text: "#15803d" },
+    cancelada: { solid: "#e74c3c", bg: "#fdecea", text: "#b93327" }
+  };
+  const f = fallbacks[estado];
   return {
-    solid: `var(--estado-${estado}-solid)`,
-    bg: `var(--estado-${estado}-bg)`,
-    text: `var(--estado-${estado}-text)`,
+    solid: `var(--estado-${estado}-solid, ${f.solid})`,
+    bg: `var(--estado-${estado}-bg, ${f.bg})`,
+    text: `var(--estado-${estado}-text, ${f.text})`,
   };
 }
 
 export const ESTADO_CITA_LABEL: Record<EstadoCita, string> = {
   programada: "Programada",
-  confirmada: "Confirmada",
-  atendida: "Realizada",
+  hecho: "Hecho",
   cancelada: "Cancelada",
 };

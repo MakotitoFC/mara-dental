@@ -3,7 +3,8 @@
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import type { Cita } from "@/types/agenda";
-import { resolveTipoCita, tipoCitaVars, estadoCitaVars, ESTADO_CITA_LABEL, TIPO_CITA_LABEL } from "@/lib/colors";
+import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
+import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { fmtFechaLarga, toDateStr } from "./agendaUtils";
 
@@ -13,6 +14,7 @@ export function CronogramaView({ citas, today, onEventClick }: {
   onEventClick: (c: Cita) => void;
 }) {
   const todayStr = toDateStr(today);
+  const { getVars } = useTipoConsultaVars();
 
   const grupos = new Map<string, Cita[]>();
   for (const c of citas) {
@@ -48,8 +50,7 @@ export function CronogramaView({ citas, today, onEventClick }: {
               </div>
               <div className="flex flex-col gap-2">
                 {grupos.get(fecha)!.map(c => {
-                  const tipo = resolveTipoCita(c.tipo_consulta);
-                  const tipoVars = tipoCitaVars(tipo);
+                  const tipoVars = getVars(c.tipo_consulta_id);
                   const estVars = estadoCitaVars(c.estado);
                   return (
                     <button
@@ -66,7 +67,7 @@ export function CronogramaView({ citas, today, onEventClick }: {
                         <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate">{c.paciente_nombre}</p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span className="text-[10.5px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: tipoVars.bg, color: tipoVars.text }}>
-                            {TIPO_CITA_LABEL[tipo]}
+                            {tipoVars.label}
                           </span>
                           <span className="text-[10.5px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: estVars.bg, color: estVars.text }}>
                             {ESTADO_CITA_LABEL[c.estado]}

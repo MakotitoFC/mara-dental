@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { resolveOrCrearHistoriaClinica } from "./historia.helpers";
+import { randomUUID } from "crypto";
 
 export async function getPreviewPacienteAction(pacienteId: string) {
   const supabase = await createClient();
@@ -31,17 +32,9 @@ export async function getDoctorPacientesAction() {
 
   if (!user) return [];
 
-  const { data: personal } = await supabase
-    .from("personal")
-    .select("id")
-    .eq("usuario_id", user.id)
-    .single();
-
-  if (!personal) return [];
-
-  // Llama a la función optimizada en la BD
+  // Llama a la función optimizada en la BD usando directamente el ID del usuario (doctor)
   const { data, error } = await supabase
-    .rpc("get_doctor_pacientes_summary", { p_doctor_id: personal.id });
+    .rpc("get_doctor_pacientes_summary", { p_doctor_id: user.id });
 
   if (error || !data) {
     console.error("Error obteniendo pacientes optimizados:", error);
@@ -100,12 +93,30 @@ export async function createPacienteAction(data: {
 }) {
   const supabase = await createClient();
 
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: usuarioData } = await supabase
+    .from("usuarios")
+    .select("sede_id")
+    .eq("id", user.id)
+    .single();
+    
+  if (!usuarioData?.sede_id) return { error: "No se pudo obtener la sede del usuario." };
+
   const hoy = new Date().toISOString().split("T")[0];
   if (data.fecha_nacimiento > hoy) {
     return { error: "La fecha de nacimiento no puede ser mayor a la fecha actual." };
   }
 
-  const { data: inserted, error } = await supabase.from("pacientes").insert({
+  // Generamos el UUID en el servidor para no tener que hacer un .select("id") al final.
+  // El .select() dispara la regla RLS `select_pacientes_doctor` y, como este paciente
+  // es recién creado y no tiene citas asignadas, el SELECT falla arrojando el error 42501.
+  const nuevoPacienteId = randomUUID();
+
+  const { error } = await supabase.from("pacientes").insert({
+    id:                nuevoPacienteId,
+    sede_id:           usuarioData.sede_id,
     nombre:            data.nombre.trim(),
     apellido:          data.apellido.trim(),
     dni:               data.dni.trim(),
@@ -127,7 +138,7 @@ export async function createPacienteAction(data: {
     alergias:          data.alergias          || [],
     antecedentes:      data.antecedentes      || { cronicas: [], medicacion_habitual: [], quirurgicos: [] },
     activo: true
-  }).select("id").single();
+  });
 
   if (error) {
     console.error("Error insertando paciente:", error);
@@ -137,12 +148,11 @@ export async function createPacienteAction(data: {
     return { error: "Ocurrió un error al guardar el paciente." };
   }
 
-  const pacienteId = inserted!.id as number;
   const historia = await resolveOrCrearHistoriaClinica(
-    supabase, pacienteId, data.nombre.trim(), data.apellido.trim(), data.fecha_nacimiento,
+    supabase, nuevoPacienteId, data.dni.trim()
   );
   if ("error" in historia) return historia;
 
   revalidatePath("/pacientes");
-  return { success: true, id: String(pacienteId), historia };
+  return { success: true, id: nuevoPacienteId, historia };
 }

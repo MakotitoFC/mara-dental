@@ -37,6 +37,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-bd.md
-mock_data.sql
-permisos.sql
+bd-new.md
+bd-old.md
+seed-data.md
+rls.md
+rls-problematicas.md
+test.js

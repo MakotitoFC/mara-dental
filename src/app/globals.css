@@ -136,9 +136,8 @@ html.dark { color-scheme: dark; }
   --tipo-otros-solid:      #5D6D7E; --tipo-otros-bg:      #EEF1F3; --tipo-otros-text:      #48545F;
   /* Estado de cita — light */
   --estado-programada-solid: #06b6d4; --estado-programada-bg: #cffafe; --estado-programada-text: #0e7490;
-  --estado-confirmada-solid: #16a34a; --estado-confirmada-bg: #dcfce7; --estado-confirmada-text: #15803d;
-  --estado-atendida-solid:   #2563eb; --estado-atendida-bg:   #dbeafe; --estado-atendida-text:   #1d4ed8;
-  --estado-cancelada-solid:  #94a3b8; --estado-cancelada-bg:  #f1f5f9; --estado-cancelada-text:  #94a3b8;
+  --estado-hecho-solid: #16a34a; --estado-hecho-bg: #dcfce7; --estado-hecho-text: #15803d;
+  --estado-cancelada-solid: #e74c3c; --estado-cancelada-bg: #fdecea; --estado-cancelada-text: #b93327;
 }
 
 .dark { --background: #11151C; --foreground: #EDF0F4; --card: #171C25; --card-foreground: #EDF0F4; --popover: #171C25; --popover-foreground: #EDF0F4; --primary: #2BB9CC; --primary-foreground: #08161A; --secondary: #1F2530; --secondary-foreground: #C9D4E0; --muted: #1F2530; --muted-foreground: #9AA7B8; --accent: #123039; --accent-foreground: #2BB9CC; --destructive: #F1685C; --border: #1F2530; --input: #2B323F; --ring: #2BB9CC; --chart-1: #2BB9CC; --chart-2: #34C77A; --chart-3: #F5A623; --chart-4: #4FA8E8; --chart-5: #C9D4E0; --sidebar: #171C25; --sidebar-foreground: #EDF0F4; --sidebar-primary: #2BB9CC; --sidebar-primary-foreground: #08161A; --sidebar-accent: #123039; --sidebar-accent-foreground: #2BB9CC; --sidebar-border: #1F2530; --sidebar-ring: #2BB9CC;
@@ -151,9 +150,8 @@ html.dark { color-scheme: dark; }
   --tipo-otros-solid:      #9AA7B8; --tipo-otros-bg:      rgba(154,167,184,0.16); --tipo-otros-text:      #C9D4E0;
   /* Estado de cita — dark */
   --estado-programada-solid: #22D3EE; --estado-programada-bg: rgba(34,211,238,0.16); --estado-programada-text: #67E8F9;
-  --estado-confirmada-solid: #34C77A; --estado-confirmada-bg: rgba(52,199,122,0.16); --estado-confirmada-text: #8FE3B5;
-  --estado-atendida-solid:   #4FA8E8; --estado-atendida-bg:   rgba(79,168,232,0.16); --estado-atendida-text:   #9CCBF2;
-  --estado-cancelada-solid:  #7A8699; --estado-cancelada-bg:  rgba(122,134,153,0.16); --estado-cancelada-text:  #A7B1BE;
+  --estado-hecho-solid: #34C77A; --estado-hecho-bg: rgba(52,199,122,0.16); --estado-hecho-text: #8FE3B5;
+  --estado-cancelada-solid: #F1685C; --estado-cancelada-bg: rgba(241,104,92,0.16); --estado-cancelada-text: #FCA69D;
 }
 
 @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }

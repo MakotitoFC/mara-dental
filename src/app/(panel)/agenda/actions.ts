@@ -10,19 +10,10 @@ export async function searchPatients(query: string) {
 
   const isDni = /^\d+$/.test(query.trim());
 
-  let req = supabase
-    .from("pacientes")
-    .select("id, nombre, apellido, dni, activo")
-    .eq("activo", true);
-
-  if (isDni) {
-    req = req.eq("dni", query.trim());
-  } else {
-    // Search in nombre or apellido using ilike for case-insensitive partial match
-    req = req.or(`nombre.ilike.%${query.trim()}%,apellido.ilike.%${query.trim()}%`);
-  }
-
-  const { data, error } = await req.limit(10);
+  const { data, error } = await supabase.rpc("buscar_pacientes_sede", { 
+    busqueda: query.trim(), 
+    es_dni: isDni 
+  });
   if (error) {
     console.error("Error buscando pacientes:", error);
     return [];
@@ -30,12 +21,50 @@ export async function searchPatients(query: string) {
   return data || [];
 }
 
+export async function createPacienteRapidoAction(data: {
+  nombre: string;
+  apellido: string;
+  dni: string;
+  fecha_nacimiento: string;
+  telefono: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: usr, error: usrErr } = await supabase
+    .from("usuarios")
+    .select("sede_id")
+    .eq("id", user.id)
+    .single();
+
+  if (usrErr || !usr?.sede_id) {
+    return { error: "No se pudo determinar la sede del usuario." };
+  }
+
+  const { data: newPatient, error } = await supabase.rpc("crear_paciente_rapido", {
+    p_nombre: data.nombre,
+    p_apellido: data.apellido,
+    p_dni: data.dni,
+    p_fecha_nacimiento: data.fecha_nacimiento,
+    p_telefono: data.telefono,
+    p_sede_id: usr.sede_id
+  }).single();
+
+  if (error) {
+    console.error("Error al crear paciente rápido:", error);
+    return { error: "Error al registrar el paciente." };
+  }
+  
+  return { success: true, paciente: newPatient };
+}
+
 export async function createCitaAction(data: {
-  paciente_id: number;
+  paciente_id: string;
   fecha: string; // YYYY-MM-DD
   hora_inicio: string; // HH:MM
   hora_fin: string; // HH:MM
-  tipo_consulta: string;
+  tipo_consulta_id: string;
   estado: string;
   notas: string;
 }, force: boolean = false) {
@@ -46,18 +75,8 @@ export async function createCitaAction(data: {
     return { error: "No autorizado" };
   }
 
-  // Obtener el ID del doctor basado en el usuario logueado
-  const { data: personal, error: pError } = await supabase
-    .from("personal")
-    .select("id")
-    .eq("usuario_id", user.id)
-    .single();
-  console.log(user.id)
-  if (pError || !personal) {
-    return { error: "No se encontró el perfil de médico asociado a este usuario." };
-  }
-
-  const doctor_id = personal.id;
+  // El ID del doctor es directamente el user.id según la nueva BD
+  const doctor_id = user.id;
 
   // Validación de horario (a menos que el doctor haya forzado la excepción)
   if (!force) {
@@ -107,7 +126,7 @@ export async function createCitaAction(data: {
     fecha: data.fecha,
     hora_inicio: data.hora_inicio,
     hora_fin: data.hora_fin,
-    tipo_consulta: data.tipo_consulta,
+    tipo_consulta_id: data.tipo_consulta_id,
     estado: data.estado,
     notas: data.notas || null,
   });
@@ -133,7 +152,7 @@ export async function updateCitaAction(citaId: string, data: {
   fecha?: string;
   hora_inicio?: string;
   hora_fin?: string;
-  tipo_consulta?: string;
+  tipo_consulta_id?: string;
   estado?: string;
   notas?: string;
 }) {
@@ -150,13 +169,8 @@ export async function getCitasRealesAction() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const { data: personal } = await supabase
-    .from("personal")
-    .select("id")
-    .eq("usuario_id", user.id)
-    .single();
-
-  if (!personal) return [];
+  // El ID del doctor es directamente el user.id
+  const doctor_id = user.id;
 
   const { data: citas, error } = await supabase
     .from("citas")
@@ -165,7 +179,7 @@ export async function getCitasRealesAction() {
       fecha,
       hora_inicio,
       hora_fin,
-      tipo_consulta,
+      tipo_consulta_id,
       estado,
       notas,
       pacientes (
@@ -174,12 +188,14 @@ export async function getCitasRealesAction() {
         apellido,
         alergias
       ),
-      personal (
-        nombre,
-        apellido
+      usuarios (
+        personal (
+          nombre,
+          apellido
+        )
       )
     `)
-    .eq("doctor_id", personal.id);
+    .eq("doctor_id", doctor_id);
 
   if (error) {
     console.error("Error fetching citas reales:", error);
@@ -199,8 +215,8 @@ export async function getCitasRealesAction() {
       paciente_id: String(c.pacientes?.id),
       paciente_nombre: `${c.pacientes?.nombre} ${c.pacientes?.apellido}`.trim(),
       alergias: alergiasArr,
-      tipo_consulta: c.tipo_consulta || "",
-      doctor_nombre: `Dr. ${c.personal?.apellido}`,
+      tipo_consulta_id: c.tipo_consulta_id || "",
+      doctor_nombre: `Dr. ${c.usuarios?.personal?.[0]?.apellido || "Médico"}`,
       fecha: c.fecha,
       hora_inicio: c.hora_inicio.slice(0, 5),
       hora_fin: c.hora_fin.slice(0, 5),

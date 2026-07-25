@@ -51,11 +51,13 @@ export function HistoriaView({
   citas,
   notas: _notas,
   historial,
+  datosCasos,
 }: {
   paciente: any;
   citas: any[];
   notas: any[];
   historial: any[];
+  datosCasos: any;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -147,7 +149,9 @@ export function HistoriaView({
 
       {showNuevaConsultaModal && (
         <NuevaConsultaModal
-          pacienteId={Number(p.id)}
+          pacienteId={String(p.id)}
+          datosCasos={datosCasos}
+          citas={citas}
           onClose={() => setShowNuevaConsultaModal(false)}
           onCreated={handleConsultaCreada}
         />
@@ -297,6 +301,8 @@ export function HistoriaView({
             {tab === "timeline" && (
               <TimelineTab
                 historial={historial}
+                datosCasos={datosCasos}
+                pacienteId={String(p.id)}
                 onStartConsulta={() => setShowNuevaConsultaModal(true)}
                 onNavigateTab={(t) => goTo(t as TabKey)}
               />

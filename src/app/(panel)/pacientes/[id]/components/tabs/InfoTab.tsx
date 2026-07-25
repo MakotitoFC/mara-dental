@@ -1,6 +1,8 @@
+"use client";
+
 import { Icon } from "@/components/ui/Icon";
 import { calcEdad } from "@/lib/date-utils";
-import { resolveTipoCita, tipoCitaVars, TIPO_CITA_LABEL } from "@/lib/colors";
+import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { StatTile, Card, Row, TagGroup, TagGroupPlain } from "../../../components/PatientInfoPrimitives";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -34,6 +36,7 @@ export function InfoTab({
   historial?: any[];
   onNavigateTab?: (tab: string) => void;
 }) {
+  const { getVars } = useTipoConsultaVars();
   const nombreCompleto = [p.nombre, p.apellido].filter(Boolean).join(" ") || "—";
   const edad = p.fecha_nacimiento ? calcEdad(p.fecha_nacimiento) : null;
   const nacimiento = fmtDMY(p.fecha_nacimiento);
@@ -98,14 +101,13 @@ export function InfoTab({
           ) : (
             <div className="flex flex-col">
               {recientes.map((h: any, i: number) => {
-                const tipo = resolveTipoCita(h.motivo || "");
-                const v = tipoCitaVars(tipo);
+                const v = getVars(h.motivo_id); // asumiendo que historial/recientes traerá un motivo_id. Si no, usaremos 'motivo' como string en un fallback futuro si hace falta.
                 return (
                   <div key={h.id ?? i} className="flex items-start gap-3 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
                     <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: v.solid }} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 truncate">{h.motivo || TIPO_CITA_LABEL[tipo]}</p>
+                        <p className="text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 truncate">{v.label}</p>
                         <span className="text-[10.5px] text-slate-400 dark:text-slate-500 shrink-0">{fmtDMY(h.fecha) ?? h.fecha}</span>
                       </div>
                       <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-1">{h.doctor}</p>

@@ -12,7 +12,7 @@ import {
   CheckCircle, AlertTriangle, AlertCircle, Check, Minus,
   Bell, Clock, RotateCcw,
   IdCard, MessageSquare, MessageCircle, Mail, Phone,
-  Folder, FolderOpen, File, StickyNote,
+  Folder, FolderOpen, File, StickyNote, FileArchive,
   ImageIcon, Camera, Activity, Microscope,
   Cake, ClipboardList, Info, Lock, Eye, EyeOff,
   Printer, Share2, MoreVertical, GripVertical,
@@ -24,7 +24,8 @@ import {
   LineChart, Users, Shield, BarChart, UsersRound, Tags,
   Briefcase, GraduationCap, Church,
   Sun, Moon, Laptop, ListChecks, Home,
-  Eraser, Type, MoveUpRight
+  Eraser, Type, MoveUpRight,
+  Send, FolderHeart, History
 } from "lucide-react";
 
 interface IconProps {
@@ -165,6 +166,9 @@ const ICONS: Record<string, LucideIcon> = {
   badge_id:             IdCard,
   info:                 Info,
   lock:                 Lock,
+  send:                 Send,
+  folder_shared:        FolderHeart,
+  history_edu:          History,
   eye:                  Eye,
   eye_off:              EyeOff,
   zoom_in:              ZoomIn,
@@ -183,7 +187,8 @@ const ICONS: Record<string, LucideIcon> = {
   receipt_long:         FileText,
   undo:                 RotateCcw,
   block:                XCircle,
-  category:             Folder,
+  category_tipos:       Folder,
+  folder_zip:           FileArchive,
   edit_note:            Pencil,
   eraser:               Eraser,
   text_fields:          Type,

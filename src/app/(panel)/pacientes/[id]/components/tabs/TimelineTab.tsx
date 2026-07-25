@@ -4,7 +4,8 @@ import { useState, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { staggerContainer, staggerItem, fadeIn, EASE } from "@/lib/animations";
-import { resolveTipoCita, tipoCitaVars, TIPO_CITA_LABEL } from "@/lib/colors";
+import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
+import { crearHistoriaClinicaAction, cambiarEstadoNotaAction } from "../../casos.actions";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,89 +31,159 @@ type TabNav = "info" | "timeline" | "dental" | "diagnosticos" | "archivos" | "re
 
 export function TimelineTab({
   historial,
+  datosCasos,
+  pacienteId,
   onStartConsulta,
   onNavigateTab,
 }: {
   historial: any[];
+  datosCasos?: any;
+  pacienteId: string;
   onStartConsulta?: () => void;
   onNavigateTab?: (tab: TabNav) => void;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(historial?.[0]?.id ?? null);
+  const casos = datosCasos?.casos || [];
+  const hc = datosCasos?.historia_clinica;
+  
+  const [savingHC, setSavingHC] = useState(false);
 
-  if (!historial || historial.length === 0) {
-    return (
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 py-16 px-6 flex flex-col items-center text-center gap-3">
-        <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center">
-          <Icon name="history" size={32} className="text-slate-300 dark:text-slate-600" />
+  // Para mantener compatibilidad con el detalle de la consulta, usamos el historial plano para seleccionar
+  const [selectedId, setSelectedId] = useState<string | null>(historial?.[0]?.id ?? null);
+  const selected = historial?.find((c) => c.id === selectedId) ?? historial?.[0];
+
+  async function handleCrearHC() {
+    setSavingHC(true);
+    await crearHistoriaClinicaAction(pacienteId);
+    setSavingHC(false);
+  }
+
+  async function handleCambiarEstado(notaId: string, e: React.ChangeEvent<HTMLSelectElement>) {
+    await cambiarEstadoNotaAction(notaId, e.target.value, pacienteId);
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Cabecera Historia Clínica */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 flex items-center justify-between">
+        <div>
+          <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <Icon name="folder_shared" size={18} className="text-cyan-600 dark:text-cyan-400" />
+            Historia Clínica Universal
+          </h3>
+          {hc ? (
+            <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1">
+              Código: <strong className="text-slate-700 dark:text-slate-300">{hc.codigo_historia}</strong> · Creada: {fmtFull(hc.fecha_creacion)}
+            </p>
+          ) : (
+            <p className="text-[13px] text-amber-600 dark:text-amber-500 mt-1 flex items-center gap-1">
+              <Icon name="warning" size={14} /> El paciente aún no tiene Historia Clínica generada.
+            </p>
+          )}
         </div>
-        <p className="text-[15px] font-bold text-slate-700 dark:text-slate-300">Sin consultas registradas</p>
-        <p className="text-[12.5px] text-slate-400 dark:text-slate-500 max-w-xs leading-relaxed">
-          Cuando se registre la primera consulta clínica de este paciente, aparecerá aquí en la línea de tiempo.
-        </p>
-        {onStartConsulta && (
+        {!hc && (
           <button
-            onClick={onStartConsulta}
-            className="mt-1 flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-semibold transition-colors"
+            onClick={handleCrearHC}
+            disabled={savingHC}
+            className="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 disabled:opacity-50 rounded-xl text-[13px] font-bold transition-colors"
           >
-            <Icon name="add" size={16} /> Nueva consulta
+            {savingHC ? "Creando..." : "Crear Historia Clínica"}
           </button>
         )}
       </div>
-    );
-  }
 
-  const selected = historial.find((c) => c.id === selectedId) ?? historial[0];
-
-  return (
-    <div className="flex gap-4 items-start">
-      {/* Columna izquierda — lista */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        {onStartConsulta && (
-          <div className="flex justify-end mb-3">
-            <button
-              onClick={onStartConsulta}
-              className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-semibold transition-colors"
-            >
-              <Icon name="add" size={16} /> Nueva consulta
-            </button>
-          </div>
-        )}
-        <motion.div
-          variants={staggerContainer(0.06)}
-          initial="hidden"
-          animate="visible"
-          className="flex flex-col overflow-y-auto no-scrollbar pr-1"
-          style={{ maxHeight: "calc(100vh - 180px)" }}
-        >
-          {historial.map((c: any, i: number) => (
-            <TimelineNode
-              key={c.id}
-              consulta={c}
-              isLast={i === historial.length - 1}
-              active={c.id === selected.id}
-              onSelect={() => setSelectedId(c.id)}
-              onNavigateTab={onNavigateTab}
-            />
-          ))}
-        </motion.div>
-      </div>
-
-      {/* Columna derecha — panel de detalle fijo (solo desktop) */}
-      <div className="hidden lg:block w-[360px] shrink-0 sticky top-[68px]">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={selected.id}
-            variants={fadeIn}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden overflow-y-auto no-scrollbar"
-            style={{ maxHeight: "calc(100vh - 100px)" }}
+      <div className="flex justify-between items-center">
+        <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-200">Casos Clínicos (Notas)</h3>
+        {hc && onStartConsulta && (
+          <button
+            onClick={onStartConsulta}
+            className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-semibold transition-colors shadow-sm"
           >
-            <ConsultaDetail consulta={selected} onNavigateTab={onNavigateTab} />
-          </motion.div>
-        </AnimatePresence>
+            <Icon name="add" size={16} /> Nuevo Caso / Consulta
+          </button>
+        )}
       </div>
+
+      {casos.length === 0 ? (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 py-16 px-6 flex flex-col items-center text-center gap-3">
+          <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center">
+            <Icon name="history_edu" size={32} className="text-slate-300 dark:text-slate-600" />
+          </div>
+          <p className="text-[15px] font-bold text-slate-700 dark:text-slate-300">Sin Casos Clínicos</p>
+          <p className="text-[12.5px] text-slate-400 dark:text-slate-500 max-w-xs leading-relaxed">
+            Inicia un nuevo caso clínico para agrupar las consultas de este paciente.
+          </p>
+        </div>
+      ) : (
+        <div className="flex gap-4 items-start">
+          {/* Columna Izquierda: Casos */}
+          <div className="flex-1 min-w-0 flex flex-col gap-6">
+            {casos.map((caso: any) => (
+              <div key={caso.id} className="bg-slate-50/50 dark:bg-slate-900/20 rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 className="text-[14px] font-bold text-slate-800 dark:text-slate-200 mb-1">
+                      {caso.motivo_consulta || "Caso sin motivo principal"}
+                    </h4>
+                    <p className="text-[12px] text-slate-500">Iniciado el: {fmtFull(caso.created_at)}</p>
+                  </div>
+                  <select 
+                    className="text-[12px] font-bold border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-2 py-1 outline-none"
+                    defaultValue={caso.estado || "En Consulta"}
+                    onChange={(e) => handleCambiarEstado(caso.id, e)}
+                  >
+                    <option value="En Consulta">En Consulta</option>
+                    <option value="Diagnosticado">Diagnosticado</option>
+                    <option value="En tratamiento">En tratamiento</option>
+                    <option value="De Alta">De Alta</option>
+                  </select>
+                </div>
+
+                <div className="pl-2">
+                  {caso.consultas.length === 0 ? (
+                    <p className="text-[12px] text-slate-400 italic">Sin consultas en este caso.</p>
+                  ) : (
+                    <motion.div variants={staggerContainer(0.06)} initial="hidden" animate="visible" className="flex flex-col">
+                      {caso.consultas.map((c: any, i: number) => {
+                        // Buscar la consulta rica en 'historial' para pasarla a TimelineNode
+                        const cRica = historial?.find(x => x.id === c.id) || c;
+                        return (
+                          <TimelineNode
+                            key={c.id}
+                            consulta={cRica}
+                            isLast={i === caso.consultas.length - 1}
+                            active={c.id === selected?.id}
+                            onSelect={() => setSelectedId(c.id)}
+                            onNavigateTab={onNavigateTab}
+                          />
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Columna derecha — panel de detalle fijo (solo desktop) */}
+          <div className="hidden lg:block w-[360px] shrink-0 sticky top-[68px]">
+            {selected && (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={selected.id}
+                  variants={fadeIn}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden overflow-y-auto no-scrollbar"
+                  style={{ maxHeight: "calc(100vh - 100px)" }}
+                >
+                  <ConsultaDetail consulta={selected} onNavigateTab={onNavigateTab} />
+                </motion.div>
+              </AnimatePresence>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -125,8 +196,8 @@ function TimelineNode({
   consulta: any; isLast: boolean; active: boolean; onSelect: () => void; onNavigateTab?: (tab: TabNav) => void;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const tipo = resolveTipoCita(c.motivo || "");
-  const vars = tipoCitaVars(tipo);
+  const { getVars } = useTipoConsultaVars();
+  const vars = getVars(c.tipo_consulta_id); // Se usa tipo_consulta_id para obtener los colores
   const diagCount = c.diagnosticos?.length || 0;
   const presuCount = c.presupuestos?.length || 0;
   const archivosCount = c.archivos?.length || 0;
@@ -160,9 +231,9 @@ function TimelineNode({
                   className="px-2 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wide"
                   style={{ background: vars.bg, color: vars.text }}
                 >
-                  {TIPO_CITA_LABEL[tipo]}
+                  {vars.label}
                 </span>
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">{fmtFull(c.fecha)}</span>
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">{fmtFull(c.fecha || c.fecha_consulta)}</span>
               </div>
               <p className="text-[14px] font-bold text-slate-900 dark:text-slate-100 leading-snug truncate">
                 {c.motivo || "Consulta sin motivo"}
@@ -208,8 +279,8 @@ function TimelineNode({
 // ─── Detalle de consulta (compartido entre panel fijo y acordeón mobile) ──────
 
 function ConsultaDetail({ consulta: c, onNavigateTab }: { consulta: any; onNavigateTab?: (tab: TabNav) => void }) {
-  const tipo = resolveTipoCita(c.motivo || "");
-  const vars = tipoCitaVars(tipo);
+  const { getVars } = useTipoConsultaVars();
+  const vars = getVars(c.motivo_id);
 
   return (
     <div className="p-4 flex flex-col gap-3">
@@ -218,7 +289,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab }: { consulta: any; onNavig
           className="inline-block px-2 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wide mb-1.5"
           style={{ background: vars.bg, color: vars.text }}
         >
-          {TIPO_CITA_LABEL[tipo]}
+          {vars.label}
         </span>
         <p className="text-[14.5px] font-bold text-slate-900 dark:text-slate-100 leading-snug">{c.motivo || "Consulta sin motivo"}</p>
         <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-0.5">{fmtFull(c.fecha)}{c.doctor ? ` · ${c.doctor}` : ""}</p>

@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/components/layout/AuthProvider";
 import { staggerContainer, staggerItem, fadeIn, scaleIn } from "@/lib/animations";
-import { resolveTipoCita, tipoCitaVars, TIPO_CITA_LABEL } from "@/lib/colors";
+import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import type { CumpleañosHoy, DashboardData } from "../actions";
 
 function saludoDelDia() {
@@ -171,6 +171,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
   const { citas, cumpleañosHoy, statsCitasHoy, statsCompletas, statsPendientes, recordatoriosPendientes } = data;
   const { user } = useAuth();
   const [birthdayOpen, setBirthdayOpen] = useState(false);
+  const { getVars } = useTipoConsultaVars();
 
   const STATS = [
     { label: "Citas hoy", value: statsCitasHoy, icon: "calendar_month", color: "text-cyan-600", bg: "bg-cyan-50" },
@@ -279,8 +280,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {citas.map((cita, i) => {
-              const tipo = resolveTipoCita(cita.tipo_consulta);
-              const vars = tipoCitaVars(tipo);
+              const vars = getVars(cita.tipo_consulta_id);
               return (
                 <motion.div
                   key={cita.id}
@@ -296,7 +296,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
                       className="text-[10px] font-medium px-2 py-0.5 rounded-full"
                       style={{ background: vars.bg, color: vars.text }}
                     >
-                      {TIPO_CITA_LABEL[tipo]}
+                      {vars.label}
                     </span>
                   </div>
                   <span className="text-[10.5px] font-medium text-slate-400 dark:text-slate-500">{fmtFechaCorta(cita.fecha)}</span>
