@@ -69,7 +69,7 @@ export function HistoriaView({
   const [showDescargarModal, setShowDescargarModal] = useState(false);
 
   // ── Consulta activa ──────────────────────────────────────────────────────
-  const [consultaId, setConsultaId] = useState<number | null>(null);
+  const [consultaId, setConsultaId] = useState<string | null>(null);
   const [consultaData, setConsultaData] = useState<any>(null);
   const [loadingConsulta, setLoadingConsulta] = useState(false);
   const [showNuevaConsultaModal, setShowNuevaConsultaModal] = useState(false);
@@ -77,7 +77,7 @@ export function HistoriaView({
   const refetchConsultaData = useCallback(async () => {
     if (!consultaId) return;
     setLoadingConsulta(true);
-    const data = await getConsultaActivaAction(consultaId, Number(p.id));
+    const data = await getConsultaActivaAction(consultaId, String(p.id));
     setConsultaData(data);
     setLoadingConsulta(false);
   }, [consultaId, p.id]);
@@ -94,12 +94,12 @@ export function HistoriaView({
     const t = params.get("tab");
     if (t && (TAB_KEYS as string[]).includes(t)) setTab(t as TabKey);
     const c = params.get("consulta");
-    if (c && !isNaN(Number(c))) setConsultaId(Number(c));
+    if (c && c !== "null" && c !== "undefined" && c !== "" && c !== "NaN") setConsultaId(c);
     if (params.get("nueva") === "1") setShowNuevaConsultaModal(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function goTo(key: TabKey, opts?: { consultaId?: number | null }) {
+  function goTo(key: TabKey, opts?: { consultaId?: string | null }) {
     const oldIdx = TAB_KEYS.indexOf(tab);
     const newIdx = TAB_KEYS.indexOf(key);
     if (key !== tab) setDirection(newIdx >= oldIdx ? 1 : -1);
@@ -115,10 +115,15 @@ export function HistoriaView({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
-  function handleConsultaCreada(id: number) {
+  function handleConsultaCreada(id: string) {
+    const stringId = String(id);
     setShowNuevaConsultaModal(false);
-    setConsultaId(id);
-    goTo("dental", { consultaId: id });
+    if (stringId !== "undefined" && stringId !== "null" && stringId !== "NaN") {
+      setConsultaId(stringId);
+      goTo("dental", { consultaId: stringId });
+    } else {
+      goTo("dental");
+    }
   }
 
   function salirDeConsulta() {
@@ -135,7 +140,7 @@ export function HistoriaView({
   // devolvía getConsultaDetalleAction, distinta de la de este `paciente` prop.
   const pacienteAdapter = {
     id: p.id,
-    paciente_id_num: Number(p.id),
+    paciente_id_num: String(p.id),
     nombre_completo: nombreCompleto,
     fecha_nacimiento: p.fecha_nacimiento,
     dni: p.dni,
@@ -297,7 +302,7 @@ export function HistoriaView({
             animate="visible"
             exit="exit"
           >
-            {tab === "info" && <InfoTab paciente={p} historial={historial} onNavigateTab={(t) => goTo(t as TabKey)} />}
+            {tab === "info" && <InfoTab paciente={p} historial={historial} datosCasos={datosCasos} onNavigateTab={(t) => goTo(t as TabKey)} />}
             {tab === "timeline" && (
               <TimelineTab
                 historial={historial}
@@ -309,7 +314,7 @@ export function HistoriaView({
             )}
             {tab === "dental" && (
               <div className="flex flex-col gap-4">
-                <OdontogramaTab paciente={p} consultaId={consultaId ?? undefined} />
+                <OdontogramaTab paciente={p} consultaId={(consultaId && consultaId !== "null" && consultaId !== "undefined" && consultaId !== "NaN") ? consultaId : undefined} />
                 {consultaId && (
                   <button
                     onClick={() => goTo("diagnosticos")}

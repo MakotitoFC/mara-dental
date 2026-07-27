@@ -18,7 +18,7 @@ export function RecomendacionesSection({
   initial,
   enabled = true,
   onSaved,
-}: { consultaId: number; pacienteId: number; initial: Recomendacion[]; enabled?: boolean; onSaved?: () => void }) {
+}: { consultaId: string; pacienteId: string; initial: Recomendacion[]; enabled?: boolean; onSaved?: () => void }) {
   const [recomendaciones, setRecomendaciones] = useState<Recomendacion[]>(initial || []);
   const [creating, setCreating] = useState(false);
   const [contenido, setContenido] = useState("");
@@ -35,7 +35,7 @@ export function RecomendacionesSection({
   async function handleAdd() {
     if (!contenido.trim()) return;
     setSaving(true);
-    const res = await saveRecomendacionAction({ consulta_id: consultaId, contenido, paciente_id: pacienteId });
+    const res = await saveRecomendacionAction({ consulta_id: String(consultaId), contenido, paciente_id: String(pacienteId) });
     setSaving(false);
     if (!res?.error) {
       setContenido(""); setCreating(false);
@@ -46,7 +46,7 @@ export function RecomendacionesSection({
   async function handleEdit() {
     if (!editingId || !editContenido.trim()) return;
     setSaving(true);
-    const res = await editRecomendacionAction({ id: editingId, contenido: editContenido, paciente_id: pacienteId });
+    const res = await editRecomendacionAction({ id: String(editingId), contenido: editContenido, paciente_id: String(pacienteId) });
     setSaving(false);
     if (!res?.error) {
       setRecomendaciones(prev => prev.map(r => r.id === editingId ? { ...r, contenido: editContenido } : r));
@@ -58,7 +58,7 @@ export function RecomendacionesSection({
   const [itemToDelete, setItemToDelete] = useState<number | null>(null);
   async function confirmDelete() {
     if (!itemToDelete) return;
-    await deleteRecomendacionAction(itemToDelete, pacienteId);
+    await deleteRecomendacionAction(String(itemToDelete), String(pacienteId));
     setRecomendaciones(prev => prev.filter(r => r.id !== itemToDelete));
     setItemToDelete(null);
   }

@@ -124,9 +124,9 @@ function HistorialDiagnosticoItem({ diagnostico: d, pacienteId, onSaved }: { dia
     setExpanded(next);
     if (next && !detalle) {
       const [tratamientos, planTrabajo, recomendaciones] = await Promise.all([
-        getTratamientosAction(d.id),
-        getPlanTrabajoAction(d.id),
-        getRecomendacionesConsultaAction(d.consulta_id),
+        getTratamientosAction(String(d.id)),
+        getPlanTrabajoAction(String(d.id)),
+        getRecomendacionesConsultaAction(String(d.consulta_id)),
       ]);
       setDetalle({ tratamientos, planTrabajo, recomendaciones });
     }
@@ -139,7 +139,7 @@ function HistorialDiagnosticoItem({ diagnostico: d, pacienteId, onSaved }: { dia
 
   return (
     <div className="flex flex-col gap-3">
-      <DiagnosticoCard diagnostico={d} consultaId={d.consulta_id} pacienteId={pacienteId} onSaved={onSaved} />
+      <DiagnosticoCard diagnostico={d} consultaId={String(d.consulta_id)} pacienteId={String(pacienteId)} onSaved={onSaved} />
 
       {d.es_tratado && (
         <button
@@ -159,14 +159,14 @@ function HistorialDiagnosticoItem({ diagnostico: d, pacienteId, onSaved }: { dia
         ) : (
           <div className="flex flex-col gap-3 pl-2 border-l-2 border-slate-100 dark:border-slate-700">
             <TratamientoSection
-              diagnosticoId={d.id}
-              consultaId={d.consulta_id}
-              pacienteId={pacienteId}
+              diagnosticoId={String(d.id)}
+              consultaId={String(d.consulta_id)}
+              pacienteId={String(pacienteId)}
               initial={detalle.tratamientos}
             />
             <PlanTrabajoSection
-              diagnosticoId={d.id}
-              pacienteId={pacienteId}
+              diagnosticoId={String(d.id)}
+              pacienteId={String(pacienteId)}
               initial={detalle.planTrabajo}
               onItemsChange={setPlanItems}
             />
@@ -179,8 +179,8 @@ function HistorialDiagnosticoItem({ diagnostico: d, pacienteId, onSaved }: { dia
               </div>
             )}
             <RecomendacionesSection
-              consultaId={d.consulta_id}
-              pacienteId={pacienteId}
+              consultaId={String(d.consulta_id)}
+              pacienteId={String(pacienteId)}
               initial={detalle.recomendaciones}
               onSaved={() => {}}
             />
@@ -193,7 +193,7 @@ function HistorialDiagnosticoItem({ diagnostico: d, pacienteId, onSaved }: { dia
 
 export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }: {
   paciente: any;
-  consultaId: number | null;
+  consultaId?: string | null;
   data: any;
   loading: boolean;
   refetch: () => void;
@@ -206,7 +206,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
   // Sin consulta activa: se muestra el historial completo del paciente (solo lectura de la lista, con vista/edición individual).
   const [historialPaciente, setHistorialPaciente] = useState<any[] | null>(null);
   const fetchHistorialPaciente = useCallback(async () => {
-    const list = await getDiagnosticosPacienteAction(pacienteId);
+    const list = await getDiagnosticosPacienteAction(String(pacienteId));
     setHistorialPaciente(list);
   }, [pacienteId]);
 
@@ -288,15 +288,15 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
         ) : (
           <>
             <TratamientoSection
-              diagnosticoId={actual.id}
-              consultaId={consultaId}
-              pacienteId={pacienteId}
+              diagnosticoId={String(actual.id)}
+              consultaId={String(consultaId)}
+              pacienteId={String(pacienteId)}
               initial={data.tratamientos ?? []}
             />
 
             <PlanTrabajoSection
-              diagnosticoId={actual.id}
-              pacienteId={pacienteId}
+              diagnosticoId={String(actual.id)}
+              pacienteId={String(pacienteId)}
               initial={data.planTrabajo ?? []}
               onItemsChange={setPlanItems}
             />
@@ -317,8 +317,8 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
             )}
 
             <RecomendacionesSection
-              consultaId={consultaId}
-              pacienteId={pacienteId}
+              consultaId={String(consultaId)}
+              pacienteId={String(pacienteId)}
               initial={data.recomendaciones ?? []}
               onSaved={refetch}
             />
@@ -331,8 +331,8 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
         {showForm && (
           <Modal onClose={() => setShowForm(false)}>
             <DiagnosticoForm
-              consultaId={consultaId}
-              pacienteId={pacienteId}
+              consultaId={String(consultaId)}
+              pacienteId={String(pacienteId)}
               onSaved={() => { setShowForm(false); refetch(); }}
             />
           </Modal>
@@ -345,8 +345,8 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
           <Modal onClose={() => setViewing(null)}>
             <DiagnosticoCard
               diagnostico={viewing}
-              consultaId={consultaId}
-              pacienteId={pacienteId}
+              consultaId={String(consultaId)}
+              pacienteId={String(pacienteId)}
               onSaved={() => { setViewing(null); refetch(); }}
             />
           </Modal>

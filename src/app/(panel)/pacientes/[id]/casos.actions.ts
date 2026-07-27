@@ -120,7 +120,7 @@ export async function crearHistoriaClinicaAction(pacienteId: string) {
   return { success: true };
 }
 
-export async function crearCasoClinicoAction(pacienteId: string, motivo: string) {
+export async function crearCasoClinicoAction(pacienteId: string, motivo: string, tituloCaso?: string) {
   const supabase = await createClient();
   let { data: hc } = await supabase.from("historia_clinica")
     .select("id")
@@ -147,6 +147,7 @@ export async function crearCasoClinicoAction(pacienteId: string, motivo: string)
 
   const { data: nota, error } = await supabase.from("nota_clinica").insert({
     historia_clinica_id: hc.id,
+    titulo_caso_clinico: tituloCaso || motivo,
     estado: "En Consulta"
   }).select("id").single();
 
@@ -171,9 +172,12 @@ export async function agregarConsultaAction(notaId: string, data: any) {
     observaciones: data.observaciones,
     examen_fisico: data.examen_fisico,
     fecha_consulta: data.fecha_consulta || new Date().toISOString()
-  }).select("id").single();
+  }).select("id");
 
   if (error) return { error: "No se pudo agregar consulta" };
-  // Nota: Idealmente se pasa pacienteId para el revalidatePath
-  return { success: true, consultaId: consulta.id };
+  
+  // Extraer el id ya sea si retorna un objeto o un arreglo
+  const idValue = Array.isArray(consulta) && consulta.length > 0 ? consulta[0].id : (consulta as any)?.id;
+  
+  return { success: true, consultaId: String(idValue) };
 }

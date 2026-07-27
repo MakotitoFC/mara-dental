@@ -120,8 +120,8 @@ function buildPresupuestoHtml(opts: {
 }
 
 export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto, mediosPago, onSaved }: {
-  consultaId: number;
-  pacienteId: number;
+  consultaId: string;
+  pacienteId: string;
   paciente?: { nombre_completo?: string } | null;
   presupuesto: PresupuestoData | null;
   mediosPago: { id: number; nombre: string }[];
@@ -136,7 +136,7 @@ export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto
 // ─── Builder (no hay presupuesto aún) ─────────────────────────────────────────
 
 function PresupuestoBuilder({ consultaId, pacienteId, onSaved }: {
-  consultaId: number; pacienteId: number; onSaved?: () => void;
+  consultaId: string; pacienteId: string; onSaved?: () => void;
 }) {
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [descuento, setDescuento] = useState(0);
@@ -173,9 +173,9 @@ function PresupuestoBuilder({ consultaId, pacienteId, onSaved }: {
     if (lineas.length === 0) { setError("Agrega al menos un ítem"); return; }
     setSaving(true); setError("");
     const res = await crearPresupuestoAction({
-      paciente_id: pacienteId,
-      consulta_id: consultaId,
-      items: lineas.map(l => ({ catalogo_id: l.catalogo_id, cantidad: l.cantidad, precio_unitario: l.precio_unitario })),
+      paciente_id: String(pacienteId),
+      consulta_id: String(consultaId),
+      items: lineas.map(l => ({ catalogo_id: String(l.catalogo_id), cantidad: l.cantidad, precio_unitario: l.precio_unitario })),
       descuento_porcentaje: descuento,
       notas: notas || undefined,
     });
@@ -303,7 +303,7 @@ function PresupuestoBuilder({ consultaId, pacienteId, onSaved }: {
 // ─── Presupuesto existente (estados + pagos) ──────────────────────────────────
 
 function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, onSaved }: {
-  pacienteId: number; paciente?: { nombre_completo?: string } | null;
+  pacienteId: string; paciente?: { nombre_completo?: string } | null;
   presupuesto: PresupuestoData; mediosPago: { id: number; nombre: string }[]; onSaved?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -331,7 +331,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
 
   async function cambiarEstado(estado: string) {
     setBusy(true); setError("");
-    const res = await updateEstadoPresupuestoAction({ presupuesto_id: presupuesto.id, estado, paciente_id: pacienteId });
+    const res = await updateEstadoPresupuestoAction({ presupuesto_id: String(presupuesto.id), estado, paciente_id: String(pacienteId) });
     setBusy(false);
     if (res?.error) { setError(res.error); return; }
     onSaved?.();
@@ -340,7 +340,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
   async function eliminar() {
     if (!confirm("¿Eliminar este presupuesto y todos sus pagos? Esta acción no se puede deshacer.")) return;
     setBusy(true);
-    await deletePresupuestoAction(presupuesto.id, pacienteId);
+    await deletePresupuestoAction(String(presupuesto.id), String(pacienteId));
     setBusy(false);
     onSaved?.();
   }
@@ -510,7 +510,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
                   </p>
                 </div>
                 {p.estado !== "anulado" && (
-                  <button onClick={async () => { setBusy(true); await anularPagoAction(p.id, pacienteId); setBusy(false); onSaved?.(); }}
+                  <button onClick={async () => { setBusy(true); await anularPagoAction(String(p.id), String(pacienteId)); setBusy(false); onSaved?.(); }}
                     className="text-[11px] font-medium text-slate-400 dark:text-slate-500 hover:text-rose-500 transition-colors shrink-0">Anular</button>
                 )}
               </motion.div>
@@ -532,7 +532,7 @@ function ResumenBox({ label, value, color }: { label: string; value: string; col
 }
 
 function FormPago({ pacienteId, presupuestoId, mediosPago, saldoSugerido, onSaved }: {
-  pacienteId: number; presupuestoId: number; mediosPago: { id: number; nombre: string }[]; saldoSugerido: number; onSaved?: () => void;
+  pacienteId: string; presupuestoId: number; mediosPago: { id: number; nombre: string }[]; saldoSugerido: number; onSaved?: () => void;
 }) {
   const [monto, setMonto] = useState(saldoSugerido > 0 ? String(saldoSugerido.toFixed(2)) : "");
   const [medio, setMedio] = useState<number | "">(mediosPago[0]?.id ?? "");
@@ -545,11 +545,11 @@ function FormPago({ pacienteId, presupuestoId, mediosPago, saldoSugerido, onSave
     if (!m || m <= 0) { setError("Ingresa un monto válido"); return; }
     setSaving(true); setError("");
     const res = await registrarPagoAction({
-      presupuesto_id: presupuestoId,
+      presupuesto_id: String(presupuestoId),
       monto: m,
-      medio_pago_id: medio === "" ? null : Number(medio),
+      medio_pago_id: medio === "" ? null : String(medio),
       referencia: referencia || undefined,
-      paciente_id: pacienteId,
+      paciente_id: String(pacienteId),
     });
     setSaving(false);
     if (res?.error) { setError(res.error); return; }

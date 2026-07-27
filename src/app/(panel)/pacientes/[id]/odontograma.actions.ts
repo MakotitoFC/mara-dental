@@ -4,27 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
-/** Busca el id de una condición por nombre (case-insensitive); la crea si no existe. */
-async function resolveCondicionId(supabase: SupabaseClient, nombre: string): Promise<number | null> {
-  const { data: existente } = await supabase
-    .from("condicion")
-    .select("id")
-    .ilike("condicion", nombre)
-    .maybeSingle();
-
-  if (existente) return existente.id;
-
-  const { data: creada, error } = await supabase
-    .from("condicion")
-    .insert({ condicion: nombre })
-    .select("id")
-    .single();
-
+export async function getCondicionesOdontogramaAction() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("condicion").select("*").order("condicion");
   if (error) {
-    console.error("Error creando condición:", error);
-    return null;
+    console.error("Error obteniendo condiciones:", error);
+    return [];
   }
-  return creada.id;
+  return data;
 }
 
 /**
@@ -36,8 +23,8 @@ async function resolveCondicionId(supabase: SupabaseClient, nombre: string): Pro
  */
 async function resolveOdontogramaContext(
   supabase: SupabaseClient,
-  consultaId: number | undefined,
-): Promise<{ consulta_id: number; nota_clinica_id: number } | { error: string }> {
+  consultaId: string | undefined,
+): Promise<{ consulta_id: string; nota_clinica_id: string } | { error: string }> {
   if (!consultaId) {
     return { error: "Los hallazgos del odontograma solo se registran dentro de una consulta activa." };
   }
@@ -73,8 +60,8 @@ export async function getOdontogramasAction(pacienteId: string) {
     .from("odontograma")
     .select(`
       id, created_at, notas_generales,
-      personal(nombre, apellido),
-      odontograma_diente(id, diente, superficie, descripcion, condicion(condicion))
+      usuarios ( personal (nombre, apellido) ),
+      odontograma_diente(id, diente, superficie, descripcion, condicion_id)
     `)
     .in("nota_clinica_id", notaIds)
     .order("created_at", { ascending: false });
@@ -100,33 +87,34 @@ export async function getOdontogramasAction(pacienteId: string) {
       const g = grouped.get(key)!;
       if (!g.db_ids.includes(d.id)) g.db_ids.push(d.id);
 
-      const condicionNombre: string = d.condicion?.condicion ?? "hallazgo";
+      const condicionIdStr: string = String(d.condicion_id);
 
       if (d.superficie === "diente completo") {
          g.isAll = true;
-         g.allConvention = condicionNombre;
+         g.allConvention = condicionIdStr;
       } else {
          // Asegurar que no hayan duplicados de superficie en el grupo
          if (!g.surfaceConditions.find((s: any) => s.surface === d.superficie)) {
-           g.surfaceConditions.push({ surface: d.superficie, convention: condicionNombre });
+           g.surfaceConditions.push({ surface: d.superficie, convention: condicionIdStr });
          }
       }
     }
 
     const findings = Array.from(grouped.values());
+    const dentistaInfo = (record.usuarios as any)?.personal;
 
     return {
       id: String(record.id),
       fecha: record.created_at.split("T")[0],
       tipo: "Evaluación Odontológica",
-      dentista: record.personal ? `Dr. ${(record.personal as any).nombre} ${(record.personal as any).apellido}` : "Doctor",
+      dentista: dentistaInfo ? `Dr. ${dentistaInfo.nombre} ${dentistaInfo.apellido}` : "Doctor",
       findings
     };
   });
 }
 
 export async function addFindingAction(data: {
-  consulta_id?: number;
+  consulta_id?: string;
   diente: number;
   isAll: boolean;
   allConvention?: string;
@@ -137,9 +125,6 @@ export async function addFindingAction(data: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
 
-  const { data: personal } = await supabase.from("personal").select("id").eq("usuario_id", user.id).single();
-  if (!personal) return { error: "Doctor no encontrado" };
-
   const ctx = await resolveOdontogramaContext(supabase, data.consulta_id);
   if ("error" in ctx) return { error: ctx.error };
 
@@ -149,7 +134,7 @@ export async function addFindingAction(data: {
     .from("odontograma")
     .select("id")
     .eq("nota_clinica_id", ctx.nota_clinica_id)
-    .eq("doctor_id", personal.id)
+    .eq("doctor_id", user.id)
     .gte("created_at", `${today}T00:00:00.000Z`)
     .limit(1)
     .maybeSingle();
@@ -161,39 +146,29 @@ export async function addFindingAction(data: {
     const { data: newOdon, error: err } = await supabase.from("odontograma").insert({
       consulta_id: ctx.consulta_id,
       nota_clinica_id: ctx.nota_clinica_id,
-      doctor_id: personal.id,
+      doctor_id: user.id,
     }).select("id").single();
     if (err) return { error: err.message };
     odontograma_id = newOdon.id;
   }
 
-  // condicion_id es NOT NULL — resolvemos (o creamos) cada condición usada antes de insertar.
-  const nombresUsados = data.isAll
-    ? [data.allConvention].filter(Boolean) as string[]
-    : Array.from(new Set(data.surfaceConditions.map(sc => sc.convention)));
-
-  const condicionIds = new Map<string, number>();
-  for (const nombre of nombresUsados) {
-    const id = await resolveCondicionId(supabase, nombre);
-    if (id === null) return { error: `No se pudo resolver la condición "${nombre}".` };
-    condicionIds.set(nombre, id);
-  }
-
   const inserts = [];
   if (data.isAll) {
+    if (!data.allConvention) return { error: "Falta la convención" };
     inserts.push({
       odontograma_id,
       diente: String(data.diente),
-      condicion_id: condicionIds.get(data.allConvention!),
+      condicion_id: parseInt(data.allConvention),
       superficie: "diente completo",
       descripcion: data.observaciones
     });
   } else {
     for (const sc of data.surfaceConditions) {
+      if (!sc.convention) continue;
       inserts.push({
         odontograma_id,
         diente: String(data.diente),
-        condicion_id: condicionIds.get(sc.convention),
+        condicion_id: parseInt(sc.convention),
         superficie: sc.surface,
         descripcion: data.observaciones
       });
@@ -208,7 +183,7 @@ export async function addFindingAction(data: {
   return { success: true };
 }
 
-export async function updateFindingAction(db_ids: number[], observaciones: string) {
+export async function updateFindingAction(db_ids: string[], observaciones: string) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("odontograma_diente")
@@ -219,7 +194,7 @@ export async function updateFindingAction(db_ids: number[], observaciones: strin
   return { success: true };
 }
 
-export async function deleteFindingAction(db_ids: number[]) {
+export async function deleteFindingAction(db_ids: string[]) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("odontograma_diente")

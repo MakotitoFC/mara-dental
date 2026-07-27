@@ -18,7 +18,7 @@ export function TratamientoSection({
   initial,
   enabled = true,
   onItemsChange,
-}: { diagnosticoId: number; consultaId: number; pacienteId: number; initial: Tratamiento[]; enabled?: boolean; onItemsChange?: (items: Tratamiento[]) => void }) {
+}: { diagnosticoId: string; consultaId: string; pacienteId: string; initial: Tratamiento[]; enabled?: boolean; onItemsChange?: (items: Tratamiento[]) => void }) {
   const [items, setItems] = useState<Tratamiento[]>(initial);
   const [adding, setAdding] = useState(false);
   const [notas, setNotas] = useState("");
@@ -40,7 +40,7 @@ export function TratamientoSection({
   async function handleEdit() {
     if (!editingId || !editNotas.trim()) return;
     setSaving(true);
-    const res = await editTratamientoAction({ id: editingId, notas: editNotas, paciente_id: pacienteId });
+    const res = await editTratamientoAction({ id: String(editingId), notas: editNotas, paciente_id: String(pacienteId) });
     setSaving(false);
     if (!res?.error) {
       updateItems(items.map(i => i.id === editingId ? { ...i, notas: editNotas } : i));
@@ -51,7 +51,7 @@ export function TratamientoSection({
   async function handleAdd() {
     if (!notas.trim()) return;
     setSaving(true);
-    const res = await saveTratamientoAction({ diagnostico_id: diagnosticoId, consulta_id: consultaId, notas, paciente_id: pacienteId });
+    const res = await saveTratamientoAction({ diagnostico_id: String(diagnosticoId), consulta_id: String(consultaId), notas, paciente_id: String(pacienteId) });
     setSaving(false);
     if (!res?.error) {
       updateItems([...items, { id: Date.now(), notas }]);
@@ -60,7 +60,7 @@ export function TratamientoSection({
   }
 
   async function handleDelete(id: number) {
-    await deleteTratamientoAction(id, pacienteId);
+    await deleteTratamientoAction(String(id), String(pacienteId));
     updateItems(items.filter(i => i.id !== id));
   }
 

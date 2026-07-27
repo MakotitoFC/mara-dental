@@ -16,6 +16,7 @@ export function YearView({
   onDayClick: (d: Date) => void;
 }) {
   const todayStr = toDateStr(today);
+  const { getVars } = useTipoConsultaVars();
 
   const firstCitaByDay = new Map<string, Cita>();
   const countByDay = new Map<string, number>();

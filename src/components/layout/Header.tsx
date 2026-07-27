@@ -27,7 +27,7 @@ function SedeDisplay({ sede }: { sede?: string }) {
       title={sede}
     >
       <Icon name="location_on" size={15} className="text-slate-400 shrink-0" />
-      <span className="truncate max-w-[140px]">{sede}</span>
+      <span className="truncate max-w-35">{sede}</span>
     </div>
   );
 }
@@ -112,7 +112,7 @@ function AlertasButton() {
       >
         <Icon name="notifications" size={18} />
         {count > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+          <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
             {count > 9 ? "9+" : count}
           </span>
         )}
@@ -187,7 +187,7 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-      className="sticky top-0 z-20 h-[52px] bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-6 shrink-0 gap-3"
+      className="sticky top-0 z-20 h-13 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-6 shrink-0 gap-3"
     >
       {/* Lado izquierdo */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -215,7 +215,7 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
                   <span key={i} className="flex items-center min-w-0">
                     {i > 0 && <Icon name="chevron_right" size={16} className="text-slate-300 dark:text-slate-600 shrink-0 mx-0.5" />}
                     {isLast ? (
-                      <span className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 truncate max-w-[200px] lg:max-w-sm">
+                      <span className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 truncate max-w-50 lg:max-w-sm">
                         {crumb.label}
                       </span>
                     ) : (
@@ -253,9 +253,9 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
           </div>
           {user?.name && (
             <div className="min-w-0 leading-tight">
-              <p className="text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[140px]">{user.name}</p>
+              <p className="text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 truncate max-w-35">{user.name}</p>
               {user.especialidad && (
-                <p className="text-[10.5px] text-slate-400 dark:text-slate-500 truncate max-w-[140px]">{user.especialidad}</p>
+                <p className="text-[10.5px] text-slate-400 dark:text-slate-500 truncate max-w-35">{user.especialidad}</p>
               )}
             </div>
           )}

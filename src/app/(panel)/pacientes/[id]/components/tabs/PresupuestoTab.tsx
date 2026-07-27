@@ -7,7 +7,7 @@ import { PresupuestoPhase } from "../consulta/PresupuestoPhase";
 import { getPresupuestoActivoAction, getPresupuestosPacienteAction, getMediosPagoAction } from "../../consulta.actions";
 
 function PresupuestosAnteriores({ items, pacienteId, paciente, mediosPago, onSaved }: {
-  items: any[]; pacienteId: number; paciente: any; mediosPago: { id: number; nombre: string }[]; onSaved: () => void;
+  items: any[]; pacienteId: string; paciente: any; mediosPago: { id: number; nombre: string }[]; onSaved: () => void;
 }) {
   if (items.length <= 1) return null;
   const anteriores = items.slice(1);
@@ -23,8 +23,8 @@ function PresupuestosAnteriores({ items, pacienteId, paciente, mediosPago, onSav
         {anteriores.map((p) => (
           <PresupuestoPhase
             key={p.id}
-            consultaId={0}
-            pacienteId={pacienteId}
+            consultaId={"0"}
+            pacienteId={String(pacienteId)}
             paciente={paciente}
             presupuesto={p}
             mediosPago={mediosPago}
@@ -38,7 +38,7 @@ function PresupuestosAnteriores({ items, pacienteId, paciente, mediosPago, onSav
 
 export function PresupuestoTab({ paciente, consultaId, data, loading, refetch }: {
   paciente: any;
-  consultaId: number | null;
+  consultaId?: string | null;
   data: any;
   loading: boolean;
   refetch: () => void;
@@ -54,7 +54,7 @@ export function PresupuestoTab({ paciente, consultaId, data, loading, refetch }:
   const fetchOwn = useCallback(async () => {
     setOwnLoading(true);
     const [presupuesto, mediosPago] = await Promise.all([
-      getPresupuestoActivoAction(pacienteId),
+      getPresupuestoActivoAction(String(pacienteId)),
       getMediosPagoAction(),
     ]);
     setOwn({ presupuesto, mediosPago });
@@ -62,7 +62,7 @@ export function PresupuestoTab({ paciente, consultaId, data, loading, refetch }:
   }, [pacienteId]);
 
   const fetchHistorial = useCallback(async () => {
-    setHistorial(await getPresupuestosPacienteAction(pacienteId));
+    setHistorial(await getPresupuestosPacienteAction(String(pacienteId)));
   }, [pacienteId]);
 
   useEffect(() => {
@@ -90,14 +90,14 @@ export function PresupuestoTab({ paciente, consultaId, data, loading, refetch }:
   return (
     <div className="flex flex-col gap-4">
       <PresupuestoPhase
-        consultaId={consultaId ?? 0}
-        pacienteId={pacienteId}
+        consultaId={consultaId ?? "0"}
+        pacienteId={String(pacienteId)}
         paciente={paciente}
         presupuesto={presupuesto}
         mediosPago={mediosPago}
         onSaved={onSaved}
       />
-      <PresupuestosAnteriores items={historial} pacienteId={pacienteId} paciente={paciente} mediosPago={mediosPago} onSaved={() => { onSaved(); fetchHistorial(); }} />
+      <PresupuestosAnteriores items={historial} pacienteId={String(pacienteId)} paciente={paciente} mediosPago={mediosPago} onSaved={() => { onSaved(); fetchHistorial(); }} />
     </div>
   );
 }

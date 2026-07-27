@@ -60,7 +60,7 @@ function RecetasHistorial({ recetas, pacienteNombre, telefono, dni }: { recetas:
 
 export function RecetasTab({ paciente, consultaId, data, loading, refetch }: {
   paciente: any;
-  consultaId: number | null;
+  consultaId?: string | null;
   data: any;
   loading: boolean;
   refetch: () => void;
@@ -69,7 +69,7 @@ export function RecetasTab({ paciente, consultaId, data, loading, refetch }: {
 
   const [historialPaciente, setHistorialPaciente] = useState<any[] | null>(null);
   const fetchHistorialPaciente = useCallback(async () => {
-    const list = await getRecetasPacienteAction(pacienteId);
+    const list = await getRecetasPacienteAction(String(pacienteId));
     setHistorialPaciente(list);
   }, [pacienteId]);
 
@@ -103,7 +103,7 @@ export function RecetasTab({ paciente, consultaId, data, loading, refetch }: {
   return (
     <RecetaSection
       diagnosticoId={diagnostico.id}
-      pacienteId={pacienteId}
+      pacienteId={String(pacienteId)}
       initial={data.recetas ?? []}
       pacienteNombre={paciente.nombre_completo}
       telefono={paciente.telefono ?? ""}

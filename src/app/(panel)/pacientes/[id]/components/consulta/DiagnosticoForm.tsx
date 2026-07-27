@@ -16,8 +16,8 @@ const CATEGORIAS = [
 ];
 
 export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
-  consultaId: number;
-  pacienteId: number;
+  consultaId: string;
+  pacienteId: string;
   onSaved: (esTratado: boolean) => void;
 }) {
   const [diagnostico, setDiagnostico] = useState("");

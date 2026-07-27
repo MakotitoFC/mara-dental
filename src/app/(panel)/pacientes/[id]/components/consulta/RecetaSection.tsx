@@ -45,8 +45,8 @@ const fmtFecha = (d: string) => {
 };
 
 interface SectionProps {
-  diagnosticoId: number;
-  pacienteId: number;
+  diagnosticoId: string;
+  pacienteId: string;
   initial: Receta[];
   enabled?: boolean;
   pacienteNombre: string;
@@ -70,14 +70,14 @@ export function RecetaSection(props: SectionProps) {
 
   async function handleToggleEstado(r: Receta) {
     const newEst = r.estado === "activa" ? "cancelada" : "activa";
-    await toggleEstadoRecetaAction(r.id, newEst, pacienteId);
+    await toggleEstadoRecetaAction(String(r.id), newEst, String(pacienteId));
     setRecetas(prev => prev.map(x => x.id === r.id ? { ...x, estado: newEst } : x));
   }
 
   const [medToDelete, setMedToDelete] = useState<number | null>(null);
   async function confirmDeleteMed() {
     if (!medToDelete) return;
-    await deleteMedicamentoAction(medToDelete, pacienteId);
+    await deleteMedicamentoAction(String(medToDelete), String(pacienteId));
     setRecetas(p => p.map(r => ({ ...r, receta_medicamento: r.receta_medicamento.filter(m => m.id !== medToDelete) })));
     setMedToDelete(null);
   }
@@ -323,7 +323,7 @@ export async function handleDownloadPdf(d: DocData, sede: ClinicaInfo | null) {
 // ─── Modal "Nueva receta electrónica" (dos paneles + vista previa) ─────────────
 
 function RecetaModal({ diagnosticoId, pacienteId, pacienteNombre, telefono, dni, doctorNombre, diagnosticoTexto, onClose, onSaved }: {
-  diagnosticoId: number; pacienteId: number; pacienteNombre: string; telefono: string; dni: string;
+  diagnosticoId: string; pacienteId: string; pacienteNombre: string; telefono: string; dni: string;
   doctorNombre: string; diagnosticoTexto: string; onClose: () => void; onSaved?: () => void;
 }) {
   const today = new Date().toISOString().split("T")[0];
@@ -363,7 +363,7 @@ function RecetaModal({ diagnosticoId, pacienteId, pacienteNombre, telefono, dni,
   async function guardar(): Promise<boolean> {
     if (validMeds.length === 0) { setError("Agrega al menos un medicamento"); return false; }
     setSaving(true); setError("");
-    const res = await saveRecetaAction({ diagnostico_id: diagnosticoId, paciente_id: pacienteId, medicamentos: validMeds });
+    const res = await saveRecetaAction({ diagnostico_id: String(diagnosticoId), paciente_id: String(pacienteId), medicamentos: validMeds });
     setSaving(false);
     if (res?.error) { setError(res.error); return false; }
     return true;
