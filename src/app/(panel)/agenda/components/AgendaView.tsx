@@ -29,7 +29,7 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
   const searchParams = useSearchParams();
   const preselectedPacienteId = searchParams?.get("paciente") ?? null;
 
-  const [view, setView] = useState<CalView>("month");
+  const [view, setView] = useState<CalView>((searchParams?.get("view") as CalView) || "month");
   const [calMonth, setCalMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
   const [weekStart, setWeekStart] = useState(getMonday(today));
   const [selectedDate, setSelectedDate] = useState(today);

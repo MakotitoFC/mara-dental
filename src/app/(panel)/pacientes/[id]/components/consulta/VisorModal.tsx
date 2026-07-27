@@ -305,7 +305,7 @@ export function VisorModal({
   function handleUpdateDB(newArr: any[]) {
     setAnotaciones(newArr);
     a.anotaciones = newArr;
-    updateAnotacionesAction(a.id, newArr).catch((err) => console.error(err));
+    updateAnotacionesAction(String(a.id), newArr).catch((err) => console.error(err));
   }
 
   function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {

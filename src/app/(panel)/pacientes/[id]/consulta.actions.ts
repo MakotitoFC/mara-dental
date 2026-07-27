@@ -8,7 +8,7 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 // ── Helpers internos ────────────────────────────────────────────────────────
 
 /** consultas → nota_clinica_id (ya viene directo en la fila de consultas). */
-async function resolveNotaClinicaId(supabase: SupabaseClient, consultaId: number): Promise<number | null> {
+async function resolveNotaClinicaId(supabase: SupabaseClient, consultaId: string): Promise<number | null> {
   const { data } = await supabase.from("consultas").select("nota_clinica_id").eq("id", consultaId).single();
   return data?.nota_clinica_id ?? null;
 }
@@ -19,7 +19,7 @@ async function resolveNotaClinicaId(supabase: SupabaseClient, consultaId: number
  * reciente registrado para ese diagnóstico (el flujo natural es: primero se
  * registra el tratamiento, luego se planifican sus fases).
  */
-async function resolveTratamientoIdParaDiagnostico(supabase: SupabaseClient, diagnosticoId: number): Promise<number | null> {
+async function resolveTratamientoIdParaDiagnostico(supabase: SupabaseClient, diagnosticoId: string): Promise<number | null> {
   const { data } = await supabase
     .from("tratamiento")
     .select("id")
@@ -31,7 +31,7 @@ async function resolveTratamientoIdParaDiagnostico(supabase: SupabaseClient, dia
 }
 
 /** Todas las consultas del paciente — cadena real historia_clinica → nota_clinica → consultas (sin FK directa). */
-async function resolveConsultaIdsParaPaciente(supabase: SupabaseClient, pacienteId: number): Promise<number[]> {
+async function resolveConsultaIdsParaPaciente(supabase: SupabaseClient, pacienteId: string): Promise<number[]> {
   const { data: hc } = await supabase.from("historia_clinica").select("id").eq("paciente_id", pacienteId).maybeSingle();
   if (!hc) return [];
   const { data: notas } = await supabase.from("nota_clinica").select("id").eq("historia_clinica_id", hc.id);
@@ -43,7 +43,7 @@ async function resolveConsultaIdsParaPaciente(supabase: SupabaseClient, paciente
 
 // ── Consulta activa — bundle consolidado para los tabs de la Ficha ─────────
 
-export async function getConsultaActivaAction(consultaId: number, pacienteId: number) {
+export async function getConsultaActivaAction(consultaId: string, pacienteId: string) {
   const supabase = await createClient();
 
   const { data: consulta, error } = await supabase
@@ -152,7 +152,7 @@ export async function searchCIE10Action(query: string) {
  * consultas (no solo la consulta activa) — usado por DiagnosticoTab para
  * mostrar el historial cuando no hay una consulta en curso.
  */
-export async function getDiagnosticosPacienteAction(pacienteId: number) {
+export async function getDiagnosticosPacienteAction(pacienteId: string) {
   const supabase = await createClient();
   const consultaIds = await resolveConsultaIdsParaPaciente(supabase, pacienteId);
   if (consultaIds.length === 0) return [];
@@ -200,7 +200,7 @@ export async function getDiagnosticosPacienteAction(pacienteId: number) {
  * Todas las recetas del paciente a través de su historial completo de
  * consultas — usado por RecetasTab cuando no hay una consulta en curso.
  */
-export async function getRecetasPacienteAction(pacienteId: number) {
+export async function getRecetasPacienteAction(pacienteId: string) {
   const supabase = await createClient();
   const consultaIds = await resolveConsultaIdsParaPaciente(supabase, pacienteId);
   if (consultaIds.length === 0) return [];
@@ -245,9 +245,9 @@ export async function saveDiagnosticoAction(formData: FormData) {
   const { data: personal } = await supabase.from("personal").select("id").eq("usuario_id", user.id).single();
   if (!personal) return { error: "Perfil no encontrado" };
 
-  const consulta_id = Number(formData.get("consulta_id"));
+  const consulta_id = formData.get("consulta_id") as string;
   const paciente_id = formData.get("paciente_id") as string;
-  const nota_clinica_id = await resolveNotaClinicaId(supabase, consulta_id);
+  const nota_clinica_id = await resolveNotaClinicaId(supabase, String(consulta_id));
   if (!nota_clinica_id) return { error: "No se encontró la nota clínica de esta consulta." };
 
   const diagnosticoStr = formData.get("diagnostico") as string;
@@ -278,7 +278,7 @@ export async function saveDiagnosticoAction(formData: FormData) {
   const diagnostico_id = diagRes.id;
 
   if (es_definitivo) {
-    const uploadErr = await subirArchivosDiagnostico(supabase, formData, diagnostico_id, consulta_id, personal.id);
+    const uploadErr = await subirArchivosDiagnostico(supabase, formData, String(diagnostico_id), String(consulta_id), personal.id);
     if (uploadErr) return { error: uploadErr };
   }
 
@@ -287,7 +287,7 @@ export async function saveDiagnosticoAction(formData: FormData) {
 }
 
 async function subirArchivosDiagnostico(
-  supabase: SupabaseClient, formData: FormData, diagnostico_id: number, consulta_id: number, subido_por: number,
+  supabase: SupabaseClient, formData: FormData, diagnostico_id: string, consulta_id: string, subido_por: number,
 ): Promise<string | null> {
   const archivos = formData.getAll("archivos") as File[];
   const archivosParaInsertar = [];
@@ -337,8 +337,8 @@ export async function updateDiagnosticoAction(formData: FormData) {
   const { data: personal } = await supabase.from("personal").select("id").eq("usuario_id", user.id).single();
   if (!personal) return { error: "Perfil no encontrado" };
 
-  const diagnostico_id = Number(formData.get("diagnostico_id"));
-  const consulta_id = Number(formData.get("consulta_id"));
+  const diagnostico_id = formData.get("diagnostico_id") as string;
+  const consulta_id = formData.get("consulta_id") as string;
   const paciente_id = formData.get("paciente_id") as string;
   const diagnosticoStr = formData.get("diagnostico") as string;
   const es_tratado = formData.get("es_tratado") === "true";
@@ -357,14 +357,14 @@ export async function updateDiagnosticoAction(formData: FormData) {
   }
 
   if (es_definitivo) {
-    await subirArchivosDiagnostico(supabase, formData, diagnostico_id, consulta_id, personal.id);
+    await subirArchivosDiagnostico(supabase, formData, String(diagnostico_id), String(consulta_id), personal.id);
   }
 
   if (paciente_id) revalidatePath(`/pacientes/${paciente_id}`);
   return { success: true };
 }
 
-export async function updateAnotacionesAction(archivoId: number, anotacionesJSON: any) {
+export async function updateAnotacionesAction(archivoId: string, anotacionesJSON: any) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
@@ -373,7 +373,7 @@ export async function updateAnotacionesAction(archivoId: number, anotacionesJSON
   return { success: true };
 }
 
-export async function deleteArchivoClinicoAction(archivoId: number, urlPath: string, pacienteId: number) {
+export async function deleteArchivoClinicoAction(archivoId: string, urlPath: string, pacienteId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
@@ -396,7 +396,7 @@ export async function deleteArchivoClinicoAction(archivoId: number, urlPath: str
 // es solo una ayuda para redactar el texto, no se persiste precio/ítem aquí;
 // los ítems con precio viven en Presupuesto vía tratamiento_catalogo_planeado).
 
-export async function getTratamientosAction(diagnosticoId: number) {
+export async function getTratamientosAction(diagnosticoId: string) {
   const supabase = await createClient();
   const { data } = await supabase.from("tratamiento").select("id, tratamiento").eq("diagnostico_id", diagnosticoId).order("id");
   return (data || []).map((t: any) => ({ id: t.id, notas: t.tratamiento as string }));
@@ -414,7 +414,7 @@ export async function searchCatalogoAction(query: string) {
   return data || [];
 }
 
-export async function saveTratamientoAction(data: { diagnostico_id: number; consulta_id: number; notas: string; paciente_id: number }) {
+export async function saveTratamientoAction(data: { diagnostico_id: string; consulta_id: string; notas: string; paciente_id: string }) {
   const supabase = await createClient();
   const nota_clinica_id = await resolveNotaClinicaId(supabase, data.consulta_id);
   if (!nota_clinica_id) return { error: "No se encontró la nota clínica de esta consulta." };
@@ -432,7 +432,7 @@ export async function saveTratamientoAction(data: { diagnostico_id: number; cons
   return { success: true };
 }
 
-export async function editTratamientoAction(data: { id: number; notas: string; paciente_id: number }) {
+export async function editTratamientoAction(data: { id: string; notas: string; paciente_id: string }) {
   const supabase = await createClient();
   const { error } = await supabase.from("tratamiento").update({ tratamiento: data.notas }).eq("id", data.id);
   if (error) return { error: "No se pudo actualizar el tratamiento" };
@@ -440,7 +440,7 @@ export async function editTratamientoAction(data: { id: number; notas: string; p
   return { success: true };
 }
 
-export async function deleteTratamientoAction(id: number, pacienteId: number) {
+export async function deleteTratamientoAction(id: string, pacienteId: string) {
   const supabase = await createClient();
   await supabase.from("tratamiento").delete().eq("id", id);
   revalidatePath(`/pacientes/${pacienteId}`);
@@ -454,7 +454,7 @@ export async function deleteTratamientoAction(id: number, pacienteId: number) {
 // componente de UI; internamente mapean a las columnas reales (fase,
 // tiempo_estimado).
 
-export async function getPlanTrabajoAction(diagnosticoId: number) {
+export async function getPlanTrabajoAction(diagnosticoId: string) {
   const supabase = await createClient();
   const tratamientoId = await resolveTratamientoIdParaDiagnostico(supabase, diagnosticoId);
   if (!tratamientoId) return [];
@@ -469,7 +469,7 @@ export async function getPlanTrabajoAction(diagnosticoId: number) {
 }
 
 export async function savePlanTrabajoAction(data: {
-  diagnostico_id: number; etapa: string; descripcion: string; tiempo_pronostico: string; estado: string; paciente_id: number;
+  diagnostico_id: string; etapa: string; descripcion: string; tiempo_pronostico: string; estado: string; paciente_id: string;
 }) {
   const supabase = await createClient();
   const tratamientoId = await resolveTratamientoIdParaDiagnostico(supabase, data.diagnostico_id);
@@ -497,7 +497,7 @@ export async function savePlanTrabajoAction(data: {
 }
 
 export async function editPlanTrabajoAction(data: {
-  id: number; etapa: string; descripcion: string; tiempo_pronostico: string; estado: string; paciente_id: number;
+  id: string; etapa: string; descripcion: string; tiempo_pronostico: string; estado: string; paciente_id: string;
 }) {
   const supabase = await createClient();
   const { error } = await supabase.from("plan_tratamiento").update({
@@ -508,7 +508,7 @@ export async function editPlanTrabajoAction(data: {
   return { success: true };
 }
 
-export async function deletePlanTrabajoAction(id: number, pacienteId: number) {
+export async function deletePlanTrabajoAction(id: string, pacienteId: string) {
   const supabase = await createClient();
   await supabase.from("plan_tratamiento").delete().eq("id", id);
   revalidatePath(`/pacientes/${pacienteId}`);
@@ -517,7 +517,7 @@ export async function deletePlanTrabajoAction(id: number, pacienteId: number) {
 
 // ── Receta ────────────────────────────────────────────────────────────────────
 
-export async function getRecetasAction(diagnosticoId: number) {
+export async function getRecetasAction(diagnosticoId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("recetas")
@@ -528,7 +528,7 @@ export async function getRecetasAction(diagnosticoId: number) {
 }
 
 export async function saveRecetaAction(data: {
-  diagnostico_id: number; paciente_id: number;
+  diagnostico_id: string; paciente_id: string;
   medicamentos: Array<{ medicamento_id?: number | null; medicamento_nombre: string; dosis: string; frecuencia: string; indicaciones: string }>;
 }) {
   const supabase = await createClient();
@@ -539,7 +539,7 @@ export async function saveRecetaAction(data: {
 
   const { data: receta, error: rErr } = await supabase
     .from("recetas")
-    .insert({ diagnostico_id: data.diagnostico_id, doctor_id: personal.id })
+    .insert({ diagnostico_id: data.diagnostico_id, doctor_id: user.id })
     .select("id").single();
   if (rErr) return { error: "No se pudo crear la receta" };
 
@@ -550,14 +550,14 @@ export async function saveRecetaAction(data: {
   return { success: true };
 }
 
-export async function toggleEstadoRecetaAction(id: number, estado: string, pacienteId: number) {
+export async function toggleEstadoRecetaAction(id: string, estado: string, pacienteId: string) {
   const supabase = await createClient();
   await supabase.from("recetas").update({ estado }).eq("id", id);
   revalidatePath(`/pacientes/${pacienteId}`);
   return { success: true };
 }
 
-export async function deleteRecetaAction(id: number, pacienteId: number) {
+export async function deleteRecetaAction(id: string, pacienteId: string) {
   const supabase = await createClient();
   await supabase.from("receta_medicamento").delete().eq("receta_id", id);
   await supabase.from("recetas").delete().eq("id", id);
@@ -576,7 +576,7 @@ export async function searchMedicamentosAction(query: string) {
   return data || [];
 }
 
-export async function deleteMedicamentoAction(id: number, pacienteId: number) {
+export async function deleteMedicamentoAction(id: string, pacienteId: string) {
   const supabase = await createClient();
   await supabase.from("receta_medicamento").delete().eq("id", id);
   revalidatePath(`/pacientes/${pacienteId}`);
@@ -585,7 +585,7 @@ export async function deleteMedicamentoAction(id: number, pacienteId: number) {
 
 // ── Recomendaciones ───────────────────────────────────────────────────────────
 
-export async function getRecomendacionesConsultaAction(consultaId: number) {
+export async function getRecomendacionesConsultaAction(consultaId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("recomendacion")
@@ -595,7 +595,7 @@ export async function getRecomendacionesConsultaAction(consultaId: number) {
   return data || [];
 }
 
-export async function saveRecomendacionAction(data: { consulta_id: number; contenido: string; paciente_id: number }) {
+export async function saveRecomendacionAction(data: { consulta_id: string; contenido: string; paciente_id: string }) {
   const supabase = await createClient();
   const { error } = await supabase.from("recomendacion").insert({ consulta_id: data.consulta_id, contenido: data.contenido });
   if (error) return { error: "No se pudo guardar la recomendación" };
@@ -603,7 +603,7 @@ export async function saveRecomendacionAction(data: { consulta_id: number; conte
   return { success: true };
 }
 
-export async function editRecomendacionAction(data: { id: number; contenido: string; paciente_id: number }) {
+export async function editRecomendacionAction(data: { id: string; contenido: string; paciente_id: string }) {
   const supabase = await createClient();
   const { error } = await supabase.from("recomendacion").update({ contenido: data.contenido }).eq("id", data.id);
   if (error) return { error: "No se pudo actualizar la recomendación" };
@@ -611,7 +611,7 @@ export async function editRecomendacionAction(data: { id: number; contenido: str
   return { success: true };
 }
 
-export async function deleteRecomendacionAction(id: number, pacienteId: number) {
+export async function deleteRecomendacionAction(id: string, pacienteId: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("recomendacion").delete().eq("id", id);
   if (error) return { error: "No se pudo eliminar la recomendación" };
@@ -628,7 +628,7 @@ export async function getMediosPagoAction() {
 }
 
 /** Presupuesto más reciente del paciente (no está scoped por consulta — el esquema no lo permite). */
-export async function getPresupuestoActivoAction(pacienteId: number) {
+export async function getPresupuestoActivoAction(pacienteId: string) {
   const supabase = await createClient();
   if (!pacienteId) return null;
 
@@ -681,7 +681,7 @@ export async function getPresupuestoActivoAction(pacienteId: number) {
  * el mismo shape que getPresupuestoActivoAction pero para el historial completo,
  * no solo el más reciente.
  */
-export async function getPresupuestosPacienteAction(pacienteId: number) {
+export async function getPresupuestosPacienteAction(pacienteId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("presupuestos")
@@ -725,8 +725,8 @@ export async function getPresupuestosPacienteAction(pacienteId: number) {
 }
 
 export async function crearPresupuestoAction(data: {
-  paciente_id: number; consulta_id: number;
-  items: { catalogo_id: number; cantidad: number; precio_unitario: number }[];
+  paciente_id: string; consulta_id: string;
+  items: { catalogo_id: string; cantidad: number; precio_unitario: number }[];
   descuento_porcentaje: number; notas?: string;
 }) {
   const supabase = await createClient();
@@ -746,7 +746,7 @@ export async function crearPresupuestoAction(data: {
     .from("presupuestos")
     .insert({
       paciente_id: data.paciente_id,
-      doctor_id: personal.id,
+      doctor_id: user.id,
       nota_clinica_id,
       total_bruto,
       descuento_porcentaje: data.descuento_porcentaje || 0,
@@ -781,7 +781,7 @@ export async function crearPresupuestoAction(data: {
   return { success: true, presupuesto_id: presupuesto.id };
 }
 
-export async function updateEstadoPresupuestoAction(data: { presupuesto_id: number; estado: string; paciente_id: number }) {
+export async function updateEstadoPresupuestoAction(data: { presupuesto_id: string; estado: string; paciente_id: string }) {
   const supabase = await createClient();
   const patch: any = { estado: data.estado };
   if (data.estado === "aprobado") patch.fecha_aprobacion = new Date().toISOString();
@@ -791,7 +791,7 @@ export async function updateEstadoPresupuestoAction(data: { presupuesto_id: numb
   return { success: true };
 }
 
-export async function deletePresupuestoAction(presupuestoId: number, pacienteId: number) {
+export async function deletePresupuestoAction(presupuestoId: string, pacienteId: string) {
   const supabase = await createClient();
   await supabase.from("pagos").delete().eq("presupuesto_id", presupuestoId);
   await supabase.from("detalle_presupuesto").delete().eq("presupuesto_id", presupuestoId);
@@ -801,7 +801,7 @@ export async function deletePresupuestoAction(presupuestoId: number, pacienteId:
 }
 
 export async function registrarPagoAction(data: {
-  presupuesto_id: number; monto: number; medio_pago_id: number | null; referencia?: string; observaciones?: string; paciente_id: number;
+  presupuesto_id: string; monto: number; medio_pago_id: string | null; referencia?: string; observaciones?: string; paciente_id: string;
 }) {
   const supabase = await createClient();
   if (!data.monto || data.monto <= 0) return { error: "El monto debe ser mayor a 0" };
@@ -823,7 +823,7 @@ export async function registrarPagoAction(data: {
   return { success: true };
 }
 
-export async function anularPagoAction(pagoId: number, pacienteId: number) {
+export async function anularPagoAction(pagoId: string, pacienteId: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("pagos").update({ estado: "anulado" }).eq("id", pagoId);
   if (error) return { error: "No se pudo anular el pago" };
@@ -848,7 +848,7 @@ async function firmarUrls(supabase: SupabaseClient, archivos: any[]) {
   );
 }
 
-export async function getArchivosPacienteAction(pacienteId: number) {
+export async function getArchivosPacienteAction(pacienteId: string) {
   const supabase = await createClient();
 
   const [viaDiagnostico, viaConsulta] = await Promise.all([
@@ -902,7 +902,7 @@ export async function subirArchivoGeneralAction(formData: FormData) {
   const { data: personal } = await supabase.from("personal").select("id").eq("usuario_id", user.id).single();
   if (!personal) return { error: "Perfil no encontrado" };
 
-  const consulta_id = Number(formData.get("consulta_id"));
+  const consulta_id = formData.get("consulta_id") as string;
   const paciente_id = formData.get("paciente_id") as string;
   const categoria = (formData.get("categoria") as string) || "otros";
   const descripcion = (formData.get("descripcion") as string) || null;

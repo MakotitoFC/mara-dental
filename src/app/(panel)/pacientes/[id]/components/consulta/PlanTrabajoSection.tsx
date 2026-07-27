@@ -29,7 +29,7 @@ export function PlanTrabajoSection({
   initial,
   enabled = true,
   onItemsChange,
-}: { diagnosticoId: number; pacienteId: number; initial: PlanItem[]; enabled?: boolean; onItemsChange?: (items: PlanItem[]) => void }) {
+}: { diagnosticoId: string; pacienteId: string; initial: PlanItem[]; enabled?: boolean; onItemsChange?: (items: PlanItem[]) => void }) {
   const [items, setItems] = useState<PlanItem[]>(initial);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -61,12 +61,12 @@ export function PlanTrabajoSection({
     if (!editingId || !editEtapa.trim()) return;
     setSaving(true);
     const res = await editPlanTrabajoAction({
-      id: editingId,
+      id: String(editingId),
       etapa: editEtapa,
       descripcion: editDesc,
       tiempo_pronostico: editTiempo,
       estado: editEstado,
-      paciente_id: pacienteId,
+      paciente_id: String(pacienteId),
     });
     setSaving(false);
     if (!res?.error) {
@@ -78,7 +78,7 @@ export function PlanTrabajoSection({
   async function handleAdd() {
     if (!etapa.trim()) return;
     setSaving(true);
-    const res = await savePlanTrabajoAction({ diagnostico_id: diagnosticoId, etapa, descripcion: desc, tiempo_pronostico: tiempo, estado, paciente_id: pacienteId });
+    const res = await savePlanTrabajoAction({ diagnostico_id: String(diagnosticoId), etapa, descripcion: desc, tiempo_pronostico: tiempo, estado, paciente_id: String(pacienteId) });
     setSaving(false);
     if (!res?.error) {
       updateItems([...items, { id: Date.now(), etapa, descripcion: desc, tiempo_pronostico: tiempo, estado }]);
@@ -87,7 +87,7 @@ export function PlanTrabajoSection({
   }
 
   async function handleDelete(id: number) {
-    await deletePlanTrabajoAction(id, pacienteId);
+    await deletePlanTrabajoAction(String(id), String(pacienteId));
     updateItems(items.filter(i => i.id !== id));
   }
 

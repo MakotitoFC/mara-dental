@@ -53,12 +53,12 @@ export function TimelineTab({
 
   async function handleCrearHC() {
     setSavingHC(true);
-    await crearHistoriaClinicaAction(pacienteId);
+    await crearHistoriaClinicaAction(String(pacienteId));
     setSavingHC(false);
   }
 
   async function handleCambiarEstado(notaId: string, e: React.ChangeEvent<HTMLSelectElement>) {
-    await cambiarEstadoNotaAction(notaId, e.target.value, pacienteId);
+    await cambiarEstadoNotaAction(String(notaId), e.target.value, String(pacienteId));
   }
 
   return (

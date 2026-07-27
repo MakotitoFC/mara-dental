@@ -91,7 +91,7 @@ export function CitaFormSheet({
     if (isEdit) {
       const res = await updateCitaAction(state.cita.id, {
         fecha, hora_inicio: horaInicio, hora_fin: horaFin,
-        tipo_consulta_id: tipoConsultaId, estado, notas: notas || undefined,
+        tipo_consulta_id: tipoConsultaId!, estado: estado!, notas: notas || "",
       });
       setSaving(false);
       if (res && "error" in res) { setError(res.error as string); return; }
@@ -99,7 +99,7 @@ export function CitaFormSheet({
       const res = await createCitaAction({
         paciente_id: selectedPatient!.id,
         fecha, hora_inicio: horaInicio, hora_fin: horaFin,
-        tipo_consulta_id: tipoConsultaId, estado, notas: notas || undefined,
+        tipo_consulta_id: tipoConsultaId!, estado: estado!, notas: notas || "",
       }, force);
       setSaving(false);
       if (res && "error" in res) {
@@ -127,11 +127,12 @@ export function CitaFormSheet({
     if (res.error) {
       setError(res.error);
     } else if (res.paciente) {
+      const p = res.paciente as any;
       setSelectedPatient({
-        id: res.paciente.id,
-        nombre: res.paciente.nombre,
-        apellido: res.paciente.apellido,
-        dni: res.paciente.dni
+        id: p.id,
+        nombre: p.nombre,
+        apellido: p.apellido,
+        dni: p.dni
       });
       setShowNewPatientForm(false);
       setNewPatientData({ nombre: "", apellido: "", dni: "", fecha_nacimiento: "", telefono: "" });

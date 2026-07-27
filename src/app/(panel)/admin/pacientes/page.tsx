@@ -44,7 +44,7 @@ export default function AdminPacientesPage() {
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden relative">
       {/* Listado principal */}
-      <div className={`flex-1 flex flex-col p-6 transition-all duration-300 ${selectedPacienteId ? "pr-[420px]" : ""}`}>
+      <div className={`flex-1 flex flex-col p-6 transition-all duration-300 ${selectedPacienteId ? "pr-105" : ""}`}>
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-800">Gestión de Pacientes (360°)</h1>
           <p className="text-sm text-slate-500">Busca y audita todo el historial médico y financiero de los pacientes.</p>
@@ -117,7 +117,7 @@ export default function AdminPacientesPage() {
 
       {/* Slide-over Detalles 360 */}
       <div 
-        className={`absolute top-0 right-0 h-full w-[400px] bg-white border-l border-slate-200 shadow-2xl flex flex-col transition-transform duration-300 ${selectedPacienteId ? "translate-x-0" : "translate-x-full"}`}
+        className={`absolute top-0 right-0 h-full w-100 bg-white border-l border-slate-200 shadow-2xl flex flex-col transition-transform duration-300 ${selectedPacienteId ? "translate-x-0" : "translate-x-full"}`}
       >
         {selectedPacienteId && (
           <>

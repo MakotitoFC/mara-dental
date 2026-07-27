@@ -28,8 +28,8 @@ interface Props {
     cie10: CIE10 | null;
     archivos: Archivo[];
   };
-  consultaId: number;
-  pacienteId: number;
+  consultaId: string;
+  pacienteId: string;
   onSaved?: () => void;
 }
 
@@ -103,7 +103,7 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved }
   async function confirmDelete() {
     if (!fileToDelete) return;
     setDeleting(true);
-    const res = await deleteArchivoClinicoAction(fileToDelete.id, fileToDelete.url, pacienteId);
+    const res = await deleteArchivoClinicoAction(String(fileToDelete.id), fileToDelete.url, String(pacienteId));
     setDeleting(false);
     if (res?.error) { setError(res.error); }
     setFileToDelete(null);

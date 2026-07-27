@@ -26,7 +26,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
   datosCasos?: any;
   citas?: any[];
   onClose: () => void;
-  onCreated: (consultaId: number) => void;
+  onCreated: (consultaId: string) => void;
 }) {
   const { tipos } = useTipoConsulta();
   
@@ -36,12 +36,14 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
   const casosInactivos = casos.filter((c: any) => c.estado === "De Alta" || c.estado === "Alta");
   const casosOrdenados = [...casosActivos, ...casosInactivos];
 
-  // Filtrar citas programadas
-  const citasProgramadas = (citas || []).filter(c => c.estado === "programada").sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const hoyStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+  const citasProgramadasHoy = (citas || []).filter(c => c.estado === "programada" && c.fecha.startsWith(hoyStr)).sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
 
   // Estados del formulario
-  const [selectedCasoId, setSelectedCasoId] = useState<string>("nuevo");
-  const [selectedCitaId, setSelectedCitaId] = useState<string>("");
+  const hasActiveCase = casosActivos.length > 0;
+  const [selectedCasoId, setSelectedCasoId] = useState<string>(hasActiveCase ? casosActivos[0].id : "nuevo");
+  const [tituloCaso, setTituloCaso] = useState<string>("");
+  const [selectedCitaId, setSelectedCitaId] = useState<string>(citasProgramadasHoy[0]?.id || "");
   const [tipoConsultaId, setTipoConsultaId] = useState<string>(tipos[0]?.id || "");
   
   // Para input datetime-local la fecha debe ser YYYY-MM-DDThh:mm
@@ -82,8 +84,8 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
 
     let notaIdToUse = selectedCasoId;
 
-    if (selectedCasoId === "nuevo") {
-      const resCaso = await crearCasoClinicoAction(String(pacienteId), motivo.trim());
+    if (!hasActiveCase || selectedCasoId === "nuevo") {
+      const resCaso = await crearCasoClinicoAction(String(pacienteId), motivo.trim(), tituloCaso.trim());
       if ("error" in resCaso) {
         setSaving(false);
         setError(resCaso.error ?? "No se pudo crear el caso");
@@ -103,7 +105,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
 
     setSaving(false);
     if ("error" in res) { setError(res.error ?? "Ocurrió un error al agregar la consulta"); return; }
-    onCreated(res.consultaId as number);
+    onCreated(res.consultaId);
   }
 
   return (
@@ -136,66 +138,36 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
     >
       <div className="flex flex-col gap-6">
         
-        {/* Selector de Caso Clínico */}
-        <div className="flex flex-col gap-2">
-          <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-            <Icon name="folder_shared" size={16} className="text-slate-400" />
-            Caso Clínico (Nota)
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-40 overflow-y-auto pr-1 no-scrollbar">
+        {/* Caso Clínico (Nota) - Solo visible si no hay caso activo */}
+        {!hasActiveCase && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-700">
+              <div className="w-7 h-7 rounded-lg bg-cyan-50 dark:bg-cyan-900/50 flex items-center justify-center">
+                <Icon name="folder_shared" size={15} className="text-cyan-600 dark:text-cyan-400" />
+              </div>
+              <h3 className="text-[14px] font-bold text-slate-800 dark:text-slate-100">Caso Clínico (Nota)</h3>
+            </div>
             
-            {/* Opción Nuevo Caso */}
-            <button
-              onClick={() => setSelectedCasoId("nuevo")}
-              className={`p-3 border rounded-xl flex items-start gap-3 text-left transition-all ${
-                selectedCasoId === "nuevo" 
-                  ? "border-cyan-500 bg-cyan-50/50 dark:bg-cyan-900/20 ring-1 ring-cyan-500" 
-                  : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300"
-              }`}
-            >
-              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
-                selectedCasoId === "nuevo" ? "border-cyan-600" : "border-slate-300 dark:border-slate-600"
-              }`}>
-                {selectedCasoId === "nuevo" && <div className="w-2 h-2 rounded-full bg-cyan-600" />}
-              </div>
-              <div>
-                <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                  ✨ Crear Nuevo Caso
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Se abrirá un nuevo episodio clínico para agrupar consultas.</p>
-              </div>
-            </button>
-
-            {/* Lista de Casos */}
-            {casosOrdenados.map(c => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedCasoId(c.id)}
-                className={`p-3 border rounded-xl flex items-start gap-3 text-left transition-all ${
-                  selectedCasoId === c.id 
-                    ? "border-cyan-500 bg-cyan-50/50 dark:bg-cyan-900/20 ring-1 ring-cyan-500" 
-                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300"
-                } ${c.estado === "De Alta" ? "opacity-60 grayscale" : ""}`}
-              >
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
-                  selectedCasoId === c.id ? "border-cyan-600" : "border-slate-300 dark:border-slate-600"
-                }`}>
-                  {selectedCasoId === c.id && <div className="w-2 h-2 rounded-full bg-cyan-600" />}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200 truncate" title={c.motivo_consulta}>
-                    {c.motivo_consulta}
-                  </p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">Estado: <span className={c.estado === "De Alta" ? "text-slate-400" : "text-emerald-600 dark:text-emerald-400"}>{c.estado}</span></p>
-                </div>
-              </button>
-            ))}
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                Título del caso Clínico*
+              </label>
+              <p className="text-[12px] text-slate-500 dark:text-slate-400">
+                Se creará un caso clínico automáticamente. Ingresa un título.
+              </p>
+              <input
+                type="text"
+                value={tituloCaso}
+                onChange={(e) => setTituloCaso(e.target.value)}
+                placeholder="Título del Caso Clínico (Opcional, Ej: Tratamiento Ortodoncia)"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[13px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all placeholder:text-slate-400"
+              />
+            </div>
           </div>
-        </div>
-
+        )}
 
         {/* Selector de Cita Programada (Opcional) */}
-        {citasProgramadas.length > 0 && (
+        {citasProgramadasHoy.length > 0 && (
           <div className="flex flex-col gap-2">
             <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <Icon name="calendar_month" size={16} className="text-slate-400" />
@@ -219,8 +191,8 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
                 <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Ninguna (Solo consulta)</span>
               </button>
 
-              {/* Lista de citas */}
-              {citasProgramadas.map(c => (
+              {/* Lista de citas de HOY */}
+              {citasProgramadasHoy.map(c => (
                 <button
                   key={c.id}
                   onClick={() => setSelectedCitaId(c.id)}
@@ -274,7 +246,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
         <div className="flex flex-col gap-4 pt-2 border-t border-slate-100 dark:border-slate-700">
           <div className="flex flex-col gap-2">
             <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">
-              {selectedCasoId === "nuevo" ? "Título del Caso / Motivo principal *" : "Motivo de la visita *"}
+              {selectedCasoId === "nuevo" ? "Motivo principal *" : "Motivo de la visita *"}
             </label>
             <textarea
               rows={2}

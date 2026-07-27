@@ -30,10 +30,12 @@ function fmtDMY(iso?: string): string | null {
 export function InfoTab({
   paciente: p,
   historial,
+  datosCasos,
   onNavigateTab,
 }: {
   paciente: any;
   historial?: any[];
+  datosCasos?: any;
   onNavigateTab?: (tab: string) => void;
 }) {
   const { getVars } = useTipoConsultaVars();
@@ -44,7 +46,7 @@ export function InfoTab({
   const alergias: string[] = Array.isArray(p.alergias) ? p.alergias : [];
 
   const tieneContacto = has(p.telefono) || has(p.email) || has(p.direccion) || has(p.domicilio);
-  const recientes = (historial ?? []).slice(0, 3);
+  const recientes = (datosCasos?.casos ?? []).slice(0, 3);
 
   const extra: [string, string, string][] = [
     has(p.ocupacion) && ["work", "Ocupación", p.ocupacion],
@@ -99,21 +101,24 @@ export function InfoTab({
               Aún no hay notas clínicas registradas. Se agregan al iniciar una consulta desde el Calendario.
             </p>
           ) : (
-            <div className="flex flex-col">
-              {recientes.map((h: any, i: number) => {
-                const v = getVars(h.motivo_id); // asumiendo que historial/recientes traerá un motivo_id. Si no, usaremos 'motivo' como string en un fallback futuro si hace falta.
+            <div className="flex flex-col gap-3">
+              {recientes.map((c: any) => {
+                const date = fmtDMY(c.created_at) || c.created_at;
                 return (
-                  <div key={h.id ?? i} className="flex items-start gap-3 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
-                    <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: v.solid }} />
+                  <div key={c.id} className="flex items-start gap-3 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0 last:pb-0">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 truncate">{v.label}</p>
-                        <span className="text-[10.5px] text-slate-400 dark:text-slate-500 shrink-0">{fmtDMY(h.fecha) ?? h.fecha}</span>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 truncate">
+                          {c.titulo}
+                        </p>
+                        <span className="text-[10.5px] text-slate-400 dark:text-slate-500 shrink-0">{date}</span>
                       </div>
-                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-1">{h.doctor}</p>
-                      {has(h.observaciones) && (
-                        <p className="text-[12px] text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2">{h.observaciones}</p>
-                      )}
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11.5px] text-slate-500 dark:text-slate-400">{c.consultas?.length || 0} consulta{(c.consultas?.length || 0) !== 1 && "s"}</p>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.estado === "abierto" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"}`}>
+                          {c.estado === "abierto" ? "En curso" : "Finalizado"}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );

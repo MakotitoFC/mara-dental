@@ -49,7 +49,7 @@ function isImagen(a: Archivo) {
 }
 
 function UploadModal({ consultaId, pacienteId, onClose, onUploaded }: {
-  consultaId: number; pacienteId: number; onClose: () => void; onUploaded: () => void;
+  consultaId: string; pacienteId: number; onClose: () => void; onUploaded: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [categoria, setCategoria] = useState("otros");
@@ -128,7 +128,7 @@ function UploadModal({ consultaId, pacienteId, onClose, onUploaded }: {
   );
 }
 
-export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaId?: number | null }) {
+export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaId?: string | null }) {
   const pacienteId = Number(paciente.id);
   const [archivos, setArchivos] = useState<Archivo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,7 +140,7 @@ export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaI
 
   async function fetchArchivos() {
     setLoading(true);
-    const data = await getArchivosPacienteAction(pacienteId);
+    const data = await getArchivosPacienteAction(String(pacienteId));
     setArchivos(data as Archivo[]);
     setLoading(false);
   }
@@ -154,7 +154,7 @@ export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaI
       confirmLabel: "Eliminar definitivamente",
     });
     if (!ok) return;
-    const res = await deleteArchivoClinicoAction(a.id, a.url, pacienteId);
+    const res = await deleteArchivoClinicoAction(String(a.id), a.url, String(pacienteId));
     if (res?.error) {
       toast.error("No se pudo eliminar el archivo. Intenta nuevamente.");
       return;

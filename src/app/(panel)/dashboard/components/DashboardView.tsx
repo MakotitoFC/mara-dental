@@ -74,7 +74,7 @@ function BirthdayModal({ pacientes, onClose }: { pacientes: CumpleañosHoy[]; on
   return (
     <motion.div
       variants={fadeIn} initial="hidden" animate="visible" exit="exit"
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]"
+      className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <motion.div
@@ -205,7 +205,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
               icon="schedule" iconBg="bg-amber-50" iconColor="text-amber-600"
               title={`${statsPendientes} cita${statsPendientes !== 1 ? "s" : ""} sin confirmar`}
               subtitle="Requieren confirmación"
-              href="/agenda"
+              href="/agenda?view=day&action=scroll-pending"
             />
           )}
           {recordatoriosPendientes > 0 && (

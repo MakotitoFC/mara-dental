@@ -10,10 +10,21 @@ import {
   getTiposArchivoAction,
   createTipoArchivoAction,
   updateTipoArchivoAction,
-  deleteTipoArchivoAction
+  deleteTipoArchivoAction,
+  getCondicionAction,
+  createCondicionAction,
+  updateCondicionAction,
+  deleteCondicionAction
 } from "./actions";
 
 // Paleta de colores predefinidos (oscuros y claros diferenciables)
+const PASTEL_COLORS = [
+  "#fecaca", "#fed7aa", "#fde68a", "#fef08a", "#d9f99d", "#bbf7d0", "#a7f3d0",
+  "#99f6e4", "#a5f3fc", "#bae6fd", "#bfdbfe", "#c7d2fe", "#ddd6fe", "#e9d5ff",
+  "#fbcfe8", "#fecdd3", "#ffe4e6", 
+  "#ffedd5", "#fef3c7", "#ecfccb", "#ccfbf1", "#e0f2fe", "#ede9fe", "#fae8ff"
+];
+
 const PRESET_COLORS = [
   "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#10b981", 
   "#14b8a6", "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", 
@@ -23,12 +34,17 @@ const PRESET_COLORS = [
 ];
 
 export default function ConfiguracionTiposPage() {
-  const [activeTab, setActiveTab] = useState<"consultas" | "archivos">("consultas");
+  const [activeTab, setActiveTab] = useState<"consultas" | "archivos" | "condiciones">("consultas");
 
   // Estado Consultas
   const [consultas, setConsultas] = useState<any[]>([]);
   const [isConsultaModalOpen, setIsConsultaModalOpen] = useState(false);
   const [consultaForm, setConsultaForm] = useState({ id: "", tipo_consulta: "", color: "#3b82f6" });
+  
+  // Estado Condicion Diente
+  const [condiciones, setCondiciones] = useState<any[]>([]);
+  const [isCondicionModalOpen, setIsCondicionModalOpen] = useState(false);
+  const [condicionForm, setCondicionForm] = useState({ id: "", condicion: "", color: "#bae6fd" });
   
   // Estado Archivos
   const [archivos, setArchivos] = useState<any[]>([]);
@@ -40,9 +56,10 @@ export default function ConfiguracionTiposPage() {
   }, []);
 
   async function loadData() {
-    const [cData, aData] = await Promise.all([getTiposConsultaAction(), getTiposArchivoAction()]);
+    const [cData, aData, condData] = await Promise.all([getTiposConsultaAction(), getTiposArchivoAction(), getCondicionAction()]);
     setConsultas(cData);
     setArchivos(aData);
+    setCondiciones(condData);
   }
 
   // --- Handlers Consultas ---
@@ -62,6 +79,27 @@ export default function ConfiguracionTiposPage() {
   const handleDeleteConsulta = async (id: string) => {
     if (!confirm("¿Seguro que deseas eliminar este tipo de consulta?")) return;
     const res = await deleteTipoConsultaAction(id);
+    if ((res as any)?.error) alert((res as any).error);
+    loadData();
+  };
+
+  // --- Handlers Condicion ---
+  const handleSaveCondicion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!condicionForm.condicion.trim()) return;
+    
+    if (condicionForm.id) {
+      await updateCondicionAction(condicionForm.id, condicionForm);
+    } else {
+      await createCondicionAction(condicionForm);
+    }
+    setIsCondicionModalOpen(false);
+    loadData();
+  };
+
+  const handleDeleteCondicion = async (id: string) => {
+    if (!confirm("¿Seguro que deseas eliminar esta condición?")) return;
+    const res = await deleteCondicionAction(id);
     if ((res as any)?.error) alert((res as any).error);
     loadData();
   };
@@ -119,6 +157,14 @@ export default function ConfiguracionTiposPage() {
           >
             Tipos de Archivos
           </button>
+          <button
+            onClick={() => setActiveTab("condiciones")}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === "condiciones" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Condición Diente
+          </button>
         </div>
       </header>
 
@@ -166,6 +212,54 @@ export default function ConfiguracionTiposPage() {
                   </div>
                 ))}
                 {consultas.length === 0 && <p className="col-span-full text-center text-slate-500 text-sm py-8">No hay tipos de consulta configurados.</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        
+        {activeTab === "condiciones" && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h2 className="text-[15px] font-bold text-slate-700 flex items-center gap-2">
+                <Icon name="dentistry" size={18} className="text-slate-400" /> Listado de Condiciones (Odontograma)
+              </h2>
+              <button
+                onClick={() => {
+                  setCondicionForm({ id: "", condicion: "", color: "#bae6fd" });
+                  setIsCondicionModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600 text-white text-[13px] font-semibold rounded-lg hover:bg-cyan-700 transition-colors shadow-sm shadow-cyan-600/20"
+              >
+                <Icon name="add" size={16} /> Nueva Condición
+              </button>
+            </div>
+            
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {condiciones.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:border-slate-300 transition-colors bg-white">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm ring-1 ring-black/5" style={{ backgroundColor: c.color }}></div>
+                      <span className="font-semibold text-[13px] text-slate-700 uppercase">{c.condicion}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => { setCondicionForm(c); setIsCondicionModalOpen(true); }}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                      >
+                        <Icon name="edit" size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteCondicion(c.id)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      >
+                        <Icon name="delete" size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {condiciones.length === 0 && <p className="col-span-full text-center text-slate-500 text-sm py-8">No hay condiciones configuradas.</p>}
               </div>
             </div>
           </div>
@@ -281,6 +375,72 @@ export default function ConfiguracionTiposPage() {
 
               <div className="pt-2 flex justify-end gap-2">
                 <button type="button" onClick={() => setIsConsultaModalOpen(false)} className="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
+                <button type="submit" className="px-4 py-2 text-[13px] font-bold text-white bg-cyan-600 hover:bg-cyan-700 shadow-sm shadow-cyan-600/20 rounded-xl transition-colors">Guardar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      
+      {/* MODAL CONDICION */}
+      {isCondicionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsCondicionModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="font-bold text-slate-800">{condicionForm.id ? "Editar Condición" : "Nueva Condición"}</h3>
+              <button onClick={() => setIsCondicionModalOpen(false)} className="text-slate-400 hover:text-slate-600"><Icon name="close" size={20} /></button>
+            </div>
+            <form onSubmit={handleSaveCondicion} className="p-5 flex flex-col gap-5">
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-500 mb-1">Nombre de la Condición</label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={condicionForm.condicion}
+                  onChange={(e) => setCondicionForm({...condicionForm, condicion: e.target.value})}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all uppercase"
+                  placeholder="Ej. CARIES, RESINA, CORONA..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-500 mb-2">Color Representativo (Pastel)</label>
+                
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {PASTEL_COLORS.map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setCondicionForm({...condicionForm, color: c})}
+                      className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${condicionForm.color.toLowerCase() === c.toLowerCase() ? "border-cyan-500 scale-110 shadow-sm" : "border-transparent"}`}
+                      style={{ backgroundColor: c }}
+                      title={c}
+                    />
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={condicionForm.color}
+                    onChange={(e) => setCondicionForm({...condicionForm, color: e.target.value})}
+                    className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent p-0"
+                  />
+                  <input
+                    type="text"
+                    value={condicionForm.color.toUpperCase()}
+                    onChange={(e) => setCondicionForm({...condicionForm, color: e.target.value})}
+                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-medium uppercase outline-none focus:border-cyan-400"
+                    pattern="^#+([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$"
+                    placeholder="#FFFFFF"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setIsCondicionModalOpen(false)} className="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
                 <button type="submit" className="px-4 py-2 text-[13px] font-bold text-white bg-cyan-600 hover:bg-cyan-700 shadow-sm shadow-cyan-600/20 rounded-xl transition-colors">Guardar</button>
               </div>
             </form>

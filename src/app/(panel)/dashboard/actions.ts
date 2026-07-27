@@ -8,10 +8,10 @@ export interface CitaAgendada {
   paciente_nombre: string;
   telefono: string | null;
   fecha: string;
-  tipo_consulta: string;
-  hora_inicio: string;
+  hora_inicio:string;
   hora_fin: string;
   estado: string;
+  tipo_consulta_id: string;
 }
 
 export interface CumpleañosHoy {
@@ -43,14 +43,6 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: personal } = await supabase
-    .from("personal")
-    .select("id")
-    .eq("usuario_id", user.id)
-    .single();
-
-  if (!personal) return null;
-
   const hoy = new Date();
   const hoyStr = hoy.toISOString().split("T")[0];
   const mesHoy = hoy.getMonth() + 1;
@@ -59,8 +51,8 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
   const [citasRes, pacientesRes, recordatoriosRes] = await Promise.all([
     supabase
       .from("citas")
-      .select(`id, fecha, hora_inicio, hora_fin, tipo_consulta, estado, pacientes ( id, nombre, apellido, telefono )`)
-      .eq("doctor_id", personal.id)
+      .select(`id, fecha, hora_inicio, hora_fin, tipo_consulta_id, estado, pacientes ( id, nombre, apellido, telefono )`)
+      .eq("doctor_id", user.id)
       .order("fecha", { ascending: true })
       .order("hora_inicio", { ascending: true }),
     supabase
@@ -71,7 +63,7 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
       .from("recordatorios")
       .select("id, citas!inner(doctor_id)")
       .eq("enviado", false)
-      .eq("citas.doctor_id", personal.id),
+      .eq("citas.doctor_id", user.id),
   ]);
 
   const citas: CitaAgendada[] = (citasRes.data || []).map((c: any) => ({
@@ -80,7 +72,7 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
     paciente_nombre: `${c.pacientes?.nombre ?? ""} ${c.pacientes?.apellido ?? ""}`.trim(),
     telefono: c.pacientes?.telefono ?? null,
     fecha: c.fecha,
-    tipo_consulta: c.tipo_consulta || "",
+    tipo_consulta_id: c.tipo_consulta_id || "",
     hora_inicio: (c.hora_inicio || "").slice(0, 5),
     hora_fin: (c.hora_fin || "").slice(0, 5),
     estado: c.estado || "programada",
