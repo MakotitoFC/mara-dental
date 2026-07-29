@@ -11,6 +11,11 @@ function getInitials(name:string){
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
+/** Solo el primer nombre y el primer apellido — nombre/apellido en BD pueden traer varias palabras (ej. "Juan Carlos", "Pérez García"). */
+function primeraPalabra(s?: string | null): string {
+  return (s ?? "").trim().split(/\s+/)[0] ?? "";
+}
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient(); // instanciar cliente
   let currentUser: AuthUser | null = null;
@@ -35,7 +40,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       const roleName = (userRes.data?.rol as any)?.rol || "Sin rol";
       const sedeNombre = (userRes.data?.sede as any)?.nombre_clinica as string | undefined;
       const especialidadNombre = (personalRes.data?.especialidad as any)?.especialidad as string | undefined;
-      const rawName = personalRes.data ? `${personalRes.data.nombre} ${personalRes.data.apellido}` : email.split("@")[0];
+      const rawName = personalRes.data
+        ? `${primeraPalabra(personalRes.data.nombre)} ${primeraPalabra(personalRes.data.apellido)}`.trim()
+        : email.split("@")[0];
       const fullName = personalRes.data ? `Dr. ${rawName}` : rawName;
 
       currentUser = {
