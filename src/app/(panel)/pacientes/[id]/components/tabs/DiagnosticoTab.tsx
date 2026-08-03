@@ -8,13 +8,13 @@ import { DiagnosticoSkeleton } from "@/components/ui/ConsultaSkeletons";
 import { DiagnosticoForm } from "../consulta/DiagnosticoForm";
 import { DiagnosticoCard } from "../consulta/DiagnosticoCard";
 import { TratamientoSection } from "../consulta/TratamientoSection";
-import { PlanTrabajoSection } from "../consulta/PlanTrabajoSection";
 import { RecomendacionesSection } from "../consulta/RecomendacionesSection";
+import { RecetaSection } from "../consulta/RecetaSection";
 import {
   getDiagnosticosPacienteAction,
   getTratamientosAction,
-  getPlanTrabajoAction,
   getRecomendacionesConsultaAction,
+  getRecetasAction,
 } from "../../consulta.actions";
 
 function Notice({ text }: { text: string }) {
@@ -30,12 +30,12 @@ function Modal({ onClose, children }: { onClose: () => void; children: React.Rea
   return (
     <motion.div
       variants={fadeIn} initial="hidden" animate="visible" exit="exit"
-      className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[90] p-4 bg-slate-900/40 backdrop-blur-[2px] overflow-y-auto no-scrollbar flex flex-col items-center justify-start sm:justify-center"
       onClick={onClose}
     >
       <motion.div
         variants={scaleIn} initial="hidden" animate="visible" exit="exit"
-        className="relative w-full max-w-lg"
+        className="relative w-full max-w-lg my-auto shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -45,7 +45,7 @@ function Modal({ onClose, children }: { onClose: () => void; children: React.Rea
         >
           <Icon name="close" size={16} />
         </button>
-        <div className="max-h-[90vh] overflow-y-auto overflow-x-hidden no-scrollbar rounded-2xl">
+        <div className="w-full rounded-2xl shadow-2xl">
           {children}
         </div>
       </motion.div>
@@ -114,21 +114,21 @@ function DiagnosticosTable({ items, onRowClick }: { items: any[]; onRowClick: (d
 }
 
 /** Diagnóstico del historial + su plan de tratamiento / recomendaciones a detalle (carga perezosa al expandir). */
-function HistorialDiagnosticoItem({ diagnostico: d, pacienteId, onSaved }: { diagnostico: any; pacienteId: number; onSaved: () => void }) {
+function HistorialDiagnosticoItem({ diagnostico: d, pacienteId, onSaved }: { diagnostico: any; pacienteId: string; onSaved: () => void }) {
   const [expanded, setExpanded] = useState(false);
-  const [detalle, setDetalle] = useState<{ tratamientos: any[]; planTrabajo: any[]; recomendaciones: any[] } | null>(null);
+  const [detalle, setDetalle] = useState<{ tratamientos: any[]; planTrabajo: any[]; recomendaciones: any[]; recetas: any[] } | null>(null);
   const [planItems, setPlanItems] = useState<{ estado: string }[] | null>(null);
 
   async function toggleExpand() {
     const next = !expanded;
     setExpanded(next);
     if (next && !detalle) {
-      const [tratamientos, planTrabajo, recomendaciones] = await Promise.all([
+      const [tratamientos, recomendaciones, recetas] = await Promise.all([
         getTratamientosAction(String(d.id)),
-        getPlanTrabajoAction(String(d.id)),
         getRecomendacionesConsultaAction(String(d.consulta_id)),
+        getRecetasAction(String(d.id)),
       ]);
-      setDetalle({ tratamientos, planTrabajo, recomendaciones });
+      setDetalle({ tratamientos, planTrabajo: [], recomendaciones, recetas });
     }
   }
 
@@ -147,7 +147,7 @@ function HistorialDiagnosticoItem({ diagnostico: d, pacienteId, onSaved }: { dia
           className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-[12px] font-semibold text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50/50 dark:hover:bg-cyan-900/10 transition-colors"
         >
           <Icon name={expanded ? "expand_less" : "expand_more"} size={16} />
-          {expanded ? "Ocultar plan de tratamiento" : "Ver plan de tratamiento y recomendaciones"}
+          {expanded ? "Ocultar detalles" : "Ver tratamientos, recetas y recomendaciones"}
         </button>
       )}
 
@@ -164,12 +164,6 @@ function HistorialDiagnosticoItem({ diagnostico: d, pacienteId, onSaved }: { dia
               pacienteId={String(pacienteId)}
               initial={detalle.tratamientos}
             />
-            <PlanTrabajoSection
-              diagnosticoId={String(d.id)}
-              pacienteId={String(pacienteId)}
-              initial={detalle.planTrabajo}
-              onItemsChange={setPlanItems}
-            />
             {totalFases > 0 && (
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex items-center justify-end gap-4">
                 <div className="text-right">
@@ -182,6 +176,17 @@ function HistorialDiagnosticoItem({ diagnostico: d, pacienteId, onSaved }: { dia
               consultaId={String(d.consulta_id)}
               pacienteId={String(pacienteId)}
               initial={detalle.recomendaciones}
+              onSaved={() => {}}
+            />
+            <RecetaSection
+              diagnosticoId={String(d.id)}
+              pacienteId={String(pacienteId)}
+              initial={detalle.recetas}
+              pacienteNombre={d.nota_clinica?.historia_clinica?.paciente?.nombre_completo ?? "Paciente"}
+              telefono={d.nota_clinica?.historia_clinica?.paciente?.telefono ?? ""}
+              dni={d.nota_clinica?.historia_clinica?.paciente?.dni ?? ""}
+              doctorNombre="Doctor"
+              diagnosticoTexto={d.diagnostico ?? ""}
               onSaved={() => {}}
             />
           </div>
@@ -198,7 +203,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
   loading: boolean;
   refetch: () => void;
 }) {
-  const pacienteId = Number(paciente.id);
+  const pacienteId = String(paciente.id);
   const [showForm, setShowForm] = useState(false);
   const [viewing, setViewing] = useState<any | null>(null);
   const [planItems, setPlanItems] = useState<{ estado: string }[] | null>(null);
@@ -294,13 +299,6 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
               initial={data.tratamientos ?? []}
             />
 
-            <PlanTrabajoSection
-              diagnosticoId={String(actual.id)}
-              pacienteId={String(pacienteId)}
-              initial={data.planTrabajo ?? []}
-              onItemsChange={setPlanItems}
-            />
-
             {(totalFases > 0 || presupuestoTotal != null) && (
               <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between gap-4">
                 <div>
@@ -320,6 +318,18 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
               consultaId={String(consultaId)}
               pacienteId={String(pacienteId)}
               initial={data.recomendaciones ?? []}
+              onSaved={refetch}
+            />
+
+            <RecetaSection
+              diagnosticoId={String(actual.id)}
+              pacienteId={String(pacienteId)}
+              initial={data.recetas ?? []}
+              pacienteNombre={paciente.nombre_completo}
+              telefono={paciente.telefono ?? ""}
+              dni={paciente.dni ?? ""}
+              doctorNombre={data.consulta?.doctor_nombre ?? "Doctor"}
+              diagnosticoTexto={actual.diagnostico ?? ""}
               onSaved={refetch}
             />
           </>

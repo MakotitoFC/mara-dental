@@ -17,7 +17,7 @@ export async function getCasosClinicosAction(pacienteId: string) {
   // 2. Obtener las notas clínicas (casos)
   const { data: notas } = await supabase
     .from("nota_clinica")
-    .select("id, estado, created_at, updated_at")
+    .select("id, titulo_caso_clinico, estado, created_at, updated_at")
     .eq("historia_clinica_id", hc.id)
     .order("created_at", { ascending: false });
 
@@ -53,9 +53,8 @@ export async function getCasosClinicosAction(pacienteId: string) {
   // Estructurar los casos
   const casos = notas.map(n => {
     const cons = consultasPorNota.get(n.id) || [];
-    // Usar el motivo de la consulta más antigua (última en el array porque está ordenado DESC)
-    // o de la primera, dependiendo de tu preferencia. Aquí usamos la más antigua (índice final)
-    const motivo_principal = cons.length > 0 ? cons[cons.length - 1].motivo : "Caso sin motivo principal";
+    // Usar el título de la nota, o el motivo de la consulta más antigua si no hay título
+    const motivo_principal = n.titulo_caso_clinico || (cons.length > 0 ? cons[cons.length - 1].motivo : "Caso sin motivo principal");
     
     return {
       ...n,

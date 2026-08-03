@@ -190,7 +190,8 @@ export function VisorModal({
 
   const a = initialArchivo;
   const isImage = a.tipo_archivo === "imagen" || a.nombre_archivo.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-  const imgUrl = a.displayUrl || a.url;
+  const rawImgUrl = a.displayUrl || a.url;
+  const imgUrl = `/api/proxy-image?url=${encodeURIComponent(rawImgUrl)}`;
 
   const [anotacionesState, setAnotacionesState] = useState<any[]>(a.anotaciones || []);
   const anotacionesRef = useRef<any[]>(a.anotaciones || []);
@@ -538,9 +539,10 @@ export function VisorModal({
     const blob = await res.blob();
     const blobUrl = window.URL.createObjectURL(blob);
     const img = new Image();
+    img.crossOrigin = "anonymous";
     await new Promise<void>((resolve, reject) => {
       img.onload = () => resolve();
-      img.onerror = () => reject(new Error("No se pudo cargar la imagen"));
+      img.onerror = () => reject(new Error("No se pudo cargar la imagen proxy"));
       img.src = blobUrl;
     });
     return { img, revoke: () => window.URL.revokeObjectURL(blobUrl) };
@@ -810,6 +812,7 @@ export function VisorModal({
                 ref={imgRef}
                 src={imgUrl}
                 alt={a.nombre_archivo}
+                crossOrigin="anonymous"
                 className="max-w-full max-h-[85vh] object-contain select-none pointer-events-none"
                 draggable={false}
                 style={{ WebkitUserDrag: "none" } as React.CSSProperties}
@@ -1281,7 +1284,7 @@ export function VisorModal({
                 <button onClick={handleDownloadReportImage} disabled={exportingReport !== null}
                   className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors w-full">
                   <Icon name="download" size={15} />
-                  {exportingReport === "png" ? "Generando…" : "Descargar Reporte"}
+                  {exportingReport === "png" ? "Generando…" : "Descargar Reporte (Img)"}
                 </button>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={handleDownloadPdf} disabled={exportingReport !== null}

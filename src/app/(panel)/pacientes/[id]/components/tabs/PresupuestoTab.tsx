@@ -43,7 +43,7 @@ export function PresupuestoTab({ paciente, consultaId, data, loading, refetch }:
   loading: boolean;
   refetch: () => void;
 }) {
-  const pacienteId = Number(paciente.id);
+  const pacienteId = String(paciente.id);
 
   // Sin consulta activa: el presupuesto del paciente sigue siendo consultable/gestionable
   // (no está scoped por consulta en BD), así que este tab hace su propio fetch en ese caso.

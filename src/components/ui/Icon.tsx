@@ -25,7 +25,7 @@ import {
   Briefcase, GraduationCap, Church,
   Sun, Moon, Laptop, ListChecks, Home,
   Eraser, Type, MoveUpRight,
-  Send, FolderHeart, History
+  Send, FolderHeart, History, Network, Copy, CheckCheck
 } from "lucide-react";
 
 interface IconProps {
@@ -63,6 +63,7 @@ const ICONS: Record<string, LucideIcon> = {
   groups:               UsersRound,
   admin_panel_settings: Shield,
   analytics:            BarChart,
+  account_tree:         Network,
 
   // Médico / clínico
   medical_services:     Hospital,
@@ -141,6 +142,9 @@ const ICONS: Record<string, LucideIcon> = {
   chat_bubble_outline:  MessageCircle,
   email:                Mail,
   phone:                Phone,
+  send:                 Send,
+  content_copy:         Copy,
+  done_all:             CheckCheck,
 
   // Archivos / carpetas
   folder:               Folder,

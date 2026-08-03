@@ -5,15 +5,7 @@ import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { fadeIn } from "@/lib/animations";
-import { searchCIE10Action, saveDiagnosticoAction } from "../../consulta.actions";
-
-const CATEGORIAS = [
-  { value: "Rx panoramica", label: "Rx panorámica" },
-  { value: "Rx periapical", label: "Rx periapical" },
-  { value: "Foto intraoral", label: "Foto intraoral" },
-  { value: "Tomografia", label: "Tomografía" },
-  { value: "otros", label: "Otros" },
-];
+import { searchCIE10Action, saveDiagnosticoAction, getTiposArchivoAction, getPresignedUploadUrlAction } from "../../consulta.actions";
 
 export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
   consultaId: string;
@@ -41,7 +33,12 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [tiposArchivo, setTiposArchivo] = useState<any[]>([]);
   const canSave = diagnostico.trim().length > 0 && !loading;
+
+  useEffect(() => {
+    getTiposArchivoAction().then(data => setTiposArchivo(data));
+  }, []);
 
   // limpiar object URLs solo al desmontar (ref para no revocar URLs en uso)
   const previewsRef = useRef<Record<string, string>>({});
@@ -64,7 +61,8 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
     setArchivos(prev => [...prev, ...nuevos]);
     setCategorias(prev => {
       const n = { ...prev };
-      nuevos.forEach(f => { n[f.name] = f.name.match(/tomograf/i) ? "Tomografia" : "Foto intraoral"; });
+      // pre-seleccionar el primer tipo por defecto si existe
+      nuevos.forEach(f => { n[f.name] = tiposArchivo.length > 0 ? String(tiposArchivo[0].id) : "1"; });
       return n;
     });
     setPreviews(prev => {
@@ -92,12 +90,42 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
     fd.append("es_tratado", String(esTratado));
     fd.append("es_definitivo", String(esDefinitivo));
     if (selectedCie) fd.append("cie10_id", String(selectedCie.id));
-    if (esDefinitivo) {
-      archivos.forEach(file => {
-        fd.append("archivos", file);
-        fd.append(`categoria_${file.name}`, categorias[file.name] || "otros");
-        fd.append(`descripcion_${file.name}`, (descripciones[file.name] || "").trim());
-      });
+    if (esDefinitivo && archivos.length > 0) {
+      const metadata = [];
+      for (const file of archivos) {
+        // 1. Obtener URL firmada
+        const { signedUrl, objectKey, error: presignErr } = await getPresignedUploadUrlAction(file.name, file.type, "diagnostico");
+        if (presignErr || !signedUrl) {
+          setErrorMsg(`Error preparando subida de ${file.name}`);
+          setLoading(false);
+          return;
+        }
+
+        // 2. Subir directo a R2 desde el navegador
+        try {
+          const uploadRes = await fetch(signedUrl, {
+            method: "PUT",
+            body: file,
+            headers: { "Content-Type": file.type }
+          });
+          if (!uploadRes.ok) throw new Error("Error en PUT");
+        } catch (e) {
+          setErrorMsg(`Error subiendo el archivo ${file.name}`);
+          setLoading(false);
+          return;
+        }
+
+        // 3. Registrar metadatos
+        metadata.push({
+          nombre: file.name,
+          url: objectKey, // Guardar la ruta relativa o objectKey
+          tipo_archivo_id: Number(categorias[file.name] || 1),
+          categoria: file.type.startsWith("image/") ? "img" : "pdf",
+          descripcion: (descripciones[file.name] || "").trim(),
+          tam_bytes: file.size
+        });
+      }
+      fd.append("archivos_metadata", JSON.stringify(metadata));
     }
 
     const res = await saveDiagnosticoAction(fd);
@@ -107,7 +135,7 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
   }
 
   return (
-    <motion.div variants={fadeIn} initial="hidden" animate="visible" className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <motion.div variants={fadeIn} initial="hidden" animate="visible" className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col">
       {/* Header */}
       <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
         <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
@@ -237,8 +265,8 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
                   const isImg = f.type.startsWith("image/");
                   const url = previews[f.name];
                   return (
-                    <div key={f.name} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden flex flex-col">
-                      <div className="relative h-24 bg-slate-100 dark:bg-slate-900 flex items-center justify-center cursor-pointer group"
+                    <div key={f.name} className="border border-slate-200 dark:border-slate-700 rounded-xl flex flex-col relative">
+                      <div className="relative h-24 bg-slate-100 dark:bg-slate-900 flex items-center justify-center cursor-pointer group rounded-t-xl overflow-hidden"
                         onClick={() => isImg && url && setLightbox(url)}>
                         {isImg && url ? (
                           <>
@@ -258,9 +286,9 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
                       <div className="p-2 flex flex-col gap-1.5">
                         <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate">{f.name}</p>
                         <Select
-                          value={categorias[f.name]}
+                          value={categorias[f.name] || (tiposArchivo.length > 0 ? String(tiposArchivo[0].id) : "")}
                           onChange={(v) => setCategorias(p => ({ ...p, [f.name]: v }))}
-                          options={CATEGORIAS}
+                          options={tiposArchivo.map((t: any) => ({ value: String(t.id), label: t.tipo_archivo || t.Tipo_archivo || t.TIPO_ARCHIVO || "Sin nombre" }))}
                         />
                         <input
                           value={descripciones[f.name] || ""}
@@ -287,7 +315,7 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
       )}
 
       {/* Footer */}
-      <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-end">
+      <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-end rounded-b-2xl">
         <button onClick={handleGuardar} disabled={!canSave}
           className="flex items-center gap-1.5 px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-semibold transition-colors">
           <Icon name="save" size={16} />

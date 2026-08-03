@@ -15,7 +15,7 @@ import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 export type PatientLite = { id: string; nombre: string; apellido: string; dni?: string };
 
 export type CitaFormState =
-  | { mode: "create"; date: string; hour?: string; preloadedPatient?: PatientLite | null }
+  | { mode: "create"; date: string; hour?: string; preloadedPatient?: PatientLite | null; preTratamientoId?: string }
   | { mode: "edit"; cita: Cita };
 
 const DURACIONES = ["30", "45", "60", "90", "120"];
@@ -100,6 +100,7 @@ export function CitaFormSheet({
         paciente_id: selectedPatient!.id,
         fecha, hora_inicio: horaInicio, hora_fin: horaFin,
         tipo_consulta_id: tipoConsultaId!, estado: estado!, notas: notas || "",
+        tratamiento_id: state.mode === "create" ? state.preTratamientoId : undefined,
       }, force);
       setSaving(false);
       if (res && "error" in res) {

@@ -426,6 +426,11 @@ export async function getHistorialConsultasAction(
       if (a.url && !String(a.url).startsWith("http")) {
         const { data: signed } = await supabase.storage.from("archivos_clinicos").createSignedUrl(a.url, 60 * 60);
         displayUrl = signed?.signedUrl || a.url;
+        if (displayUrl.startsWith("/")) {
+          displayUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}${displayUrl}`;
+        } else if (!displayUrl.startsWith("http")) {
+          displayUrl = `${process.env.R2_PUBLIC_CUSTOM_DOMAIN}/${a.url}`;
+        }
       }
       return { ...a, displayUrl };
     }),
@@ -701,9 +706,15 @@ export async function getTimelineAction(pacienteId: string): Promise<TimelineEve
 
   const archivosSigned = await Promise.all((archivosRes.data || []).map(async (a: any) => {
     let displayUrl = a.url;
-    if (a.url && !String(a.url).startsWith("http")) {
+    if (a.url && !a.url.startsWith("http")) {
       const { data: signed } = await supabase.storage.from("archivos_clinicos").createSignedUrl(a.url, 60 * 60);
-      displayUrl = signed?.signedUrl || a.url;
+      let displayUrl = signed?.signedUrl || a.url;
+      if (displayUrl.startsWith("/")) {
+        displayUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}${displayUrl}`;
+      } else if (!displayUrl.startsWith("http")) {
+        displayUrl = `${process.env.R2_PUBLIC_CUSTOM_DOMAIN}/${a.url}`;
+      }
+      return { ...a, displayUrl };
     }
     return { ...a, displayUrl };
   }));

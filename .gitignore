@@ -43,3 +43,5 @@ seed-data.md
 rls.md
 rls-problematicas.md
 test.js
+rls-complements.sql
+supabase/*

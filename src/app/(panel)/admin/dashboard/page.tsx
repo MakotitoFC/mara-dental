@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { useAuth } from "@/components/layout/AuthProvider";
 import { getDashboardMetricsAction } from "../admin.actions";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -11,6 +12,7 @@ import {
 const COLORS = ["#0891b2", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444"];
 
 export default function AdminDashboardPage() {
+  const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [sedeId, setSedeId] = useState<number | "all">("all");
@@ -98,16 +100,20 @@ export default function AdminDashboardPage() {
         <div className="flex items-center gap-3 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center px-3 gap-2 border-r border-slate-100">
             <Icon name="location_on" size={16} className="text-slate-400" />
-            <select
-              value={sedeId}
-              onChange={e => setSedeId(e.target.value === "all" ? "all" : Number(e.target.value))}
-              className="bg-transparent text-sm font-bold text-slate-700 outline-none pr-2 py-1 cursor-pointer"
-            >
-              <option value="all">Todas las Sedes</option>
-              {data.sedes.map((s: any) => (
-                <option key={s.id} value={s.id}>{s.nombre_clinica}</option>
-              ))}
-            </select>
+            {user?.rol === "superadmin" ? (
+              <select
+                value={sedeId}
+                onChange={e => setSedeId(e.target.value === "all" ? "all" : Number(e.target.value))}
+                className="bg-transparent text-sm font-bold text-slate-700 outline-none pr-2 py-1 cursor-pointer"
+              >
+                <option value="all">Todas las Sedes</option>
+                {data.sedes.map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.nombre_clinica}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-sm font-bold text-slate-700 pr-2 py-1">{user?.sede || "Sede"}</span>
+            )}
           </div>
           <button className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
             <Icon name="calendar_today" size={15} />
