@@ -21,13 +21,13 @@ import {
   addDays, getMonday, toDateStr, MONTHS_L,
 } from "./agendaUtils";
 
-function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
+function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId }: { initialCitas: Cita[], preTratamientoId?: string, prePacienteId?: string }) {
   const todayDate = new Date();
   todayDate.setHours(0, 0, 0, 0);
   const today = todayDate;
 
   const searchParams = useSearchParams();
-  const preselectedPacienteId = searchParams?.get("paciente") ?? null;
+  const preselectedPacienteId = prePacienteId || searchParams?.get("paciente") || null;
 
   const [view, setView] = useState<CalView>((searchParams?.get("view") as CalView) || "month");
   const [calMonth, setCalMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
@@ -57,7 +57,7 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
     if (!preselectedPacienteId) return;
     getPatientByIdAction(preselectedPacienteId).then(p => {
       if (p) {
-        setFormState({ mode: "create", date: toDateStr(today), preloadedPatient: p as PatientLite });
+        setFormState({ mode: "create", date: toDateStr(today), preloadedPatient: p as PatientLite, preTratamientoId });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -258,10 +258,10 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
   );
 }
 
-export function AgendaView({ initialCitas }: { initialCitas: Cita[] }) {
+export function AgendaView({ initialCitas, preTratamientoId, prePacienteId }: { initialCitas: Cita[], preTratamientoId?: string, prePacienteId?: string }) {
   return (
-    <Suspense fallback={null}>
-      <AgendaViewInner initialCitas={initialCitas} />
+    <Suspense fallback={<div className="p-8 text-center text-slate-400">Cargando agenda...</div>}>
+      <AgendaViewInner initialCitas={initialCitas} preTratamientoId={preTratamientoId} prePacienteId={prePacienteId} />
     </Suspense>
   );
 }

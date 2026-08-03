@@ -49,7 +49,7 @@ function isImagen(a: Archivo) {
 }
 
 function UploadModal({ consultaId, pacienteId, onClose, onUploaded }: {
-  consultaId: string; pacienteId: number; onClose: () => void; onUploaded: () => void;
+  consultaId: string; pacienteId: string; onClose: () => void; onUploaded: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [categoria, setCategoria] = useState("otros");
@@ -129,7 +129,7 @@ function UploadModal({ consultaId, pacienteId, onClose, onUploaded }: {
 }
 
 export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaId?: string | null }) {
-  const pacienteId = Number(paciente.id);
+  const pacienteId = String(paciente.id);
   const [archivos, setArchivos] = useState<Archivo[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"grid" | "list">("grid");

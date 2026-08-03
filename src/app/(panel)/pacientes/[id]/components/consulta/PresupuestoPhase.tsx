@@ -8,6 +8,7 @@ import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
 import {
   searchCatalogoAction,
   crearPresupuestoAction,
+  editPresupuestoAction,
   updateEstadoPresupuestoAction,
   deletePresupuestoAction,
   registrarPagoAction,
@@ -135,12 +136,20 @@ export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto
 
 // ─── Builder (no hay presupuesto aún) ─────────────────────────────────────────
 
-function PresupuestoBuilder({ consultaId, pacienteId, onSaved }: {
-  consultaId: string; pacienteId: string; onSaved?: () => void;
+function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSaved, onCancel }: {
+  consultaId: string; pacienteId: string; initialPresupuesto?: PresupuestoData; onSaved?: () => void; onCancel?: () => void;
 }) {
-  const [lineas, setLineas] = useState<Linea[]>([]);
-  const [descuento, setDescuento] = useState(0);
-  const [notas, setNotas] = useState("");
+  const [lineas, setLineas] = useState<Linea[]>(
+    initialPresupuesto ? initialPresupuesto.items.map(it => ({
+      catalogo_id: (it as any).tratamiento_id,
+      nombre: it.nombre,
+      cantidad: it.cantidad,
+      precio_unitario: it.precio_unitario,
+      moneda: it.moneda
+    })) : []
+  );
+  const [descuento, setDescuento] = useState(initialPresupuesto ? initialPresupuesto.descuento_porcentaje : 0);
+  const [notas, setNotas] = useState(initialPresupuesto?.notas || "");
   const [query, setQuery] = useState("");
   const [resultados, setResultados] = useState<any[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -169,16 +178,29 @@ function PresupuestoBuilder({ consultaId, pacienteId, onSaved }: {
   const totalNeto = totalBruto - descMonto;
   const moneda = lineas[0]?.moneda ?? "PEN";
 
-  async function crear() {
+  async function guardar() {
     if (lineas.length === 0) { setError("Agrega al menos un ítem"); return; }
     setSaving(true); setError("");
-    const res = await crearPresupuestoAction({
-      paciente_id: String(pacienteId),
-      consulta_id: String(consultaId),
-      items: lineas.map(l => ({ catalogo_id: String(l.catalogo_id), cantidad: l.cantidad, precio_unitario: l.precio_unitario })),
-      descuento_porcentaje: descuento,
-      notas: notas || undefined,
-    });
+
+    let res;
+    if (initialPresupuesto) {
+      res = await editPresupuestoAction({
+        presupuesto_id: String(initialPresupuesto.id),
+        paciente_id: String(pacienteId),
+        items: lineas.map(l => ({ catalogo_id: String(l.catalogo_id), cantidad: l.cantidad, precio_unitario: l.precio_unitario })),
+        descuento_porcentaje: descuento,
+        notas: notas || undefined,
+      });
+    } else {
+      res = await crearPresupuestoAction({
+        paciente_id: String(pacienteId),
+        consulta_id: String(consultaId),
+        items: lineas.map(l => ({ catalogo_id: String(l.catalogo_id), cantidad: l.cantidad, precio_unitario: l.precio_unitario })),
+        descuento_porcentaje: descuento,
+        notas: notas || undefined,
+      });
+    }
+    
     setSaving(false);
     if (res?.error) { setError(res.error); return; }
     onSaved?.();
@@ -278,9 +300,9 @@ function PresupuestoBuilder({ consultaId, pacienteId, onSaved }: {
 
       <div className="flex flex-col gap-1.5">
         <label className="text-[12px] font-semibold text-slate-700 dark:text-slate-300">Notas (opcional)</label>
-        <input value={notas} onChange={e => setNotas(e.target.value)}
-          placeholder="Condiciones, validez del presupuesto…"
-          className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 bg-white dark:bg-slate-900 dark:text-slate-100" />
+        <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2}
+          placeholder="Notas adicionales u observaciones..."
+          className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-500 bg-slate-50 dark:bg-slate-900 dark:text-slate-100 resize-none" />
       </div>
 
       {error && (
@@ -289,11 +311,17 @@ function PresupuestoBuilder({ consultaId, pacienteId, onSaved }: {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <button onClick={crear} disabled={saving || lineas.length === 0}
-          className="flex items-center gap-1.5 px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-xl text-[13px] font-semibold transition-colors">
-          <Icon name="receipt_long" size={16} />
-          {saving ? "Generando…" : "Generar presupuesto"}
+      <div className="flex justify-end pt-2 gap-2">
+        {onCancel && (
+          <button onClick={onCancel} disabled={saving}
+            className="px-6 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-700 dark:text-slate-300 rounded-xl text-[13px] font-semibold transition-colors">
+            Cancelar
+          </button>
+        )}
+        <button onClick={guardar} disabled={saving}
+          className="flex items-center gap-2 px-6 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-[13px] font-semibold transition-colors">
+          {saving && <div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />}
+          {initialPresupuesto ? "Guardar Cambios" : "Generar Presupuesto"}
         </button>
       </div>
     </motion.div>
@@ -308,6 +336,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
 }) {
   const [busy, setBusy] = useState(false);
   const [showPago, setShowPago] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState("");
   const [exportando, setExportando] = useState<"print" | "pdf" | null>(null);
   const [sede, setSede] = useState<ClinicaInfo | null>(null);
@@ -358,6 +387,18 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
     }
   }
 
+  if (isEditing) {
+    return (
+      <PresupuestoBuilder 
+        consultaId="0" 
+        pacienteId={pacienteId} 
+        initialPresupuesto={presupuesto} 
+        onSaved={() => { setIsEditing(false); onSaved?.(); }} 
+        onCancel={() => setIsEditing(false)}
+      />
+    );
+  }
+
   return (
     <motion.div variants={fadeIn} initial="hidden" animate="visible" className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
       {/* Card presupuesto */}
@@ -385,6 +426,12 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${cfg.bg} ${cfg.text}`}>
               {cfg.label}
             </span>
+            {presupuesto.estado === "pendiente" && (
+              <button onClick={() => setIsEditing(true)} title="Editar Presupuesto"
+                className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                <Icon name="edit" size={13} />
+              </button>
+            )}
             <button onClick={() => handleExportar("print")} disabled={exportando !== null} title="Imprimir"
               className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors">
               <Icon name="print" size={13} />

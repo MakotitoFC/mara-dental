@@ -65,7 +65,7 @@ export function RecetasTab({ paciente, consultaId, data, loading, refetch }: {
   loading: boolean;
   refetch: () => void;
 }) {
-  const pacienteId = Number(paciente.id);
+  const pacienteId = String(paciente.id);
 
   const [historialPaciente, setHistorialPaciente] = useState<any[] | null>(null);
   const fetchHistorialPaciente = useCallback(async () => {

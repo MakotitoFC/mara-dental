@@ -67,6 +67,7 @@ export async function createCitaAction(data: {
   tipo_consulta_id: string;
   estado: string;
   notas: string;
+  tratamiento_id?: string;
 }, force: boolean = false) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -129,6 +130,7 @@ export async function createCitaAction(data: {
     tipo_consulta_id: data.tipo_consulta_id,
     estado: data.estado,
     notas: data.notas || null,
+    tratamiento_id: data.tratamiento_id || null,
   });
 
   if (insertError) {

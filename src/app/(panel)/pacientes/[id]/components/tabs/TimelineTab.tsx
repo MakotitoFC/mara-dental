@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { staggerContainer, staggerItem, fadeIn, EASE } from "@/lib/animations";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { crearHistoriaClinicaAction, cambiarEstadoNotaAction } from "../../casos.actions";
+import { getConsultaDetalleTimelineAction } from "../../consulta.actions";
+import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -14,7 +16,7 @@ const fmtFull = (d: string) => {
   catch { return d; }
 };
 const fmtCorta = (d: string) => {
-  try { return new Date(d).toLocaleDateString("es-PE", { day: "numeric", month: "short" }); }
+  try { return new Date(d).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" }); }
   catch { return d; }
 };
 const money = (n: number, m = "PEN") => `${m === "PEN" ? "S/" : m} ${Number(n).toFixed(2)}`;
@@ -47,9 +49,33 @@ export function TimelineTab({
   
   const [savingHC, setSavingHC] = useState(false);
 
-  // Para mantener compatibilidad con el detalle de la consulta, usamos el historial plano para seleccionar
+  // Seleccionar la consulta. Usamos el historial plano solo para tener una base rápida si es necesario.
   const [selectedId, setSelectedId] = useState<string | null>(historial?.[0]?.id ?? null);
-  const selected = historial?.find((c) => c.id === selectedId) ?? historial?.[0];
+  
+  // Estado para los detalles ricos que vienen del servidor
+  const [detalleActivo, setDetalleActivo] = useState<any>(null);
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
+  const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let isActive = true;
+    
+    async function cargar() {
+      setLoadingDetalle(true);
+      const res = await getConsultaDetalleTimelineAction(selectedId as string);
+      if (isActive && res) {
+        setDetalleActivo(res);
+      }
+      if (isActive) {
+        setLoadingDetalle(false);
+      }
+    }
+    
+    cargar();
+    
+    return () => { isActive = false; };
+  }, [selectedId]);
 
   async function handleCrearHC() {
     setSavingHC(true);
@@ -151,8 +177,13 @@ export function TimelineTab({
                             key={c.id}
                             consulta={cRica}
                             isLast={i === caso.consultas.length - 1}
-                            active={c.id === selected?.id}
-                            onSelect={() => setSelectedId(c.id)}
+                            active={c.id === selectedId}
+                            onSelect={() => {
+                              setSelectedId(c.id);
+                              if (window.innerWidth < 1024) {
+                                setIsMobileModalOpen(true);
+                              }
+                            }}
                             onNavigateTab={onNavigateTab}
                           />
                         );
@@ -165,25 +196,57 @@ export function TimelineTab({
           </div>
 
           {/* Columna derecha — panel de detalle fijo (solo desktop) */}
-          <div className="hidden lg:block w-[360px] shrink-0 sticky top-[68px]">
-            {selected && (
+          <div className="hidden lg:block w-90 shrink-0 sticky top-17">
+            {selectedId && (
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={selected.id}
+                  key={selectedId}
                   variants={fadeIn}
                   initial="hidden"
                   animate="visible"
                   exit="exit"
-                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden overflow-y-auto no-scrollbar"
+                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden overflow-y-auto no-scrollbar relative min-h-75"
                   style={{ maxHeight: "calc(100vh - 100px)" }}
                 >
-                  <ConsultaDetail consulta={selected} onNavigateTab={onNavigateTab} />
+                  {loadingDetalle && (
+                    <div className="absolute inset-0 z-10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm flex items-center justify-center">
+                      <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                  {detalleActivo ? (
+                    <ConsultaDetail consulta={detalleActivo} onNavigateTab={onNavigateTab} />
+                  ) : (
+                    <div className="p-8 text-center text-slate-400">Selecciona una consulta</div>
+                  )}
                 </motion.div>
               </AnimatePresence>
             )}
           </div>
         </div>
       )}
+
+      {/* Modal para Mobile */}
+      <AnimatePresence>
+        {isMobileModalOpen && selectedId && (
+          <ResponsiveSheet onClose={() => setIsMobileModalOpen(false)}>
+            <div className="relative min-h-75 overflow-y-auto no-scrollbar bg-white dark:bg-slate-800">
+              {loadingDetalle && (
+                <div className="absolute inset-0 z-10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {detalleActivo ? (
+                <ConsultaDetail consulta={detalleActivo} onNavigateTab={(tab) => {
+                  setIsMobileModalOpen(false);
+                  if (onNavigateTab) onNavigateTab(tab);
+                }} />
+              ) : (
+                <div className="p-8 text-center text-slate-400">Cargando detalles...</div>
+              )}
+            </div>
+          </ResponsiveSheet>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -195,7 +258,6 @@ function TimelineNode({
 }: {
   consulta: any; isLast: boolean; active: boolean; onSelect: () => void; onNavigateTab?: (tab: TabNav) => void;
 }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
   const { getVars } = useTipoConsultaVars();
   const vars = getVars(c.tipo_consulta_id); // Se usa tipo_consulta_id para obtener los colores
   const diagCount = c.diagnosticos?.length || 0;
@@ -204,7 +266,6 @@ function TimelineNode({
 
   function handleClick() {
     onSelect();
-    setMobileOpen((o) => !o);
   }
 
   return (
@@ -215,7 +276,7 @@ function TimelineNode({
           className="w-3.5 h-3.5 rounded-full mt-5 shrink-0 z-10 ring-4 ring-slate-50 dark:ring-slate-900"
           style={{ background: vars.solid }}
         />
-        {!isLast && <span className="w-[2px] flex-1 bg-slate-200 dark:bg-slate-700" />}
+        {!isLast && <span className="w-0.5 flex-1 bg-slate-200 dark:bg-slate-700" />}
       </div>
 
       {/* Tarjeta */}
@@ -245,31 +306,8 @@ function TimelineNode({
               {diagCount > 0 && <CountBadge icon="assignment" count={diagCount} />}
               {archivosCount > 0 && <CountBadge icon="photo_library" count={archivosCount} />}
               {presuCount > 0 && <CountBadge icon="payments" count={presuCount} />}
-              <span className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors lg:hidden ${active ? "text-cyan-600 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500"}`}>
-                <motion.span animate={{ rotate: mobileOpen ? 180 : 0 }} transition={{ duration: 0.25, ease: EASE }} className="flex">
-                  <Icon name="expand_more" size={18} />
-                </motion.span>
-              </span>
             </div>
           </button>
-
-          {/* Detalle inline — solo mobile/tablet (en desktop vive en el panel fijo) */}
-          <AnimatePresence initial={false}>
-            {mobileOpen && (
-              <motion.div
-                key="detail"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.25, ease: EASE }}
-                className="overflow-hidden lg:hidden"
-              >
-                <div className="border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
-                  <ConsultaDetail consulta={c} onNavigateTab={onNavigateTab} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </div>
     </motion.div>
@@ -296,7 +334,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab }: { consulta: any; onNavig
       </div>
 
       {(c.observaciones || (c.examen?.length ?? 0) > 0) && (
-        <Section icon="notes" title="Anamnesis y examen">
+        <Section icon="notes" title="Observaciones">
           {c.observaciones && (
             <p className="text-[12.5px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2">{c.observaciones}</p>
           )}
@@ -327,7 +365,10 @@ function ConsultaDetail({ consulta: c, onNavigateTab }: { consulta: any; onNavig
                 </span>
               )}
             </div>
-            <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">{d.texto}</p>
+            <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+              {d.texto}
+              {d.fecha_deteccion && <span className="text-slate-400 dark:text-slate-500 font-normal ml-2 text-[11px] whitespace-nowrap">{fmtCorta(d.fecha_deteccion)}</span>}
+            </p>
             {d.cie10 && (
               <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{d.cie10.codigo}</span>
@@ -337,36 +378,42 @@ function ConsultaDetail({ consulta: c, onNavigateTab }: { consulta: any; onNavig
           </Section>
 
           {d.tratamientos?.length > 0 && (
-            <Section icon="medical_services" title="Tratamiento">
-              <div className="flex flex-col gap-1.5">
+            <Section icon="medical_services" title="Tratamiento y Plan">
+              <div className="flex flex-col gap-3">
                 {d.tratamientos.map((t: any) => (
-                  <div key={t.id} className="flex justify-between gap-3 py-1.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
-                    <span className="text-[12.5px] text-slate-700 dark:text-slate-300">
-                      {t.nombre}{t.notas ? <span className="text-slate-400 dark:text-slate-500"> · {t.notas}</span> : null}
-                    </span>
-                    <span className="text-[12.5px] font-medium text-slate-700 dark:text-slate-300 shrink-0">{money(t.precio, t.moneda)}</span>
+                  <div key={t.id} className="flex flex-col gap-2 pb-3 border-b border-slate-100 dark:border-slate-700 last:border-0 last:pb-0">
+                    <div className="flex justify-between gap-3 items-start">
+                      <span className="text-[12.5px] text-slate-700 dark:text-slate-300 font-semibold leading-snug">
+                        {t.nombre}
+                        {t.descripcion && <span className="text-slate-500 font-normal ml-1">— {t.descripcion}</span>}
+                        {t.fecha && <span className="text-slate-400 dark:text-slate-500 font-normal ml-2 text-[11px] whitespace-nowrap">{fmtCorta(t.fecha)}</span>}
+                      </span>
+                      {t.precio != null && (
+                        <span className="text-[12.5px] font-medium text-slate-700 dark:text-slate-300 shrink-0 mt-0.5">{money(t.precio, t.moneda)}</span>
+                      )}
+                    </div>
+                    {t.plan?.length > 0 && (
+                      <div className="flex flex-col gap-1.5 pl-3 border-l-2 border-slate-100 dark:border-slate-700 mt-0.5">
+                        {t.plan.map((p: any) => {
+                          const cfg = PLAN_CFG[p.estado] ?? PLAN_CFG.hacer;
+                          return (
+                            <div key={p.id} className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[11.5px] font-medium text-slate-600 dark:text-slate-400">{p.etapa}</p>
+                                {(p.tiempo || p.descripcion) && (
+                                  <p className="text-[10.5px] text-slate-400 dark:text-slate-500">
+                                    {p.tiempo}{p.tiempo && p.descripcion ? " · " : ""}{p.descripcion}
+                                  </p>
+                                )}
+                              </div>
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide shrink-0 ${cfg.bg} ${cfg.text}`}>{cfg.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 ))}
-              </div>
-            </Section>
-          )}
-
-          {d.plan?.length > 0 && (
-            <Section icon="check_circle" title="Plan de trabajo">
-              <div className="flex flex-col gap-2">
-                {d.plan.map((p: any) => {
-                  const cfg = PLAN_CFG[p.estado] ?? PLAN_CFG.hacer;
-                  return (
-                    <div key={p.id} className="flex items-start justify-between gap-3 p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
-                      <div className="min-w-0">
-                        <p className="text-[12.5px] font-semibold text-slate-700 dark:text-slate-300">{p.etapa}</p>
-                        {p.descripcion && <p className="text-[11.5px] text-slate-500 dark:text-slate-400">{p.descripcion}</p>}
-                        {p.tiempo && <p className="text-[11px] text-slate-400 dark:text-slate-500">{p.tiempo}</p>}
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide shrink-0 ${cfg.bg} ${cfg.text}`}>{cfg.label}</span>
-                    </div>
-                  );
-                })}
               </div>
             </Section>
           )}
@@ -386,9 +433,12 @@ function ConsultaDetail({ consulta: c, onNavigateTab }: { consulta: any; onNavig
                   </button>
                 )}
               >
-                <span className={`self-start inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide mb-2 ${receta.estado === "activa" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"}`}>
-                  {receta.estado}
-                </span>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${receta.estado === "activa" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"}`}>
+                    {receta.estado}
+                  </span>
+                  {receta.fecha_emision && <span className="text-slate-400 dark:text-slate-500 font-normal text-[11px]">{fmtCorta(receta.fecha_emision)}</span>}
+                </div>
                 <div className="flex flex-col gap-1.5">
                   {preview.map((m: any, i: number) => (
                     <div key={i} className="text-[12.5px]">
@@ -405,7 +455,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab }: { consulta: any; onNavig
         </div>
       ))}
 
-      {c.odontograma && (
+      {c.odontogramas && c.odontogramas.length > 0 && (
         <Section
           icon="tooth"
           title="Odontograma"
@@ -415,10 +465,26 @@ function ConsultaDetail({ consulta: c, onNavigateTab }: { consulta: any; onNavig
             </button>
           )}
         >
-          <p className="text-[12.5px] text-slate-700 dark:text-slate-300">
-            <span className="font-semibold">{c.odontograma.piezas}</span> pieza{c.odontograma.piezas !== 1 ? "s" : ""} marcada{c.odontograma.piezas !== 1 ? "s" : ""}
-            {c.odontograma.tipo ? <span className="text-slate-400 dark:text-slate-500"> · {c.odontograma.tipo}</span> : null}
-          </p>
+          {c.odontogramas.map((odo: any) => {
+            const piezas = odo.odontograma_diente?.length || 0;
+            return (
+              <p key={odo.id} className="text-[12.5px] text-slate-700 dark:text-slate-300 mb-1 last:mb-0">
+                <span className="font-semibold">{piezas}</span> pieza{piezas !== 1 ? "s" : ""} marcada{piezas !== 1 ? "s" : ""}
+                {odo.tipo_tratamiento ? <span className="text-slate-400 dark:text-slate-500"> · {odo.tipo_tratamiento}</span> : null}
+                {odo.created_at && <span className="text-slate-400 dark:text-slate-500 font-normal ml-2 text-[11px] whitespace-nowrap">{fmtCorta(odo.created_at)}</span>}
+              </p>
+            );
+          })}
+        </Section>
+      )}
+
+      {c.recomendaciones && c.recomendaciones.length > 0 && (
+        <Section icon="heart" title="Recomendaciones">
+          <ul className="list-disc pl-4 text-[12.5px] text-slate-700 dark:text-slate-300 flex flex-col gap-1">
+            {c.recomendaciones.map((r: any) => (
+              <li key={r.id}>{r.contenido}</li>
+            ))}
+          </ul>
         </Section>
       )}
 

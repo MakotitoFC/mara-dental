@@ -16,14 +16,14 @@ import { InfoTab } from "./tabs/InfoTab";
 import { TimelineTab } from "./tabs/TimelineTab";
 import { DiagnosticoTab } from "./tabs/DiagnosticoTab";
 import { ArchivosTab } from "./tabs/ArchivosTab";
-import { RecetasTab } from "./tabs/RecetasTab";
 import { PresupuestoTab } from "./tabs/PresupuestoTab";
+import { ChatTab } from "./tabs/ChatTab";
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 type TabKey =
   | "info" | "timeline" | "dental"
-  | "diagnosticos" | "archivos" | "recetas" | "presupuestos";
+  | "diagnosticos" | "archivos" | "recetas" | "presupuestos" | "chat";
 
 const TABS: { key: TabKey; icon: string; label: string }[] = [
   { key: "info",          icon: "contact_page",    label: "Info" },
@@ -31,8 +31,8 @@ const TABS: { key: TabKey; icon: string; label: string }[] = [
   { key: "dental",        icon: "dentistry",       label: "Dental" },
   { key: "diagnosticos",  icon: "assignment",      label: "Diagnóstico" },
   { key: "archivos",      icon: "photo_library",   label: "Archivos" },
-  { key: "recetas",       icon: "medication",      label: "Recetas" },
   { key: "presupuestos",  icon: "payments",        label: "Presup." },
+  { key: "chat",          icon: "chat",            label: "Chat" },
 ];
 
 const TAB_KEYS = TABS.map((t) => t.key);
@@ -337,9 +337,6 @@ export function HistoriaView({
             {tab === "archivos" && (
               <ArchivosTab paciente={pacienteAdapter} consultaId={consultaId} />
             )}
-            {tab === "recetas" && (
-              <RecetasTab paciente={pacienteAdapter} consultaId={consultaId} data={consultaData} loading={loadingConsulta} refetch={refetchConsultaData} />
-            )}
             {tab === "presupuestos" && (
               <PresupuestoTab
                 paciente={pacienteAdapter}
@@ -348,6 +345,9 @@ export function HistoriaView({
                 loading={loadingConsulta}
                 refetch={refetchConsultaData}
               />
+            )}
+            {tab === "chat" && (
+              <ChatTab pacienteId={String(p.id)} />
             )}
           </motion.div>
         </AnimatePresence>
