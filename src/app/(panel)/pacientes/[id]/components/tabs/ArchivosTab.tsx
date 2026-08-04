@@ -128,7 +128,11 @@ function UploadModal({ consultaId, pacienteId, onClose, onUploaded }: {
   );
 }
 
-export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaId?: string | null }) {
+export function ArchivosTab({ paciente, consultaId, onNavigateTab }: { 
+  paciente: any; 
+  consultaId?: string | null;
+  onNavigateTab?: (t: string) => void;
+}) {
   const pacienteId = String(paciente.id);
   const [archivos, setArchivos] = useState<Archivo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -261,7 +265,14 @@ export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaI
 
       <AnimatePresence>
         {visor && (
-          <VisorModal archivo={visor} todos={archivos} paciente={paciente} onClose={() => setVisor(null)} onNav={(a) => setVisor(a as Archivo)} />
+          <VisorModal 
+            archivo={visor} 
+            todos={archivos} 
+            paciente={paciente} 
+            onClose={() => setVisor(null)} 
+            onNav={(a) => setVisor(a as Archivo)} 
+            onNavigateTab={onNavigateTab}
+          />
         )}
       </AnimatePresence>
 

@@ -11,6 +11,8 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
   const [loading, setLoading] = useState(true);
   const [paciente, setPaciente] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -27,8 +29,12 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `paciente_id=eq.${pacienteId}` },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new]);
-          scrollToBottom();
+          setMessages((prev) => {
+            // Avoid duplicates from optimistic UI
+            if (prev.some(m => m.id === payload.new.id)) return prev;
+            return [...prev, payload.new];
+          });
+          setTimeout(scrollToBottom, 100);
         }
       )
       .subscribe();
@@ -38,15 +44,41 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
     };
   }, [pacienteId]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    const data = await getChatInfoAction(pacienteId);
-    if (data) {
-      setPaciente(data.paciente);
-      setMessages(data.messages);
-      setTimeout(scrollToBottom, 100);
+  useEffect(() => {
+    const pendingFile = (window as any).__pendingTelegramFile;
+    if (pendingFile) {
+      setSelectedFile(pendingFile);
+      (window as any).__pendingTelegramFile = null;
     }
-    setLoading(false);
+  }, []);
+
+  const fetchData = async (pageNum: number = 0) => {
+    if (pageNum === 0) setLoading(true);
+    const data = await getChatInfoAction(pacienteId, pageNum, 20);
+    if (data) {
+      if (pageNum === 0) {
+        setPaciente(data.paciente);
+        setMessages(data.messages);
+        setTimeout(scrollToBottom, 100);
+      } else {
+        setMessages(prev => [...data.messages, ...prev]);
+      }
+      setHasMore(data.messages.length === 20);
+    }
+    if (pageNum === 0) setLoading(false);
+  };
+
+  const loadMore = async () => {
+    if (!hasMore || loading) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    await fetchData(nextPage);
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (e.currentTarget.scrollTop === 0) {
+      loadMore();
+    }
   };
 
   const scrollToBottom = () => {
@@ -73,18 +105,41 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
     e.preventDefault();
     if (!text.trim() && !selectedFile) return;
 
+    const currentText = text;
+    const currentFile = selectedFile;
+    setText("");
+    setSelectedFile(null);
     setSending(true);
+
+    // Optimistic UI
+    const tempId = `temp-${Date.now()}`;
+    const tempMessage = {
+      id: tempId,
+      content: currentText,
+      direction: "outbound",
+      sent_at: new Date().toISOString(),
+      status: "sending",
+      file_name: currentFile?.name,
+      file_type: currentFile?.type,
+      file_size: currentFile?.size,
+      file_url: currentFile ? URL.createObjectURL(currentFile) : null
+    };
+    
+    setMessages(prev => [...prev, tempMessage]);
+    setTimeout(scrollToBottom, 100);
+
     let fileUrl = undefined;
     let presignedUrl = undefined;
     
-    if (selectedFile) {
+    if (currentFile) {
       const { uploadChatAttachmentAction } = await import("../../chat.actions");
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      formData.append("file", currentFile);
       formData.append("pacienteId", pacienteId);
       const subida = await uploadChatAttachmentAction(formData);
       if (subida.error) {
         toast.error("Error subiendo archivo: " + subida.error);
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "failed" } : m));
         setSending(false);
         return;
       }
@@ -94,21 +149,22 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
 
     const res = await sendMessageAction(
       pacienteId, 
-      text, 
+      currentText, 
       fileUrl, 
-      selectedFile?.name, 
-      selectedFile?.type, 
-      selectedFile?.size,
+      currentFile?.name, 
+      currentFile?.type, 
+      currentFile?.size,
       presignedUrl
     );
     
     if (res.error) {
       toast.error(res.error);
-    } else {
-      setText("");
-      setSelectedFile(null);
-      fetchData(); 
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "failed" } : m));
+    } else if (res.message) {
+      // Reemplazar mensaje temporal con el real
+      setMessages(prev => prev.map(m => m.id === tempId ? res.message : m));
     }
+    
     setSending(false);
   };
 
@@ -182,7 +238,10 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 bg-slate-50/50 dark:bg-slate-900/20">
+      <div 
+        className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 bg-slate-50/50 dark:bg-slate-900/20"
+        onScroll={handleScroll}
+      >
         {messages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-slate-400 dark:text-slate-500 text-[13px]">
             No hay mensajes. Envía el primero para comenzar.
@@ -205,20 +264,32 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
                   {m.file_url && (
                     <div className="mb-2">
                       {m.file_type?.startsWith("image/") ? (
-                        <img src={m.file_url} alt="adjunto" className="max-w-[200px] rounded-lg border border-white/20" />
+                        <img src={`/api/proxy-image?url=${encodeURIComponent(m.file_url)}`} alt="adjunto" className="max-w-[200px] rounded-lg border border-white/20" />
+                      ) : m.file_type?.startsWith("audio/") || m.file_name?.endsWith(".ogg") || m.file_name?.endsWith(".mp3") || m.file_name?.endsWith(".wav") ? (
+                        <audio controls src={`/api/proxy-image?url=${encodeURIComponent(m.file_url)}&type=${encodeURIComponent(m.file_type || "audio/ogg")}`} className="h-10 max-w-[200px]" />
                       ) : (
-                        <a href={m.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 bg-black/10 dark:bg-white/10 p-2 rounded-lg hover:bg-black/20 transition-colors text-inherit">
-                          <Icon name="description" size={20} />
-                          <span className="truncate max-w-[150px]">{m.file_name || "Archivo adjunto"}</span>
-                        </a>
+                        <div className="flex items-center gap-2 bg-white/10 p-2 rounded-lg text-sm border border-white/20">
+                          <Icon name="file" size={18} />
+                          <a href={`/api/proxy-image?url=${encodeURIComponent(m.file_url)}`} target="_blank" rel="noopener noreferrer" className="hover:underline line-clamp-1 flex-1">
+                            {m.file_name || "Documento adjunto"}
+                          </a>
+                        </div>
                       )}
                     </div>
                   )}
                   {m.content && <p className="whitespace-pre-wrap">{m.content}</p>}
-                  <div className={`text-[10px] flex items-center justify-end gap-1 mt-1 ${isMe ? "text-cyan-100" : "text-slate-400"}`}>
-                    {timeStr}
-                    {isMe && <Icon name="done_all" size={14} className={m.is_read ? "text-blue-300" : "text-cyan-200"} />}
-                  </div>
+                  <span className="text-[10px] opacity-70 mt-1 self-end flex items-center gap-1">
+                    {new Date(m.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {isMe && (
+                      m.status === "sending" ? (
+                        <Icon name="check" size={14} className="text-white/50" />
+                      ) : m.status === "failed" ? (
+                        <Icon name="x_circle" size={14} className="text-red-300" />
+                      ) : (
+                        <Icon name="done_all" size={14} className={m.is_read ? "text-cyan-200" : "text-white/70"} />
+                      )
+                    )}
+                  </span>
                 </div>
                 {isMe && m.doctor_nombre && (
                   <span className="text-[10px] text-slate-400 mt-1 mr-1">{m.doctor_nombre}</span>

@@ -335,7 +335,7 @@ export function HistoriaView({
               />
             )}
             {tab === "archivos" && (
-              <ArchivosTab paciente={pacienteAdapter} consultaId={consultaId} />
+              <ArchivosTab paciente={pacienteAdapter} consultaId={consultaId} onNavigateTab={(t) => goTo(t as TabKey)} />
             )}
             {tab === "presupuestos" && (
               <PresupuestoTab
@@ -344,6 +344,7 @@ export function HistoriaView({
                 data={consultaData}
                 loading={loadingConsulta}
                 refetch={refetchConsultaData}
+                onNavigateTab={(t) => goTo(t as TabKey)}
               />
             )}
             {tab === "chat" && (
