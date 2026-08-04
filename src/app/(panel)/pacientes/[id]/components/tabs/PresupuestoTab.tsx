@@ -6,8 +6,9 @@ import { PresupuestoSkeleton } from "@/components/ui/ConsultaSkeletons";
 import { PresupuestoPhase } from "../consulta/PresupuestoPhase";
 import { getPresupuestoActivoAction, getPresupuestosPacienteAction, getMediosPagoAction } from "../../consulta.actions";
 
-function PresupuestosAnteriores({ items, pacienteId, paciente, mediosPago, onSaved }: {
+function PresupuestosAnteriores({ items, pacienteId, paciente, mediosPago, onSaved, onNavigateTab }: {
   items: any[]; pacienteId: string; paciente: any; mediosPago: { id: number; nombre: string }[]; onSaved: () => void;
+  onNavigateTab?: (tab: string) => void;
 }) {
   if (items.length <= 1) return null;
   const anteriores = items.slice(1);
@@ -29,6 +30,7 @@ function PresupuestosAnteriores({ items, pacienteId, paciente, mediosPago, onSav
             presupuesto={p}
             mediosPago={mediosPago}
             onSaved={onSaved}
+            onNavigateTab={onNavigateTab}
           />
         ))}
       </div>
@@ -36,12 +38,13 @@ function PresupuestosAnteriores({ items, pacienteId, paciente, mediosPago, onSav
   );
 }
 
-export function PresupuestoTab({ paciente, consultaId, data, loading, refetch }: {
+export function PresupuestoTab({ paciente, consultaId, data, loading, refetch, onNavigateTab }: {
   paciente: any;
   consultaId?: string | null;
   data: any;
   loading: boolean;
   refetch: () => void;
+  onNavigateTab?: (tab: string) => void;
 }) {
   const pacienteId = String(paciente.id);
 
@@ -96,8 +99,9 @@ export function PresupuestoTab({ paciente, consultaId, data, loading, refetch }:
         presupuesto={presupuesto}
         mediosPago={mediosPago}
         onSaved={onSaved}
+        onNavigateTab={onNavigateTab}
       />
-      <PresupuestosAnteriores items={historial} pacienteId={String(pacienteId)} paciente={paciente} mediosPago={mediosPago} onSaved={() => { onSaved(); fetchHistorial(); }} />
+      <PresupuestosAnteriores items={historial} pacienteId={String(pacienteId)} paciente={paciente} mediosPago={mediosPago} onSaved={() => { onSaved(); fetchHistorial(); }} onNavigateTab={onNavigateTab} />
     </div>
   );
 }

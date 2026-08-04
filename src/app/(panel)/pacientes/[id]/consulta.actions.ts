@@ -1082,15 +1082,26 @@ async function firmarUrls(supabase: SupabaseClient, archivos: any[]) {
 
       if (a.url && !a.url.startsWith("http")) {
         try {
-          const command = new GetObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: a.url,
-          });
-          const signedUrl = await getSignedUrl(r2Client, command, { expiresIn: 60 * 60 });
-          return { ...a, tipo_archivo: tipo_str, displayUrl: signedUrl };
+          const { data, error } = await supabase.storage
+            .from("archivos_clinicos")
+            .createSignedUrl(a.url, 60 * 60);
+          
+          if (error || !data) throw new Error(error?.message || "No se pudo firmar la URL con Supabase");
+          
+          return { ...a, tipo_archivo: tipo_str, displayUrl: data.signedUrl };
         } catch (e) {
-          console.error("Error signing URL with R2:", e);
-          return { ...a, tipo_archivo: tipo_str, displayUrl: a.url };
+          // Fallback a R2 si no existe en Supabase
+          try {
+            const command = new GetObjectCommand({
+              Bucket: process.env.R2_BUCKET_NAME,
+              Key: a.url,
+            });
+            const signedUrl = await getSignedUrl(r2Client, command, { expiresIn: 60 * 60 });
+            return { ...a, tipo_archivo: tipo_str, displayUrl: signedUrl };
+          } catch (r2Error) {
+            console.error("Error signing URL with R2 as fallback:", r2Error);
+            return { ...a, tipo_archivo: tipo_str, displayUrl: a.url };
+          }
         }
       }
       return { ...a, tipo_archivo: tipo_str, displayUrl: a.url };

@@ -77,15 +77,19 @@ async function withOffscreenContainer<T>(html: string, fn: (container: HTMLDivEl
 }
 
 export async function downloadHtmlAsPng(html: string, filename: string) {
-  const canvas = await withOffscreenContainer(html, (container) =>
-    html2canvas(container, { scale: 2, useCORS: true, backgroundColor: "#ffffff" }),
-  );
+  const canvas = await exportHtmlAsCanvas(html);
   const link = document.createElement("a");
   link.href = canvas.toDataURL("image/png");
   link.download = filename;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+export async function exportHtmlAsCanvas(html: string): Promise<HTMLCanvasElement> {
+  return await withOffscreenContainer(html, (container) =>
+    html2canvas(container, { scale: 2, useCORS: true, backgroundColor: "#ffffff" })
+  );
 }
 
 /** PDF de una sola imagen completa — ideal para documentos cortos que caben en una página (ej. un presupuesto). */

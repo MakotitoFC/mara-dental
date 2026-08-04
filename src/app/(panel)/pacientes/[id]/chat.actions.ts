@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { v4 as uuidv4 } from "uuid";
 import { revalidatePath } from "next/cache";
 
-export async function getChatInfoAction(pacienteId: string) {
+export async function getChatInfoAction(pacienteId: string, page: number = 0, limit: number = 20) {
   const supabase = await createClient();
 
   const { data: paciente, error: pacError } = await supabase
@@ -28,15 +28,19 @@ export async function getChatInfoAction(pacienteId: string) {
       )
     `)
     .eq("paciente_id", pacienteId)
-    .order("sent_at", { ascending: true });
+    .order("sent_at", { ascending: false })
+    .range(page * limit, (page + 1) * limit - 1);
 
   if (msgError) {
     console.error("Error fetching messages:", msgError);
   }
 
+  // Invertir para que los más antiguos queden arriba
+  const sortedMessages = (messages || []).reverse();
+
   return {
     paciente,
-    messages: (messages || []).map((m: any) => ({
+    messages: sortedMessages.map((m: any) => ({
       ...m,
       doctor_nombre: m.usuarios?.personal?.length > 0 
         ? `${m.usuarios.personal[0].nombre} ${m.usuarios.personal[0].apellido}`
@@ -131,7 +135,7 @@ export async function sendMessageAction(pacienteId: string, text?: string, fileU
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id;
 
-  const { error: insertError } = await supabase
+  const { data: insertedData, error: insertError } = await supabase
     .from("messages")
     .insert({
       paciente_id: pacienteId,
@@ -140,18 +144,34 @@ export async function sendMessageAction(pacienteId: string, text?: string, fileU
       content: text || null,
       direction: "outbound",
       file_url: fileUrl || null,
-      file_name: fileName || null,
       file_type: fileType || null,
+      file_name: fileName || null,
       file_size: fileSize || null,
-      is_read: true
-    });
+      is_read: false, // The patient hasn't read it yet
+      sent_at: new Date().toISOString()
+    })
+    .select(`
+      id, telegram_message_id, content, direction, file_url, file_type, file_name, file_size, is_read, sent_at, created_at,
+      created_by,
+      usuarios:created_by (
+        personal:personal (nombre, apellido)
+      )
+    `)
+    .single();
 
   if (insertError) {
     console.error("Error inserting message:", insertError);
-    return { error: "Mensaje enviado a Telegram pero falló al guardar localmente" };
+    return { error: "Error guardando el mensaje en la base de datos" };
   }
 
-  return { success: true };
+  const newMessage = {
+    ...insertedData,
+    doctor_nombre: insertedData.usuarios?.personal?.length > 0 
+      ? `${insertedData.usuarios.personal[0].nombre} ${insertedData.usuarios.personal[0].apellido}`
+      : null
+  };
+
+  return { success: true, message: newMessage };
 }
 
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";

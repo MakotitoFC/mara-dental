@@ -177,12 +177,14 @@ export function VisorModal({
   paciente,
   onClose,
   onNav,
+  onNavigateTab,
 }: {
   archivo: Archivo;
   todos: Archivo[];
   paciente?: { id: number | string; nombre_completo?: string; nombre?: string; apellido?: string } | null;
   onClose: () => void;
   onNav: (a: Archivo) => void;
+  onNavigateTab?: (t: string) => void;
 }) {
   const idx = todos.findIndex((x) => x.id === initialArchivo.id);
   const prev = idx > 0 ? todos[idx - 1] : null;
@@ -665,7 +667,7 @@ export function VisorModal({
     });
   }
 
-  const [exportingReport, setExportingReport] = useState<"png" | "pdf" | "print" | null>(null);
+  const [exportingReport, setExportingReport] = useState<"png" | "pdf" | "print" | "telegram" | null>(null);
 
   async function renderReportCanvas(): Promise<HTMLCanvasElement> {
     const html = await buildReportHtmlForCurrent();
@@ -696,6 +698,27 @@ export function VisorModal({
       document.body.removeChild(link);
     } catch (e) {
       console.error("Error generando reporte:", e);
+    } finally {
+      setExportingReport(null);
+    }
+  }
+
+  async function handleSendTelegram() {
+    setExportingReport("telegram");
+    try {
+      const canvas = await renderReportCanvas();
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const file = new File([blob], a.nombre_archivo.replace(/\.[^.]+$/, "") + "_reporte.png", { type: "image/png" });
+        (window as any).__pendingTelegramFile = file;
+        
+        if (onNavigateTab) {
+          onNavigateTab("chat");
+        }
+        onClose();
+      }, "image/png");
+    } catch (e) {
+      console.error("Error generating telegram report:", e);
     } finally {
       setExportingReport(null);
     }
@@ -1281,11 +1304,18 @@ export function VisorModal({
           <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-2.5">
             {isImage ? (
               <>
-                <button onClick={handleDownloadReportImage} disabled={exportingReport !== null}
-                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors w-full">
-                  <Icon name="download" size={15} />
-                  {exportingReport === "png" ? "Generando…" : "Descargar Reporte (Img)"}
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={handleDownloadReportImage} disabled={exportingReport !== null}
+                    className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors w-full">
+                    <Icon name="download" size={15} />
+                    {exportingReport === "png" ? "Generando…" : "Guardar Png"}
+                  </button>
+                  <button onClick={handleSendTelegram} disabled={exportingReport !== null}
+                    className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors w-full">
+                    <Icon name="send" size={15} />
+                    {exportingReport === "telegram" ? "Preparando…" : "Enviar por Telegram"}
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={handleDownloadPdf} disabled={exportingReport !== null}
                     className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl border border-cyan-600 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 disabled:opacity-50 text-[12px] font-semibold transition-colors">
@@ -1311,11 +1341,6 @@ export function VisorModal({
                 </button>
               </div>
             )}
-            <button disabled title="Próximamente disponible"
-              className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-600/40 text-white text-[12.5px] font-semibold cursor-not-allowed w-full">
-              <Icon name="chat" size={15} />
-              Enviar por Telegram
-            </button>
             {isImage && (
               <button onClick={forceDownload} className="text-[10.5px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors underline underline-offset-2 self-center">
                 Descargar archivo original (sin membrete)

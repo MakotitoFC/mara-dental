@@ -17,7 +17,7 @@ import {
 } from "../../consulta.actions";
 import {
   esc, fmtGenerado, buildLetterheadHeader, buildLetterheadFooter, wrapDocument,
-  printHtml, downloadHtmlAsSinglePagePdf, type ClinicaInfo,
+  printHtml, downloadHtmlAsSinglePagePdf, exportHtmlAsCanvas, type ClinicaInfo,
 } from "@/lib/reportExport";
 
 type Linea = { catalogo_id: number; nombre: string; cantidad: number; precio_unitario: number; moneda: string };
@@ -120,16 +120,13 @@ function buildPresupuestoHtml(opts: {
   return wrapDocument(`${header}${body}${buildLetterheadFooter(opts.clinica)}`, 800);
 }
 
-export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto, mediosPago, onSaved }: {
-  consultaId: string;
-  pacienteId: string;
-  paciente?: { nombre_completo?: string } | null;
+export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto, mediosPago, onSaved, onNavigateTab }: {
+  consultaId: string; pacienteId: string; paciente: any; mediosPago: { id: number; nombre: string }[]; onSaved?: () => void;
   presupuesto: PresupuestoData | null;
-  mediosPago: { id: number; nombre: string }[];
-  onSaved?: () => void;
+  onNavigateTab?: (tab: string) => void;
 }) {
   if (presupuesto) {
-    return <PresupuestoExistente pacienteId={pacienteId} paciente={paciente} presupuesto={presupuesto} mediosPago={mediosPago} onSaved={onSaved} />;
+    return <PresupuestoExistente pacienteId={pacienteId} paciente={paciente} presupuesto={presupuesto} mediosPago={mediosPago} onSaved={onSaved} onNavigateTab={onNavigateTab} />;
   }
   return <PresupuestoBuilder consultaId={consultaId} pacienteId={pacienteId} onSaved={onSaved} />;
 }
@@ -330,15 +327,16 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
 
 // ─── Presupuesto existente (estados + pagos) ──────────────────────────────────
 
-function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, onSaved }: {
+function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, onSaved, onNavigateTab }: {
   pacienteId: string; paciente?: { nombre_completo?: string } | null;
   presupuesto: PresupuestoData; mediosPago: { id: number; nombre: string }[]; onSaved?: () => void;
+  onNavigateTab?: (tab: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [showPago, setShowPago] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState("");
-  const [exportando, setExportando] = useState<"print" | "pdf" | null>(null);
+  const [exportando, setExportando] = useState<"print" | "pdf" | "telegram" | null>(null);
   const [sede, setSede] = useState<ClinicaInfo | null>(null);
 
   useEffect(() => {
@@ -374,16 +372,31 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
     onSaved?.();
   }
 
-  async function handleExportar(mode: "print" | "pdf") {
+  async function handleExportar(mode: "print" | "pdf" | "telegram") {
     setExportando(mode);
     try {
       const html = buildPresupuestoHtml({ clinica: sede, pacienteNombre: paciente?.nombre_completo, presupuesto, totalNeto, moneda, pagosValidos });
       if (mode === "print") await printHtml(html, `Presupuesto #${presupuesto.id}`);
-      else await downloadHtmlAsSinglePagePdf(html, `presupuesto_${presupuesto.id}.pdf`);
+      else if (mode === "pdf") await downloadHtmlAsSinglePagePdf(html, `presupuesto_${presupuesto.id}.pdf`);
+      else if (mode === "telegram") {
+        const canvas = await exportHtmlAsCanvas(html);
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            alert("No se pudo generar la imagen del presupuesto");
+            return;
+          }
+          const file = new File([blob], `presupuesto_${presupuesto.id}.png`, { type: "image/png" });
+          (window as any).__pendingTelegramFile = file;
+          if (onNavigateTab) {
+            onNavigateTab("chat");
+          }
+        }, "image/png");
+      }
     } catch (err) {
       console.error("Error exportando presupuesto:", err);
     } finally {
-      setExportando(null);
+      if (mode !== "telegram") setExportando(null); // telegram is async with toBlob, but we'll clear it via unmount anyway, or just clear it immediately. Wait, toBlob is async but fast. Let's clear it immediately.
+      else setTimeout(() => setExportando(null), 500); // clear UI state after a moment
     }
   }
 
@@ -439,6 +452,10 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
             <button onClick={() => handleExportar("pdf")} disabled={exportando !== null} title="Descargar PDF"
               className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors">
               <Icon name="download" size={13} />
+            </button>
+            <button onClick={() => handleExportar("telegram")} disabled={exportando !== null} title="Enviar por Telegram"
+              className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#2AABEE] hover:bg-[#2AABEE]/10 disabled:opacity-40 transition-colors">
+              <Icon name="send" size={13} />
             </button>
           </div>
         </div>

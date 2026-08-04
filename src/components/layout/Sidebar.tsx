@@ -19,19 +19,17 @@ const NAV_MAIN = [
   { href: "/admin/personal",  icon: "badge",           label: "Personal" },
   { href: "/agenda",          icon: "calendar_month",  label: "Calendario" },
   { href: "/pacientes",       icon: "person",          label: "Pacientes" },
-  { href: "/archivos",        icon: "photo_library",   label: "Archivos" },
-  { href: "/presupuestos",    icon: "payments",        label: "Presupuestos Clínicos" },
   { href: "/plantillas",      icon: "article",         label: "Plantillas" },
 ];
 
 const NAV_BOTTOM = [{ href: "/configuracion", icon: "settings", label: "Configuración" }];
 
 const ROLE_HREFS: Record<string, string[]> = {
-  superadmin: ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
-  admin:     ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
-  doctor:    ["/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
-  asistente: ["/dashboard", "/agenda", "/pacientes", "/archivos"],
-  contador:  ["/dashboard", "/presupuestos", "/archivos"],
+  superadmin: ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
+  admin:     ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
+  doctor:    ["/dashboard", "/agenda", "/pacientes", "/plantillas"],
+  asistente: ["/dashboard", "/agenda", "/pacientes"],
+  contador:  ["/dashboard"],
 };
 
 const COLLAPSE_KEY = "maradental:sidebar-collapsed";
