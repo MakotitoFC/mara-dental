@@ -36,7 +36,11 @@ export async function proxy(request: NextRequest) {
   if (!user && !pathname.startsWith('/login')) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value);
+    });
+    return redirectResponse;
   }
 
   const isPublicRoute = pathname.startsWith('/login') || pathname === '/';
@@ -47,7 +51,14 @@ export async function proxy(request: NextRequest) {
       const url = request.nextUrl.clone();
       console.log(url)
       url.pathname = '/dashboard';
-      return NextResponse.redirect(url);
+      const redirectResponse = NextResponse.redirect(url);
+      
+      // Pasar las cookies renovadas a la redirección
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value);
+      });
+      
+      return redirectResponse;
     }
     const {data:userData,error} = await supabase.from('usuarios').select(`rol_id,rol (rol)`).eq('id',user.id).single();
 
@@ -57,14 +68,22 @@ export async function proxy(request: NextRequest) {
       if (pathname.startsWith('/dashboard/configuracion') && roleName !== 'administrador') {
         const url = request.nextUrl.clone();
         url.pathname = '/dashboard/acceso-denegado';
-        return NextResponse.redirect(url);
+        const redirectResponse = NextResponse.redirect(url);
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          redirectResponse.cookies.set(cookie.name, cookie.value);
+        });
+        return redirectResponse;
       }
 
       const isClinicalRoute = pathname.startsWith('/dashboard/historias') || pathname.startsWith('/dashboard/recetas');
       if (isClinicalRoute && roleName === 'recepcionista') {
         const url = request.nextUrl.clone();
         url.pathname = '/dashboard/citas'; // Lo redirigimos a un lugar donde sí tenga acceso
-        return NextResponse.redirect(url);
+        const redirectResponse = NextResponse.redirect(url);
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          redirectResponse.cookies.set(cookie.name, cookie.value);
+        });
+        return redirectResponse;
       }
     }
   }
