@@ -2,6 +2,20 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { doctoresMockDeSede } from "./components/doctoresMock";
+
+/**
+ * Médicos de la sede — TEMPORAL vía datos mock (ver doctoresMock.ts).
+ * `usuarios`/`rol` están bloqueados por RLS a la propia fila del usuario
+ * logueado y se descartó tocar policies o usar la service_role key, así que
+ * hoy no hay forma de enumerar en vivo a los demás usuarios de la sede.
+ * Usado SOLO por `getDoctoresSedeAction`/`getCitasSedeAction` (exclusivas
+ * del rol asistente) — `getCitasRealesAction`, que usa la vista de doctor,
+ * no pasa por aquí.
+ */
+function fetchDoctoresSede(sedeId: string, excludeUserId: string) {
+  return doctoresMockDeSede(sedeId, excludeUserId);
+}
 
 export async function searchPatients(query: string) {
   const supabase = await createClient();
@@ -68,6 +82,7 @@ export async function createCitaAction(data: {
   estado: string;
   notas: string;
   tratamiento_id?: string;
+  doctor_id?: string; // permite al asistente crear la cita para un médico específico
 }, force: boolean = false) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -76,8 +91,9 @@ export async function createCitaAction(data: {
     return { error: "No autorizado" };
   }
 
-  // El ID del doctor es directamente el user.id según la nueva BD
-  const doctor_id = user.id;
+  // El ID del doctor es directamente el user.id según la nueva BD — salvo que
+  // el asistente esté creando la cita en la columna de un médico específico.
+  const doctor_id = data.doctor_id || user.id;
 
   // Validación de horario (a menos que el doctor haya forzado la excepción)
   if (!force) {
@@ -109,6 +125,11 @@ export async function createCitaAction(data: {
     const requestedEnd = data.hora_fin.length === 5 ? data.hora_fin + ":00" : data.hora_fin;
 
     const isValid = horarios.some(h => {
+      // Turno nocturno (cruza medianoche, ej. 20:00–08:00): hora_inicio > hora_fin.
+      // La cita es válida si cae completa en el tramo antes de medianoche o en el de madrugada.
+      if (h.hora_inicio > h.hora_fin) {
+        return requestedStart >= h.hora_inicio || requestedEnd <= h.hora_fin;
+      }
       return requestedStart >= h.hora_inicio && requestedEnd <= h.hora_fin;
     });
 
@@ -165,9 +186,63 @@ export async function updateCitaAction(citaId: string, data: {
   return { success: true };
 }
 
+const CITA_SELECT = `
+  id,
+  fecha,
+  hora_inicio,
+  hora_fin,
+  tipo_consulta_id,
+  estado,
+  notas,
+  doctor_id,
+  paciente_id,
+  pacientes (
+    id,
+    nombre,
+    apellido,
+    alergias
+  ),
+  usuarios (
+    personal (
+      nombre,
+      apellido
+    )
+  )
+`;
+
+function mapCitaRow(c: any) {
+  const paciente = Array.isArray(c.pacientes) ? c.pacientes[0] : c.pacientes;
+
+  if (!paciente) {
+    console.error(`[mapCitaRow] cita id=${c.id} sin datos de paciente embebidos (paciente_id=${c.paciente_id ?? "?"}) — ¿RLS bloqueando "pacientes" o paciente_id inválido?`);
+  }
+
+  let alergiasArr: string[] = [];
+  if (Array.isArray(paciente?.alergias)) {
+    alergiasArr = paciente.alergias;
+  } else if (typeof paciente?.alergias === "string") {
+    try { alergiasArr = JSON.parse(paciente.alergias); } catch { /* ignore */ }
+  }
+
+  return {
+    id: String(c.id),
+    paciente_id: String(paciente?.id ?? c.paciente_id ?? ""),
+    paciente_nombre: paciente ? `${paciente.nombre ?? ""} ${paciente.apellido ?? ""}`.trim() : "Paciente",
+    alergias: alergiasArr,
+    tipo_consulta_id: c.tipo_consulta_id || "",
+    doctor_id: String(c.doctor_id),
+    doctor_nombre: `Dr. ${c.usuarios?.personal?.[0]?.apellido || "Médico"}`,
+    fecha: c.fecha,
+    hora_inicio: c.hora_inicio.slice(0, 5),
+    hora_fin: c.hora_fin.slice(0, 5),
+    estado: c.estado || "programada",
+    notas: c.notas ?? undefined,
+  };
+}
+
 export async function getCitasRealesAction() {
   const supabase = await createClient();
-  
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
@@ -176,27 +251,7 @@ export async function getCitasRealesAction() {
 
   const { data: citas, error } = await supabase
     .from("citas")
-    .select(`
-      id,
-      fecha,
-      hora_inicio,
-      hora_fin,
-      tipo_consulta_id,
-      estado,
-      notas,
-      pacientes (
-        id,
-        nombre,
-        apellido,
-        alergias
-      ),
-      usuarios (
-        personal (
-          nombre,
-          apellido
-        )
-      )
-    `)
+    .select(CITA_SELECT)
     .eq("doctor_id", doctor_id);
 
   if (error) {
@@ -204,28 +259,58 @@ export async function getCitasRealesAction() {
     return [];
   }
 
-  return citas.map((c: any) => {
-    let alergiasArr: string[] = [];
-    if (Array.isArray(c.pacientes?.alergias)) {
-      alergiasArr = c.pacientes.alergias;
-    } else if (typeof c.pacientes?.alergias === "string") {
-      try { alergiasArr = JSON.parse(c.pacientes.alergias); } catch { /* ignore */ }
-    }
+  return citas.map(mapCitaRow);
+}
 
-    return {
-      id: String(c.id),
-      paciente_id: String(c.pacientes?.id),
-      paciente_nombre: `${c.pacientes?.nombre} ${c.pacientes?.apellido}`.trim(),
-      alergias: alergiasArr,
-      tipo_consulta_id: c.tipo_consulta_id || "",
-      doctor_nombre: `Dr. ${c.usuarios?.personal?.[0]?.apellido || "Médico"}`,
-      fecha: c.fecha,
-      hora_inicio: c.hora_inicio.slice(0, 5),
-      hora_fin: c.hora_fin.slice(0, 5),
-      estado: c.estado || "programada",
-      notas: c.notas ?? undefined,
-    };
-  });
+/** Lista de médicos de la sede del asistente logueado — para el calendario
+ * multi-doctor. Ver `fetchDoctoresSede` para la limitación conocida. */
+export async function getDoctoresSedeAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) { console.error("[getDoctoresSedeAction] Sin usuario autenticado"); return []; }
+
+  const { data: usr, error: usrError } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
+  if (usrError || !usr?.sede_id) {
+    console.error(`[getDoctoresSedeAction] No se pudo resolver sede_id para usuario_id=${user.id}:`, usrError);
+    return [];
+  }
+
+  return fetchDoctoresSede(usr.sede_id, user.id);
+}
+
+/** Citas de TODOS los médicos de la sede del asistente logueado (no solo las
+ * del usuario actual) — usado por el calendario multi-doctor. */
+export async function getCitasSedeAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) { console.error("[getCitasSedeAction] Sin usuario autenticado"); return []; }
+
+  const { data: usr, error: usrError } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
+  if (usrError || !usr?.sede_id) {
+    console.error(`[getCitasSedeAction] No se pudo resolver sede_id para usuario_id=${user.id}:`, usrError);
+    return [];
+  }
+
+  const doctores = fetchDoctoresSede(usr.sede_id, user.id);
+  if (doctores.length === 0) return [];
+  const doctorIds = doctores.map((d) => d.id);
+
+  const { data: citas, error } = await supabase
+    .from("citas")
+    .select(CITA_SELECT)
+    .in("doctor_id", doctorIds);
+
+  if (error) {
+    console.error("[getCitasSedeAction] Error fetching citas de la sede:", error);
+    return [];
+  }
+
+  // El nombre embebido citas→usuarios→personal viene vía el cliente normal
+  // (sujeto a RLS) y puede salir vacío para médicos que no son el usuario
+  // logueado — se sobreescribe con el nombre real ya resuelto arriba vía
+  // la lista mock.
+  const nombreById = new Map(doctores.map((d) => [d.id, `Dr. ${d.apellido}`]));
+  return citas.map(mapCitaRow).map((c) => ({ ...c, doctor_nombre: nombreById.get(c.doctor_id) ?? c.doctor_nombre }));
 }
 
 export async function getPatientByIdAction(pacienteId: string) {

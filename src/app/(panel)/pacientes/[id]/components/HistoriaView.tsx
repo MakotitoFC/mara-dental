@@ -18,6 +18,7 @@ import { DiagnosticoTab } from "./tabs/DiagnosticoTab";
 import { ArchivosTab } from "./tabs/ArchivosTab";
 import { PresupuestoTab } from "./tabs/PresupuestoTab";
 import { ChatTab } from "./tabs/ChatTab";
+import { useScrollFade } from "@/lib/hooks/useScrollFade";
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -64,6 +65,7 @@ export function HistoriaView({
 
   const [tab, setTab] = useState<TabKey>("info");
   const [direction, setDirection] = useState<1 | -1>(1);
+  const contenidoScroll = useScrollFade<HTMLDivElement>();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDescargarModal, setShowDescargarModal] = useState(false);
@@ -73,13 +75,20 @@ export function HistoriaView({
   const [consultaData, setConsultaData] = useState<any>(null);
   const [loadingConsulta, setLoadingConsulta] = useState(false);
   const [showNuevaConsultaModal, setShowNuevaConsultaModal] = useState(false);
+  const [preselectedCitaId, setPreselectedCitaId] = useState<string | null>(null);
 
   const refetchConsultaData = useCallback(async () => {
     if (!consultaId) return;
     setLoadingConsulta(true);
-    const data = await getConsultaActivaAction(consultaId, String(p.id));
-    setConsultaData(data);
-    setLoadingConsulta(false);
+    try {
+      const data = await getConsultaActivaAction(consultaId, String(p.id));
+      setConsultaData(data);
+    } catch (err) {
+      console.error("Error cargando datos de la consulta activa:", err);
+      setConsultaData(null);
+    } finally {
+      setLoadingConsulta(false);
+    }
   }, [consultaId, p.id]);
 
   useEffect(() => {
@@ -96,6 +105,8 @@ export function HistoriaView({
     const c = params.get("consulta");
     if (c && c !== "null" && c !== "undefined" && c !== "" && c !== "NaN") setConsultaId(c);
     if (params.get("nueva") === "1") setShowNuevaConsultaModal(true);
+    const citaIdParam = params.get("citaId");
+    if (citaIdParam) setPreselectedCitaId(citaIdParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -145,19 +156,21 @@ export function HistoriaView({
     fecha_nacimiento: p.fecha_nacimiento,
     dni: p.dni,
     telefono: p.telefono ?? "",
+    alergias: p.alergias ?? [],
   };
 
   const diagnostico = consultaData?.diagnostico ?? null;
 
   return (
-    <div className="flex flex-col min-h-full bg-slate-50/40 dark:bg-slate-900/40">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-50/40 dark:bg-slate-900/40">
 
       {showNuevaConsultaModal && (
         <NuevaConsultaModal
           pacienteId={String(p.id)}
           datosCasos={datosCasos}
           citas={citas}
-          onClose={() => setShowNuevaConsultaModal(false)}
+          preselectedCitaId={preselectedCitaId}
+          onClose={() => { setShowNuevaConsultaModal(false); setPreselectedCitaId(null); }}
           onCreated={handleConsultaCreada}
         />
       )}
@@ -229,26 +242,26 @@ export function HistoriaView({
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
                 <div
-                  className="absolute right-0 top-full mt-1.5 z-30 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden w-48"
+                  className="absolute right-0 top-full mt-1.5 z-30 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden w-40"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
                     onClick={() => { setShowEditModal(true); setMenuOpen(false); }}
-                    className="sm:hidden w-full flex items-center gap-2.5 px-4 py-3 text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    className="sm:hidden w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                   >
-                    <Icon name="edit" size={15} className="text-slate-500 dark:text-slate-400" />Editar paciente
+                    <Icon name="edit" size={14} className="text-slate-500 dark:text-slate-400 shrink-0" />Editar paciente
                   </button>
                   <button
                     onClick={() => { setShowDescargarModal(true); setMenuOpen(false); }}
-                    className="sm:hidden w-full flex items-center gap-2.5 px-4 py-3 text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
+                    className="sm:hidden w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
                   >
-                    <Icon name="download" size={15} className="text-cyan-600 dark:text-cyan-400" />Descargar expediente
+                    <Icon name="download" size={14} className="text-cyan-600 dark:text-cyan-400 shrink-0" />Descargar expediente
                   </button>
                   <a
                     href={telegramLink} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-2.5 px-4 py-3 text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
+                    className="flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
                   >
-                    <Icon name="send" size={16} className="text-[#24A1DE]" />Telegram
+                    <Icon name="send" size={15} className="text-[#24A1DE] shrink-0" />Telegram
                   </a>
                 </div>
               </>
@@ -292,8 +305,14 @@ export function HistoriaView({
         </div>
       )}
 
-      {/* ── Contenido ── */}
-      <div className="flex-1 min-h-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
+      {/* ── Contenido — único contenedor con scroll interno de toda la vista del paciente.
+          "presupuestos" es la excepción: no scrollea a este nivel — su encabezado y total
+          quedan fijos y solo sus registros scrollean (ver PresupuestoTab/PresupuestoPhase). ── */}
+      <div
+        ref={tab !== "chat" && tab !== "presupuestos" ? contenidoScroll.ref : undefined}
+        style={tab !== "chat" && tab !== "presupuestos" ? contenidoScroll.style : undefined}
+        className={`flex-1 min-h-0 overflow-x-hidden no-scrollbar ${tab === "presupuestos" ? "overflow-hidden" : "overflow-y-auto"} ${tab === "chat" || tab === "timeline" ? "" : "p-3 sm:p-4 md:p-6 pb-2 md:pb-10 lg:pb-12"}`}
+      >
         <AnimatePresence mode="wait">
           <motion.div
             key={tab}
@@ -301,6 +320,7 @@ export function HistoriaView({
             initial="hidden"
             animate="visible"
             exit="exit"
+            className={tab === "presupuestos" ? "h-full" : "lg:h-full"}
           >
             {tab === "info" && <InfoTab paciente={p} historial={historial} datosCasos={datosCasos} onNavigateTab={(t) => goTo(t as TabKey)} />}
             {tab === "timeline" && (
@@ -332,6 +352,7 @@ export function HistoriaView({
                 data={consultaData}
                 loading={loadingConsulta}
                 refetch={refetchConsultaData}
+                onFinalizarConsulta={salirDeConsulta}
               />
             )}
             {tab === "archivos" && (

@@ -68,9 +68,7 @@ export async function getAlertasAction(): Promise<AlertasData> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return EMPTY;
 
-  const { data: personal } = await supabase.from("personal").select("id").eq("usuario_id", user.id).single();
-  if (!personal) return EMPTY;
-
+  const doctorId = user.id;
   const now = new Date();
   const hoyStr = now.toISOString().split("T")[0];
   const en48h = new Date(now.getTime() + 48 * 3600 * 1000);
@@ -81,7 +79,7 @@ export async function getAlertasAction(): Promise<AlertasData> {
     supabase
       .from("citas")
       .select("id, fecha, hora_inicio, tipo_consulta, estado, paciente_id, pacientes ( id, nombre, apellido, alergias )")
-      .eq("doctor_id", personal.id)
+      .eq("doctor_id", doctorId)
       .gte("fecha", hoyStr)
       .lte("fecha", limiteStr)
       .neq("estado", "cancelada")
@@ -102,7 +100,7 @@ export async function getAlertasAction(): Promise<AlertasData> {
           tratamiento ( id, plan_tratamiento ( id, fase, estado ) )
         )
       `)
-      .eq("doctor_id", personal.id)
+      .eq("doctor_id", doctorId)
       .gte("fecha_consulta", hace90dias)
       .order("fecha_consulta", { ascending: false })
       .limit(40),

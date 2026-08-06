@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
 import { useConfirm } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/Toast";
 import { saveTratamientoAction, deleteTratamientoAction, editTratamientoAction, savePlanTrabajoAction, deletePlanTrabajoAction, editPlanTrabajoAction, searchCatalogoAction, saveAvanceAction } from "../../consulta.actions";
 
 interface Avance {
@@ -39,7 +40,8 @@ export function TratamientoSection({
   initial,
   enabled = true,
   onItemsChange,
-}: { diagnosticoId: string; consultaId: string; pacienteId: string; initial: Tratamiento[]; enabled?: boolean; onItemsChange?: (items: Tratamiento[]) => void }) {
+  scrollBody = false,
+}: { diagnosticoId: string; consultaId: string; pacienteId: string; initial: Tratamiento[]; enabled?: boolean; onItemsChange?: (items: Tratamiento[]) => void; /** El rótulo queda fijo y solo el listado de registros scrollea (uso en el modal mobile). */ scrollBody?: boolean }) {
   const [items, setItems] = useState<Tratamiento[]>(initial);
   const [adding, setAdding] = useState(false);
   
@@ -65,6 +67,8 @@ export function TratamientoSection({
     setBuscando(false);
   }
 
+  const toast = useToast();
+
   async function handleAdd() {
     if (!selectedCatalogo) return;
     setSaving(true);
@@ -88,6 +92,9 @@ export function TratamientoSection({
       setNotas("");
       setSelectedCatalogo(null);
       setQuery("");
+      toast.success("Tratamiento agregado correctamente");
+    } else if (res?.error) {
+      toast.error(res.error);
     }
   }
 
@@ -102,35 +109,36 @@ export function TratamientoSection({
     if(!ok) return;
     await deleteTratamientoAction(id, String(pacienteId));
     updateItems(items.filter(i => i.id !== id));
+    toast.success("Tratamiento eliminado");
   }
 
   return (
-    <motion.div variants={fadeIn} initial="hidden" animate="visible" className={`bg-white dark:bg-slate-800 rounded-2xl border overflow-hidden relative ${enabled ? "border-slate-200 dark:border-slate-700" : "border-slate-200 dark:border-slate-700 opacity-60"}`}>
+    <motion.div variants={fadeIn} initial="hidden" animate="visible" className={`bg-white dark:bg-slate-800 rounded-2xl border relative ${scrollBody ? "flex flex-col h-full overflow-hidden" : ""} ${enabled ? "border-slate-200 dark:border-slate-700" : "border-slate-200 dark:border-slate-700 opacity-60"}`}>
       {!enabled && (
         <div className="absolute inset-0 z-10 bg-white/70 dark:bg-slate-800/70 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2 rounded-2xl">
           <Icon name="lock" size={22} className="text-slate-400 dark:text-slate-500" />
           <p className="text-[12px] font-semibold text-slate-500 dark:text-slate-400">Disponible con diagnóstico definitivo</p>
         </div>
       )}
-      
-      <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-700">
-        <div className="flex items-center gap-2">
+
+      <div className={`${scrollBody ? "shrink-0" : ""} flex flex-wrap items-center justify-between gap-2 px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-700`}>
+        <div className="flex items-center gap-2 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
             <Icon name="account_tree" size={18} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Tratamientos y Plan</h2>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500">Define los tratamientos y sus fases</p>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">Define los tratamientos y sus fases</p>
           </div>
         </div>
         <button onClick={() => setAdding(v => !v)}
-          className="flex items-center gap-1 text-[12px] font-medium text-cyan-600 hover:text-cyan-700 transition-colors border-0">
+          className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-cyan-200 dark:border-cyan-800 text-[12px] font-semibold text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors">
           <Icon name={adding ? "remove" : "add"} size={16} />
           {adding ? "Cancelar" : "Agregar"}
         </button>
       </div>
 
-      <div className="p-5 flex flex-col gap-5">
+      <div className={`p-5 flex flex-col gap-5 ${scrollBody ? "flex-1 min-h-0 overflow-y-auto no-scrollbar" : ""}`}>
         {adding && (
           <div className="border border-cyan-200 dark:border-cyan-800 bg-cyan-50/40 dark:bg-cyan-950/20 rounded-xl p-4 flex flex-col gap-4">
             
@@ -201,6 +209,7 @@ function TratamientoCard({ tratamiento, pacienteId, consultaId, onDelete }: { tr
   const [savingFase, setSavingFase] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [localPlan, setLocalPlan] = useState<PlanTratamiento[]>(tratamiento.plan || []);
+  const toast = useToast();
 
   async function handleAddFase() {
     if (!faseForm.etapa || !faseForm.descripcion) return;
@@ -223,6 +232,9 @@ function TratamientoCard({ tratamiento, pacienteId, consultaId, onDelete }: { tr
         avances: []
       }]);
       setFaseForm({ etapa: "", descripcion: "", tiempo_pronostico: "", estado: "pendiente" });
+      toast.success("Fase agregada correctamente");
+    } else {
+      toast.error(res.error);
     }
   }
 
@@ -237,7 +249,8 @@ function TratamientoCard({ tratamiento, pacienteId, consultaId, onDelete }: { tr
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0 pl-2">
-          <a href={`/agenda?paciente=${pacienteId}&tratamiento_id=${tratamiento.id}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-cyan-600 hover:text-cyan-700 flex items-center gap-1">
+          <a href={`/agenda?paciente=${pacienteId}&tratamiento_id=${tratamiento.id}`} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-cyan-600 dark:border-cyan-500 text-cyan-600 dark:text-cyan-400 text-[11px] font-semibold hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors">
             <Icon name="event" size={14} /> Agendar Cita
           </a>
           <button onClick={onDelete} className="text-slate-400 hover:text-red-500 ml-2">
@@ -297,6 +310,7 @@ function FaseCard({ fase, pacienteId, consultaId, onDeleted, onUpdated }: { fase
   const [editForm, setEditForm] = useState({ etapa: fase.fase, descripcion: fase.descripcion, tiempo_pronostico: fase.tiempo_estimado, estado: fase.estado });
   const [savingEdit, setSavingEdit] = useState(false);
   const confirmModal = useConfirm();
+  const toast = useToast();
 
   async function handleAddAvance() {
     if (!avanceNotas.trim()) return;
@@ -317,6 +331,9 @@ function FaseCard({ fase, pacienteId, consultaId, onDeleted, onUpdated }: { fase
         consulta_id: consultaId
       }]);
       setAvanceNotas("");
+      toast.success("Avance registrado correctamente");
+    } else {
+      toast.error(res.error);
     }
   }
 
@@ -334,6 +351,9 @@ function FaseCard({ fase, pacienteId, consultaId, onDeleted, onUpdated }: { fase
     if (!res?.error) {
       setIsEditing(false);
       onUpdated?.(fase.id, { fase: editForm.etapa, descripcion: editForm.descripcion, tiempo_estimado: editForm.tiempo_pronostico, estado: editForm.estado });
+      toast.success("Fase actualizada correctamente");
+    } else {
+      toast.error(res.error);
     }
   }
 
@@ -346,6 +366,7 @@ function FaseCard({ fase, pacienteId, consultaId, onDeleted, onUpdated }: { fase
     if(!ok) return;
     await deletePlanTrabajoAction(fase.id, pacienteId);
     onDeleted?.(fase.id);
+    toast.success("Fase eliminada");
   }
 
   if (isEditing) {

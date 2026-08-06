@@ -25,7 +25,7 @@ import {
   Briefcase, GraduationCap, Church,
   Sun, Moon, Laptop, ListChecks, Home,
   Eraser, Type, MoveUpRight,
-  Send, FolderHeart, History, Network, Copy, CheckCheck
+  Send, FolderHeart, History, Network, Copy, CheckCheck, Hand
 } from "lucide-react";
 
 interface IconProps {
@@ -170,7 +170,6 @@ const ICONS: Record<string, LucideIcon> = {
   badge_id:             IdCard,
   info:                 Info,
   lock:                 Lock,
-  send:                 Send,
   folder_shared:        FolderHeart,
   history_edu:          History,
   eye:                  Eye,
@@ -197,6 +196,7 @@ const ICONS: Record<string, LucideIcon> = {
   eraser:               Eraser,
   text_fields:          Type,
   arrow_diagonal:       MoveUpRight,
+  pan_tool:             Hand,
 
   // Tema / vistas de agenda
   light_mode:           Sun,

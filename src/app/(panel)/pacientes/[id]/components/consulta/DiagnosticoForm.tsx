@@ -154,18 +154,26 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
           {/* Tipo */}
           <div className="flex flex-col gap-2">
             <label className="text-[12px] font-semibold text-slate-700 dark:text-slate-300">Tipo de diagnóstico *</label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               <button type="button" onClick={() => setEsDefinitivo(false)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-[13px] font-semibold transition-all ${!esDefinitivo ? "bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"}`}>
-                <Icon name="pending" size={16} /> Presuntivo
+                className={`flex flex-col items-center gap-1.5 py-3.5 px-2 rounded-xl border-2 transition-all ${!esDefinitivo ? "border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600"}`}>
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center ${!esDefinitivo ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400" : "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"}`}>
+                  <Icon name="pending" size={18} />
+                </div>
+                <span className={`text-[13px] font-bold ${!esDefinitivo ? "text-amber-700 dark:text-amber-400" : "text-slate-600 dark:text-slate-300"}`}>Presuntivo</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">Probable, sin confirmar</span>
               </button>
               <button type="button" onClick={() => setEsDefinitivo(true)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-[13px] font-semibold transition-all ${esDefinitivo ? "bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"}`}>
-                <Icon name="verified" size={16} /> Definitivo
+                className={`flex flex-col items-center gap-1.5 py-3.5 px-2 rounded-xl border-2 transition-all ${esDefinitivo ? "border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600"}`}>
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center ${esDefinitivo ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500"}`}>
+                  <Icon name="verified" size={18} />
+                </div>
+                <span className={`text-[13px] font-bold ${esDefinitivo ? "text-emerald-700 dark:text-emerald-400" : "text-slate-600 dark:text-slate-300"}`}>Definitivo</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">Causa confirmada</span>
               </button>
             </div>
             {esDefinitivo && (
-              <p className="text-[11px] text-blue-600 dark:text-blue-400 flex items-center gap-1">
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                 <Icon name="info" size={13} /> Un diagnóstico definitivo debería sustentarse con imágenes/tomografías.
               </p>
             )}

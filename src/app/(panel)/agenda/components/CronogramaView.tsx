@@ -7,11 +7,13 @@ import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { fmtFechaLarga, toDateStr } from "./agendaUtils";
+import type { DoctorMap } from "./doctorColors";
 
-export function CronogramaView({ citas, today, onEventClick }: {
+export function CronogramaView({ citas, today, onEventClick, doctorMap }: {
   citas: Cita[];
   today: Date;
   onEventClick: (c: Cita) => void;
+  doctorMap?: DoctorMap;
 }) {
   const todayStr = toDateStr(today);
   const { getVars } = useTipoConsultaVars();
@@ -34,8 +36,8 @@ export function CronogramaView({ citas, today, onEventClick }: {
   }
 
   return (
-    <div className="h-full overflow-y-auto px-3 md:px-6 py-4 bg-slate-50 dark:bg-slate-900/50">
-      <motion.div variants={staggerContainer(0.04)} initial="hidden" animate="visible" className="flex flex-col gap-6 max-w-3xl">
+    <div className="h-full overflow-y-auto no-scrollbar px-3 md:px-6 py-4 bg-slate-50 dark:bg-slate-900/50">
+      <motion.div variants={staggerContainer(0.04)} initial="hidden" animate="visible" className="flex flex-col gap-6">
         {fechas.map(fecha => {
           const isToday = fecha === todayStr;
           return (
@@ -48,10 +50,11 @@ export function CronogramaView({ citas, today, onEventClick }: {
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400">Hoy</span>
                 )}
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2.5">
                 {grupos.get(fecha)!.map(c => {
                   const tipoVars = getVars(c.tipo_consulta_id);
                   const estVars = estadoCitaVars(c.estado);
+                  const doc = doctorMap?.[c.doctor_id];
                   return (
                     <button
                       key={c.id}
@@ -72,6 +75,12 @@ export function CronogramaView({ citas, today, onEventClick }: {
                           <span className="text-[10.5px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: estVars.bg, color: estVars.text }}>
                             {ESTADO_CITA_LABEL[c.estado]}
                           </span>
+                          {doc && (
+                            <span className="flex items-center gap-1 text-[10.5px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: doc.vars.bg, color: doc.vars.text }}>
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: doc.vars.solid }} />
+                              {doc.nombre}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <Icon name="chevron_right" size={16} className="text-slate-300 dark:text-slate-600 shrink-0" />

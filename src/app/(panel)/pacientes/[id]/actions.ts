@@ -146,6 +146,7 @@ export async function getDetallePacienteAction(pacienteId: string) {
       hora_inicio: c.hora_inicio,
       servicio: c.tipo_consulta?.tipo_consulta || "Consulta general",
       tipo_consulta: c.tipo_consulta,
+      tipo_consulta_id: c.tipo_consulta_id,
       estado: c.estado,
       notas: c.notas,
       medico: drName
@@ -401,12 +402,12 @@ export async function getHistorialConsultasAction(
   const [archivosPorConsultaRes, archivosPorDiagRes, odontogramasRes] = await Promise.all([
     consultaIds.length > 0
       ? supabase.from("archivos_clinicos")
-          .select("id, nombre_archivo, url, tipo_archivo, categoria, fecha_subida, consulta_id")
+          .select("id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, consulta_id, tipo_archivo (id, tipo_archivo)")
           .in("consulta_id", consultaIds)
       : Promise.resolve({ data: [] as any[] }),
     todosDiagIds.length > 0
       ? supabase.from("archivos_clinicos")
-          .select("id, nombre_archivo, url, tipo_archivo, categoria, fecha_subida, diagnostico_id")
+          .select("id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, diagnostico_id, tipo_archivo (id, tipo_archivo)")
           .in("diagnostico_id", todosDiagIds)
       : Promise.resolve({ data: [] as any[] }),
     consultaIds.length > 0
@@ -432,7 +433,11 @@ export async function getHistorialConsultasAction(
           displayUrl = `${process.env.R2_PUBLIC_CUSTOM_DOMAIN}/${a.url}`;
         }
       }
-      return { ...a, displayUrl };
+      const tipoRaw = a.tipo_archivo;
+      const tipo_archivo = tipoRaw && typeof tipoRaw === "object"
+        ? (tipoRaw.tipo_archivo || tipoRaw.Tipo_archivo || "desconocido")
+        : (typeof tipoRaw === "string" ? tipoRaw : "desconocido");
+      return { ...a, tipo_archivo, displayUrl };
     }),
   );
 

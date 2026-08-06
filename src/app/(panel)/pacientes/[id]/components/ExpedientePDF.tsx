@@ -18,7 +18,7 @@ Font.register({
   ],
 });
 
-const ACCENT = "#0A8EA0";
+const ACCENT = "#0891b2";
 const ACCENT_BG = "#E6F5F7";
 const INK = "#1E293B";
 const MUTED = "#64748B";
@@ -52,9 +52,11 @@ const styles = StyleSheet.create({
   coverFooterText: { fontSize: 8, color: FAINT },
 
   // Página de contenido
-  page: { fontFamily: "Inter", fontSize: 9, color: INK, paddingTop: 46, paddingBottom: 38, paddingHorizontal: 32 },
+  page: { fontFamily: "Inter", fontSize: 9, color: INK, paddingTop: 50, paddingBottom: 42, paddingHorizontal: 32 },
+  accentBarTop: { position: "absolute", top: 0, left: 0, right: 0, height: 4, backgroundColor: ACCENT },
+  accentBarBottom: { position: "absolute", bottom: 0, left: 0, right: 0, height: 4, backgroundColor: ACCENT },
   headerFixed: {
-    position: "absolute", top: 0, left: 0, right: 0, height: 34,
+    position: "absolute", top: 4, left: 0, right: 0, height: 34,
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 32, borderBottomWidth: 1, borderBottomColor: LINE,
   },
@@ -63,7 +65,7 @@ const styles = StyleSheet.create({
   headerClinica: { fontSize: 8.5, fontWeight: 700, color: ACCENT },
   headerRight: { fontSize: 7.5, color: FAINT },
   footerFixed: {
-    position: "absolute", bottom: 0, left: 0, right: 0, height: 28,
+    position: "absolute", bottom: 4, left: 0, right: 0, height: 28,
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 32, borderTopWidth: 1, borderTopColor: LINE,
   },
@@ -152,6 +154,8 @@ function InfoItem({ label, value }: { label: string; value?: string | number | n
 function PageChrome({ clinicaNombre, pacienteNombre, codigoHistoria }: { clinicaNombre?: string | null; pacienteNombre: string; codigoHistoria?: string | null }) {
   return (
     <>
+      <View style={styles.accentBarTop} fixed />
+      <View style={styles.accentBarBottom} fixed />
       <View style={styles.headerFixed} fixed>
         <View style={styles.headerLeft}>
           <Image src="/Logo_Cian.png" style={styles.headerLogo} />
@@ -398,6 +402,8 @@ export function ExpedientePDF({ data }: { data: any }) {
     <Document title={`Expediente — ${nombreCompleto}`} author={clinica?.nombre_clinica || "MaraDental"}>
       {/* Portada */}
       <Page size="A4" style={styles.cover}>
+        <View style={styles.accentBarTop} fixed />
+        <View style={styles.accentBarBottom} fixed />
         <Image src="/Cian_MaraDental.png" style={styles.coverLogo} />
         {clinica?.nombre_clinica && <Text style={styles.coverClinica}>{clinica.nombre_clinica}</Text>}
         <Text style={styles.coverKicker}>Expediente Clínico Odontológico</Text>

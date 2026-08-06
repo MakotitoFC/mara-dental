@@ -18,7 +18,7 @@ export default async function PacienteDetallePage({params,}: {params: Promise<{ 
   return (
     <>
       <Header breadcrumbs={[{ label: "Pacientes", href: "/pacientes" }, { label: nombreCompleto }]} />
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         <HistoriaView
           paciente={detalle.paciente}
           citas={detalle.citas}

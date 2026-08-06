@@ -105,19 +105,19 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               <div className="grid grid-cols-2 gap-2 w-full">
                 <button
                   onClick={() => close(false)}
-                  className="py-2 rounded-xl text-[13px] font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                  className="py-2.5 rounded-xl text-[12px] font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   {pending.cancelLabel ?? "Cancelar"}
                 </button>
                 <button
                   onClick={() => close(true)}
                   disabled={!canConfirm}
-                  className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-[13px] font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`flex items-center justify-center gap-1 py-2.5 px-1 rounded-xl text-[12px] font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap ${
                     danger ? "bg-red-500 hover:bg-red-600" : "bg-cyan-600 hover:bg-cyan-700"
                   }`}
                 >
-                  {danger && <Icon name="delete" size={14} />}
-                  {pending.confirmLabel ?? (danger ? "Eliminar definitivamente" : "Confirmar")}
+                  {danger && <Icon name="delete" size={13} />}
+                  {pending.confirmLabel ?? (danger ? "Eliminar" : "Confirmar")}
                 </button>
               </div>
             </motion.div>

@@ -20,15 +20,15 @@ const NAV_MAIN = [
   { href: "/agenda",          icon: "calendar_month",  label: "Calendario" },
   { href: "/pacientes",       icon: "person",          label: "Pacientes" },
   { href: "/plantillas",      icon: "article",         label: "Plantillas" },
+  { href: "/pagos",           icon: "payments",        label: "Pagos" },
 ];
 
 const NAV_BOTTOM = [{ href: "/configuracion", icon: "settings", label: "Configuración" }];
 
 const ROLE_HREFS: Record<string, string[]> = {
-  superadmin: ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
-  admin:     ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
+  admin:     ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/dashboard", "/agenda", "/pacientes", "/plantillas"],
   doctor:    ["/dashboard", "/agenda", "/pacientes", "/plantillas"],
-  asistente: ["/dashboard", "/agenda", "/pacientes"],
+  asistente: ["/dashboard", "/agenda", "/pagos"],
   contador:  ["/dashboard"],
 };
 
@@ -54,7 +54,9 @@ export function Sidebar() {
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   const allowedHrefs = ROLE_HREFS[user?.rol ?? ""] ?? NAV_MAIN.map((n) => n.href);
-  const visibleNav = NAV_MAIN.filter((n) => allowedHrefs.includes(n.href));
+  const visibleNav = NAV_MAIN.filter((n) => allowedHrefs.includes(n.href)).map((n) =>
+    n.href === "/dashboard" && user?.rol === "asistente" ? { ...n, label: "Dashboard" } : n
+  );
 
   return (
     <motion.aside
@@ -75,7 +77,7 @@ export function Sidebar() {
             title="Expandir menú"
             className="w-11 h-11 flex items-center justify-center shrink-0 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
-            <Image src="/Logo_Cian.png" alt="Mara Dental — expandir menú" width={44} height={44} className="object-contain" />
+            <Image src="/Logo_Cian.png" alt="Mara Dental — expandir menú" width={28} height={28} className="object-contain" />
           </button>
         ) : (
           <>

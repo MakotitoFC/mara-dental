@@ -19,6 +19,46 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 // ── Helpers internos ────────────────────────────────────────────────────────
 
+/** Resuelve el id de `tipo_moneda` para una moneda dada, creándola si la
+ * tabla todavía no tiene esa fila (catálogo trivial, sin riesgo en auto-crear). */
+async function resolveTipoMonedaId(supabase: SupabaseClient, moneda: string): Promise<number | null> {
+  const { data: existente } = await supabase.from("tipo_moneda").select("id").eq("moneda", moneda).maybeSingle();
+  if (existente) return existente.id;
+
+  const { data: creado, error } = await supabase.from("tipo_moneda").insert({ moneda }).select("id").single();
+  if (error) {
+    console.error(`[resolveTipoMonedaId] No se pudo crear tipo_moneda "${moneda}":`, error);
+    return null;
+  }
+  return creado.id;
+}
+
+/** Turno de caja abierto del usuario (fecha_cierre IS NULL) — si no hay
+ * ninguno, abre uno nuevo. Se maneja de forma transparente, sin UI de
+ * apertura/cierre de caja (fuera de alcance por ahora). */
+async function resolveCajaTurnoAbierto(supabase: SupabaseClient, usuarioId: string, sedeId: number): Promise<string | null> {
+  const { data: abierto } = await supabase
+    .from("caja_turno")
+    .select("id")
+    .eq("usuario_id", usuarioId)
+    .is("fecha_cierre", null)
+    .order("fecha_apertura", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (abierto) return abierto.id;
+
+  const { data: nuevo, error } = await supabase
+    .from("caja_turno")
+    .insert({ sede_id: sedeId, usuario_id: usuarioId, fecha_apertura: new Date().toISOString() })
+    .select("id")
+    .single();
+  if (error) {
+    console.error("[resolveCajaTurnoAbierto] No se pudo abrir un turno de caja:", error);
+    return null;
+  }
+  return nuevo.id;
+}
+
 /** consultas → nota_clinica_id (ya viene directo en la fila de consultas). */
 async function resolveNotaClinicaId(supabase: SupabaseClient, consultaId: string): Promise<number | null> {
   const { data } = await supabase.from("consultas").select("nota_clinica_id").eq("id", consultaId).single();
@@ -63,7 +103,7 @@ export async function getConsultaActivaAction(consultaId: string, pacienteId: st
     .select(`
       id, fecha_consulta, motivo, observaciones, examen_fisico, cita_id, nota_clinica_id,
       citas ( id, estado ),
-      usuarios ( personal ( nombre, apellido ) )
+      usuarios ( personal ( nombre, apellido, url_firma_digital, num_colegiatura, especialidad ( especialidad ) ) )
     `)
     .eq("id", consultaId)
     .single();
@@ -73,15 +113,26 @@ export async function getConsultaActivaAction(consultaId: string, pacienteId: st
     return null;
   }
 
-  const { data: diagnosticosRaw } = await supabase
+  const personalRaw = (consulta.usuarios as any)?.personal ?? null;
+  const personalInfo = personalRaw ? {
+    nombre: personalRaw.nombre,
+    apellido: personalRaw.apellido,
+    url_firma_digital: personalRaw.url_firma_digital ?? null,
+    num_colegiatura: personalRaw.num_colegiatura ?? null,
+    especialidad: Array.isArray(personalRaw.especialidad) ? (personalRaw.especialidad[0] ?? null) : (personalRaw.especialidad ?? null),
+  } : null;
+
+  const { data: diagnosticosRaw, error: diagnosticosError } = await supabase
     .from("diagnostico")
     .select(`
       id, diagnostico, "esTratado", es_definitivo, fecha_deteccion,
       cie10(id, codigo, descripcion),
-      archivos_clinicos ( id, nombre_archivo, url, tipo_archivo, categoria, fecha_subida, tam_bytes, anotaciones )
+      archivos_clinicos ( id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, tam_bytes, anotaciones, tipo_archivo (id, tipo_archivo) )
     `)
     .eq("consulta_origen_id", consultaId)
     .order("fecha_deteccion", { ascending: false });
+
+  if (diagnosticosError) console.error("[getConsultaActivaAction] Error obteniendo diagnósticos:", diagnosticosError);
 
   const diagnosticos = diagnosticosRaw
     ? await Promise.all(
@@ -94,7 +145,7 @@ export async function getConsultaActivaAction(consultaId: string, pacienteId: st
             es_definitivo: d.es_definitivo,
             fecha_deteccion: d.fecha_deteccion,
             cie10: d.cie10,
-            archivos: archivosFirmados,
+            archivos: archivosFirmados.map((a: any) => ({ ...a, personal: personalInfo })),
           };
         })
       )
@@ -110,7 +161,7 @@ export async function getConsultaActivaAction(consultaId: string, pacienteId: st
     getMediosPagoAction(),
   ]);
 
-  const doctorName = (consulta.usuarios as any)?.personal ? `${((consulta.usuarios as any).personal as any).nombre} ${((consulta.usuarios as any).personal as any).apellido}`.trim() : "Doctor";
+  const doctorName = personalInfo ? `${personalInfo.nombre} ${personalInfo.apellido}`.trim() : "Doctor";
   const citaRaw = Array.isArray(consulta.citas) ? consulta.citas[0] : consulta.citas;
 
   return {
@@ -163,7 +214,8 @@ export async function getDiagnosticosPacienteAction(pacienteId: string) {
       id, diagnostico, "esTratado", es_definitivo, fecha_deteccion, consulta_origen_id,
       cie10(id, codigo, descripcion),
       archivos_clinicos ( id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, tam_bytes, anotaciones, tipo_archivo (id, tipo_archivo) ),
-      nota_clinica!inner ( historia_clinica!inner ( paciente_id ) )
+      nota_clinica!inner ( historia_clinica!inner ( paciente_id ) ),
+      consultas!consulta_origen_id ( usuarios ( personal ( nombre, apellido, url_firma_digital, num_colegiatura, especialidad ( especialidad ) ) ) )
     `)
     .eq("nota_clinica.historia_clinica.paciente_id", pacienteId)
     .order("fecha_deteccion", { ascending: false });
@@ -173,13 +225,13 @@ export async function getDiagnosticosPacienteAction(pacienteId: string) {
 
   if (!diagnosticosRaw) return [];
 
-  const procesarArchivos = async (archivos: any[]) => {
+  const procesarArchivos = async (archivos: any[], personal: any) => {
     if (!archivos || archivos.length === 0) return [];
     return await Promise.all(
       archivos.map(async (a: any) => {
         let tipo_str = "desconocido";
         if (a.tipo_archivo && typeof a.tipo_archivo === "object") tipo_str = a.tipo_archivo.tipo_archivo || a.tipo_archivo.Tipo_archivo;
-        
+
         if (a.url && !a.url.startsWith("http")) {
           try {
             const command = new GetObjectCommand({
@@ -187,29 +239,107 @@ export async function getDiagnosticosPacienteAction(pacienteId: string) {
               Key: a.url,
             });
             const signedUrl = await getSignedUrl(r2Client, command, { expiresIn: 60 * 60 });
-            return { ...a, tipo_archivo: tipo_str, displayUrl: signedUrl };
+            return { ...a, tipo_archivo: tipo_str, displayUrl: signedUrl, personal };
           } catch (e) {
             console.error("Error signing URL with R2:", e);
-            return { ...a, tipo_archivo: tipo_str, displayUrl: a.url };
+            return { ...a, tipo_archivo: tipo_str, displayUrl: a.url, personal };
           }
         }
-        return { ...a, tipo_archivo: tipo_str, displayUrl: a.url };
+        return { ...a, tipo_archivo: tipo_str, displayUrl: a.url, personal };
       })
     );
   };
 
   return Promise.all(
-    diagnosticosRaw.map(async (d: any) => ({
-      id: d.id,
-      diagnostico_texto: d.diagnostico,
-      es_tratado: d.esTratado,
-      es_definitivo: d.es_definitivo,
-      fecha_deteccion: d.fecha_deteccion,
-      consulta_id: d.consulta_origen_id,
-      cie10: d.cie10,
-      archivos: await procesarArchivos(d.archivos_clinicos || []),
-    }))
+    diagnosticosRaw.map(async (d: any) => {
+      const consultaRaw = Array.isArray(d.consultas) ? d.consultas[0] : d.consultas;
+      const usuariosRaw = Array.isArray(consultaRaw?.usuarios) ? consultaRaw.usuarios[0] : consultaRaw?.usuarios;
+      const personalRaw = Array.isArray(usuariosRaw?.personal) ? usuariosRaw.personal[0] : usuariosRaw?.personal;
+      const doctor_nombre = personalRaw ? `${personalRaw.nombre} ${personalRaw.apellido}`.trim() : null;
+      const personalInfo = personalRaw ? {
+        nombre: personalRaw.nombre,
+        apellido: personalRaw.apellido,
+        url_firma_digital: personalRaw.url_firma_digital ?? null,
+        num_colegiatura: personalRaw.num_colegiatura ?? null,
+        especialidad: Array.isArray(personalRaw.especialidad) ? (personalRaw.especialidad[0] ?? null) : (personalRaw.especialidad ?? null),
+      } : null;
+
+      return {
+        id: d.id,
+        diagnostico_texto: d.diagnostico,
+        es_tratado: d.esTratado,
+        es_definitivo: d.es_definitivo,
+        fecha_deteccion: d.fecha_deteccion,
+        consulta_id: d.consulta_origen_id,
+        cie10: d.cie10,
+        doctor_nombre,
+        archivos: await procesarArchivos(d.archivos_clinicos || [], personalInfo),
+      };
+    })
   );
+}
+
+export interface ContextoClinicoPaciente {
+  tipo: "fase" | "tratamiento" | "diagnostico";
+  texto: string;
+}
+
+/**
+ * Contexto clínico para agendar con conocimiento del tratamiento en curso —
+ * usado por el asistente al crear una cita, para que el doctor sepa qué
+ * procedimiento corresponde en la siguiente sesión (útil en tratamientos con
+ * citas recurrentes). Solo usa datos ya registrados en BD, en este orden de
+ * prioridad: (1) la siguiente fase pendiente (`estado !== "Terminado"`) del
+ * plan de tratamiento del diagnóstico activo más reciente, (2) si no hay
+ * fases registradas, el texto libre del tratamiento, (3) si tampoco hay
+ * tratamiento, el texto del diagnóstico activo. Nunca genera contenido
+ * clínico — solo reordena/etiqueta lo que ya existe.
+ */
+export async function getContextoClinicoPacienteAction(pacienteId: string): Promise<ContextoClinicoPaciente | null> {
+  const supabase = await createClient();
+  const consultaIds = await resolveConsultaIdsParaPaciente(supabase, pacienteId);
+  if (consultaIds.length === 0) return null;
+
+  const { data: diagnosticos, error: diagError } = await supabase
+    .from("diagnostico")
+    .select(`id, diagnostico, "esTratado", fecha_deteccion`)
+    .in("consulta_origen_id", consultaIds)
+    .eq("esTratado", true)
+    .order("fecha_deteccion", { ascending: false })
+    .limit(1);
+
+  if (diagError) {
+    console.error("[getContextoClinicoPacienteAction] Error obteniendo diagnóstico activo (¿RLS?):", diagError);
+    return null;
+  }
+
+  const diagnostico = diagnosticos?.[0];
+  if (!diagnostico?.diagnostico) return null;
+
+  const tratamientoId = await resolveTratamientoIdParaDiagnostico(supabase, String(diagnostico.id));
+  if (!tratamientoId) {
+    return { tipo: "diagnostico", texto: diagnostico.diagnostico };
+  }
+
+  const [{ data: tratamiento }, { data: fases, error: fasesError }] = await Promise.all([
+    supabase.from("tratamiento").select("tratamiento").eq("id", tratamientoId).single(),
+    supabase.from("plan_tratamiento").select("fase, descripcion, estado").eq("tratamiento_id", tratamientoId).order("orden", { ascending: true }),
+  ]);
+
+  if (fasesError) {
+    console.error("[getContextoClinicoPacienteAction] Error obteniendo plan de tratamiento (¿RLS?):", fasesError);
+  }
+
+  const siguienteFase = (fases || []).find((f: any) => f.estado !== "Terminado");
+  if (siguienteFase?.fase) {
+    return { tipo: "fase", texto: `${siguienteFase.fase}${siguienteFase.descripcion ? ` — ${siguienteFase.descripcion}` : ""}` };
+  }
+
+  if (tratamiento?.tratamiento) {
+    return { tipo: "tratamiento", texto: tratamiento.tratamiento };
+  }
+
+  return { tipo: "diagnostico", texto: diagnostico.diagnostico };
 }
 
 /**
@@ -797,10 +927,27 @@ export async function deleteRecomendacionAction(id: string, pacienteId: string) 
 
 // ── Presupuesto + Pagos ──────────────────────────────────────────────────────
 
+// TEMPORAL: aún no hay filas cargadas en `medio_pago` en BD — mientras tanto
+// se ofrecen estas opciones de ejemplo para poder seguir probando el flujo
+// de "Registrar pago". OJO: como no son filas reales, si se elige una de
+// estas y se confirma un pago contra un presupuesto REAL, el insert en
+// `pagos.medio_pago_id` va a fallar por la FK (no existe ese id en
+// `medio_pago`) — se resuelve solo insertando medios de pago reales en Supabase.
+const MEDIOS_PAGO_MOCK = [
+  { id: -1, nombre: "Tarjeta" },
+  { id: -2, nombre: "Efectivo" },
+  { id: -3, nombre: "Yape" },
+];
+
 export async function getMediosPagoAction() {
   const supabase = await createClient();
-  const { data } = await supabase.from("medio_pago").select("id, nombre").order("id");
-  return data || [];
+  const { data, error } = await supabase.from("medio_pago").select("id, nombre").order("id");
+  if (error) console.error("[getMediosPagoAction] Error obteniendo medios de pago:", error);
+  if (!data || data.length === 0) {
+    console.log("[getMediosPagoAction] Tabla medio_pago sin filas → usando opciones de ejemplo (Tarjeta/Efectivo/Yape)");
+    return MEDIOS_PAGO_MOCK;
+  }
+  return data;
 }
 
 /** Presupuesto más reciente del paciente (no está scoped por consulta — el esquema no lo permite). */
@@ -812,7 +959,7 @@ export async function getPresupuestoActivoAction(pacienteId: string) {
     .from("presupuestos")
     .select(`
       id, fecha_emision, total_bruto, descuento_porcentaje, descuento_monto, estado, fecha_aprobacion, notas,
-      usuarios!doctor_id ( personal ( nombre, apellido ) ),
+      usuarios!doctor_id ( personal ( nombre, apellido, url_firma_digital, num_colegiatura, especialidad ( especialidad ) ) ),
       detalle_presupuesto ( id, catalogo_tratamiento_id, cantidad, precio_unitario, subtotal, catalogo_tratamientos ( id, nombre, descripcion, moneda ) ),
       movimiento_caja ( id, monto, fecha, medio_pago_id, referencia, estado, observacion, medio_pago ( id, nombre ) )
     `)
@@ -828,11 +975,15 @@ export async function getPresupuestoActivoAction(pacienteId: string) {
   if (!presupuesto) return null;
 
   const doctor = (presupuesto.usuarios as any)?.personal;
+  const doctorEspecialidad = Array.isArray(doctor?.especialidad) ? doctor.especialidad[0] : doctor?.especialidad;
 
   return {
     id: presupuesto.id,
     fecha_emision: presupuesto.fecha_emision,
     doctor_nombre: doctor ? `${doctor.nombre} ${doctor.apellido}` : null,
+    doctor_especialidad: doctorEspecialidad?.especialidad ?? null,
+    doctor_num_colegiatura: doctor?.num_colegiatura ?? null,
+    doctor_firma_url: doctor?.url_firma_digital ?? null,
     total_bruto: Number(presupuesto.total_bruto),
     descuento_porcentaje: Number(presupuesto.descuento_porcentaje) || 0,
     descuento_monto: Number(presupuesto.descuento_monto) || 0,
@@ -867,7 +1018,7 @@ export async function getPresupuestosPacienteAction(pacienteId: string) {
     .from("presupuestos")
     .select(`
       id, fecha_emision, total_bruto, descuento_porcentaje, descuento_monto, estado, fecha_aprobacion, notas,
-      usuarios!doctor_id ( personal ( nombre, apellido ) ),
+      usuarios!doctor_id ( personal ( nombre, apellido, url_firma_digital, num_colegiatura, especialidad ( especialidad ) ) ),
       detalle_presupuesto ( id, catalogo_tratamiento_id, cantidad, precio_unitario, subtotal, catalogo_tratamientos ( id, nombre, descripcion, moneda ) ),
       movimiento_caja ( id, monto, fecha, medio_pago_id, referencia, estado, observacion, medio_pago ( id, nombre ) )
     `)
@@ -880,10 +1031,14 @@ export async function getPresupuestosPacienteAction(pacienteId: string) {
 
   return (data || []).map((presupuesto: any) => {
     const doctor = (presupuesto.usuarios as any)?.personal;
+    const doctorEspecialidad = Array.isArray(doctor?.especialidad) ? doctor.especialidad[0] : doctor?.especialidad;
     return {
       id: presupuesto.id,
       fecha_emision: presupuesto.fecha_emision,
       doctor_nombre: doctor ? `${doctor.nombre} ${doctor.apellido}` : null,
+      doctor_especialidad: doctorEspecialidad?.especialidad ?? null,
+      doctor_num_colegiatura: doctor?.num_colegiatura ?? null,
+      doctor_firma_url: doctor?.url_firma_digital ?? null,
       total_bruto: Number(presupuesto.total_bruto),
       descuento_porcentaje: Number(presupuesto.descuento_porcentaje) || 0,
       descuento_monto: Number(presupuesto.descuento_monto) || 0,
@@ -1030,7 +1185,7 @@ export async function updateEstadoPresupuestoAction(data: { presupuesto_id: stri
 
 export async function deletePresupuestoAction(presupuestoId: string, pacienteId: string) {
   const supabase = await createClient();
-  await supabase.from("pagos").delete().eq("presupuesto_id", presupuestoId);
+  await supabase.from("movimiento_caja").delete().eq("presupuesto_id", presupuestoId);
   await supabase.from("detalle_presupuesto").delete().eq("presupuesto_id", presupuestoId);
   await supabase.from("presupuestos").delete().eq("id", presupuestoId);
   revalidatePath(`/pacientes/${pacienteId}`);
@@ -1043,13 +1198,28 @@ export async function registrarPagoAction(data: {
   const supabase = await createClient();
   if (!data.monto || data.monto <= 0) return { error: "El monto debe ser mayor a 0" };
 
-  const { error } = await supabase.from("pagos").insert({
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: usr } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
+  if (!usr?.sede_id) return { error: "No se pudo resolver la sede del usuario" };
+
+  const tipoMonedaId = await resolveTipoMonedaId(supabase, "PEN");
+  if (!tipoMonedaId) return { error: "No se pudo resolver el tipo de moneda" };
+
+  const cajaTurnoId = await resolveCajaTurnoAbierto(supabase, user.id, usr.sede_id);
+  if (!cajaTurnoId) return { error: "No se pudo abrir un turno de caja" };
+
+  const { error } = await supabase.from("movimiento_caja").insert({
+    caja_turno_id: cajaTurnoId,
     presupuesto_id: data.presupuesto_id,
     monto: data.monto,
     medio_pago_id: data.medio_pago_id,
+    tipo_moneda_id: tipoMonedaId,
     referencia: data.referencia || null,
-    observaciones: data.observaciones || null,
-    estado: "hecho",
+    observacion: data.observaciones || null,
+    usuario_id: user.id,
+    estado: "confirmado",
   });
 
   if (error) {
@@ -1062,7 +1232,7 @@ export async function registrarPagoAction(data: {
 
 export async function anularPagoAction(pagoId: string, pacienteId: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("pagos").update({ estado: "anulado" }).eq("id", pagoId);
+  const { error } = await supabase.from("movimiento_caja").update({ estado: "anulado" }).eq("id", pagoId);
   if (error) return { error: "No se pudo anular el pago" };
   revalidatePath(`/pacientes/${pacienteId}`);
   return { success: true };
