@@ -36,7 +36,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       const sedeNombre = (userRes.data?.sede as any)?.nombre_clinica as string | undefined;
       const especialidadNombre = (personalRes.data?.especialidad as any)?.especialidad as string | undefined;
       const rawName = personalRes.data ? `${personalRes.data.nombre} ${personalRes.data.apellido}` : email.split("@")[0];
-      const fullName = personalRes.data ? `Dr. ${rawName}` : rawName;
+      // "Dr." solo aplica al rol médico — personal también tiene fila para
+      // otros roles (ej. asistente), así que anteponerlo sin chequear el rol
+      // los mostraba incorrectamente como doctores.
+      const fullName = personalRes.data && roleName === "doctor" ? `Dr. ${rawName}` : rawName;
 
       currentUser = {
         name: fullName,

@@ -168,7 +168,7 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pb-6">
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-2">

@@ -8,34 +8,38 @@ import { useAuth } from "./AuthProvider";
 
 type NavItem = { href: string; icon: string; label: string };
 
+// Las llaves deben ser minúsculas: user.rol viene tal cual de BD (sin
+// normalizar), y coincide con las mismas cadenas que usa Sidebar.tsx en
+// ROLE_HREFS ("admin"/"doctor"/"asistente"/"contador"). Antes estas llaves
+// estaban capitalizadas y nunca hacían match, así que el nav de "asistente"
+// caía silenciosamente al DEFAULT_NAV (el de Doctor).
 const NAV_BY_ROLE: Record<string, NavItem[]> = {
-  Administrador: [
+  admin: [
     { href: "/dashboard", icon: "home", label: "Dashboard" },
     { href: "/agenda", icon: "calendar_month", label: "Calendario" },
     { href: "/pacientes", icon: "person", label: "Pacientes" },
     { href: "/configuracion", icon: "settings", label: "Más" },
   ],
-  Doctor: [
+  doctor: [
     { href: "/dashboard", icon: "home", label: "Dashboard" },
     { href: "/agenda", icon: "calendar_month", label: "Calendario" },
     { href: "/pacientes", icon: "person", label: "Pacientes" },
     { href: "/configuracion", icon: "settings", label: "Más" },
   ],
-  Asistente: [
+  asistente: [
     { href: "/dashboard", icon: "home", label: "Dashboard" },
     { href: "/agenda", icon: "calendar_month", label: "Calendario" },
     { href: "/pacientes", icon: "person", label: "Pacientes" },
+    { href: "/pagos", icon: "payments", label: "Pagos" },
     { href: "/configuracion", icon: "settings", label: "Más" },
   ],
-  Contador: [
+  contador: [
     { href: "/dashboard", icon: "home", label: "Dashboard" },
-    { href: "/presupuestos", icon: "payments", label: "Pagos" },
-    { href: "/archivos", icon: "photo_library", label: "Archivos" },
     { href: "/configuracion", icon: "settings", label: "Más" },
   ],
 };
 
-const DEFAULT_NAV: NavItem[] = NAV_BY_ROLE.Doctor;
+const DEFAULT_NAV: NavItem[] = NAV_BY_ROLE.doctor;
 
 export function BottomNav() {
   const pathname = usePathname();

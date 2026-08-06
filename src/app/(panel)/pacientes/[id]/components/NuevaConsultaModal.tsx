@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
+import { Select } from "@/components/ui/Select";
+import { DatePicker } from "@/components/ui/DatePicker";
+import { TimePicker } from "@/components/ui/TimePicker";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { crearCasoClinicoAction, agregarConsultaAction } from "../casos.actions";
@@ -21,10 +24,11 @@ const fmtDate = (d: string) => {
   catch { return d; }
 };
 
-export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onCreated }: {
+export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedCitaId, onClose, onCreated }: {
   pacienteId: string;
   datosCasos?: any;
   citas?: any[];
+  preselectedCitaId?: string | null;
   onClose: () => void;
   onCreated: (consultaId: string) => void;
 }) {
@@ -39,18 +43,33 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
   const hoyStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
   const citasProgramadasHoy = (citas || []).filter(c => c.estado === "programada" && c.fecha.startsWith(hoyStr)).sort((a,b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
 
+  // Si se llegó desde "Iniciar consulta" de una cita específica (que puede no
+  // ser de hoy), esa cita manda — se agrega a la lista aunque no sea de hoy.
+  const citaPreseleccionada = preselectedCitaId ? (citas || []).find(c => c.id === preselectedCitaId) : undefined;
+  const citaInicial = citaPreseleccionada ?? citasProgramadasHoy[0];
+  const citasSeleccionables = citaPreseleccionada && !citasProgramadasHoy.some(c => c.id === citaPreseleccionada.id)
+    ? [citaPreseleccionada, ...citasProgramadasHoy]
+    : citasProgramadasHoy;
+
   // Estados del formulario
   const hasActiveCase = casosActivos.length > 0;
   const [selectedCasoId, setSelectedCasoId] = useState<string>(hasActiveCase ? casosActivos[0].id : "nuevo");
   const [tituloCaso, setTituloCaso] = useState<string>("");
-  const [selectedCitaId, setSelectedCitaId] = useState<string>(citasProgramadasHoy[0]?.id || "");
-  const [tipoConsultaId, setTipoConsultaId] = useState<string>(tipos[0]?.id || "");
-  
-  // Para input datetime-local la fecha debe ser YYYY-MM-DDThh:mm
-  const [fechaConsulta, setFechaConsulta] = useState<string>(() => {
+  const [selectedCitaId, setSelectedCitaId] = useState<string>(citaInicial?.id || "");
+  const isLockedByCita = selectedCitaId !== "";
+  const [tipoConsultaId, setTipoConsultaId] = useState<string>(citaInicial?.tipo_consulta_id || tipos[0]?.id || "");
+
+  const [fechaConsultaDate, setFechaConsultaDate] = useState<string>(() => {
+    if (citaInicial) return citaInicial.fecha;
     const d = new Date();
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(0, 16);
+    return d.toISOString().slice(0, 10);
+  });
+  const [fechaConsultaHora, setFechaConsultaHora] = useState<string>(() => {
+    if (citaInicial) return citaInicial.hora_inicio;
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(11, 16);
   });
 
   const [motivo, setMotivo] = useState("");
@@ -75,7 +94,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
   async function handleGuardar() {
     if (!motivo.trim()) { setError("El motivo es obligatorio"); return; }
     if (!tipoConsultaId) { setError("Debes seleccionar un tipo de consulta"); return; }
-    if (!fechaConsulta) { setError("La fecha de consulta es obligatoria"); return; }
+    if (!fechaConsultaDate || !fechaConsultaHora) { setError("La fecha de consulta es obligatoria"); return; }
 
     setSaving(true); setError("");
 
@@ -97,7 +116,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
     const res = await agregarConsultaAction(notaIdToUse, {
       cita_id: selectedCitaId || undefined,
       tipo_consulta_id: tipoConsultaId,
-      fecha_consulta: new Date(fechaConsulta).toISOString(),
+      fecha_consulta: new Date(`${fechaConsultaDate}T${fechaConsultaHora}`).toISOString(),
       motivo: motivo.trim(),
       observaciones: observaciones.trim() || undefined,
       examen_fisico,
@@ -167,13 +186,13 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
         )}
 
         {/* Selector de Cita Programada (Opcional) */}
-        {citasProgramadasHoy.length > 0 && (
+        {citasSeleccionables.length > 0 && (
           <div className="flex flex-col gap-2">
             <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <Icon name="calendar_month" size={16} className="text-slate-400" />
               Asociar a una Cita Programada (Opcional)
             </label>
-            <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
+            <div className="flex gap-3 overflow-x-auto no-scrollbar p-1 -m-1 snap-x">
               {/* Opción ninguna */}
               <button
                 onClick={() => setSelectedCitaId("")}
@@ -191,11 +210,16 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
                 <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Ninguna (Solo consulta)</span>
               </button>
 
-              {/* Lista de citas de HOY */}
-              {citasProgramadasHoy.map(c => (
+              {/* Lista de citas seleccionables (hoy + la preseleccionada si viene de otra fecha) */}
+              {citasSeleccionables.map(c => (
                 <button
                   key={c.id}
-                  onClick={() => setSelectedCitaId(c.id)}
+                  onClick={() => {
+                    setSelectedCitaId(c.id);
+                    if (c.tipo_consulta_id) setTipoConsultaId(c.tipo_consulta_id);
+                    setFechaConsultaDate(c.fecha);
+                    setFechaConsultaHora(c.hora_inicio);
+                  }}
                   className={`shrink-0 snap-start px-4 py-3 border rounded-xl flex items-center gap-3 text-left transition-all ${
                     selectedCitaId === c.id 
                       ? "border-cyan-500 bg-cyan-50/50 dark:bg-cyan-900/20 ring-1 ring-cyan-500" 
@@ -218,28 +242,30 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
         )}
 
         {/* Campos de metadatos de la consulta */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="flex flex-col gap-2">
-            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Tipo de consulta *</label>
-            <select
-              value={tipoConsultaId}
-              onChange={e => setTipoConsultaId(e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
-            >
-              {tipos.map(t => (
-                <option key={t.id} value={t.id}>{t.tipo_consulta}</option>
-              ))}
-            </select>
+        <div className="flex flex-col gap-2">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isLockedByCita ? "pointer-events-none opacity-60" : ""}`}>
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Tipo de consulta *</label>
+              <Select
+                value={tipoConsultaId}
+                onChange={setTipoConsultaId}
+                options={tipos.map(t => ({ value: t.id, label: t.tipo_consulta }))}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Fecha y Hora *</label>
+              <div className="flex gap-2">
+                <DatePicker value={fechaConsultaDate} onChange={setFechaConsultaDate} className="flex-1 min-w-0" />
+                <TimePicker value={fechaConsultaHora} onChange={setFechaConsultaHora} className="w-28 shrink-0" />
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Fecha y Hora *</label>
-            <input
-              type="datetime-local"
-              value={fechaConsulta}
-              onChange={e => setFechaConsulta(e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
-            />
-          </div>
+          {isLockedByCita && (
+            <p className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+              <Icon name="lock" size={12} className="shrink-0" />
+              Se usa el tipo, fecha y hora de la cita seleccionada.
+            </p>
+          )}
         </div>
 
         {/* Motivo y Observaciones */}

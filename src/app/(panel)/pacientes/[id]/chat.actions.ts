@@ -9,7 +9,7 @@ export async function getChatInfoAction(pacienteId: string, page: number = 0, li
 
   const { data: paciente, error: pacError } = await supabase
     .from("pacientes")
-    .select("telegram_chat_id, telegram_link_code, chat_activated_at")
+    .select("nombre, apellido, telegram_chat_id, telegram_link_code, chat_activated_at")
     .eq("id", pacienteId)
     .single();
 

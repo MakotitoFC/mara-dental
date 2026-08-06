@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
@@ -124,7 +125,7 @@ function AlertasButton() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-9 z-30 w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden"
+            className="fixed left-4 right-4 top-14 sm:absolute sm:left-auto sm:right-0 sm:top-9 sm:w-80 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden"
           >
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-700">
               <p className="text-[12.5px] font-bold text-slate-800 dark:text-slate-100">Alertas</p>
@@ -180,17 +181,17 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
   const { user, logout } = useAuth();
 
   const backHref = breadcrumbs && breadcrumbs.length >= 2 ? (breadcrumbs[breadcrumbs.length - 2].href ?? "/") : "/";
-  const currentLabel = breadcrumbs?.[breadcrumbs.length - 1]?.label ?? "";
 
   return (
     <motion.header
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-      className="sticky top-0 z-20 h-13 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-6 shrink-0 gap-3"
+      className="sticky top-0 z-40 h-13 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-6 shrink-0 gap-3"
     >
       {/* Lado izquierdo */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
+        <Image src="/Logo_Cian.png" alt="Mara Dental" width={26} height={26} className="md:hidden shrink-0 rounded-md" />
         <SedeDisplay sede={user?.sede} />
 
         {breadcrumbs && (
@@ -203,10 +204,6 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
             >
               <Icon name="chevron_left" size={18} />
             </Link>
-
-            <span className="sm:hidden text-[14px] font-semibold text-slate-900 dark:text-slate-100 truncate ml-0.5">
-              {currentLabel}
-            </span>
 
             <nav className="hidden sm:flex items-center min-w-0">
               {breadcrumbs.map((crumb, i) => {
@@ -239,27 +236,19 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
         {actions}
         <AlertasButton />
 
+        <div className="flex items-center gap-2" title={user?.name ?? ""}>
+          <div className="w-8 h-8 rounded-full bg-cyan-50 dark:bg-cyan-900/40 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center shrink-0">
+            <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-400">{user?.initials ?? "…"}</span>
+          </div>
+        </div>
+
         <button
           onClick={logout}
-          className="md:hidden w-8 h-8 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors"
+          className="md:hidden w-8 h-8 rounded-lg bg-transparent border border-red-200 dark:border-red-800 flex items-center justify-center text-red-400 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
           title="Cerrar sesión"
         >
           <Icon name="logout" size={17} />
         </button>
-
-        <div className="hidden md:flex items-center gap-2" title={user?.name ?? ""}>
-          <div className="w-8 h-8 rounded-full bg-cyan-50 dark:bg-cyan-900/40 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center shrink-0">
-            <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-400">{user?.initials ?? "…"}</span>
-          </div>
-          {user?.name && (
-            <div className="min-w-0 leading-tight">
-              <p className="text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 truncate max-w-35">{user.name}</p>
-              {user.especialidad && (
-                <p className="text-[10.5px] text-slate-400 dark:text-slate-500 truncate max-w-35">{user.especialidad}</p>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </motion.header>
   );

@@ -223,23 +223,31 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
     );
   }
 
+  const pacienteNombre = [paciente?.nombre, paciente?.apellido].filter(Boolean).join(" ") || "Paciente";
+  const pacienteIniciales = (`${paciente?.nombre?.[0] ?? ""}${paciente?.apellido?.[0] ?? ""}`.toUpperCase()) || "P";
+
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-[600px]">
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-        <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-          <Icon name="person" size={20} />
+    <div className="flex flex-col h-[600px] lg:h-full bg-white dark:bg-slate-800 overflow-hidden">
+      <div className="shrink-0 flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-200 dark:border-slate-700">
+        <div className="relative shrink-0">
+          <div className="w-10 h-10 rounded-full bg-cyan-50 dark:bg-cyan-900/30 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center">
+            <span className="text-[13px] font-bold text-cyan-700 dark:text-cyan-400">{pacienteIniciales}</span>
+          </div>
+          <span className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-[#24A1DE] border-2 border-white dark:border-slate-800 flex items-center justify-center">
+            <Icon name="send" size={9} className="text-white" />
+          </span>
         </div>
-        <div>
-          <h2 className="text-[14px] font-bold text-slate-800 dark:text-slate-100">Paciente</h2>
-          <p className="text-[11px] text-green-600 dark:text-green-400 font-medium flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[14px] font-bold text-slate-800 dark:text-slate-100 truncate">{pacienteNombre}</h2>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+            <Icon name="send" size={11} className="text-[#24A1DE]" />
             Vinculado por Telegram
           </p>
         </div>
       </div>
 
-      <div 
-        className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 bg-slate-50/50 dark:bg-slate-900/20"
+      <div
+        className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4 bg-slate-50/50 dark:bg-slate-900/20"
         onScroll={handleScroll}
       >
         {messages.length === 0 ? (
@@ -358,7 +366,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
                 : "bg-slate-100 dark:bg-slate-700 text-slate-400"
               }`}
           >
-            {sending ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Icon name="send" size={18} className="ml-1" />}
+            {sending ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Icon name="send" size={18} />}
           </button>
         </form>
       </div>

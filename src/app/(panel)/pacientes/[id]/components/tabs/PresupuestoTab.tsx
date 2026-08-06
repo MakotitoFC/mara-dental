@@ -83,7 +83,7 @@ export function PresupuestoTab({ paciente, consultaId, data, loading, refetch, o
 
   if (!presupuesto && !consultaId) {
     return (
-      <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3">
+      <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 mb-6">
         <Icon name="info" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
         <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Este paciente no tiene presupuesto registrado. Inicia una consulta desde Timeline para generar uno.</p>
       </div>
@@ -91,17 +91,24 @@ export function PresupuestoTab({ paciente, consultaId, data, loading, refetch, o
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <PresupuestoPhase
-        consultaId={consultaId ?? "0"}
-        pacienteId={String(pacienteId)}
-        paciente={paciente}
-        presupuesto={presupuesto}
-        mediosPago={mediosPago}
-        onSaved={onSaved}
-        onNavigateTab={onNavigateTab}
-      />
-      <PresupuestosAnteriores items={historial} pacienteId={String(pacienteId)} paciente={paciente} mediosPago={mediosPago} onSaved={() => { onSaved(); fetchHistorial(); }} onNavigateTab={onNavigateTab} />
+    <div className="h-full flex flex-col gap-3 min-h-0">
+      <div className="flex-1 min-h-0">
+        <PresupuestoPhase
+          consultaId={consultaId ?? "0"}
+          pacienteId={String(pacienteId)}
+          paciente={paciente}
+          presupuesto={presupuesto}
+          mediosPago={mediosPago}
+          onSaved={onSaved}
+          onNavigateTab={onNavigateTab}
+          fillHeight
+        />
+      </div>
+      {historial.length > 1 && (
+        <div className="shrink-0 max-h-56 sm:max-h-64 overflow-y-auto no-scrollbar">
+          <PresupuestosAnteriores items={historial} pacienteId={String(pacienteId)} paciente={paciente} mediosPago={mediosPago} onSaved={() => { onSaved(); fetchHistorial(); }} onNavigateTab={onNavigateTab} />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,12 +1,19 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, slideUp } from "@/lib/animations";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 import { updateAnotacionesAction, getSedeInfoAction } from "../../consulta.actions";
+import {
+  buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, sectionLabel, wrapDocument, fmtGenerado as fmtGeneradoShared,
+  type ClinicaInfo,
+} from "@/lib/reportExport";
 
 interface Archivo {
   id: number;
@@ -18,10 +25,10 @@ interface Archivo {
   fecha_subida?: string;
   anotaciones?: any[];
   displayUrl?: string;
-  personal?: { nombre: string; apellido: string; url_firma_digital?: string | null; especialidad?: { especialidad: string } | null } | null;
+  personal?: { nombre: string; apellido: string; url_firma_digital?: string | null; num_colegiatura?: string | null; especialidad?: { especialidad: string } | null } | null;
 }
 
-type Mode = "view" | "pin" | "draw" | "arrow" | "text" | "eraser";
+type Mode = "view" | "pin" | "draw" | "arrow" | "text" | "eraser" | "pan";
 type Pt = { x: number; y: number };
 
 const MODE_HINT: Record<Exclude<Mode, "view">, { icon: string; text: string; bg: string }> = {
@@ -30,6 +37,7 @@ const MODE_HINT: Record<Exclude<Mode, "view">, { icon: string; text: string; bg:
   arrow: { icon: "arrow_diagonal", text: "Modo flecha — arrastra para dibujarla", bg: "rgba(124,58,237,0.9)" },
   text: { icon: "text_fields", text: "Modo texto — haz clic para escribir", bg: "rgba(8,145,178,0.9)" },
   eraser: { icon: "eraser", text: "Modo borrador — haz clic o arrastra sobre una anotación", bg: "rgba(100,116,139,0.9)" },
+  pan: { icon: "pan_tool", text: "Modo mano — arrastra para desplazarte por la imagen", bg: "rgba(15,118,110,0.9)" },
 };
 
 const COLORS = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b", "#ffffff", "#000000"];
@@ -81,11 +89,7 @@ function esc(s?: string | number | null) {
 }
 
 function buildReportHtml(opts: {
-  logoSrc: string;
-  clinica?: string | null;
-  direccion?: string | null;
-  telefono?: string | null;
-  email?: string | null;
+  clinica: ClinicaInfo | null;
   pacienteNombre?: string | null;
   pacienteId?: string | number | null;
   archivoId: number;
@@ -96,31 +100,48 @@ function buildReportHtml(opts: {
   descripcion?: string | null;
   doctorNombre?: string | null;
   doctorEspecialidad?: string | null;
+  doctorNumColegiatura?: string | null;
   firmaSrc?: string | null;
   generado: string;
   imagenSrc: string;
+  relacionados: { nombre: string; categoria: string }[];
 }): string {
   const row = (label: string, value?: string | null) =>
-    value ? `<div style="margin-bottom:10px;"><div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">${esc(label)}</div><div style="font-size:12.5px;color:#1e293b;font-weight:600;">${esc(value)}</div></div>` : "";
+    value ? `<div style="margin-bottom:12px;"><div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">${esc(label)}</div><div style="font-size:12.5px;color:#1e293b;font-weight:600;">${esc(value)}</div></div>` : "";
 
-  return `
-  <div style="width:900px;background:#ffffff;font-family:Poppins,Arial,sans-serif;color:#1e293b;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:2px solid #0891b2;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <img src="${opts.logoSrc}" style="height:34px;object-fit:contain;" crossorigin="anonymous" />
-        ${opts.clinica ? `<span style="font-size:16px;font-weight:800;color:#0e7490;">${esc(opts.clinica)}</span>` : ""}
-      </div>
-      <div style="text-align:right;">
-        <div style="font-size:10.5px;color:#64748b;">Archivo #${esc(opts.archivoId)}</div>
-        <div style="font-size:10.5px;color:#64748b;">Generado: ${esc(opts.generado)}</div>
+  const docCode = `Archivo #${opts.archivoId}`;
+  const header = buildLetterheadHeader({
+    clinica: opts.clinica,
+    docLabel: "Archivo Clínico",
+    docCode,
+    pacienteNombre: opts.pacienteNombre,
+    generado: opts.generado,
+  });
+
+  const relacionadosHtml = opts.relacionados.length > 0 ? `
+    <div style="padding:20px 28px 0;">
+      ${sectionLabel("Archivos relacionados de esta consulta")}
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${opts.relacionados.map((r) => `
+          <span style="display:inline-flex;align-items:center;gap:5px;padding:6px 10px;border-radius:8px;background:#ecfeff;color:#0e7490;font-size:11px;font-weight:600;">
+            ${esc(r.nombre)} <span style="color:#67a3ae;font-weight:500;">(${esc(r.categoria)})</span>
+          </span>
+        `).join("")}
       </div>
     </div>
+  ` : "";
 
-    <div style="display:flex;">
-      <div style="flex:1;padding:20px;display:flex;align-items:center;justify-content:center;background:#0f172a;min-height:340px;">
-        <img src="${opts.imagenSrc}" style="max-width:100%;max-height:520px;object-fit:contain;" crossorigin="anonymous" />
+  const body = `
+    <div style="display:flex;padding:24px 28px 0;gap:24px;">
+      <div style="flex:1;min-width:0;">
+        ${sectionLabel("Imagen clínica")}
+        <div style="position:relative;border-radius:10px;overflow:hidden;background:#0f172a;min-height:320px;display:flex;align-items:center;justify-content:center;">
+          <img src="${opts.imagenSrc}" style="max-width:100%;max-height:460px;object-fit:contain;" crossorigin="anonymous" />
+          <span style="position:absolute;top:12px;right:12px;padding:3px 9px;border-radius:6px;background:rgba(15,23,42,0.75);color:#fff;font-size:10px;font-weight:700;">${esc(docCode)}</span>
+        </div>
       </div>
-      <div style="width:220px;padding:20px;border-left:1px solid #e2e8f0;flex-shrink:0;">
+      <div style="width:230px;flex-shrink:0;">
+        ${sectionLabel("Datos del archivo")}
         ${row("Paciente", opts.pacienteNombre)}
         ${row("ID Paciente", opts.pacienteId != null ? String(opts.pacienteId) : undefined)}
         ${row("Archivo", opts.nombreArchivo)}
@@ -128,29 +149,30 @@ function buildReportHtml(opts: {
         ${row("Tipo", opts.tipoArchivo === "image" ? "Imagen" : "PDF")}
         ${row("Fecha", opts.fechaSubida)}
         ${opts.doctorNombre ? `
-          <div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;">
+          <div style="margin-top:6px;padding-top:14px;border-top:1px solid #e2e8f0;">
             <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Atendido por</div>
             <div style="font-size:12.5px;color:#1e293b;font-weight:700;">Dr. ${esc(opts.doctorNombre)}</div>
-            ${opts.doctorEspecialidad ? `<div style="font-size:10.5px;color:#64748b;">${esc(opts.doctorEspecialidad)}</div>` : ""}
-            ${opts.firmaSrc ? `<img src="${opts.firmaSrc}" style="height:36px;margin-top:8px;object-fit:contain;" crossorigin="anonymous" />` : ""}
+            ${opts.doctorEspecialidad ? `<div style="font-size:10.5px;color:#0e7490;font-weight:600;">${esc(opts.doctorEspecialidad)}</div>` : ""}
           </div>
         ` : ""}
       </div>
     </div>
 
     ${opts.descripcion ? `
-      <div style="padding:16px 24px;border-top:1px solid #e2e8f0;">
-        <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Observaciones clínicas</div>
-        <div style="font-size:12px;color:#334155;line-height:1.6;">${esc(opts.descripcion)}</div>
+      <div style="padding:20px 28px 0;">
+        ${sectionLabel("Observaciones clínicas")}
+        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;font-size:12px;color:#334155;line-height:1.65;">${esc(opts.descripcion)}</div>
       </div>
     ` : ""}
 
-    <div style="padding:12px 24px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-      <span style="font-size:9.5px;color:#94a3b8;">${esc([opts.clinica, opts.direccion].filter(Boolean).join(" · "))}</span>
-      <span style="font-size:9.5px;color:#94a3b8;">${esc([opts.telefono, opts.email].filter(Boolean).join(" · "))}</span>
+    ${relacionadosHtml}
+
+    <div style="padding:20px 28px 24px;display:flex;justify-content:flex-end;">
+      ${buildSignatureBlock({ nombre: opts.doctorNombre, especialidad: opts.doctorEspecialidad, numColegiatura: opts.doctorNumColegiatura, firmaUrl: opts.firmaSrc })}
     </div>
-  </div>
   `;
+
+  return wrapDocument(`${header}${body}${buildLetterheadFooter({ clinica: opts.clinica, pacienteNombre: opts.pacienteNombre, docCode })}`, 900);
 }
 
 function ToolButton({ icon, label, active, onClick, disabled }: {
@@ -220,10 +242,12 @@ export function VisorModal({
   // Draw / Arrow
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   const isDrawingRef = useRef(false);
   const strokeRef = useRef<Pt[]>([]);
+  const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
   const [color, setColor] = useState("#ef4444");
   const [arrowPreview, setArrowPreview] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
 
@@ -232,6 +256,10 @@ export function VisorModal({
   const draws = anotaciones.filter((x) => x.type === "draw");
   const arrows = anotaciones.filter((x) => x.type === "arrow");
 
+  useBodyScrollLock();
+  const isMobile = useIsMobile();
+  const [fullscreen, setFullscreen] = useState(false);
+  const hideMobileTools = isMobile && !fullscreen;
   const [zoom, setZoom] = useState(1);
   const ZOOM_MIN = 1;
   const ZOOM_MAX = 3;
@@ -314,6 +342,10 @@ export function VisorModal({
   function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!isImage) return;
     if ((e.target as HTMLElement).closest("[data-pin]") || (e.target as HTMLElement).closest("[data-text]")) return;
+    if (mode === "view") {
+      if (!fullscreen) setFullscreen(true);
+      return;
+    }
     if (mode !== "pin" && mode !== "text") return;
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -426,6 +458,15 @@ export function VisorModal({
   }
 
   function startDraw(e: React.MouseEvent | React.TouchEvent) {
+    if (mode === "pan") {
+      const vp = viewportRef.current;
+      if (!vp) return;
+      if (e.cancelable && e.type !== "touchstart") e.preventDefault();
+      const point = "touches" in e ? e.touches[0] : e;
+      panStartRef.current = { x: point.clientX, y: point.clientY, scrollLeft: vp.scrollLeft, scrollTop: vp.scrollTop };
+      isDrawingRef.current = true;
+      return;
+    }
     if (mode !== "draw" && mode !== "arrow" && mode !== "eraser") return;
     if (e.cancelable && e.type !== "touchstart") e.preventDefault();
     const pt = getCanvasPoint(e);
@@ -443,6 +484,17 @@ export function VisorModal({
   }
 
   function moveDraw(e: React.MouseEvent | React.TouchEvent) {
+    if (mode === "pan") {
+      if (!isDrawingRef.current || !panStartRef.current) return;
+      const vp = viewportRef.current;
+      if (!vp) return;
+      const point = "touches" in e ? e.touches[0] : e;
+      const dx = point.clientX - panStartRef.current.x;
+      const dy = point.clientY - panStartRef.current.y;
+      vp.scrollLeft = panStartRef.current.scrollLeft - dx;
+      vp.scrollTop = panStartRef.current.scrollTop - dy;
+      return;
+    }
     if (!isDrawingRef.current) return;
     const pt = getCanvasPoint(e);
     if (!pt) return;
@@ -479,6 +531,11 @@ export function VisorModal({
   }
 
   function endDraw() {
+    if (mode === "pan") {
+      isDrawingRef.current = false;
+      panStartRef.current = null;
+      return;
+    }
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
 
@@ -636,21 +693,16 @@ export function VisorModal({
     return canvas;
   }
 
-  function fmtGenerado() {
-    return new Date().toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
-  }
-
   async function buildReportHtmlForCurrent(): Promise<string> {
     const canvas = await composeAnnotatedCanvas();
     const imagenSrc = canvas.toDataURL("image/jpeg", 0.92);
     const doctorNombre = a.personal ? `${a.personal.nombre} ${a.personal.apellido}` : undefined;
     const pacienteNombre = paciente?.nombre_completo || (paciente?.nombre ? `${paciente.nombre} ${paciente.apellido ?? ""}`.trim() : undefined);
+    const relacionados = todos
+      .filter((x) => x.id !== a.id)
+      .map((x) => ({ nombre: x.nombre_archivo, categoria: x.categoria }));
     return buildReportHtml({
-      logoSrc: `${window.location.origin}/Cian_MaraDental.png`,
-      clinica: sede?.nombre_clinica,
-      direccion: sede?.direccion,
-      telefono: sede?.telefono,
-      email: sede?.email_contacto,
+      clinica: sede,
       pacienteNombre,
       pacienteId: paciente?.id,
       archivoId: a.id,
@@ -661,9 +713,11 @@ export function VisorModal({
       descripcion: a.descripcion,
       doctorNombre,
       doctorEspecialidad: a.personal?.especialidad?.especialidad,
+      doctorNumColegiatura: a.personal?.num_colegiatura,
       firmaSrc: a.personal?.url_firma_digital || null,
-      generado: fmtGenerado(),
+      generado: fmtGeneradoShared(),
       imagenSrc,
+      relacionados,
     });
   }
 
@@ -785,14 +839,14 @@ export function VisorModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-100">
+  return createPortal(
+    <div className="fixed inset-0 z-100 md:flex md:items-center md:justify-center md:p-6">
       <motion.div
         variants={fadeIn}
         initial="hidden"
         animate="visible"
         exit="exit"
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-slate-900/40"
         onClick={onClose}
       />
       <motion.div
@@ -800,22 +854,40 @@ export function VisorModal({
         initial="hidden"
         animate="visible"
         exit="exit"
-        className="fixed inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl md:absolute md:inset-0 md:m-auto md:bottom-auto md:h-fit md:max-h-[min(92vh,calc(100dvh-96px))] md:max-w-280 md:rounded-2xl bg-white dark:bg-slate-800 overflow-hidden flex flex-col md:flex-row shadow-2xl"
+        transition={{ layout: { duration: 0.25, ease: [0.4, 0, 0.2, 1] } }}
+        layout
+        className={
+          fullscreen
+            ? "fixed inset-0 w-full h-full max-h-none rounded-none bg-white dark:bg-slate-800 overflow-hidden flex flex-col shadow-2xl"
+            : "fixed inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl md:relative md:max-h-[min(92vh,calc(100dvh-96px))] md:max-w-280 md:rounded-2xl bg-white dark:bg-slate-800 overflow-hidden flex flex-col md:flex-row shadow-2xl"
+        }
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="md:hidden flex justify-center pt-2.5 pb-1 shrink-0 absolute top-0 inset-x-0 z-10">
-          <span className="w-10 h-1.5 rounded-full bg-white/40" />
-        </div>
+        {!fullscreen && (
+          <div className="md:hidden flex justify-center pt-2.5 pb-1 shrink-0 absolute top-0 inset-x-0 z-10">
+            <span className="w-10 h-1.5 rounded-full bg-white/40" />
+          </div>
+        )}
 
         {/* VIEW PORT */}
         <div
-          className={`relative min-h-45 h-[48vw] md:h-auto md:flex-1 flex ${zoom > 1 ? "overflow-auto items-start justify-start" : "overflow-hidden items-center justify-center"}`}
+          ref={viewportRef}
+          className={`relative flex bg-stone-50 dark:bg-slate-900/50 ${fullscreen ? "flex-1 min-h-0" : "min-h-45 h-[60vh] md:h-auto md:flex-1"} ${zoom > 1 ? "overflow-auto items-start justify-start" : "overflow-hidden items-center justify-center"}`}
           style={{
-            background: "#0f172a",
-            cursor: mode !== "view" ? "crosshair" : "default",
+            cursor: mode === "pin" || mode === "text" ? "crosshair" : mode === "pan" ? "grab" : mode === "view" && isImage && !fullscreen ? "zoom-in" : "default",
           }}
         >
+          {fullscreen && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setFullscreen(false); }}
+              aria-label="Salir de pantalla completa"
+              className="absolute top-3 left-3 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center text-white transition-colors"
+              style={{ zIndex: 30 }}
+            >
+              <Icon name="close" size={18} />
+            </button>
+          )}
           {isImage && imgUrl ? (
             <div
               ref={containerRef}
@@ -836,7 +908,7 @@ export function VisorModal({
                 src={imgUrl}
                 alt={a.nombre_archivo}
                 crossOrigin="anonymous"
-                className="max-w-full max-h-[85vh] object-contain select-none pointer-events-none"
+                className={`max-w-full object-contain select-none pointer-events-none ${fullscreen ? "max-h-full" : "max-h-[85vh]"}`}
                 draggable={false}
                 style={{ WebkitUserDrag: "none" } as React.CSSProperties}
                 onLoad={handleResizeCanvas}
@@ -1048,7 +1120,7 @@ export function VisorModal({
               ) : (
                 <>
                   <Icon name="description" size={40} className="text-slate-400" />
-                  <p className="text-white font-medium text-[13px]">{a.nombre_archivo}</p>
+                  <p className="text-slate-600 dark:text-slate-300 font-medium text-[13px]">{a.nombre_archivo}</p>
                 </>
               )}
             </div>
@@ -1073,7 +1145,7 @@ export function VisorModal({
             </button>
           )}
 
-          <span className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-white/50" style={{ zIndex: 5 }}>
+          <span className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 dark:text-white/50" style={{ zIndex: 5 }}>
             {idx + 1} / {todos.length}
           </span>
 
@@ -1088,7 +1160,7 @@ export function VisorModal({
           )}
 
           {/* Selector de color — solo para Dibujar / Flecha */}
-          {isImage && (mode === "draw" || mode === "arrow") && (
+          {isImage && !hideMobileTools && (mode === "draw" || mode === "arrow") && (
             <div
               className="absolute bottom-16.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-white rounded-full shadow-lg border border-slate-200/70 px-2.5 py-1.5"
               style={{ zIndex: 20 }}
@@ -1106,7 +1178,7 @@ export function VisorModal({
           )}
 
           {/* Toolbar flotante de anotación */}
-          {isImage && (
+          {isImage && !hideMobileTools && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2" style={{ zIndex: 20 }} onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center gap-1 bg-white rounded-full shadow-xl border border-slate-200/70 px-2 py-1.5">
                 <ToolButton icon="draw" label="Draw" active={mode === "draw"} onClick={() => setMode((m) => (m === "draw" ? "view" : "draw"))} />
@@ -1114,6 +1186,7 @@ export function VisorModal({
                 <ToolButton icon="text_fields" label="Text" active={mode === "text"} onClick={() => setMode((m) => (m === "text" ? "view" : "text"))} />
                 <ToolButton icon="pin_drop" label="Pin" active={mode === "pin"} onClick={() => setMode((m) => (m === "pin" ? "view" : "pin"))} />
                 <ToolButton icon="eraser" label="Eraser" active={mode === "eraser"} onClick={() => setMode((m) => (m === "eraser" ? "view" : "eraser"))} />
+                <ToolButton icon="pan_tool" label="Pan" active={mode === "pan"} onClick={() => setMode((m) => (m === "pan" ? "view" : "pan"))} />
                 <div className="w-px h-7 bg-slate-200 mx-1" />
                 <ToolButton icon="undo" label="Undo" onClick={handleUndo} disabled={anotaciones.length === 0} />
               </div>
@@ -1121,7 +1194,7 @@ export function VisorModal({
           )}
 
           {/* Controles de zoom */}
-          {isImage && (
+          {isImage && !hideMobileTools && (
             <div
               className="absolute bottom-4 right-4 flex items-center gap-0.5 bg-white rounded-full shadow-xl border border-slate-200/70 px-1 py-1"
               style={{ zIndex: 20 }}
@@ -1155,6 +1228,7 @@ export function VisorModal({
         </div>
 
         {/* CONTROLES */}
+        {!fullscreen && (
         <div className="w-full md:w-85 md:shrink-0 flex flex-col border-t border-slate-100 dark:border-slate-700 md:border-t-0 md:border-l overflow-hidden flex-1 md:flex-none">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700 gap-2">
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 uppercase bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
@@ -1306,14 +1380,14 @@ export function VisorModal({
               <>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={handleDownloadReportImage} disabled={exportingReport !== null}
-                    className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors w-full">
+                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors w-full">
                     <Icon name="download" size={15} />
-                    {exportingReport === "png" ? "Generando…" : "Guardar Png"}
+                    {exportingReport === "png" ? "Generando…" : "PNG"}
                   </button>
                   <button onClick={handleSendTelegram} disabled={exportingReport !== null}
-                    className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors w-full">
+                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors w-full">
                     <Icon name="send" size={15} />
-                    {exportingReport === "telegram" ? "Preparando…" : "Enviar por Telegram"}
+                    {exportingReport === "telegram" ? "Preparando…" : "Telegram"}
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -1341,13 +1415,9 @@ export function VisorModal({
                 </button>
               </div>
             )}
-            {isImage && (
-              <button onClick={forceDownload} className="text-[10.5px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors underline underline-offset-2 self-center">
-                Descargar archivo original (sin membrete)
-              </button>
-            )}
           </div>
         </div>
+        )}
       </motion.div>
 
       {/* Modal de confirmación de eliminación de anotación */}
@@ -1375,6 +1445,7 @@ export function VisorModal({
         </div>
       )}
 
-    </div>
+    </div>,
+    document.body
   );
 }
