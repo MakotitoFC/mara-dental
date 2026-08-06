@@ -15,9 +15,8 @@ import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
 function contextoClinicoMockDePaciente(_patientId: string): ContextoClinicoPaciente | null {
   return null;
 }
-import { ESTADO_ICON, calcHoraFin, fmtHora12, fmtFechaLarga } from "./agendaUtils";
+import { ESTADO_ICON, calcHoraFin, fmtHora12, fmtFechaLarga, type DoctorLite } from "./agendaUtils";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
-import type { DoctorLite } from "./MultiDoctorDayView";
 
 export type PatientLite = { id: string; nombre: string; apellido: string; dni?: string };
 

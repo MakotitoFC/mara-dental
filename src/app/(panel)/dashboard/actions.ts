@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 // import { doctoresMockDeSede } from "../agenda/components/doctoresMock";
-function doctoresMockDeSede(sedeId: string | number, excludeUserId?: string) {
+function doctoresMockDeSede(sedeId: string | number, excludeUserId?: string): { id: string; nombre: string; apellido: string }[] {
   return [];
 }
 

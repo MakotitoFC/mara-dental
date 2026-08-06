@@ -1,5 +1,25 @@
 import type { EstadoCita } from "@/types/agenda";
 
+// ─── Tipos compartidos de doctor ────────────────────────────────────────────
+// Viven aquí (no en MultiDoctorDayView.tsx / doctorColors.ts) porque las
+// vistas de un solo doctor (CalendarToolbar, CitaFormSheet, CronogramaView,
+// DayAppointmentsSheet, MonthView, WeekView) también los necesitan para
+// tipar sus props — no son exclusivos de las vistas multi-doctor de asistente.
+
+export interface DoctorLite {
+  id: string;
+  nombre: string;
+  apellido: string;
+  especialidad: string | null;
+}
+
+export interface DoctorMapEntry {
+  nombre: string;
+  initials: string;
+  vars: { solid: string; bg: string; text: string };
+}
+export type DoctorMap = Record<string, DoctorMapEntry>;
+
 // ─── Vistas de calendario ──────────────────────────────────────────────────
 
 export type CalView = "day" | "week" | "month" | "year" | "cronograma";

@@ -5,8 +5,7 @@ import type { Cita } from "@/types/agenda";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
-import { DAY_SHORT, getMonthGrid, timeToMin, toDateStr } from "./agendaUtils";
-import type { DoctorMap } from "./doctorColors";
+import { DAY_SHORT, getMonthGrid, timeToMin, toDateStr, type DoctorMap } from "./agendaUtils";
 
 const MAX_CHIPS_MOBILE = 5;
 const MAX_CHIPS_DESKTOP = 3;
