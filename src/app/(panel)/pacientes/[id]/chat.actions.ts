@@ -164,11 +164,12 @@ export async function sendMessageAction(pacienteId: string, text?: string, fileU
     return { error: "Error guardando el mensaje en la base de datos" };
   }
 
+  const usuarioRaw: any = Array.isArray(insertedData.usuarios) ? insertedData.usuarios[0] : insertedData.usuarios;
+  const personalRaw: any = Array.isArray(usuarioRaw?.personal) ? usuarioRaw.personal[0] : usuarioRaw?.personal;
+
   const newMessage = {
     ...insertedData,
-    doctor_nombre: insertedData.usuarios?.personal?.length > 0 
-      ? `${insertedData.usuarios.personal[0].nombre} ${insertedData.usuarios.personal[0].apellido}`
-      : null
+    doctor_nombre: personalRaw ? `${personalRaw.nombre} ${personalRaw.apellido}` : null,
   };
 
   return { success: true, message: newMessage };

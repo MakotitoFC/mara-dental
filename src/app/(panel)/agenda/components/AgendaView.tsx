@@ -12,23 +12,20 @@ import { WeekView } from "./WeekView";
 import { DayView } from "./DayView";
 import { YearView } from "./YearView";
 import { CronogramaView } from "./CronogramaView";
-// import { MultiDoctorDayView, type DoctorLite } from "./MultiDoctorDayView";
+// import { MultiDoctorDayView } from "./MultiDoctorDayView";
 // import { MultiDoctorWeekTimeGrid } from "./MultiDoctorWeekTimeGrid";
 // import { YearHeatmapView } from "./YearHeatmapView";
 import { DayAppointmentsSheet } from "./DayAppointmentsSheet";
 import { AppointmentDetailSheet } from "./AppointmentDetailSheet";
 import { CitaFormSheet, type CitaFormState, type PatientLite } from "./CitaFormSheet";
 import { scaleIn } from "@/lib/animations";
-// import { getDoctorVars, type DoctorMap } from "./doctorColors";
-
-type DoctorLite = { id: string; nombre: string; apellido: string; especialidad?: string };
-type DoctorMap = Record<string, { nombre: string; initials: string; vars: { solid: string; bg: string; text: string } }>;
+// import { getDoctorVars } from "./doctorColors";
 const getDoctorVars = (_id: string) => ({ solid: "#0ea5e9", bg: "#dbeafe", text: "#075985" });
 const MultiDoctorDayView = (_props: any) => null;
 const MultiDoctorWeekTimeGrid = (_props: any) => null;
 const YearHeatmapView = (_props: any) => null;
 import {
-  type CalView,
+  type CalView, type DoctorLite, type DoctorMap,
   addDays, getMonday, toDateStr, MONTHS_L, initials,
 } from "./agendaUtils";
 
@@ -262,7 +259,7 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
                 doctorFiltro={doctorFiltro}
                 onDoctorFiltroChange={setDoctorFiltro}
                 onEventClick={openDetail}
-                onCellClick={(d, hr) => openCreate(d, hr)}
+                onCellClick={(d: Date, hr: string) => openCreate(d, hr)}
                 onDayClick={goToDay}
                 onDateJump={jumpToWeek}
               />
@@ -285,7 +282,7 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
                 doctores={doctoresFiltrados}
                 today={today}
                 onEventClick={openDetail}
-                onCellClick={(doctorId, d, hr) => openCreate(d, hr, doctorId)}
+                onCellClick={(doctorId: string, d: Date, hr: string) => openCreate(d, hr, doctorId)}
               />
             )}
             {view === "day" && !isAsistente && (

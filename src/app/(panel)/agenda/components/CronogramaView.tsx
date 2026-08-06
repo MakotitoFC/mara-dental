@@ -6,8 +6,7 @@ import type { Cita } from "@/types/agenda";
 import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { staggerContainer, staggerItem } from "@/lib/animations";
-import { fmtFechaLarga, toDateStr } from "./agendaUtils";
-import type { DoctorMap } from "./doctorColors";
+import { fmtFechaLarga, toDateStr, type DoctorMap } from "./agendaUtils";
 
 export function CronogramaView({ citas, today, onEventClick, doctorMap }: {
   citas: Cita[];

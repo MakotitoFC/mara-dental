@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import type { Cita } from "@/types/agenda";
 import { estadoCitaVars } from "@/lib/colors";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
-import { DAY_SHORT, HOURS, SLOT_H, FIRST_H, shortName, timeToMin, toDateStr } from "./agendaUtils";
-import type { DoctorMap } from "./doctorColors";
+import { DAY_SHORT, HOURS, SLOT_H, FIRST_H, shortName, timeToMin, toDateStr, type DoctorMap } from "./agendaUtils";
 
 function NowLine() {
   const [now, setNow] = useState(() => new Date());

@@ -7,7 +7,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { staggerContainer, staggerItem } from "@/lib/animations";
-import type { DoctorMap } from "./doctorColors";
+import type { DoctorMap } from "./agendaUtils";
 
 export function DayAppointmentsSheet({
   date, citas, onClose, onSelectCita, onNewCita, doctorMap,

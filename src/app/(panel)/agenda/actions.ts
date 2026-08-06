@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 // import { doctoresMockDeSede } from "./components/doctoresMock";
 
-type AgendaDoctorStub = { id: string; apellido: string };
+type AgendaDoctorStub = { id: string; nombre: string; apellido: string; especialidad: string | null };
 function doctoresMockDeSede(sedeId: string, excludeUserId?: string): AgendaDoctorStub[] {
   return [];
 }
