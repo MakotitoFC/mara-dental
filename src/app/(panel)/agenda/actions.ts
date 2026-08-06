@@ -2,7 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { doctoresMockDeSede } from "./components/doctoresMock";
+// import { doctoresMockDeSede } from "./components/doctoresMock";
+function doctoresMockDeSede(sedeId: string, excludeUserId?: string) {
+  return [];
+}
 
 /**
  * Médicos de la sede — TEMPORAL vía datos mock (ver doctoresMock.ts).

@@ -1,7 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { doctoresMockDeSede } from "../agenda/components/doctoresMock";
+// import { doctoresMockDeSede } from "../agenda/components/doctoresMock";
+function doctoresMockDeSede(sedeId: string | number, excludeUserId?: string) {
+  return [];
+}
 
 export interface CitaAgendada {
   id: string;
