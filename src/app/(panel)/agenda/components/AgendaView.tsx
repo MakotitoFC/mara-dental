@@ -19,7 +19,10 @@ import { DayAppointmentsSheet } from "./DayAppointmentsSheet";
 import { AppointmentDetailSheet } from "./AppointmentDetailSheet";
 import { CitaFormSheet, type CitaFormState, type PatientLite } from "./CitaFormSheet";
 import { scaleIn } from "@/lib/animations";
-import { getDoctorVars, type DoctorMap } from "./doctorColors";
+// import { getDoctorVars, type DoctorMap } from "./doctorColors";
+
+type DoctorMap = Record<string, { nombre: string; initials: string; vars: { solid: string; bg: string; text: string } }>;
+const getDoctorVars = (_id: string) => ({ solid: "#0ea5e9", bg: "#dbeafe", text: "#075985" });
 import {
   type CalView,
   addDays, getMonday, toDateStr, MONTHS_L, initials,

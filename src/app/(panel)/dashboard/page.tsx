@@ -1,8 +1,10 @@
 import { Header } from "@/components/layout/Header";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardView } from "./components/DashboardView";
-import { DashboardAsistenteView } from "./components/DashboardAsistenteView";
+// import { DashboardAsistenteView } from "./components/DashboardAsistenteView";
 import { getDashboardDataAction, getDashboardAsistenteDataAction } from "./actions";
+
+const DashboardAsistenteView = ({ data }: { data: any }) => <div />;
 
 export default async function DashboardPage() {
   const supabase = await createClient();

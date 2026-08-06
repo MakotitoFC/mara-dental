@@ -8,8 +8,9 @@ import { VIEW_LABELS, VIEW_ICONS, ESTADO_ORDER, ESTADO_ICON } from "./agendaUtil
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
 import type { EstadoCita } from "@/types/agenda";
-import { getDoctorVars } from "./doctorColors";
+// import { getDoctorVars } from "./doctorColors";
 import type { DoctorLite } from "./MultiDoctorDayView";
+const getDoctorVars = (_id: string) => ({ solid: "#0ea5e9", bg: "#dbeafe", text: "#075985" });
 
 const VIEWS: CalView[] = ["day", "week", "month", "year", "cronograma"];
 

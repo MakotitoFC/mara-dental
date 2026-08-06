@@ -20,8 +20,11 @@ import {
   searchMedicamentosAction,
   getSedeInfoAction,
 } from "../../consulta.actions";
-import { getPerfilProfesionalAction, type PerfilProfesional } from "../../../../configuracion/actions";
+// import { getPerfilProfesionalAction, type PerfilProfesional } from "../../../../configuracion/actions";
 import { useToast } from "@/components/ui/Toast";
+
+type PerfilProfesional = any;
+const getPerfilProfesionalAction = async (): Promise<null> => null;
 
 interface Medicamento {
   id: number;
@@ -72,12 +75,12 @@ export function RecetaSection(props: SectionProps) {
   const [recetas, setRecetas] = useState<Receta[]>(initial || []);
   const [showModal, setShowModal] = useState(false);
   const [sede, setSede] = useState<ClinicaInfo | null>(null);
-  const [firmante, setFirmante] = useState<PerfilProfesional | null>(null);
+  const [firmante, setFirmante] = useState<any | null>(null);
   const edad = pacienteFechaNacimiento ? calcEdad(pacienteFechaNacimiento) : null;
 
   useEffect(() => {
     getSedeInfoAction().then(setSede).catch(() => {});
-    getPerfilProfesionalAction().then(setFirmante).catch(() => {});
+    // getPerfilProfesionalAction().then(setFirmante).catch(() => {});
   }, []);
 
   const toast = useToast();
