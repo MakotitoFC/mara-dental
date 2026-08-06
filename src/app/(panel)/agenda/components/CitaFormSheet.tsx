@@ -9,8 +9,12 @@ import type { Cita, EstadoCita } from "@/types/agenda";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { searchPatients, createCitaAction, updateCitaAction, createPacienteRapidoAction } from "../actions";
 import { getContextoClinicoPacienteAction, type ContextoClinicoPaciente } from "../../pacientes/[id]/consulta.actions";
-import { contextoClinicoMockDePaciente } from "./contextoClinicoMock";
+// import { contextoClinicoMockDePaciente } from "./contextoClinicoMock";
 import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
+
+function contextoClinicoMockDePaciente(_patientId: string): ContextoClinicoPaciente | null {
+  return null;
+}
 import { ESTADO_ICON, calcHoraFin, fmtHora12, fmtFechaLarga } from "./agendaUtils";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import type { DoctorLite } from "./MultiDoctorDayView";

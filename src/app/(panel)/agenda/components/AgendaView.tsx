@@ -12,17 +12,21 @@ import { WeekView } from "./WeekView";
 import { DayView } from "./DayView";
 import { YearView } from "./YearView";
 import { CronogramaView } from "./CronogramaView";
-import { MultiDoctorDayView, type DoctorLite } from "./MultiDoctorDayView";
-import { MultiDoctorWeekTimeGrid } from "./MultiDoctorWeekTimeGrid";
-import { YearHeatmapView } from "./YearHeatmapView";
+// import { MultiDoctorDayView, type DoctorLite } from "./MultiDoctorDayView";
+// import { MultiDoctorWeekTimeGrid } from "./MultiDoctorWeekTimeGrid";
+// import { YearHeatmapView } from "./YearHeatmapView";
 import { DayAppointmentsSheet } from "./DayAppointmentsSheet";
 import { AppointmentDetailSheet } from "./AppointmentDetailSheet";
 import { CitaFormSheet, type CitaFormState, type PatientLite } from "./CitaFormSheet";
 import { scaleIn } from "@/lib/animations";
 // import { getDoctorVars, type DoctorMap } from "./doctorColors";
 
+type DoctorLite = { id: string; nombre: string; apellido: string; especialidad?: string };
 type DoctorMap = Record<string, { nombre: string; initials: string; vars: { solid: string; bg: string; text: string } }>;
 const getDoctorVars = (_id: string) => ({ solid: "#0ea5e9", bg: "#dbeafe", text: "#075985" });
+const MultiDoctorDayView = (_props: any) => null;
+const MultiDoctorWeekTimeGrid = (_props: any) => null;
+const YearHeatmapView = (_props: any) => null;
 import {
   type CalView,
   addDays, getMonday, toDateStr, MONTHS_L, initials,
