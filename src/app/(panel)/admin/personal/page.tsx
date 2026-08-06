@@ -1,94 +1,74 @@
-"use client";
+import { createClient } from "@/lib/supabase/server";
+import { getPersonalAction, getFiltrosPersonalAction, getAllSedesAction } from "./personal.actions";
+import PersonalClient from "./PersonalClient";
+import { redirect } from "next/navigation";
 
-import { useEffect, useState } from "react";
-import { Icon } from "@/components/ui/Icon";
-import { getMetricasPersonalAction } from "../admin.actions";
-import { Header } from "@/components/layout/Header";
+export default async function PersonalPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-export default function PersonalPage() {
-  const [personal, setPersonal] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  if (!user) {
+    redirect("/login");
+  }
 
-  useEffect(() => {
-    async function load() {
-      const data = await getMetricasPersonalAction();
-      setPersonal(data);
-      setLoading(false);
-    }
-    load();
-  }, []);
+  const { data: profile } = await supabase
+    .from("usuarios")
+    .select("rol(rol), sede_id")
+    .eq("id", user.id)
+    .single();
+
+  const userRole = profile?.rol?.rol;
+  if (userRole !== "admin" && userRole !== "superadmin") {
+    redirect("/dashboard");
+  }
+
+  const params = await searchParams;
+  const page = parseInt((params.page as string) || "1", 10);
+  const search = (params.search as string) || "";
+  const especialidadId = params.especialidadId ? parseInt(params.especialidadId as string, 10) : null;
+  const puestoId = params.puestoId ? parseInt(params.puestoId as string, 10) : null;
+  const sedeId = params.sedeId ? parseInt(params.sedeId as string, 10) : profile.sede_id;
+
+  const { data, count, totalPages } = await getPersonalAction({
+    page,
+    limit: 20,
+    search,
+    especialidadId,
+    puestoId,
+    sedeId,
+  });
+
+  const { especialidades, puestos } = await getFiltrosPersonalAction();
+  
+  let sedes: any[] = [];
+  if (userRole === "superadmin") {
+    sedes = await getAllSedesAction();
+  }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900">
-      <Header 
-        breadcrumbs={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Personal" }]}
-      />
-      <div className="p-6 flex-1 overflow-auto">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Directorio de Personal</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Administra a los empleados y visualiza su rendimiento.</p>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center p-12">
-              <div className="w-8 h-8 border-2 border-t-cyan-500 rounded-full animate-spin"></div>
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
-                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Empleado</th>
-                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Puesto</th>
-                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Citas Atendidas</th>
-                      <th className="py-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ingresos Gen.</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {personal.map((p) => (
-                      <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-cyan-100 dark:bg-cyan-900/50 flex items-center justify-center text-cyan-600 dark:text-cyan-400 font-bold">
-                              {p.nombreCompleto.charAt(0)}
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{p.nombreCompleto}</p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">{p.especialidad}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                            {p.puesto}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-slate-600 dark:text-slate-300">
-                          {p.citasAtendidas}
-                        </td>
-                        <td className="py-3 px-4 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                          S/ {p.ingresosGenerados.toLocaleString("es-PE", { minimumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    ))}
-                    {personal.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="py-8 text-center text-slate-500 dark:text-slate-400">
-                          No se encontró personal registrado en esta sede.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
+    <div className="w-full max-w-[1400px] mx-auto p-4 md:p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-800">Personal</h1>
+        <p className="text-slate-500 mt-1">
+          Administra el personal de la sede
+        </p>
       </div>
+
+      <PersonalClient
+        initialData={data}
+        initialCount={count}
+        totalPages={totalPages}
+        currentPage={page}
+        especialidades={especialidades}
+        puestos={puestos}
+        sedes={sedes}
+        userRole={userRole}
+        userSedeId={profile.sede_id}
+      />
     </div>
   );
 }

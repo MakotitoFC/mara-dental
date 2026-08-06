@@ -43,8 +43,12 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
   const hasActiveCase = casosActivos.length > 0;
   const [selectedCasoId, setSelectedCasoId] = useState<string>(hasActiveCase ? casosActivos[0].id : "nuevo");
   const [tituloCaso, setTituloCaso] = useState<string>("");
-  const [selectedCitaId, setSelectedCitaId] = useState<string>(citasProgramadasHoy[0]?.id || "");
-  const [tipoConsultaId, setTipoConsultaId] = useState<string>(tipos[0]?.id || "");
+  const initialCita = citasProgramadasHoy[0];
+  const matchedTipo = initialCita?.tipo_consulta_id || 
+                      (initialCita?.tipo_consulta?.tipo_consulta ? tipos.find(t => t.tipo_consulta === initialCita.tipo_consulta?.tipo_consulta)?.id : null);
+  
+  const [selectedCitaId, setSelectedCitaId] = useState<string>(initialCita?.id || "");
+  const [tipoConsultaId, setTipoConsultaId] = useState<string>(matchedTipo || tipos[0]?.id || "");
   
   // Para input datetime-local la fecha debe ser YYYY-MM-DDThh:mm
   const [fechaConsulta, setFechaConsulta] = useState<string>(() => {
@@ -195,7 +199,11 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
               {citasProgramadasHoy.map(c => (
                 <button
                   key={c.id}
-                  onClick={() => setSelectedCitaId(c.id)}
+                  onClick={() => {
+                    setSelectedCitaId(c.id);
+                    const matchingId = c.tipo_consulta_id || (c.tipo_consulta?.tipo_consulta ? tipos.find(t => t.tipo_consulta === c.tipo_consulta?.tipo_consulta)?.id : null);
+                    if (matchingId) setTipoConsultaId(matchingId);
+                  }}
                   className={`shrink-0 snap-start px-4 py-3 border rounded-xl flex items-center gap-3 text-left transition-all ${
                     selectedCitaId === c.id 
                       ? "border-cyan-500 bg-cyan-50/50 dark:bg-cyan-900/20 ring-1 ring-cyan-500" 
@@ -237,7 +245,8 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, onClose, onC
               type="datetime-local"
               value={fechaConsulta}
               onChange={e => setFechaConsulta(e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+              disabled
+              className="w-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 rounded-xl px-3 py-2.5 text-[14px] outline-none cursor-not-allowed"
             />
           </div>
         </div>

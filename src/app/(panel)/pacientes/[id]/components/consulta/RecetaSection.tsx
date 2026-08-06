@@ -65,6 +65,10 @@ export function RecetaSection(props: SectionProps) {
   const [sede, setSede] = useState<ClinicaInfo | null>(null);
 
   useEffect(() => {
+    setRecetas(initial || []);
+  }, [initial]);
+
+  useEffect(() => {
     getSedeInfoAction().then(setSede).catch(() => {});
   }, []);
 

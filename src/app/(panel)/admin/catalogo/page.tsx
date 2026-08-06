@@ -168,6 +168,19 @@ export default function CatalogoTratamientosPage() {
                   </select>
                 </div>
               </div>
+
+              <div className="flex items-center gap-2 mt-2">
+                <input 
+                  type="checkbox" 
+                  id="activoCheckbox"
+                  checked={formData.activo} 
+                  onChange={e => setFormData(p => ({...p, activo: e.target.checked}))}
+                  className="w-4 h-4 text-cyan-600 bg-slate-100 border-slate-300 rounded focus:ring-cyan-500"
+                />
+                <label htmlFor="activoCheckbox" className="text-sm font-semibold text-slate-700 cursor-pointer">
+                  Tratamiento Activo
+                </label>
+              </div>
             </div>
 
             <div className="p-5 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
