@@ -7,6 +7,15 @@ import { revalidatePath } from "next/cache";
 export async function getChatInfoAction(pacienteId: string, page: number = 0, limit: number = 20) {
   const supabase = await createClient();
 
+  // Marcar mensajes como leídos si estamos cargando la primera página
+  if (page === 0) {
+    await supabase.from("messages")
+      .update({ is_read: true })
+      .eq("paciente_id", pacienteId)
+      .eq("direction", "inbound")
+      .eq("is_read", false);
+  }
+
   const { data: paciente, error: pacError } = await supabase
     .from("pacientes")
     .select("telegram_chat_id, telegram_link_code, chat_activated_at")

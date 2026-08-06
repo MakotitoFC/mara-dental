@@ -55,7 +55,10 @@ async function resolveConsultaIdsParaPaciente(supabase: SupabaseClient, paciente
 
 // ── Consulta activa — bundle consolidado para los tabs de la Ficha ─────────
 
+import { unstable_noStore as noStore } from "next/cache";
+
 export async function getConsultaActivaAction(consultaId: string, pacienteId: string) {
+  noStore();
   const supabase = await createClient();
 
   const { data: consulta, error } = await supabase
@@ -102,11 +105,11 @@ export async function getConsultaActivaAction(consultaId: string, pacienteId: st
 
   const diagnostico = diagnosticos.length > 0 ? diagnosticos[0] : null;
 
-  const [tratamientos, recetas, recomendaciones, presupuesto, mediosPago] = await Promise.all([
+  const [tratamientos, recetas, recomendaciones, presupuestos, mediosPago] = await Promise.all([
     diagnostico ? getTratamientosAction(diagnostico.id) : Promise.resolve([]),
     diagnostico ? getRecetasAction(diagnostico.id) : Promise.resolve([]),
     getRecomendacionesConsultaAction(consultaId),
-    getPresupuestoActivoAction(pacienteId),
+    getPresupuestosNotaClinicaAction(consulta.nota_clinica_id),
     getMediosPagoAction(),
   ]);
 
@@ -131,7 +134,7 @@ export async function getConsultaActivaAction(consultaId: string, pacienteId: st
     tratamientos,
     recetas,
     recomendaciones,
-    presupuesto,
+    presupuestos,
     mediosPago,
   };
 }
@@ -154,6 +157,7 @@ export async function searchCIE10Action(query: string) {
  * mostrar el historial cuando no hay una consulta en curso.
  */
 export async function getDiagnosticosPacienteAction(pacienteId: string) {
+  noStore();
   const supabase = await createClient();
 
 
@@ -448,6 +452,7 @@ export async function deleteArchivoClinicoAction(archivoId: string, urlPath: str
 }
 
 export async function getTratamientosAction(diagnosticoId: string) {
+  noStore();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tratamiento")
@@ -528,12 +533,12 @@ export async function saveTratamientoAction(data: { diagnostico_id: string; cons
     return { error: "No se pudo guardar el tratamiento" };
   }
 
-  // 3. Buscar presupuesto pendiente de esta consulta (nota_clinica_id)
+  // 3. Buscar presupuesto pendiente de este diagnóstico
   let presupuestoId: string | null = null;
   const { data: presExistente } = await supabase
     .from("presupuestos")
     .select("id, total_bruto")
-    .eq("nota_clinica_id", nota_clinica_id)
+    .eq("diagnostico_id", data.diagnostico_id)
     .eq("estado", "pendiente")
     .single();
 
@@ -549,6 +554,7 @@ export async function saveTratamientoAction(data: { diagnostico_id: string; cons
       paciente_id: data.paciente_id,
       doctor_id: user.id,
       nota_clinica_id,
+      diagnostico_id: data.diagnostico_id,
       total_bruto: catalogo.precio,
       estado: "pendiente",
     }).select("id").single();
@@ -584,6 +590,12 @@ export async function deleteTratamientoAction(id: string, pacienteId: string) {
   // 1. Desvincular citas
   await supabase.from("citas").update({ tratamiento_id: null }).eq("tratamiento_id", id);
 
+  // 1.5 Obtener info del tratamiento para descontarlo del presupuesto
+  const { data: tratData } = await supabase.from("tratamiento")
+    .select("diagnostico_id, catalogo_tratamiento_id, catalogo_tratamientos(precio)")
+    .eq("id", id)
+    .single();
+
   // 2. Obtener fases para eliminar dependencias
   const { data: fases } = await supabase.from("plan_tratamiento").select("id").eq("tratamiento_id", id);
   if (fases && fases.length > 0) {
@@ -604,6 +616,43 @@ export async function deleteTratamientoAction(id: string, pacienteId: string) {
   if (error) {
     console.error("deleteTratamientoAction error:", error);
     return { error: "No se pudo eliminar el tratamiento" };
+  }
+
+  // 4. Descontar del presupuesto (si existe)
+  if (tratData && tratData.diagnostico_id) {
+    const { data: presExistente } = await supabase.from("presupuestos")
+      .select("id, total_bruto")
+      .eq("diagnostico_id", tratData.diagnostico_id)
+      .eq("estado", "pendiente")
+      .single();
+
+    if (presExistente) {
+      const precio = Number((tratData as any).catalogo_tratamientos?.precio || 0);
+      
+      // Actualizar total
+      await supabase.from("presupuestos").update({
+        total_bruto: Math.max(0, Number(presExistente.total_bruto) - precio)
+      }).eq("id", presExistente.id);
+
+      // Buscar si el item está en el detalle
+      const { data: det } = await supabase.from("detalle_presupuesto")
+        .select("id, cantidad, precio_unitario, subtotal")
+        .eq("presupuesto_id", presExistente.id)
+        .eq("catalogo_tratamiento_id", tratData.catalogo_tratamiento_id)
+        .limit(1)
+        .single();
+      
+      if (det) {
+        if (det.cantidad > 1) {
+          await supabase.from("detalle_presupuesto").update({
+            cantidad: det.cantidad - 1,
+            subtotal: Number(det.subtotal) - Number(det.precio_unitario)
+          }).eq("id", det.id);
+        } else {
+          await supabase.from("detalle_presupuesto").delete().eq("id", det.id);
+        }
+      }
+    }
   }
   
   revalidatePath(`/pacientes/${pacienteId}`);
@@ -694,6 +743,7 @@ export async function saveAvanceAction(data: { plan_tratamiento_id: string; cons
 // ── Receta ────────────────────────────────────────────────────────────────────
 
 export async function getRecetasAction(diagnosticoId: string) {
+  noStore();
   const supabase = await createClient();
   const { data } = await supabase
     .from("recetas")
@@ -762,6 +812,7 @@ export async function deleteMedicamentoAction(id: string, pacienteId: string) {
 // ── Recomendaciones ───────────────────────────────────────────────────────────
 
 export async function getRecomendacionesConsultaAction(consultaId: string) {
+  noStore();
   const supabase = await createClient();
   const { data } = await supabase
     .from("recomendacion")
@@ -803,8 +854,63 @@ export async function getMediosPagoAction() {
   return data || [];
 }
 
+export async function getPresupuestosNotaClinicaAction(notaClinicaId: string) {
+  noStore();
+  const supabase = await createClient();
+  if (!notaClinicaId) return [];
+
+  const { data: presupuestos, error } = await supabase
+    .from("presupuestos")
+    .select(`
+      id, fecha_emision, total_bruto, descuento_porcentaje, descuento_monto, estado, fecha_aprobacion, notas, diagnostico_id,
+      diagnostico!inner ( diagnostico ),
+      usuarios!doctor_id ( personal ( nombre, apellido ) ),
+      detalle_presupuesto ( id, catalogo_tratamiento_id, cantidad, precio_unitario, subtotal, catalogo_tratamientos ( id, nombre, descripcion, moneda ) ),
+      movimiento_caja ( id, monto, fecha, medio_pago_id, referencia, estado, observacion, medio_pago ( id, nombre ) )
+    `)
+    .eq("nota_clinica_id", notaClinicaId)
+    .order("fecha_emision", { ascending: false });
+
+  if (error) {
+    console.error("Error getPresupuestosNotaClinicaAction:", error);
+    return [];
+  }
+
+  return (presupuestos || []).map((presupuesto: any) => {
+    const doctor = (presupuesto.usuarios as any)?.personal;
+    return {
+      id: presupuesto.id,
+      diagnostico_id: presupuesto.diagnostico_id,
+      diagnostico_nombre: presupuesto.diagnostico?.diagnostico || "Diagnóstico",
+      fecha_emision: presupuesto.fecha_emision,
+      doctor_nombre: doctor ? `${doctor.nombre} ${doctor.apellido}` : null,
+      total_bruto: Number(presupuesto.total_bruto),
+      descuento_porcentaje: Number(presupuesto.descuento_porcentaje) || 0,
+      descuento_monto: Number(presupuesto.descuento_monto) || 0,
+      estado: presupuesto.estado,
+      fecha_aprobacion: presupuesto.fecha_aprobacion,
+      notas: presupuesto.notas,
+      items: (presupuesto.detalle_presupuesto || []).map((d: any) => ({
+        id: d.id,
+        tratamiento_id: d.catalogo_tratamiento_id,
+        nombre: d.catalogo_tratamientos?.nombre ?? "Ítem",
+        descripcion: d.catalogo_tratamientos?.descripcion ?? null,
+        moneda: d.catalogo_tratamientos?.moneda ?? "PEN",
+        cantidad: Number(d.cantidad) || 1,
+        precio_unitario: Number(d.precio_unitario),
+        subtotal: Number(d.subtotal),
+      })),
+      pagos: (presupuesto.movimiento_caja || []).map((p: any) => ({
+        id: p.id, monto: Number(p.monto), fecha_pago: p.fecha, medio_pago_id: p.medio_pago_id,
+        medio_pago_nombre: p.medio_pago?.nombre ?? "—", referencia: p.referencia, estado: p.estado, observaciones: p.observacion,
+      })),
+    };
+  });
+}
+
 /** Presupuesto más reciente del paciente (no está scoped por consulta — el esquema no lo permite). */
 export async function getPresupuestoActivoAction(pacienteId: string) {
+  noStore();
   const supabase = await createClient();
   if (!pacienteId) return null;
 
@@ -976,6 +1082,11 @@ export async function editPresupuestoAction(data: {
   
   if (data.items.length === 0) return { error: "Agrega al menos un ítem al presupuesto" };
 
+  const { data: presInfo } = await supabase.from("presupuestos").select("diagnostico_id, nota_clinica_id").eq("id", data.presupuesto_id).single();
+  if (!presInfo || !presInfo.diagnostico_id) return { error: "El presupuesto no tiene un diagnóstico válido" };
+
+  const { data: oldDetails } = await supabase.from("detalle_presupuesto").select("catalogo_tratamiento_id, cantidad").eq("presupuesto_id", data.presupuesto_id);
+
   const total_bruto = data.items.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0);
   const descuento_monto = (total_bruto * (data.descuento_porcentaje || 0)) / 100;
 
@@ -1011,6 +1122,70 @@ export async function editPresupuestoAction(data: {
   if (dErr) {
     console.error("editPresupuestoAction detalle error:", dErr);
     return { error: "No se pudieron actualizar los ítems del presupuesto" };
+  }
+
+  // ==== SINCRONIZACIÓN CON TRATAMIENTOS ====
+  const oldMap = new Map<number, number>();
+  (oldDetails || []).forEach(d => oldMap.set(d.catalogo_tratamiento_id, d.cantidad));
+
+  const newMap = new Map<number, number>();
+  data.items.forEach(i => newMap.set(Number(i.catalogo_id), i.cantidad));
+
+  const toAdd: { catId: number, count: number }[] = [];
+  const toRemove: { catId: number, count: number }[] = [];
+
+  newMap.forEach((count, catId) => {
+    const oldCount = oldMap.get(catId) || 0;
+    if (count > oldCount) toAdd.push({ catId, count: count - oldCount });
+  });
+
+  oldMap.forEach((oldCount, catId) => {
+    const newCount = newMap.get(catId) || 0;
+    if (oldCount > newCount) toRemove.push({ catId, count: oldCount - newCount });
+  });
+
+  // Agregar nuevos tratamientos
+  for (const item of toAdd) {
+    for (let i = 0; i < item.count; i++) {
+      const { data: trat } = await supabase.from("tratamiento").insert({
+        diagnostico_id: presInfo.diagnostico_id,
+        nota_clinica_id: presInfo.nota_clinica_id,
+        tratamiento: "Tratamiento desde Presupuesto",
+        catalogo_tratamiento_id: item.catId
+      }).select("id").single();
+
+      if (trat) {
+        await supabase.from("plan_tratamiento").insert({
+          tratamiento_id: trat.id,
+          fase: "Planeado",
+          orden: 1,
+          estado: "pendiente"
+        });
+      }
+    }
+  }
+
+  // Quitar tratamientos eliminados
+  for (const item of toRemove) {
+    const { data: tratsToRemove } = await supabase.from("tratamiento")
+      .select("id")
+      .eq("diagnostico_id", presInfo.diagnostico_id)
+      .eq("catalogo_tratamiento_id", item.catId)
+      .limit(item.count);
+    
+    if (tratsToRemove && tratsToRemove.length > 0) {
+      for (const t of tratsToRemove) {
+        await supabase.from("citas").update({ tratamiento_id: null }).eq("tratamiento_id", t.id);
+        const { data: fases } = await supabase.from("plan_tratamiento").select("id").eq("tratamiento_id", t.id);
+        if (fases && fases.length > 0) {
+           const faseIds = fases.map(f => f.id);
+           await supabase.from("archivos_clinicos").update({ plan_tratamiento_id: null }).in("plan_tratamiento_id", faseIds);
+           await supabase.from("procedimiento_efectuado").delete().in("plan_tratamiento_id", faseIds);
+           await supabase.from("plan_tratamiento").delete().in("id", faseIds);
+        }
+        await supabase.from("tratamiento").delete().eq("id", t.id);
+      }
+    }
   }
 
   revalidatePath(`/pacientes/${data.paciente_id}`);

@@ -77,9 +77,14 @@ export function HistoriaView({
   const refetchConsultaData = useCallback(async () => {
     if (!consultaId) return;
     setLoadingConsulta(true);
-    const data = await getConsultaActivaAction(consultaId, String(p.id));
-    setConsultaData(data);
-    setLoadingConsulta(false);
+    try {
+      const data = await getConsultaActivaAction(consultaId, String(p.id));
+      setConsultaData(data);
+    } catch (e) {
+      console.error("Error al cargar datos de consulta:", e);
+    } finally {
+      setLoadingConsulta(false);
+    }
   }, [consultaId, p.id]);
 
   useEffect(() => {

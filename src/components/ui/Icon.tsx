@@ -25,7 +25,8 @@ import {
   Briefcase, GraduationCap, Church,
   Sun, Moon, Laptop, ListChecks, Home,
   Eraser, Type, MoveUpRight,
-  Send, FolderHeart, History, Network, Copy, CheckCheck
+  Send, FolderHeart, History, Network, Copy, CheckCheck,
+  Landmark, Calculator, BadgeDollarSign, TrendingUp, UserCheck, Database
 } from "lucide-react";
 
 interface IconProps {
@@ -64,6 +65,12 @@ const ICONS: Record<string, LucideIcon> = {
   admin_panel_settings: Shield,
   analytics:            BarChart,
   account_tree:         Network,
+  account_balance:      Landmark,
+  point_of_sale:        Calculator,
+  price_check:          BadgeDollarSign,
+  group_add:            UserPlus,
+  timeline:             TrendingUp,
+  how_to_reg:           UserCheck,
 
   // Médico / clínico
   medical_services:     Hospital,
@@ -149,11 +156,16 @@ const ICONS: Record<string, LucideIcon> = {
   // Archivos / carpetas
   folder:               Folder,
   folder_open:          FolderOpen,
+  folder_special:       FolderHeart,
   description:          File,
+  insert_drive_file:    FileText,
   sticky_note_2:        StickyNote,
   notes:                StickyNote,
+  note:                 StickyNote,
+  history_edu:          History,
+  file:                 File,
 
-  // Imágenes
+  // UI / Controles
   image:                ImageIcon,
   photo_camera:         Camera,
   panorama:             ImageIcon,
@@ -175,6 +187,8 @@ const ICONS: Record<string, LucideIcon> = {
   history_edu:          History,
   eye:                  Eye,
   eye_off:              EyeOff,
+  visibility:           Eye,
+  picture_as_pdf:       FileText,
   zoom_in:              ZoomIn,
   zoom_out:             ZoomOut,
   pin_drop:             MapPin,
@@ -203,6 +217,7 @@ const ICONS: Record<string, LucideIcon> = {
   dark_mode:            Moon,
   devices:              Laptop,
   schedule_view:        ListChecks,
+  database:             Database,
 };
 
 // Iconos con SVG propio (no vienen de lucide-react) — mismo contrato de props.

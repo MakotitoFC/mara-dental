@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
@@ -24,6 +24,10 @@ export function RecomendacionesSection({
   const [contenido, setContenido] = useState("");
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    setRecomendaciones(initial || []);
+  }, [initial]);
+
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editContenido, setEditContenido] = useState("");
 
@@ -35,10 +39,22 @@ export function RecomendacionesSection({
   async function handleAdd() {
     if (!contenido.trim()) return;
     setSaving(true);
-    const res = await saveRecomendacionAction({ consulta_id: String(consultaId), contenido, paciente_id: String(pacienteId) });
+    
+    // Update optimistically
+    const tempId = Date.now();
+    const tempContent = contenido;
+    setRecomendaciones(prev => [{ id: tempId, contenido: tempContent, created_at: new Date().toISOString() }, ...prev]);
+    setContenido(""); 
+    setCreating(false);
+
+    const res = await saveRecomendacionAction({ consulta_id: String(consultaId), contenido: tempContent, paciente_id: String(pacienteId) });
     setSaving(false);
-    if (!res?.error) {
-      setContenido(""); setCreating(false);
+    
+    if (res?.error) {
+      setRecomendaciones(prev => prev.filter(r => r.id !== tempId));
+      setContenido(tempContent);
+      setCreating(true);
+    } else {
       onSaved?.();
     }
   }

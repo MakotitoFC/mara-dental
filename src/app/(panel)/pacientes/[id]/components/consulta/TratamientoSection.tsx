@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
@@ -42,6 +42,10 @@ export function TratamientoSection({
 }: { diagnosticoId: string; consultaId: string; pacienteId: string; initial: Tratamiento[]; enabled?: boolean; onItemsChange?: (items: Tratamiento[]) => void }) {
   const [items, setItems] = useState<Tratamiento[]>(initial);
   const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    setItems(initial || []);
+  }, [initial]);
   
   // Agregar tratamiento
   const [query, setQuery] = useState("");

@@ -45,3 +45,7 @@ rls-problematicas.md
 test.js
 rls-complements.sql
 supabase/*
+database.sqlite
+.sqlite
+dashboard.md
+rls_updates.sql

@@ -211,13 +211,18 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
   // Sin consulta activa: se muestra el historial completo del paciente (solo lectura de la lista, con vista/edición individual).
   const [historialPaciente, setHistorialPaciente] = useState<any[] | null>(null);
   const fetchHistorialPaciente = useCallback(async () => {
-    const list = await getDiagnosticosPacienteAction(String(pacienteId));
-    setHistorialPaciente(list);
+    try {
+      const list = await getDiagnosticosPacienteAction(String(pacienteId));
+      setHistorialPaciente(list || []);
+    } catch (e) {
+      console.error("Error al cargar historial de diagnósticos:", e);
+      setHistorialPaciente([]);
+    }
   }, [pacienteId]);
 
   useEffect(() => {
-    if (!consultaId) fetchHistorialPaciente();
-  }, [consultaId, fetchHistorialPaciente]);
+    fetchHistorialPaciente();
+  }, [fetchHistorialPaciente]);
 
   if (!consultaId) {
     if (historialPaciente === null) return <DiagnosticoSkeleton />;
@@ -250,8 +255,14 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
   if (loading || !data) return <DiagnosticoSkeleton />;
 
   const actual = data.diagnostico;
-  const historial = data.historialDiagnosticos ?? [];
-  const todos = actual ? [actual, ...historial] : historial;
+  const historial = historialPaciente ?? [];
+  
+  // Como `historialPaciente` ya contiene TODOS los diagnósticos del paciente (incluso el 'actual' si ya se guardó),
+  // y están ordenados por fecha, podemos usarlo directamente. Si por alguna razón 'actual' aún no está en el historial
+  // (por un desfase muy pequeño de tiempo), lo agregamos al inicio asegurándonos de no duplicarlo.
+  const todos = actual 
+    ? (historial.find(d => d.id === actual.id) ? historial : [actual, ...historial]) 
+    : historial;
 
   const items = planItems ?? data.planTrabajo ?? [];
   const totalFases = items.length;
@@ -343,7 +354,11 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch }:
             <DiagnosticoForm
               consultaId={String(consultaId)}
               pacienteId={String(pacienteId)}
-              onSaved={() => { setShowForm(false); refetch(); }}
+              onSaved={() => { 
+                setShowForm(false); 
+                refetch(); 
+                fetchHistorialPaciente();
+              }}
             />
           </Modal>
         )}
