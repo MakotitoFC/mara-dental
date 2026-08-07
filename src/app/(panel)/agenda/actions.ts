@@ -2,12 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-// import { doctoresMockDeSede } from "./components/doctoresMock";
-
-type AgendaDoctorStub = { id: string; nombre: string; apellido: string; especialidad: string | null };
-function doctoresMockDeSede(sedeId: string, excludeUserId?: string): AgendaDoctorStub[] {
-  return [];
-}
+import { doctoresMockDeSede } from "./components/doctoresMock";
+import type { DoctorLite } from "./components/agendaUtils";
 
 /**
  * Médicos de la sede — TEMPORAL vía datos mock (ver doctoresMock.ts).
@@ -18,7 +14,7 @@ function doctoresMockDeSede(sedeId: string, excludeUserId?: string): AgendaDocto
  * del rol asistente) — `getCitasRealesAction`, que usa la vista de doctor,
  * no pasa por aquí.
  */
-function fetchDoctoresSede(sedeId: string, excludeUserId: string): AgendaDoctorStub[] {
+function fetchDoctoresSede(sedeId: string, excludeUserId: string): DoctorLite[] {
   return doctoresMockDeSede(sedeId, excludeUserId);
 }
 

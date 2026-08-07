@@ -20,11 +20,8 @@ import {
   searchMedicamentosAction,
   getSedeInfoAction,
 } from "../../consulta.actions";
-// import { getPerfilProfesionalAction, type PerfilProfesional } from "../../../../configuracion/actions";
+import { getPerfilProfesionalAction, type PerfilProfesional } from "../../../../configuracion/actions";
 import { useToast } from "@/components/ui/Toast";
-
-type PerfilProfesional = any;
-const getPerfilProfesionalAction = async (): Promise<null> => null;
 
 interface Medicamento {
   id: number;
