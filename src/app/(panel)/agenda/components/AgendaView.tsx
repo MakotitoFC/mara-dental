@@ -12,18 +12,14 @@ import { WeekView } from "./WeekView";
 import { DayView } from "./DayView";
 import { YearView } from "./YearView";
 import { CronogramaView } from "./CronogramaView";
-// import { MultiDoctorDayView } from "./MultiDoctorDayView";
-// import { MultiDoctorWeekTimeGrid } from "./MultiDoctorWeekTimeGrid";
-// import { YearHeatmapView } from "./YearHeatmapView";
+import { MultiDoctorDayView } from "./MultiDoctorDayView";
+import { MultiDoctorWeekTimeGrid } from "./MultiDoctorWeekTimeGrid";
+import { YearHeatmapView } from "./YearHeatmapView";
 import { DayAppointmentsSheet } from "./DayAppointmentsSheet";
 import { AppointmentDetailSheet } from "./AppointmentDetailSheet";
 import { CitaFormSheet, type CitaFormState, type PatientLite } from "./CitaFormSheet";
 import { scaleIn } from "@/lib/animations";
-// import { getDoctorVars } from "./doctorColors";
-const getDoctorVars = (_id: string) => ({ solid: "#0ea5e9", bg: "#dbeafe", text: "#075985" });
-const MultiDoctorDayView = (_props: any) => null;
-const MultiDoctorWeekTimeGrid = (_props: any) => null;
-const YearHeatmapView = (_props: any) => null;
+import { getDoctorVars } from "./doctorColors";
 import {
   type CalView, type DoctorLite, type DoctorMap,
   addDays, getMonday, toDateStr, MONTHS_L, initials,
