@@ -83,9 +83,8 @@ export function HistoriaView({
     try {
       const data = await getConsultaActivaAction(consultaId, String(p.id));
       setConsultaData(data);
-    } catch (err) {
-      console.error("Error cargando datos de la consulta activa:", err);
-      setConsultaData(null);
+    } catch (e) {
+      console.error("Error al cargar datos de consulta:", e);
     } finally {
       setLoadingConsulta(false);
     }

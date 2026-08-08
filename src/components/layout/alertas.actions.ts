@@ -2,46 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server";
 
-export interface AlertaCitaProxima {
-  id: string;
-  pacienteNombre: string;
-  fecha: string;
-  horaInicio: string;
-  tipoConsulta: string;
-}
-
-export interface AlertaCumpleanos {
-  id: string;
-  nombre: string;
-  edad: number;
-  fecha: string;
-  esHoy: boolean;
-}
-
-export interface AlertaAlergia {
-  id: string;
-  pacienteId: string;
-  pacienteNombre: string;
-  alergias: string[];
-  horaInicio: string;
-}
-
-export interface AlertaTratamiento {
-  id: string;
-  pacienteNombre: string;
-  fase: string;
-  estado: string;
-}
-
-export interface AlertasData {
-  citasProximas: AlertaCitaProxima[];
-  cumpleanos: AlertaCumpleanos[];
-  alergias: AlertaAlergia[];
-  tratamientosPendientes: AlertaTratamiento[];
-}
-
-const EMPTY: AlertasData = { citasProximas: [], cumpleanos: [], alergias: [], tratamientosPendientes: [] };
-
 function calcularEdad(fechaNacimiento: string): number {
   const hoy = new Date();
   const nacimiento = new Date(fechaNacimiento + "T00:00:00");
@@ -63,23 +23,89 @@ function diasHastaCumple(fechaNacimiento: string, hoy: Date): number | null {
   return Math.round((proximo.getTime() - hoySinHora.getTime()) / 86400000);
 }
 
+const EMPTY = { citasProximas: [], cumpleanos: [], alergias: [], tratamientosPendientes: [], mensajesNoLeidos: [] };
+
+export interface AlertaCitaProxima {
+  id: string;
+  pacienteNombre: string;
+  fecha: string;
+  horaInicio: string;
+  tipoConsulta: string;
+}
+
+export interface AlertaCumpleanos {
+  id: string;
+  nombre: string;
+  edad: number;
+  fecha: string;
+  esHoy: boolean;
+}
+
+export interface AlertaAlergias {
+  id: string;
+  pacienteNombre: string;
+  horaInicio: string;
+  alergias: string[];
+}
+
+export interface AlertaTratamiento {
+  id: string;
+  pacienteNombre: string;
+  fase: string;
+  estado: string;
+}
+
+export interface AlertaMensaje {
+  id: string;
+  pacienteId: string;
+  pacienteNombre: string;
+  cantidad: number;
+}
+
+export interface AlertasData {
+  citasProximas: AlertaCitaProxima[];
+  cumpleanos: AlertaCumpleanos[];
+  alergias: AlertaAlergias[];
+  tratamientosPendientes: AlertaTratamiento[];
+  mensajesNoLeidos?: AlertaMensaje[];
+}
+
+function fmtHoraCita(fecha: string, horaInicio: string) {
+  const [h, m] = (horaInicio || "00:00:00").split(":");
+  let hh = parseInt(h, 10);
+  const ampm = hh >= 12 ? "PM" : "AM";
+  hh = hh % 12 || 12;
+  const hora = `${hh}:${m} ${ampm}`;
+
+  const ts = new Date(`${fecha}T${horaInicio || "00:00:00"}`);
+  const hoy = new Date();
+  const manana = new Date(hoy);
+  manana.setDate(manana.getDate() + 1);
+
+  let dia = "Próximamente";
+  if (ts.toDateString() === hoy.toDateString()) dia = "Hoy";
+  else if (ts.toDateString() === manana.toDateString()) dia = "Mañana";
+  else dia = ts.toLocaleDateString("es-ES", { weekday: "short", day: "numeric" });
+
+  return `${dia} · ${hora}`;
+}
+
 export async function getAlertasAction(): Promise<AlertasData> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return EMPTY;
 
-  const doctorId = user.id;
   const now = new Date();
   const hoyStr = now.toISOString().split("T")[0];
   const en48h = new Date(now.getTime() + 48 * 3600 * 1000);
   const limiteStr = en48h.toISOString().split("T")[0];
   const hace90dias = new Date(now.getTime() - 90 * 86400000).toISOString();
 
-  const [citasRes, pacientesRes, consultasRes] = await Promise.all([
+  const [citasRes, pacientesRes, consultasRes, messagesRes] = await Promise.all([
     supabase
       .from("citas")
       .select("id, fecha, hora_inicio, tipo_consulta, estado, paciente_id, pacientes ( id, nombre, apellido, alergias )")
-      .eq("doctor_id", doctorId)
+      .eq("doctor_id", user.id)
       .gte("fecha", hoyStr)
       .lte("fecha", limiteStr)
       .neq("estado", "cancelada")
@@ -100,13 +126,17 @@ export async function getAlertasAction(): Promise<AlertasData> {
           tratamiento ( id, plan_tratamiento ( id, fase, estado ) )
         )
       `)
-      .eq("doctor_id", doctorId)
+      .eq("doctor_id", user.id)
       .gte("fecha_consulta", hace90dias)
       .order("fecha_consulta", { ascending: false })
       .limit(40),
+    supabase
+      .from("messages")
+      .select("paciente_id")
+      .eq("direction", "inbound")
+      .eq("is_read", false),
   ]);
 
-  // Citas próximas (24-48h, excluye canceladas)
   const citasProximas: AlertaCitaProxima[] = (citasRes.data || [])
     .filter((c: any) => {
       const ts = new Date(`${c.fecha}T${(c.hora_inicio || "00:00:00").slice(0, 8)}`);
@@ -120,7 +150,6 @@ export async function getAlertasAction(): Promise<AlertasData> {
       tipoConsulta: c.tipo_consulta || "",
     }));
 
-  // Cumpleaños de la semana (próximos 7 días, incluye hoy)
   const cumpleanos: AlertaCumpleanos[] = (pacientesRes.data || [])
     .map((p: any) => {
       if (!p.fecha_nacimiento) return null;
@@ -139,19 +168,18 @@ export async function getAlertasAction(): Promise<AlertasData> {
     .sort((a: any, b: any) => a._dias - b._dias)
     .map(({ _dias, ...rest }: any) => rest);
 
-  // Pacientes con alergias registradas que tienen cita hoy
-  const alergias: AlertaAlergia[] = (citasRes.data || [])
-    .filter((c: any) => c.fecha === hoyStr && Array.isArray(c.pacientes?.alergias) && c.pacientes.alergias.length > 0)
+  const alergias: AlertaAlergias[] = (citasRes.data || [])
+    .filter((c: any) => c.fecha === hoyStr && c.pacientes?.alergias && c.pacientes.alergias.length > 0)
     .map((c: any) => ({
       id: String(c.id),
-      pacienteId: String(c.pacientes.id),
-      pacienteNombre: `${c.pacientes.nombre} ${c.pacientes.apellido}`.trim(),
+      pacienteNombre: `${c.pacientes?.nombre ?? ""} ${c.pacientes?.apellido ?? ""}`.trim(),
+      horaInicio: fmtHoraCita(c.fecha, c.hora_inicio),
       alergias: c.pacientes.alergias,
-      horaInicio: (c.hora_inicio || "").slice(0, 5),
     }));
 
-  // Tratamientos con fases del plan de trabajo aún no terminadas
   const tratamientosPendientes: AlertaTratamiento[] = [];
+  const tratamientosMap: Record<string, AlertaTratamiento> = {};
+
   for (const c of consultasRes.data || []) {
     const pacienteNombre = `${(c as any).citas?.pacientes?.nombre ?? ""} ${(c as any).citas?.pacientes?.apellido ?? ""}`.trim();
     for (const d of (c as any).diagnostico || []) {
@@ -171,5 +199,31 @@ export async function getAlertasAction(): Promise<AlertasData> {
     if (tratamientosPendientes.length >= 8) break;
   }
 
-  return { citasProximas, cumpleanos, alergias, tratamientosPendientes: tratamientosPendientes.slice(0, 8) };
+  const pacientesInfo = Object.fromEntries(
+    (pacientesRes.data || []).map((p: any) => [String(p.id), `${p.nombre ?? ""} ${p.apellido ?? ""}`.trim()])
+  );
+
+  console.log("MESSAGES RES DATA:", messagesRes.data, "ERROR:", messagesRes.error);
+
+  const mensajesMap: Record<string, AlertaMensaje> = {};
+  (messagesRes.data || []).forEach((m: any) => {
+    if (!mensajesMap[m.paciente_id]) {
+      mensajesMap[m.paciente_id] = {
+        id: `msg-${m.paciente_id}`,
+        pacienteId: String(m.paciente_id),
+        pacienteNombre: pacientesInfo[m.paciente_id] || "Paciente",
+        cantidad: 0,
+      };
+    }
+    mensajesMap[m.paciente_id].cantidad++;
+  });
+
+  const mensajesNoLeidos: AlertaMensaje[] = Object.values(mensajesMap).map((m: any) => ({
+    ...m,
+    id: `msg-${m.pacienteId}-${m.cantidad}`
+  }));
+
+  console.log("MAPPED MESSAGES:", mensajesNoLeidos);
+
+  return { citasProximas, cumpleanos, alergias, tratamientosPendientes: tratamientosPendientes.slice(0, 8), mensajesNoLeidos };
 }

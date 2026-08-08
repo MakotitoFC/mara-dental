@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export async function getDashboardMetricsAction(rangoFechas: { inicio?: string; fin?: string }, sedeId?: number) {
   const supabase = await createClient();
@@ -39,83 +40,48 @@ export async function getDashboardMetricsAction(rangoFechas: { inicio?: string; 
   };
 }
 
-export async function getAllPacientesAdminAction(filtros: { sedeId?: number; activo?: string; search?: string }) {
+
+
+export async function getAuditoriaLogsAction({
+  accion,
+  usuario,
+  tabla,
+  fecha,
+  page = 1,
+}: {
+  accion?: string;
+  usuario?: string;
+  tabla?: string;
+  fecha?: string;
+  page?: number;
+} = {}) {
   const supabase = await createClient();
-  let query = supabase.from("pacientes").select(`
-    id, nombre, apellido, dni, telefono, activo,
-    sede ( nombre_clinica )
-  `);
-
-  if (filtros.sedeId) query = query.eq("sede_id", filtros.sedeId);
-  if (filtros.activo === "true") query = query.eq("activo", true);
-  if (filtros.activo === "false") query = query.eq("activo", false);
-  if (filtros.search) {
-    query = query.or(`nombre.ilike.%${filtros.search}%,apellido.ilike.%${filtros.search}%,dni.ilike.%${filtros.search}%`);
-  }
-
-  const { data, error } = await query.order("created_at", { ascending: false });
-  if (error) console.error("Error fetching pacientes admin:", error);
-  return data || [];
-}
-
-export async function getPacienteAdminDetailsAction(id: number) {
-  const supabase = await createClient();
-
-  // Paciente y Sede
-  const { data: paciente } = await supabase
-    .from("pacientes")
-    .select("*, sede(nombre_clinica)")
-    .eq("id", id)
-    .single();
-
-  // Contacto
-  const { data: contactos } = await supabase.from("contacto").select("*").eq("paciente_id", id);
-
-  // Finanzas: Presupuestos, Pagos, Cuotas
-  const { data: presupuestos } = await supabase.from("presupuestos").select(`
-    *,
-    detalle_presupuesto(*),
-    pagos(*),
-    cuotas(*)
-  `).eq("paciente_id", id);
-
-  // Archivos
-  const { data: archivos } = await supabase.from("archivos_clinicos").select("*").eq("diagnostico_id.in", `(select id from diagnostico where consulta_origen_id in (select id from consultas where cita_id in (select id from citas where paciente_id=${id})))`); 
-  
-  // Mejor obtener archivos por consulta_id o plan_tratamiento_id
-  let archivosFallback = null;
-  try {
-    const res = await supabase.rpc("get_paciente_archivos", { p_id: id });
-    archivosFallback = res.data;
-  } catch (err) {
-    // Ignorar si el rpc no existe
-  }
-  // Como la consulta de archivos puede ser compleja sin función, haremos fetch de consultas y sus archivos
-  const { data: consultas } = await supabase.from("consultas").select(`
-    id, fecha_consulta, motivo, observaciones,
-    cita:cita_id(estado),
-    diagnostico(diagnostico, es_definitivo, recetas(id, estado)),
-    odontograma(id, tipo_tratamiento, notas_generales, odontograma_diente(diente, condicion, superficie))
-  `).in("cita_id", (await supabase.from("citas").select("id").eq("paciente_id", id)).data?.map(c=>c.id) || []);
-
-  return {
-    paciente,
-    contactos: contactos || [],
-    presupuestos: presupuestos || [],
-    consultas: consultas || [],
-    archivos: [] // Por tiempo, usaremos lo básico
-  };
-}
-
-export async function getAuditoriaLogsAction() {
-  const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("logs_auditoria")
-    .select("*, usuarios(rol_id)")
-    .order("fecha", { ascending: false })
-    .limit(50);
+    .select(`*, usuarios!inner(personal(nombre, apellido, email))`, { count: "exact" })
+    .order("fecha", { ascending: false });
+
+  if (accion) query = query.ilike("accion", `%${accion}%`);
+  if (tabla) query = query.ilike("tabla_afectada", `%${tabla}%`);
+  if (usuario) {
+    const u = `%${usuario}%`;
+    query = query.or(`personal.nombre.ilike.${u},personal.apellido.ilike.${u}`, { referencedTable: "usuarios" });
+  }
   
-  return data || [];
+  if (fecha) {
+    if (fecha.length === 4) { // Es un año (e.g. "2026")
+      query = query.gte("fecha", `${fecha}-01-01`).lt("fecha", `${Number(fecha) + 1}-01-01`);
+    } else { // Fecha específica "YYYY-MM-DD"
+      query = query.gte("fecha", `${fecha} 00:00:00`).lt("fecha", `${fecha} 23:59:59`);
+    }
+  }
+
+  const limit = 20;
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data, count } = await query.range(from, to);
+  return { data: data || [], count: count || 0 };
 }
 
 export async function getReportePagosAction() {
@@ -183,20 +149,46 @@ export async function getCatalogoAction() {
   return data || [];
 }
 
+function getAdminClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 export async function toggleTratamientoActivoAction(id: number, activo: boolean) {
-  const supabase = await createClient();
+  const supabase = getAdminClient();
   const { error } = await supabase.from("catalogo_tratamientos").update({ activo }).eq("id", id);
   if (error) return { error: error.message };
   return { success: true };
 }
 
 export async function saveTratamientoAction(data: any) {
-  const supabase = await createClient();
+  const supabase = getAdminClient();
   if (data.id) {
     const { error } = await supabase.from("catalogo_tratamientos").update(data).eq("id", data.id);
     if (error) return { error: error.message };
   } else {
     const { error } = await supabase.from("catalogo_tratamientos").insert([data]);
+    if (error) return { error: error.message };
+  }
+  return { success: true };
+}
+
+export async function getCie10Action() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("cie10").select("*").order("codigo");
+  return data || [];
+}
+
+export async function saveCie10Action(data: any) {
+  const supabase = getAdminClient();
+  if (data.codigo_antiguo) {
+    const { codigo_antiguo, ...updateData } = data;
+    const { error } = await supabase.from("cie10").update(updateData).eq("codigo", codigo_antiguo);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from("cie10").insert([data]);
     if (error) return { error: error.message };
   }
   return { success: true };
