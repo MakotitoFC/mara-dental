@@ -21,7 +21,6 @@ export function RegistrarPagoSheet({
   onSaved: (presupuestoId: string, nuevoSaldo: number, montoPagado: number, medioNombre: string) => void;
 }) {
   const sedeNombre = sede?.nombre_clinica ?? "MaraDental";
-  const esMock = presupuesto.id.startsWith("mock-");
   const [monto, setMonto] = useState(presupuesto.saldo > 0 ? presupuesto.saldo.toFixed(2) : "");
   const [medioId, setMedioId] = useState<string>(mediosPago[0] ? String(mediosPago[0].id) : "");
   const [referencia, setReferencia] = useState("");
@@ -31,7 +30,7 @@ export function RegistrarPagoSheet({
 
   const [paso, setPaso] = useState<"form" | "resultado">("form");
   const [nuevoSaldo, setNuevoSaldo] = useState(0);
-  const [voucherEstado, setVoucherEstado] = useState<"enviado" | "sin_telegram" | "fallido" | "mock" | null>(null);
+  const [voucherEstado, setVoucherEstado] = useState<"enviado" | "sin_telegram" | "fallido" | null>(null);
   const [voucherError, setVoucherError] = useState("");
   const [voucherTexto, setVoucherTexto] = useState("");
   const [enviandoVoucher, setEnviandoVoucher] = useState(false);
@@ -60,20 +59,15 @@ export function RegistrarPagoSheet({
     setSaving(true);
     setError("");
 
-    // Los pendientes "mock-*" (pagosMock.ts) no existen en la BD — simular el
-    // registro localmente en vez de escribir, así se puede previsualizar el
-    // comprobante mientras no haya presupuestos reales con saldo pendiente.
-    if (!esMock) {
-      const res = await registrarPagoAction({
-        presupuesto_id: presupuesto.id,
-        monto: m,
-        medio_pago_id: medioId || null,
-        referencia: referencia || undefined,
-        observaciones: observaciones || undefined,
-        paciente_id: presupuesto.paciente_id,
-      });
-      if (res?.error) { setSaving(false); setError(res.error); return; }
-    }
+    const res = await registrarPagoAction({
+      presupuesto_id: presupuesto.id,
+      monto: m,
+      medio_pago_id: medioId || null,
+      referencia: referencia || undefined,
+      observaciones: observaciones || undefined,
+      paciente_id: presupuesto.paciente_id,
+    });
+    if (res?.error) { setSaving(false); setError(res.error); return; }
     setSaving(false);
 
     const saldoRestante = Math.max(0, presupuesto.saldo - m);
@@ -95,11 +89,7 @@ export function RegistrarPagoSheet({
     setVoucherTexto(texto);
     setPaso("resultado");
 
-    if (esMock) {
-      setVoucherEstado("mock");
-    } else {
-      intentarEnviarVoucher(texto);
-    }
+    intentarEnviarVoucher(texto);
   }
 
   async function handleExportarVoucher(mode: "print" | "pdf") {
@@ -242,15 +232,6 @@ export function RegistrarPagoSheet({
             </p>
           </div>
 
-          {esMock && (
-            <div className="flex items-center gap-2 px-3.5 py-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl">
-              <Icon name="info" size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
-              <p className="text-[11.5px] text-amber-700 dark:text-amber-400 font-medium">
-                Vista previa con datos de ejemplo — no se guardó nada en la base de datos ni se envió ningún mensaje real.
-              </p>
-            </div>
-          )}
-
           <div className="rounded-xl border border-slate-200 dark:border-slate-700 px-3.5 py-3">
             {enviandoVoucher ? (
               <p className="flex items-center gap-2 text-[12.5px] text-slate-500 dark:text-slate-400">
@@ -264,10 +245,6 @@ export function RegistrarPagoSheet({
             ) : voucherEstado === "sin_telegram" ? (
               <p className="flex items-center gap-2 text-[12.5px] text-slate-500 dark:text-slate-400">
                 <Icon name="info" size={15} /> Paciente sin Telegram configurado — comprobante no enviado
-              </p>
-            ) : voucherEstado === "mock" ? (
-              <p className="flex items-center gap-2 text-[12.5px] text-slate-500 dark:text-slate-400">
-                <Icon name="info" size={15} /> Envío por Telegram omitido (pago de ejemplo)
               </p>
             ) : voucherEstado === "fallido" ? (
               <div className="flex flex-col gap-2">

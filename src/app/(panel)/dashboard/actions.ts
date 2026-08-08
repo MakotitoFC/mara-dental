@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { doctoresMockDeSede } from "../agenda/components/doctoresMock";
+import { fetchDoctoresSede } from "../agenda/actions";
 
 export interface CitaAgendada {
   id: string;
@@ -116,7 +116,7 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
 // ── Dashboard del asistente — resumen operativo de toda la sede ────────────
 // A diferencia de getDashboardDataAction (un solo doctor = el usuario
 // logueado), este junta las citas de HOY de todos los médicos de la sede
-// (lista mock temporal, ver agenda/components/doctoresMock.ts).
+// (vía fetchDoctoresSede, ver agenda/actions.ts).
 
 function timeToMinLocal(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -178,7 +178,7 @@ export async function getDashboardAsistenteDataAction(): Promise<DashboardAsiste
   const jsDay = ahora.getDay();
   const diaSemanaHoy = jsDay === 0 ? 7 : jsDay; // 1=Lunes..7=Domingo, igual que createCitaAction
 
-  const doctores = doctoresMockDeSede(usr.sede_id, user.id);
+  const doctores = await fetchDoctoresSede(usr.sede_id, user.id);
   const doctorIds = doctores.map((d) => d.id);
   const doctorNombreById = new Map(doctores.map((d) => [d.id, `Dr. ${d.apellido}`]));
 
@@ -311,8 +311,8 @@ export async function getDashboardAsistenteDataAction(): Promise<DashboardAsiste
 export async function enviarSaludoCumpleañosAction(pacienteId: string, chatId: string | null, texto: string) {
   if (!chatId) return { error: "Paciente sin Telegram configurado" };
 
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return { error: "Falta configurar TELEGRAM_BOT_TOKEN en el backend" };
+  const token = process.env.TELEGRAM_TOKEN;
+  if (!token) return { error: "Falta configurar TELEGRAM_TOKEN en el backend" };
 
   let enviado = false;
   let telegramError: string | null = null;

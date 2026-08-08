@@ -344,7 +344,7 @@ export default function LoginPage() {
           </div>
 
           <div className="text-white/40 text-xs">
-            © {new Date().getFullYear()} Mara Dental Group. Todos los derechos reservados.
+            © {new Date().getFullYear()} Kumo Systems. Todos los derechos reservados.
           </div>
         </div>
       </div>

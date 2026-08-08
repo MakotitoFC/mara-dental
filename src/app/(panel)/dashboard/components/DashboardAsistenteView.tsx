@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
-import { useAuth } from "@/components/layout/AuthProvider";
 import { staggerContainer, staggerItem, fadeIn, scaleIn } from "@/lib/animations";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
@@ -12,25 +11,6 @@ import { getDoctorVars } from "../../agenda/components/doctorColors";
 import type { EstadoCita } from "@/types/agenda";
 import type { DashboardAsistenteData, CumpleañosHoyConTelegram } from "../actions";
 import { enviarSaludoCumpleañosAction } from "../actions";
-
-function saludoDelDia() {
-  const h = new Date().getHours();
-  if (h < 12) return "Buenos días";
-  if (h < 19) return "Buenas tardes";
-  return "Buenas noches";
-}
-
-function WaveEmoji() {
-  return (
-    <motion.span
-      className="inline-block origin-[70%_70%] text-[28px] sm:text-[32px] leading-none"
-      animate={{ rotate: [0, 16, -8, 16, -4, 0] }}
-      transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 2.4, ease: "easeInOut" }}
-    >
-      👋
-    </motion.span>
-  );
-}
 
 function initials(nombre: string) {
   const partes = nombre.trim().split(/\s+/);
@@ -161,7 +141,6 @@ function BirthdayModal({ pacientes, onClose }: { pacientes: CumpleañosHoyConTel
 
 export function DashboardAsistenteView({ data }: { data: DashboardAsistenteData }) {
   const { citasHoy, statsCitasHoy, statsProgramadas, statsCanceladas, statsHuecosLibres, disponibilidad, alertas, cumpleañosHoy } = data;
-  const { user } = useAuth();
   const [birthdayOpen, setBirthdayOpen] = useState(false);
   const { getVars } = useTipoConsultaVars();
 
@@ -178,15 +157,10 @@ export function DashboardAsistenteView({ data }: { data: DashboardAsistenteData 
 
   return (
     <motion.div variants={staggerContainer(0.08)} initial="hidden" animate="visible" className="p-4 sm:p-6 flex flex-col gap-5 sm:gap-7">
-      {/* Bienvenida */}
+      {/* Encabezado */}
       <motion.div variants={staggerItem} className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <WaveEmoji />
-          <p className="text-[15px] sm:text-[17px] font-semibold text-slate-900 dark:text-slate-100">
-            {saludoDelDia()}{user?.name ? `, ${user.name}` : ""}
-          </p>
-        </div>
-        <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Resumen operativo para hoy{fechaLarga ? `, ${fechaLarga}` : ""}</p>
+        <p className="text-[15px] sm:text-[17px] font-semibold text-slate-900 dark:text-slate-100">Resumen operativo</p>
+        <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Para hoy{fechaLarga ? `, ${fechaLarga}` : ""}</p>
       </motion.div>
 
       {/* KPIs */}

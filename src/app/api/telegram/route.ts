@@ -21,9 +21,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Falta chatId o el paciente no tiene telegram configurado' }, { status: 400 });
     }
 
-    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const token = process.env.TELEGRAM_TOKEN;
     if (!token) {
-      return NextResponse.json({ error: 'Falta configurar TELEGRAM_BOT_TOKEN en el backend' }, { status: 500 });
+      return NextResponse.json({ error: 'Falta configurar TELEGRAM_TOKEN en el backend' }, { status: 500 });
     }
 
     if (file) {

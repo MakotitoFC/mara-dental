@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 
 export interface PresupuestoPendiente {
   id: string;
@@ -36,20 +37,17 @@ export interface PagosDashboardSede {
   comprobantesHoy: number;
   metodosPago: MetodoPagoResumen[];
   historial: PagoHistorial[];
-  esMock?: boolean;
 }
 
 const VACIO: PagosDashboardSede = { pendientes: [], ingresosHoy: 0, comprobantesHoy: 0, metodosPago: [], historial: [] };
 
-/** TEMPORAL: cualquier camino sin datos reales (sin sesión, sin sede, sin
- * pacientes, error de consulta) cae al mock en vez de a un estado vacío, así
- * el panel siempre tiene algo que mostrar para evaluar el diseño. Se loguea
- * el motivo exacto para poder diagnosticar si en algún punto debería haber
- * datos reales y no los hay (RLS, sede mal resuelta, etc). */
-async function conFallbackAMock(motivo: string): Promise<PagosDashboardSede> {
-  console.log(`[getPagosDashboardSedeAction] ${motivo} → usando datos de ejemplo (pagosMock.ts)`);
-  const { PAGOS_MOCK } = await import("./pagosMock");
-  return PAGOS_MOCK;
+/** Cualquier camino sin datos reales (sin sesión, sin sede, sin pacientes,
+ * error de consulta) devuelve el estado vacío real — se loguea el motivo
+ * exacto para poder diagnosticar si en algún punto debería haber datos
+ * reales y no los hay (RLS, sede mal resuelta, etc). */
+function conDiagnostico(motivo: string): PagosDashboardSede {
+  console.log(`[getPagosDashboardSedeAction] ${motivo} → sin datos, mostrando estado vacío`);
+  return VACIO;
 }
 
 /** Panel de pagos de la sede: pendientes de cobro, ingresos/comprobantes de
@@ -63,7 +61,7 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
   if (!user) return VACIO;
 
   const { data: usr } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
-  if (!usr?.sede_id) return conFallbackAMock("No se pudo resolver sede_id del asistente");
+  if (!usr?.sede_id) return conDiagnostico("No se pudo resolver sede_id del asistente");
 
   const { data: pacientesSede, error: pacError } = await supabase
     .from("pacientes")
@@ -73,16 +71,24 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
 
   if (pacError) {
     console.error("[getPagosDashboardSedeAction] Error obteniendo pacientes de la sede:", pacError);
-    return conFallbackAMock("Error consultando pacientes de la sede");
+    return conDiagnostico("Error consultando pacientes de la sede");
   }
 
   const pacienteIds = (pacientesSede || []).map((p: any) => String(p.id));
-  if (pacienteIds.length === 0) return conFallbackAMock(`Sede ${usr.sede_id} sin pacientes activos`);
+  if (pacienteIds.length === 0) return conDiagnostico(`Sede ${usr.sede_id} sin pacientes activos`);
 
   const pacienteNombreById = new Map((pacientesSede || []).map((p: any) => [String(p.id), `${p.nombre ?? ""} ${p.apellido ?? ""}`.trim()]));
   const pacienteChatById = new Map((pacientesSede || []).map((p: any) => [String(p.id), p.telegram_chat_id ?? null]));
 
-  const { data: presupuestos, error } = await supabase
+  // "presupuestos" (y "detalle_presupuesto") están bloqueadas por RLS para el
+  // rol asistente — confirmado: 0 filas incluso consultando la tabla directa
+  // sin filtros adicionales, para un presupuesto ya aprobado y verificado a
+  // existir vía el cliente admin. Se usa el cliente admin acá, siempre
+  // scopeado a los pacienteIds ya resueltos arriba con el cliente normal
+  // (nunca a un parámetro que venga del cliente) — mismo patrón (Opción A)
+  // que agenda/actions.ts y consulta.actions.ts.
+  const adminClient = getAdminClient();
+  const { data: presupuestos, error } = await adminClient
     .from("presupuestos")
     .select(`
       id, fecha_emision, total_bruto, descuento_monto, estado, paciente_id,
@@ -94,7 +100,7 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
 
   if (error) {
     console.error("[getPagosDashboardSedeAction] Error obteniendo presupuestos de la sede:", error);
-    return conFallbackAMock("Error consultando presupuestos de la sede");
+    return conDiagnostico("Error consultando presupuestos de la sede");
   }
 
   const hoyStr = new Date().toISOString().split("T")[0];
@@ -172,7 +178,7 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
     .sort((a, b) => b.monto - a.monto);
 
   if (pendientes.length === 0 && historialTodo.length === 0) {
-    return conFallbackAMock(`Sede ${usr.sede_id} sin presupuestos/pagos reales`);
+    return conDiagnostico(`Sede ${usr.sede_id} sin presupuestos/pagos reales`);
   }
 
   return {
@@ -185,15 +191,15 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
 }
 
 /** Envía el comprobante de pago por Telegram (llamada directa a la Bot API,
- * mismo TELEGRAM_BOT_TOKEN que usa src/app/api/telegram/route.ts) y deja
+ * mismo TELEGRAM_TOKEN que usa src/app/api/telegram/route.ts) y deja
  * registro en `mensajes_telegram` para el historial de Comunicaciones del
  * admin. Nunca lanza — si el paciente no tiene Telegram configurado o el
  * envío falla, devuelve un error informativo sin afectar el pago ya guardado. */
 export async function enviarVoucherPagoAction(pacienteId: string, chatId: string | null, texto: string) {
   if (!chatId) return { error: "Paciente sin Telegram configurado" };
 
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return { error: "Falta configurar TELEGRAM_BOT_TOKEN en el backend" };
+  const token = process.env.TELEGRAM_TOKEN;
+  if (!token) return { error: "Falta configurar TELEGRAM_TOKEN en el backend" };
 
   let enviado = false;
   let telegramError: string | null = null;

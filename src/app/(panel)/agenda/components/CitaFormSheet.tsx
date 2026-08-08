@@ -9,7 +9,6 @@ import type { Cita, EstadoCita } from "@/types/agenda";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { searchPatients, createCitaAction, updateCitaAction, createPacienteRapidoAction } from "../actions";
 import { getContextoClinicoPacienteAction, type ContextoClinicoPaciente } from "../../pacientes/[id]/consulta.actions";
-import { contextoClinicoMockDePaciente } from "./contextoClinicoMock";
 import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
 import { ESTADO_ICON, calcHoraFin, fmtHora12, fmtFechaLarga, type DoctorLite } from "./agendaUtils";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
@@ -61,7 +60,6 @@ export function CitaFormSheet({
   // procedimiento le toca. Nunca inventa contenido, solo lee lo ya registrado.
   const mostrarContextoClinico = !isEdit && role === "asistente";
   const [contexto, setContexto] = useState<ContextoClinicoPaciente | null>(null);
-  const [contextoEsMock, setContextoEsMock] = useState(false);
   const [cargandoContexto, setCargandoContexto] = useState(false);
   const [contextoAplicado, setContextoAplicado] = useState(false);
 
@@ -69,18 +67,11 @@ export function CitaFormSheet({
     if (!mostrarContextoClinico || !selectedPatient) { setContexto(null); setContextoAplicado(false); return; }
     let cancelado = false;
     setCargandoContexto(true);
-    getContextoClinicoPacienteAction(selectedPatient.id).then((real) => {
+    getContextoClinicoPacienteAction(selectedPatient.id).then((res) => {
       if (cancelado) return;
       setCargandoContexto(false);
-      // TEMPORAL: si la BD real no devuelve nada (sin datos, o RLS
-      // bloqueando la cadena diagnostico/tratamiento/plan_tratamiento — aún
-      // sin confirmar), se cae a un ejemplo mock solo para poder ver el
-      // flujo funcionando en la vista del asistente. Se loguea cuál de los
-      // dos casos ocurrió para poder diagnosticar.
-      const res = real ?? contextoClinicoMockDePaciente(selectedPatient.id);
-      console.log(real ? "[ContextoClinico] dato real de BD" : res ? "[ContextoClinico] BD sin datos → usando mock de ejemplo" : "[ContextoClinico] BD sin datos y mock también vacío para este paciente");
+      if (!res) console.log("[ContextoClinico] Sin datos para este paciente (sin historial registrado, o RLS bloqueando la cadena diagnostico/tratamiento/plan_tratamiento para el rol asistente — a confirmar si persiste).");
       setContexto(res);
-      setContextoEsMock(!real && !!res);
       if (res) {
         const etiqueta = res.tipo === "fase" ? "Próxima fase de tratamiento" : res.tipo === "tratamiento" ? "Tratamiento en curso" : "Diagnóstico activo (sin tratamiento registrado aún)";
         setNotas((prev) => {
@@ -319,11 +310,11 @@ export function CitaFormSheet({
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="text-[11.5px] text-slate-500 whitespace-nowrap">Nacimiento *</label>
-                        <input
-                          type="date"
+                        <DatePicker
                           value={newPatientData.fecha_nacimiento}
-                          onChange={e => setNewPatientData({...newPatientData, fecha_nacimiento: e.target.value})}
-                          className="flex-1 w-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400 uppercase"
+                          onChange={(v) => setNewPatientData({...newPatientData, fecha_nacimiento: v})}
+                          placeholder="Fecha de nacimiento"
+                          className="flex-1 w-0"
                         />
                       </div>
                       <button
@@ -360,7 +351,7 @@ export function CitaFormSheet({
             <Icon name="history_edu" size={15} className="text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5" />
             <div className="min-w-0">
               <p className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wide">
-                Contexto clínico{contextoEsMock && <span className="text-amber-500 dark:text-amber-400 normal-case font-semibold"> · ejemplo, no es un dato real</span>}
+                Contexto clínico
               </p>
               {cargandoContexto ? (
                 <p className="text-[12px] text-cyan-700 dark:text-cyan-400">Buscando tratamiento activo…</p>

@@ -1,21 +1,52 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { doctoresMockDeSede } from "./components/doctoresMock";
 import type { DoctorLite } from "./components/agendaUtils";
 
 /**
- * Médicos de la sede — TEMPORAL vía datos mock (ver doctoresMock.ts).
- * `usuarios`/`rol` están bloqueados por RLS a la propia fila del usuario
- * logueado y se descartó tocar policies o usar la service_role key, así que
- * hoy no hay forma de enumerar en vivo a los demás usuarios de la sede.
+ * Médicos de la sede — usa el cliente con service role porque RLS en
+ * "usuarios" solo permite leer la propia fila del usuario logueado (un
+ * asistente no puede ver a los demás médicos de su sede con el cliente
+ * normal, sujeto a RLS). El scoping de seguridad vive aquí mismo: `sedeId`
+ * siempre llega resuelto server-side desde la propia fila de quien llama
+ * (nunca desde un parámetro que pueda venir del cliente), así que esta
+ * función solo puede devolver médicos de la MISMA sede de quien la invoca.
  * Usado SOLO por `getDoctoresSedeAction`/`getCitasSedeAction` (exclusivas
  * del rol asistente) — `getCitasRealesAction`, que usa la vista de doctor,
  * no pasa por aquí.
  */
-function fetchDoctoresSede(sedeId: string, excludeUserId: string): DoctorLite[] {
-  return doctoresMockDeSede(sedeId, excludeUserId);
+export async function fetchDoctoresSede(sedeId: number | string, excludeUserId?: string): Promise<DoctorLite[]> {
+  const adminClient = getAdminClient();
+  let query = adminClient
+    .from("usuarios")
+    .select("id, rol ( rol ), personal ( nombre, apellido, especialidad ( especialidad ) )")
+    .eq("sede_id", sedeId)
+    .eq("activo", true);
+  if (excludeUserId) query = query.neq("id", excludeUserId);
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("[fetchDoctoresSede] Error obteniendo médicos de la sede:", error);
+    return [];
+  }
+
+  return (data || [])
+    .map((u: any) => {
+      const rolRaw = Array.isArray(u.rol) ? u.rol[0] : u.rol;
+      const personalRaw = Array.isArray(u.personal) ? u.personal[0] : u.personal;
+      const especialidadRaw = Array.isArray(personalRaw?.especialidad) ? personalRaw.especialidad[0] : personalRaw?.especialidad;
+      return {
+        id: u.id as string,
+        rol: rolRaw?.rol as string | undefined,
+        nombre: personalRaw?.nombre as string | undefined,
+        apellido: personalRaw?.apellido as string | undefined,
+        especialidad: (especialidadRaw?.especialidad as string | undefined) ?? null,
+      };
+    })
+    .filter((u) => u.rol === "doctor" && u.nombre && u.apellido)
+    .map((u) => ({ id: u.id, nombre: u.nombre!, apellido: u.apellido!, especialidad: u.especialidad }));
 }
 
 export async function searchPatients(query: string) {
@@ -276,7 +307,7 @@ export async function getDoctoresSedeAction() {
     return [];
   }
 
-  return fetchDoctoresSede(usr.sede_id, user.id);
+  return await fetchDoctoresSede(usr.sede_id, user.id);
 }
 
 /** Citas de TODOS los médicos de la sede del asistente logueado (no solo las
@@ -292,7 +323,7 @@ export async function getCitasSedeAction() {
     return [];
   }
 
-  const doctores = fetchDoctoresSede(usr.sede_id, user.id);
+  const doctores = await fetchDoctoresSede(usr.sede_id, user.id);
   if (doctores.length === 0) return [];
   const doctorIds = doctores.map((d) => d.id);
 
@@ -309,7 +340,7 @@ export async function getCitasSedeAction() {
   // El nombre embebido citas→usuarios→personal viene vía el cliente normal
   // (sujeto a RLS) y puede salir vacío para médicos que no son el usuario
   // logueado — se sobreescribe con el nombre real ya resuelto arriba vía
-  // la lista mock.
+  // fetchDoctoresSede (que sí usa el cliente admin, sin esa restricción).
   const nombreById = new Map(doctores.map((d) => [d.id, `Dr. ${d.apellido}`]));
   return citas.map(mapCitaRow).map((c) => ({ ...c, doctor_nombre: nombreById.get(c.doctor_id) ?? c.doctor_nombre }));
 }

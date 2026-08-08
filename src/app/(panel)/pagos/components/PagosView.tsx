@@ -74,7 +74,6 @@ export function PagosView({ initialDashboard, mediosPago, sede }: {
         metodosPago,
         ingresosHoy: prev.ingresosHoy + montoPagado,
         comprobantesHoy: prev.comprobantesHoy + 1,
-        esMock: false,
       };
     });
     setActivo(null);
@@ -99,15 +98,6 @@ export function PagosView({ initialDashboard, mediosPago, sede }: {
           <Icon name="search" size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
         </div>
       </div>
-
-      {dashboard.esMock && (
-        <div className="shrink-0 flex items-center gap-2 px-4 md:px-6 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800">
-          <Icon name="info" size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
-          <p className="text-[11.5px] text-amber-700 dark:text-amber-400 font-medium">
-            Mostrando datos de ejemplo — tu sede todavía no tiene presupuestos ni pagos registrados.
-          </p>
-        </div>
-      )}
 
       <div className="flex-1 overflow-y-auto no-scrollbar p-4 md:p-6">
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
