@@ -9,6 +9,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
 
 const NAV_MAIN = [
+  { href: "/dashboard",       icon: "home",             label: "Dashboard" },
   { href: "/admin/dashboard", icon: "space_dashboard", label: "Dashboard" },
   { href: "/admin/catalogo",  icon: "medical_information", label: "Catálogo Precios" },
   { href: "/admin/configuracion-tipos", icon: "category", label: "Config. Tipos" },
@@ -214,37 +215,32 @@ export function Sidebar() {
           );
         })}
 
+        <a
+          href="#"
+          onClick={(e) => { e.preventDefault(); logout(); }}
+          title={collapsed ? "Cerrar sesión" : undefined}
+          className={`flex items-center gap-3 mx-2 px-2.5 py-2.5 rounded-lg mb-0.5 group ring-1 ring-inset ring-red-200 dark:ring-red-900/50 text-red-500 dark:text-red-400 ${collapsed ? "justify-center" : ""}`}
+        >
+          <Icon
+            name="logout"
+            size={20}
+            className="shrink-0 text-red-500 dark:text-red-400"
+          />
+          {!collapsed && <span className="text-[13px] font-medium truncate">Cerrar sesión</span>}
+        </a>
+
         <div className={`flex items-center gap-2 mx-2 px-2 py-2 rounded-lg mt-1 ${collapsed ? "justify-center" : ""}`}>
           <div className="w-8 h-8 rounded-full bg-cyan-50 dark:bg-cyan-900/40 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center shrink-0">
             <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-400">{user?.initials ?? "…"}</span>
           </div>
 
           {!collapsed && (
-            <>
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-semibold text-slate-900 dark:text-slate-100 truncate">{user?.name ?? "Cargando…"}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{user?.rol ?? ""}</p>
-              </div>
-              <button
-                onClick={logout}
-                title="Cerrar sesión"
-                className="flex w-7 h-7 items-center justify-center rounded-lg text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors shrink-0"
-              >
-                <Icon name="logout" size={16} />
-              </button>
-            </>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-semibold text-slate-900 dark:text-slate-100 truncate">{user?.name ?? "Cargando…"}</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{user?.rol ?? ""}</p>
+            </div>
           )}
         </div>
-
-        {collapsed && (
-          <button
-            onClick={logout}
-            title="Cerrar sesión"
-            className="flex items-center justify-center w-full py-2 mt-1 text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors rounded-lg"
-          >
-            <Icon name="logout" size={18} />
-          </button>
-        )}
       </div>
     </motion.aside>
   );

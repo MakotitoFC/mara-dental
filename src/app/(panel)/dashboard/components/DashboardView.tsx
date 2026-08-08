@@ -200,12 +200,14 @@ export function DashboardView({ data }: { data: DashboardData }) {
       animate="visible"
       className="p-4 sm:p-6 flex flex-col gap-5 sm:gap-6"
     >
-      {/* Bienvenida */}
+      {/* Bienvenida — el saludo personalizado es exclusivo del rol doctor;
+          otros roles que también llegan a este dashboard (admin, contador)
+          solo ven el encabezado genérico. */}
       <motion.div variants={staggerItem} className="flex items-center gap-2.5 min-w-0">
-        <WaveEmoji />
+        {user?.rol === "doctor" && <WaveEmoji />}
         <div className="min-w-0">
           <p className="text-[15px] sm:text-[17px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate">
-            {saludoDelDia()}{user?.name ? `, ${user.name}` : ""}
+            {user?.rol === "doctor" ? `${saludoDelDia()}${user?.name ? `, ${user.name}` : ""}` : "Resumen del día"}
           </p>
           <p className="text-[11px] sm:text-[12px] text-slate-400 dark:text-slate-500 capitalize truncate">
             {fechaLarga}{user?.sede ? ` · ${user.sede}` : ""}

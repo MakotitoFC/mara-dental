@@ -69,13 +69,6 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     return d.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
   });
-  const [fechaConsultaHora, setFechaConsultaHora] = useState<string>(() => {
-    if (citaInicial) return citaInicial.hora_inicio;
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(11, 16);
-  });
-
   const [motivo, setMotivo] = useState("");
   const [observaciones, setObservaciones] = useState("");
   const [campos, setCampos] = useState<Campo[]>([{ clave: "", valor: "" }]);
@@ -99,7 +92,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
   async function handleGuardar() {
     if (!motivo.trim()) { setError("El motivo es obligatorio"); return; }
     if (!tipoConsultaId) { setError("Debes seleccionar un tipo de consulta"); return; }
-    if (!fechaConsulta || !fechaConsultaHora) { setError("La fecha de consulta es obligatoria"); return; }
+    if (!fechaConsulta) { setError("La fecha de consulta es obligatoria"); return; }
 
     setSaving(true); setError("");
 
@@ -121,7 +114,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
     const res = await agregarConsultaAction(notaIdToUse, {
       cita_id: selectedCitaId || undefined,
       tipo_consulta_id: tipoConsultaId,
-      fecha_consulta: new Date(`${fechaConsulta}T${fechaConsultaHora}`).toISOString(),
+      fecha_consulta: new Date(fechaConsulta).toISOString(),
       motivo: motivo.trim(),
       observaciones: observaciones.trim() || undefined,
       examen_fisico,
@@ -223,8 +216,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
                     setSelectedCitaId(c.id);
                     const matchingId = c.tipo_consulta_id || (c.tipo_consulta?.tipo_consulta ? tipos.find(t => t.tipo_consulta === c.tipo_consulta?.tipo_consulta)?.id : null);
                     if (matchingId) setTipoConsultaId(matchingId);
-                      setFechaConsulta(c.fecha);
-                      setFechaConsultaHora(c.hora_inicio);
+                    setFechaConsulta(`${c.fecha}T${c.hora_inicio}`);
                   }}
                   className={`shrink-0 snap-start px-4 py-3 border rounded-xl flex items-center gap-3 text-left transition-all ${
                     selectedCitaId === c.id 
@@ -251,15 +243,12 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-2">
             <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Tipo de consulta *</label>
-            <select
+            <Select
               value={tipoConsultaId}
-              onChange={e => setTipoConsultaId(e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
-            >
-              {tipos.map(t => (
-                <option key={t.id} value={t.id}>{t.tipo_consulta}</option>
-              ))}
-            </select>
+              onChange={setTipoConsultaId}
+              options={tipos.map(t => ({ value: t.id, label: t.tipo_consulta }))}
+              placeholder="Seleccionar…"
+            />
           </div>
           <div className="flex flex-col gap-2">
             <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Fecha y Hora *</label>

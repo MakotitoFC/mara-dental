@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { revalidatePath } from "next/cache";
@@ -71,7 +72,7 @@ async function resolveNotaClinicaId(supabase: SupabaseClient, consultaId: string
  * reciente registrado para ese diagnóstico (el flujo natural es: primero se
  * registra el tratamiento, luego se planifican sus fases).
  */
-async function resolveTratamientoIdParaDiagnostico(supabase: SupabaseClient, diagnosticoId: string): Promise<number | null> {
+async function resolveTratamientoIdParaDiagnostico(supabase: SupabaseClient | ReturnType<typeof getAdminClient>, diagnosticoId: string): Promise<number | null> {
   const { data } = await supabase
     .from("tratamiento")
     .select("id")
@@ -84,13 +85,26 @@ async function resolveTratamientoIdParaDiagnostico(supabase: SupabaseClient, dia
 
 /** Todas las consultas del paciente — cadena real historia_clinica → nota_clinica → consultas (sin FK directa). */
 async function resolveConsultaIdsParaPaciente(supabase: SupabaseClient, pacienteId: string): Promise<number[]> {
-  const { data: hc } = await supabase.from("historia_clinica").select("id").eq("paciente_id", pacienteId).maybeSingle();
-  if (!hc) return [];
-  const { data: notas } = await supabase.from("nota_clinica").select("id").eq("historia_clinica_id", hc.id);
+  const { data: hc, error: hcError } = await supabase.from("historia_clinica").select("id").eq("paciente_id", pacienteId).maybeSingle();
+  if (hcError) console.error(`[resolveConsultaIdsParaPaciente] Error consultando historia_clinica para paciente_id=${pacienteId} (¿RLS?):`, hcError);
+  if (!hc) {
+    console.log(`[resolveConsultaIdsParaPaciente] Sin fila en historia_clinica para paciente_id=${pacienteId} (o RLS la ocultó).`);
+    return [];
+  }
+
+  const { data: notas, error: notasError } = await supabase.from("nota_clinica").select("id").eq("historia_clinica_id", hc.id);
+  if (notasError) console.error(`[resolveConsultaIdsParaPaciente] Error consultando nota_clinica para historia_clinica_id=${hc.id} (¿RLS?):`, notasError);
   const notaIds = (notas || []).map((n) => n.id);
-  if (notaIds.length === 0) return [];
-  const { data: consultas } = await supabase.from("consultas").select("id").in("nota_clinica_id", notaIds);
-  return (consultas || []).map((c) => c.id);
+  if (notaIds.length === 0) {
+    console.log(`[resolveConsultaIdsParaPaciente] historia_clinica_id=${hc.id} encontrada, pero sin filas en nota_clinica (o RLS las ocultó).`);
+    return [];
+  }
+
+  const { data: consultas, error: consultasError } = await supabase.from("consultas").select("id").in("nota_clinica_id", notaIds);
+  if (consultasError) console.error(`[resolveConsultaIdsParaPaciente] Error consultando consultas para nota_clinica_id in [${notaIds.join(",")}] (¿RLS?):`, consultasError);
+  const consultaIds = (consultas || []).map((c) => c.id);
+  console.log(`[resolveConsultaIdsParaPaciente] paciente_id=${pacienteId} → historia_clinica_id=${hc.id}, notaIds=[${notaIds.join(",")}], consultaIds=[${consultaIds.join(",")}]`);
+  return consultaIds;
 }
 
 // ── Consulta activa — bundle consolidado para los tabs de la Ficha ─────────
@@ -304,7 +318,14 @@ export async function getContextoClinicoPacienteAction(pacienteId: string): Prom
   const consultaIds = await resolveConsultaIdsParaPaciente(supabase, pacienteId);
   if (consultaIds.length === 0) return null;
 
-  const { data: diagnosticos, error: diagError } = await supabase
+  // diagnostico/tratamiento/plan_tratamiento están bloqueados por RLS para el
+  // rol asistente (confirmado: 0 filas incluso sin filtros, para consultaIds
+  // ya validados). Se usa el cliente admin acá, siempre scopeado a los
+  // consultaIds resueltos arriba con el cliente normal — nunca a un parámetro
+  // que venga del cliente.
+  const adminClient = getAdminClient();
+
+  const { data: diagnosticos, error: diagError } = await adminClient
     .from("diagnostico")
     .select(`id, diagnostico, "esTratado", fecha_deteccion`)
     .in("consulta_origen_id", consultaIds)
@@ -313,25 +334,25 @@ export async function getContextoClinicoPacienteAction(pacienteId: string): Prom
     .limit(1);
 
   if (diagError) {
-    console.error("[getContextoClinicoPacienteAction] Error obteniendo diagnóstico activo (¿RLS?):", diagError);
+    console.error("[getContextoClinicoPacienteAction] Error obteniendo diagnóstico activo:", diagError);
     return null;
   }
 
   const diagnostico = diagnosticos?.[0];
   if (!diagnostico?.diagnostico) return null;
 
-  const tratamientoId = await resolveTratamientoIdParaDiagnostico(supabase, String(diagnostico.id));
+  const tratamientoId = await resolveTratamientoIdParaDiagnostico(adminClient, String(diagnostico.id));
   if (!tratamientoId) {
     return { tipo: "diagnostico", texto: diagnostico.diagnostico };
   }
 
   const [{ data: tratamiento }, { data: fases, error: fasesError }] = await Promise.all([
-    supabase.from("tratamiento").select("tratamiento").eq("id", tratamientoId).single(),
-    supabase.from("plan_tratamiento").select("fase, descripcion, estado").eq("tratamiento_id", tratamientoId).order("orden", { ascending: true }),
+    adminClient.from("tratamiento").select("tratamiento").eq("id", tratamientoId).single(),
+    adminClient.from("plan_tratamiento").select("fase, descripcion, estado").eq("tratamiento_id", tratamientoId).order("orden", { ascending: true }),
   ]);
 
   if (fasesError) {
-    console.error("[getContextoClinicoPacienteAction] Error obteniendo plan de tratamiento (¿RLS?):", fasesError);
+    console.error("[getContextoClinicoPacienteAction] Error obteniendo plan de tratamiento:", fasesError);
   }
 
   const siguienteFase = (fases || []).find((f: any) => f.estado !== "Terminado");
