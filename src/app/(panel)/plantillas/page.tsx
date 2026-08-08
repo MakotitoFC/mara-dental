@@ -18,7 +18,9 @@ export default async function PlantillasPage() {
     .eq("id", user.id)
     .single();
 
-  const userRole = profile?.rol?.rol || "doctor"; // Fallback a doctor por defecto (el más restrictivo)
+  const rolRaw = profile?.rol as any;
+  const rol = Array.isArray(rolRaw) ? rolRaw[0] : rolRaw;
+  const userRole = rol?.rol || "doctor"; // Fallback a doctor por defecto (el más restrictivo)
 
   // Obtener datos (RLS filtrará las plantillas a nivel de BD, 
   // pero nosotros podemos aplicar lógica de capa de acceso si quisieramos)

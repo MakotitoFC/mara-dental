@@ -11,6 +11,21 @@ const getAdminClient = () => {
   );
 };
 
+/** Rol y sede del usuario logueado — el embed `rol(rol)` tipa como array
+ * aunque `.single()` garantice una sola fila, así que se desenvuelve igual
+ * que en el resto del código (`Array.isArray(x) ? x[0] : x`). */
+async function getUsuarioConRol(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  const { data } = await supabase
+    .from("usuarios")
+    .select("rol(rol), sede_id")
+    .eq("id", userId)
+    .single();
+  if (!data) return null;
+  const rolRaw = data.rol as any;
+  const rol = Array.isArray(rolRaw) ? rolRaw[0] : rolRaw;
+  return { rol: rol?.rol as string | undefined, sede_id: data.sede_id };
+}
+
 export async function getFiltrosPersonalAction() {
   const supabase = await createClient();
   const [{ data: especialidades }, { data: puestos }] = await Promise.all([
@@ -43,13 +58,10 @@ export async function getPersonalAction({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autorizado");
 
-  const { data: currentUserProfile } = await supabase
-    .from("usuarios")
-    .select("rol(rol), sede_id")
-    .eq("id", user.id)
-    .single();
+  const currentUserProfile = await getUsuarioConRol(supabase, user.id);
+  if (!currentUserProfile) throw new Error("Perfil no encontrado");
 
-  const role = currentUserProfile?.rol?.rol;
+  const role = currentUserProfile.rol;
   if (role !== "admin" && role !== "superadmin") {
     throw new Error("No tienes permisos para ver el personal");
   }
@@ -121,13 +133,10 @@ export async function createEmpleadoAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("No autorizado");
 
-  const { data: currentUserProfile } = await supabase
-    .from("usuarios")
-    .select("rol(rol), sede_id")
-    .eq("id", user.id)
-    .single();
+  const currentUserProfile = await getUsuarioConRol(supabase, user.id);
+  if (!currentUserProfile) throw new Error("Perfil no encontrado");
 
-  const role = currentUserProfile?.rol?.rol;
+  const role = currentUserProfile.rol;
   if (role !== "admin" && role !== "superadmin") throw new Error("Sin permisos");
 
   const nombre = formData.get("nombre") as string;

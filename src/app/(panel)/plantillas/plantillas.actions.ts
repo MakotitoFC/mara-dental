@@ -89,7 +89,11 @@ export async function uploadPlantillaAction(formData: FormData) {
     .eq("id", user.id)
     .single();
 
-  const rolName = userProfile?.rol?.rol;
+  if (!userProfile) throw new Error("Perfil no encontrado");
+
+  const rolRaw = userProfile.rol as any;
+  const rol = Array.isArray(rolRaw) ? rolRaw[0] : rolRaw;
+  const rolName = rol?.rol;
   if (rolName !== "admin" && rolName !== "superadmin") {
     throw new Error("No tienes permisos para subir plantillas");
   }

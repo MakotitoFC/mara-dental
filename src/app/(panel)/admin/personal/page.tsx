@@ -21,7 +21,13 @@ export default async function PersonalPage({
     .eq("id", user.id)
     .single();
 
-  const userRole = profile?.rol?.rol;
+  if (!profile) {
+    redirect("/dashboard");
+  }
+
+  const rolRaw = profile.rol as any;
+  const rol = Array.isArray(rolRaw) ? rolRaw[0] : rolRaw;
+  const userRole = rol?.rol;
   if (userRole !== "admin" && userRole !== "superadmin") {
     redirect("/dashboard");
   }
