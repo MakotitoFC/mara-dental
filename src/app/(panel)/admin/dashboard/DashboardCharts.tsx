@@ -224,7 +224,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${v/1000}k`} />
-                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: number) => val.toLocaleString()} />
+                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
                 <Bar dataKey="ingresos" name="Ingresos" fill="#3b82f6" radius={[4,4,0,0]} barSize={15} />
                 <Bar dataKey="egresos" name="Egresos" fill="#ef4444" radius={[4,4,0,0]} barSize={15} />
@@ -243,7 +243,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${v/1000}k`} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: number) => val.toLocaleString()} />
+                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
                 <Bar yAxisId="left" dataKey="ingreso_total" name="Ingreso Total" fill="#8b5cf6" radius={[4,4,0,0]} barSize={30} />
                 <Line yAxisId="right" type="monotone" dataKey="ticket_promedio" name="Ticket Promedio" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
@@ -279,7 +279,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="categoria" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: number) => val.toLocaleString()} />
+                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
                 <Bar dataKey="total_gastado" name="Gastado" fill="#f97316" radius={[0,4,4,0]} barSize={20}>
                    {data.egresos.map((e:any, i:number) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
                 </Bar>
@@ -317,7 +317,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v*100).toFixed(0)}%`} />
-                <Tooltip cursor={{ stroke: "#e2e8f0", strokeWidth: 2 }} contentStyle={{ borderRadius: "8px" }} formatter={(val: number) => `${(val*100).toFixed(0)}%`} />
+                <Tooltip cursor={{ stroke: "#e2e8f0", strokeWidth: 2 }} contentStyle={{ borderRadius: "8px" }} formatter={(val: any) => typeof val === "number" ? `${(val*100).toFixed(0)}%` : String(val)} />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
                 <Line type="monotone" dataKey="tasa_hecho" name="Hecho" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 <Line type="monotone" dataKey="tasa_programada" name="Programada" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
@@ -335,7 +335,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: number) => `${val.toFixed(0)}%`} />
+                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: any) => typeof val === "number" ? `${val.toFixed(0)}%` : String(val)} />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
                 <Bar dataKey="Hecho" stackId="a" fill="#10b981" barSize={20} radius={[0,0,0,0]} />
                 <Bar dataKey="Programada" stackId="a" fill="#f59e0b" />
