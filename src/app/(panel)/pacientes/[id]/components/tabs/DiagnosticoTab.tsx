@@ -401,26 +401,43 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const fetchHistorialPaciente = useCallback(async () => {
-    const list = await getDiagnosticosPacienteAction(String(pacienteId));
-    setHistorialPaciente(list);
+    try {
+      const list = await getDiagnosticosPacienteAction(String(pacienteId));
+      const safeList = list || [];
+      setHistorialPaciente(safeList);
 
-    const entries = await Promise.all(
-      list.map(async (d: any) => {
-        const [tratamientos, recomendaciones, recetas] = await Promise.all([
-          getTratamientosAction(String(d.id)),
-          getRecomendacionesConsultaAction(String(d.consulta_id)),
-          getRecetasAction(String(d.id)),
-        ]);
-        return [String(d.id), { tratamientos, recomendaciones, recetas }] as const;
-      })
-    );
-    setDetalleMap(Object.fromEntries(entries));
-    setSelectedId((prev) => (prev && list.some((d: any) => String(d.id) === prev) ? prev : (list[0] ? String(list[0].id) : null)));
+      if (safeList.length > 0) {
+        const entries = await Promise.all(
+          safeList.map(async (d: any) => {
+            const [tratamientos, recomendaciones, recetas] = await Promise.all([
+              getTratamientosAction(String(d.id)),
+              getRecomendacionesConsultaAction(String(d.consulta_id)),
+              getRecetasAction(String(d.id)),
+            ]);
+            return [String(d.id), { tratamientos, recomendaciones, recetas }] as const;
+          })
+        );
+        setDetalleMap(Object.fromEntries(entries));
+        setSelectedId((prev) =>
+          prev && safeList.some((d: any) => String(d.id) === prev)
+            ? prev
+            : String(safeList[0].id)
+        );
+      } else {
+        setDetalleMap({});
+        setSelectedId(null);
+      }
+    } catch (e) {
+      console.error("Error al cargar historial de diagnósticos:", e);
+      setHistorialPaciente([]);
+      setDetalleMap({});
+      setSelectedId(null);
+    }
   }, [pacienteId]);
 
   useEffect(() => {
-    if (!consultaId) fetchHistorialPaciente();
-  }, [consultaId, fetchHistorialPaciente]);
+    fetchHistorialPaciente();
+  }, [fetchHistorialPaciente]);
 
   if (!consultaId) {
     if (historialPaciente === null) return <DiagnosticoSkeleton />;
@@ -569,8 +586,14 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
   if (loading || !data) return <DiagnosticoSkeleton />;
 
   const actual = data.diagnostico;
-  const historial = data.historialDiagnosticos ?? [];
-  const todos = actual ? [actual, ...historial] : historial;
+  const historial = historialPaciente ?? [];
+
+  // Como `historialPaciente` ya contiene TODOS los diagnósticos del paciente (incluso el 'actual' si ya se guardó),
+  // y están ordenados por fecha, podemos usarlo directamente. Si por alguna razón 'actual' aún no está en el historial
+  // (por un desfase muy pequeño de tiempo), lo agregamos al inicio asegurándonos de no duplicarlo.
+  const todos = actual 
+    ? (historial.find(d => d.id === actual.id) ? historial : [actual, ...historial]) 
+    : historial;
 
   const items = planItems ?? data.planTrabajo ?? [];
   const totalFases = items.length;
@@ -684,7 +707,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                 pacienteFechaNacimiento={paciente.fecha_nacimiento}
                 alergias={paciente.alergias}
                 doctorNombre={data.consulta?.doctor_nombre ?? "Doctor"}
-                diagnosticoTexto={actual.diagnostico ?? ""}
+                diagnosticoTexto={actual.diagnostico_texto ?? ""}
                 onSaved={refetch}
               />
             )

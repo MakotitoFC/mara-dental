@@ -144,9 +144,14 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
 
   async function fetchArchivos() {
     setLoading(true);
-    const data = await getArchivosPacienteAction(String(pacienteId));
-    setArchivos(data as Archivo[]);
-    setLoading(false);
+    try {
+      const data = await getArchivosPacienteAction(String(pacienteId));
+      setArchivos(data as Archivo[]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { fetchArchivos(); }, [pacienteId]);

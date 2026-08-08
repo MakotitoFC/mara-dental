@@ -76,6 +76,10 @@ export function RecetaSection(props: SectionProps) {
   const edad = pacienteFechaNacimiento ? calcEdad(pacienteFechaNacimiento) : null;
 
   useEffect(() => {
+    setRecetas(initial || []);
+  }, [initial]);
+
+  useEffect(() => {
     getSedeInfoAction().then(setSede).catch(() => {});
     // getPerfilProfesionalAction().then(setFirmante).catch(() => {});
   }, []);

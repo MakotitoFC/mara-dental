@@ -35,6 +35,10 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
             return [...prev, payload.new];
           });
           setTimeout(scrollToBottom, 100);
+
+          if (payload.new.direction === "inbound" && !payload.new.is_read) {
+            supabase.from("messages").update({ is_read: true }).eq("id", payload.new.id).then();
+          }
         }
       )
       .subscribe();
@@ -61,7 +65,11 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
         setMessages(data.messages);
         setTimeout(scrollToBottom, 100);
       } else {
-        setMessages(prev => [...data.messages, ...prev]);
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMessages = data.messages.filter((m: any) => !existingIds.has(m.id));
+          return [...newMessages, ...prev];
+        });
       }
       setHasMore(data.messages.length === 20);
     }
