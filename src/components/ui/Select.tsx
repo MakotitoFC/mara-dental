@@ -28,7 +28,7 @@ export function Select({
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
-        className="w-full flex items-center justify-between gap-2 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[13px] text-left bg-white dark:bg-slate-800 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+        className="w-full flex items-center justify-between gap-2 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 text-[13px] text-left bg-white dark:bg-slate-800 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 hover:border-slate-400 dark:hover:border-slate-500 transition-colors"
       >
         <span className={`truncate ${current ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>{current?.label ?? placeholder}</span>
         <Icon name="expand_more" size={16} className={`text-slate-400 dark:text-slate-500 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />

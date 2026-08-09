@@ -1,5 +1,25 @@
 import type { EstadoCita } from "@/types/agenda";
 
+// ─── Tipos compartidos de doctor ────────────────────────────────────────────
+// Viven aquí (no en MultiDoctorDayView.tsx / doctorColors.ts) porque las
+// vistas de un solo doctor (CalendarToolbar, CitaFormSheet, CronogramaView,
+// DayAppointmentsSheet, MonthView, WeekView) también los necesitan para
+// tipar sus props — no son exclusivos de las vistas multi-doctor de asistente.
+
+export interface DoctorLite {
+  id: string;
+  nombre: string;
+  apellido: string;
+  especialidad: string | null;
+}
+
+export interface DoctorMapEntry {
+  nombre: string;
+  initials: string;
+  vars: { solid: string; bg: string; text: string };
+}
+export type DoctorMap = Record<string, DoctorMapEntry>;
+
 // ─── Vistas de calendario ──────────────────────────────────────────────────
 
 export type CalView = "day" | "week" | "month" | "year" | "cronograma";
@@ -81,6 +101,24 @@ export const MONTHS_L = [
 export const HOURS = Array.from({ length: 14 }, (_, i) => `${String(7 + i).padStart(2, "0")}:00`);
 export const SLOT_H = 68; // px por hora
 export const FIRST_H = 7;
+
+// ─── Posicionamiento proporcional (grilla de tiempo real) ─────────────────
+// Misma fórmula que ya usa el indicador de "ahora" (NowLine) en Día/Semana,
+// extraída para reutilizarla en cualquier bloque de cita posicionado por
+// hora real (no solo por "cajón" de la hora en que empieza).
+
+/** Minutos transcurridos desde el inicio de la franja visible (FIRST_H). */
+export function minutosDesdeInicio(hora: string): number {
+  return timeToMin(hora) - FIRST_H * 60;
+}
+/** Offset vertical en px para una hora dada, relativo al tope de la grilla. */
+export function pxTop(hora: string): number {
+  return (minutosDesdeInicio(hora) / 60) * SLOT_H;
+}
+/** Alto en px de un bloque que va de `inicio` a `fin`. */
+export function pxHeight(inicio: string, fin: string): number {
+  return ((timeToMin(fin) - timeToMin(inicio)) / 60) * SLOT_H;
+}
 
 // ─── Estado de cita (iconos — los colores viven en src/lib/colors.ts) ──────
 

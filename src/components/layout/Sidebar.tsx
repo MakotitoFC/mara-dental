@@ -4,32 +4,31 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
 
 const NAV_MAIN = [
-  { href: "/dashboard",       icon: "space_dashboard", label: "Inicio Médico" },
-  { href: "/admin/dashboard", icon: "monitoring",      label: "Dashboard Admin" },
-  { href: "/admin/pacientes", icon: "groups",          label: "Pacientes 360" },
-  { href: "/admin/auditoria", icon: "admin_panel_settings", label: "Auditoría" },
-  { href: "/admin/reportes",  icon: "analytics",       label: "Reportes" },
+  { href: "/dashboard",       icon: "home",             label: "Dashboard" },
+  { href: "/admin/dashboard", icon: "space_dashboard", label: "Dashboard" },
   { href: "/admin/catalogo",  icon: "medical_information", label: "Catálogo Precios" },
   { href: "/admin/configuracion-tipos", icon: "category", label: "Config. Tipos" },
+  { href: "/admin/personal",  icon: "badge",           label: "Personal" },
   { href: "/agenda",          icon: "calendar_month",  label: "Calendario" },
   { href: "/pacientes",       icon: "person",          label: "Pacientes" },
-  { href: "/archivos",        icon: "photo_library",   label: "Archivos" },
-  { href: "/presupuestos",    icon: "payments",        label: "Presupuestos Clínicos" },
   { href: "/plantillas",      icon: "article",         label: "Plantillas" },
+  { href: "/admin/auditoria", icon: "admin_panel_settings", label: "Auditoría" },
+  { href: "/pagos",           icon: "payments",        label: "Pagos" },
 ];
 
 const NAV_BOTTOM = [{ href: "/configuracion", icon: "settings", label: "Configuración" }];
 
 const ROLE_HREFS: Record<string, string[]> = {
-  admin:     ["/admin/dashboard", "/admin/pacientes", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
-  doctor:    ["/dashboard", "/agenda", "/pacientes", "/archivos", "/presupuestos", "/plantillas"],
-  asistente: ["/dashboard", "/agenda", "/pacientes", "/archivos"],
-  contador:  ["/dashboard", "/presupuestos", "/archivos"],
+  superadmin: ["/admin/dashboard", "/admin/auditoria", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
+  admin:     ["/admin/dashboard", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/dashboard", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
+  doctor:    ["/dashboard", "/agenda", "/pacientes", "/plantillas"],
+  asistente: ["/dashboard", "/agenda", "/pagos"],
+  contador:  ["/dashboard"],
 };
 
 const COLLAPSE_KEY = "maradental:sidebar-collapsed";
@@ -38,6 +37,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [doctorGroupOpen, setDoctorGroupOpen] = useState(false);
 
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
@@ -53,8 +53,18 @@ export function Sidebar() {
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
-  const allowedHrefs = ROLE_HREFS[user?.rol ?? ""] ?? NAV_MAIN.map((n) => n.href);
+  const userRole = user?.rol ?? "";
+  const allowedHrefs = ROLE_HREFS[userRole] ?? NAV_MAIN.map((n) => n.href);
   const visibleNav = NAV_MAIN.filter((n) => allowedHrefs.includes(n.href));
+  const isAdminRole = userRole === "admin" || userRole === "superadmin";
+
+  // Agrupamos Calendario y Pacientes si es admin/superadmin
+  const mainItems = visibleNav.filter(n => 
+    !isAdminRole || (n.href !== "/agenda" && n.href !== "/pacientes")
+  );
+  const doctorItems = visibleNav.filter(n => 
+    isAdminRole && (n.href === "/agenda" || n.href === "/pacientes")
+  );
 
   return (
     <motion.aside
@@ -75,7 +85,7 @@ export function Sidebar() {
             title="Expandir menú"
             className="w-11 h-11 flex items-center justify-center shrink-0 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
-            <Image src="/Logo_Cian.png" alt="Mara Dental — expandir menú" width={44} height={44} className="object-contain" />
+            <Image src="/Logo_Cian.png" alt="Mara Dental — expandir menú" width={28} height={28} className="object-contain" />
           </button>
         ) : (
           <>
@@ -101,7 +111,7 @@ export function Sidebar() {
 
       {/* Navegación principal */}
       <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden">
-        {visibleNav.map((item) => {
+        {mainItems.map((item) => {
           const active = isActive(item.href);
           return (
             <Link
@@ -123,6 +133,61 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {/* Sección de Doctor para admins/superadmins */}
+        {isAdminRole && doctorItems.length > 0 && (
+          <div className="mt-2">
+            {!collapsed ? (
+              <button
+                onClick={() => setDoctorGroupOpen(!doctorGroupOpen)}
+                className="w-full flex items-center justify-between px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wider">Doctor</span>
+                <Icon name={doctorGroupOpen ? "expand_less" : "expand_more"} size={16} />
+              </button>
+            ) : (
+              <div className="flex justify-center w-full px-4 py-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Doc</span>
+              </div>
+            )}
+            
+            <AnimatePresence initial={false}>
+              {(doctorGroupOpen || collapsed) && (
+                <motion.div
+                  initial={collapsed ? false : { height: 0, opacity: 0 }}
+                  animate={collapsed ? { height: "auto", opacity: 1 } : { height: "auto", opacity: 1 }}
+                  exit={collapsed ? undefined : { height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className={`${!collapsed ? "pl-2" : ""}`}>
+                    {doctorItems.map((item) => {
+                      const active = isActive(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          title={collapsed ? item.label : undefined}
+                          className={`flex items-center gap-3 mx-2 px-2.5 py-2.5 rounded-lg transition-colors mb-0.5 group ${collapsed ? "justify-center" : ""} ${
+                            active
+                              ? "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400"
+                              : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
+                          }`}
+                        >
+                          <Icon
+                            name={item.icon}
+                            size={20}
+                            className={`shrink-0 ${active ? "text-cyan-700 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
+                          />
+                          {!collapsed && <span className="text-[13px] font-medium truncate">{item.label}</span>}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
       </nav>
 
       {/* Pie: configuración + usuario */}
@@ -150,37 +215,32 @@ export function Sidebar() {
           );
         })}
 
+        <a
+          href="#"
+          onClick={(e) => { e.preventDefault(); logout(); }}
+          title={collapsed ? "Cerrar sesión" : undefined}
+          className={`flex items-center gap-3 mx-2 px-2.5 py-2.5 rounded-lg mb-0.5 group ring-1 ring-inset ring-red-200 dark:ring-red-900/50 text-red-500 dark:text-red-400 ${collapsed ? "justify-center" : ""}`}
+        >
+          <Icon
+            name="logout"
+            size={20}
+            className="shrink-0 text-red-500 dark:text-red-400"
+          />
+          {!collapsed && <span className="text-[13px] font-medium truncate">Cerrar sesión</span>}
+        </a>
+
         <div className={`flex items-center gap-2 mx-2 px-2 py-2 rounded-lg mt-1 ${collapsed ? "justify-center" : ""}`}>
           <div className="w-8 h-8 rounded-full bg-cyan-50 dark:bg-cyan-900/40 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center shrink-0">
             <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-400">{user?.initials ?? "…"}</span>
           </div>
 
           {!collapsed && (
-            <>
-              <div className="min-w-0 flex-1">
-                <p className="text-[12px] font-semibold text-slate-900 dark:text-slate-100 truncate">{user?.name ?? "Cargando…"}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{user?.rol ?? ""}</p>
-              </div>
-              <button
-                onClick={logout}
-                title="Cerrar sesión"
-                className="flex w-7 h-7 items-center justify-center rounded-lg text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors shrink-0"
-              >
-                <Icon name="logout" size={16} />
-              </button>
-            </>
+            <div className="min-w-0 flex-1">
+              <p className="text-[12px] font-semibold text-slate-900 dark:text-slate-100 truncate">{user?.name ?? "Cargando…"}</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{user?.rol ?? ""}</p>
+            </div>
           )}
         </div>
-
-        {collapsed && (
-          <button
-            onClick={logout}
-            title="Cerrar sesión"
-            className="flex items-center justify-center w-full py-2 mt-1 text-slate-300 dark:text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors rounded-lg"
-          >
-            <Icon name="logout" size={18} />
-          </button>
-        )}
       </div>
     </motion.aside>
   );

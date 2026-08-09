@@ -49,7 +49,7 @@ function isImagen(a: Archivo) {
 }
 
 function UploadModal({ consultaId, pacienteId, onClose, onUploaded }: {
-  consultaId: number; pacienteId: number; onClose: () => void; onUploaded: () => void;
+  consultaId: string; pacienteId: string; onClose: () => void; onUploaded: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [categoria, setCategoria] = useState("otros");
@@ -128,8 +128,12 @@ function UploadModal({ consultaId, pacienteId, onClose, onUploaded }: {
   );
 }
 
-export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaId?: number | null }) {
-  const pacienteId = Number(paciente.id);
+export function ArchivosTab({ paciente, consultaId, onNavigateTab }: { 
+  paciente: any; 
+  consultaId?: string | null;
+  onNavigateTab?: (t: string) => void;
+}) {
+  const pacienteId = String(paciente.id);
   const [archivos, setArchivos] = useState<Archivo[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -140,9 +144,14 @@ export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaI
 
   async function fetchArchivos() {
     setLoading(true);
-    const data = await getArchivosPacienteAction(pacienteId);
-    setArchivos(data as Archivo[]);
-    setLoading(false);
+    try {
+      const data = await getArchivosPacienteAction(String(pacienteId));
+      setArchivos(data as Archivo[]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { fetchArchivos(); }, [pacienteId]);
@@ -154,7 +163,7 @@ export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaI
       confirmLabel: "Eliminar definitivamente",
     });
     if (!ok) return;
-    const res = await deleteArchivoClinicoAction(a.id, a.url, pacienteId);
+    const res = await deleteArchivoClinicoAction(String(a.id), a.url, String(pacienteId));
     if (res?.error) {
       toast.error("No se pudo eliminar el archivo. Intenta nuevamente.");
       return;
@@ -164,7 +173,7 @@ export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaI
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pb-6">
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-2">
@@ -261,7 +270,14 @@ export function ArchivosTab({ paciente, consultaId }: { paciente: any; consultaI
 
       <AnimatePresence>
         {visor && (
-          <VisorModal archivo={visor} todos={archivos} paciente={paciente} onClose={() => setVisor(null)} onNav={(a) => setVisor(a as Archivo)} />
+          <VisorModal 
+            archivo={visor} 
+            todos={archivos} 
+            paciente={paciente} 
+            onClose={() => setVisor(null)} 
+            onNav={(a) => setVisor(a as Archivo)} 
+            onNavigateTab={onNavigateTab}
+          />
         )}
       </AnimatePresence>
 

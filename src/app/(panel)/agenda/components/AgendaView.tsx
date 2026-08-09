@@ -1,44 +1,89 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import type { Cita } from "@/types/agenda";
-import { getCitasRealesAction, getPatientByIdAction } from "../actions";
-import { CalendarToolbar, type TipoFiltro } from "./CalendarToolbar";
+import { getCitasRealesAction, getCitasSedeAction, getPatientByIdAction } from "../actions";
+import { CalendarToolbar, type TipoFiltro, type EstadoFiltro, type DoctorFiltro } from "./CalendarToolbar";
 import { MonthView } from "./MonthView";
 import { WeekView } from "./WeekView";
 import { DayView } from "./DayView";
 import { YearView } from "./YearView";
 import { CronogramaView } from "./CronogramaView";
+import { MultiDoctorDayView } from "./MultiDoctorDayView";
+import { MultiDoctorWeekTimeGrid } from "./MultiDoctorWeekTimeGrid";
+import { YearHeatmapView } from "./YearHeatmapView";
 import { DayAppointmentsSheet } from "./DayAppointmentsSheet";
 import { AppointmentDetailSheet } from "./AppointmentDetailSheet";
 import { CitaFormSheet, type CitaFormState, type PatientLite } from "./CitaFormSheet";
 import { scaleIn } from "@/lib/animations";
+import { getDoctorVars } from "./doctorColors";
 import {
-  type CalView,
-  addDays, getMonday, toDateStr, MONTHS_L,
+  type CalView, type DoctorLite, type DoctorMap,
+  addDays, getMonday, toDateStr, MONTHS_L, initials,
 } from "./agendaUtils";
 
-function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
+function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, doctores }: { initialCitas: Cita[], preTratamientoId?: string, prePacienteId?: string; role: string; doctores: DoctorLite[] }) {
+  const isAsistente = role === "asistente";
+
   const todayDate = new Date();
   todayDate.setHours(0, 0, 0, 0);
   const today = todayDate;
 
   const searchParams = useSearchParams();
-  const preselectedPacienteId = searchParams?.get("paciente") ?? null;
+  const preselectedPacienteId = prePacienteId || searchParams?.get("paciente") || null;
 
-  const [view, setView] = useState<CalView>("month");
+  // El asistente aterriza en Día por defecto: es la única vista con una
+  // columna por médico, así ve la distinción entre médicos de inmediato en
+  // vez de la cuadrícula de Mes (donde las citas solo llevan un punto de color).
+  const [view, setView] = useState<CalView>((searchParams?.get("view") as CalView) || (isAsistente ? "day" : "month"));
   const [calMonth, setCalMonth] = useState({ year: today.getFullYear(), month: today.getMonth() });
   const [weekStart, setWeekStart] = useState(getMonday(today));
   const [selectedDate, setSelectedDate] = useState(today);
   const [tipoFiltro, setTipoFiltro] = useState<TipoFiltro>("todos");
+  const [doctorFiltro, setDoctorFiltro] = useState<DoctorFiltro>("todos");
+  const [especialidadFiltro, setEspecialidadFiltro] = useState("todas");
+  const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("todos");
+  const [soloConCitasHoy, setSoloConCitasHoy] = useState(false);
 
   const [citas, setCitas] = useState<Cita[]>(initialCitas || []);
   const [loadingCitas, setLoadingCitas] = useState(false);
 
-  const citasFiltradas = tipoFiltro === "todos" ? citas : citas.filter(c => c.tipo_consulta_id === tipoFiltro);
+  const doctorMap: DoctorMap = useMemo(() => {
+    const map: DoctorMap = {};
+    for (const doc of doctores) {
+      const nombreCompleto = `${doc.nombre} ${doc.apellido}`.trim();
+      map[doc.id] = { nombre: `Dr. ${doc.apellido}`, initials: initials(nombreCompleto), vars: getDoctorVars(doc.id) };
+    }
+    return map;
+  }, [doctores]);
+
+  const citasFiltradas = useMemo(() => {
+    let result = tipoFiltro === "todos" ? citas : citas.filter(c => c.tipo_consulta_id === tipoFiltro);
+    if (isAsistente) {
+      if (estadoFiltro !== "todos") result = result.filter(c => c.estado === estadoFiltro);
+      if (doctorFiltro !== "todos") result = result.filter(c => doctorFiltro.includes(c.doctor_id));
+    }
+    return result;
+  }, [citas, tipoFiltro, estadoFiltro, doctorFiltro, isAsistente]);
+
+  // Doctores visibles en la columna del día — se acotan por especialidad,
+  // selección del filtro de médicos, y opcionalmente solo los que tienen
+  // alguna cita ese día (evita columnas vacías cuando hay muchos médicos).
+  const doctoresFiltrados = useMemo(() => {
+    let result = doctores;
+    if (especialidadFiltro !== "todas") result = result.filter(d => d.especialidad === especialidadFiltro);
+    if (doctorFiltro !== "todos") result = result.filter(d => doctorFiltro.includes(d.id));
+    // "Solo con citas hoy" solo tiene sentido (y solo es visible en el toolbar) en la vista Día.
+    if (soloConCitasHoy && view === "day") {
+      const ds = toDateStr(selectedDate);
+      const idsConCitas = new Set(citasFiltradas.filter(c => c.fecha === ds).map(c => c.doctor_id));
+      result = result.filter(d => idsConCitas.has(d.id));
+    }
+    return result;
+  }, [doctores, especialidadFiltro, doctorFiltro, soloConCitasHoy, view, selectedDate, citasFiltradas]);
 
   const [daySheetDate, setDaySheetDate] = useState<Date | null>(null);
   const [detailCita, setDetailCita] = useState<Cita | null>(null);
@@ -46,7 +91,7 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
 
   const loadCitas = async () => {
     setLoadingCitas(true);
-    const data = await getCitasRealesAction();
+    const data = isAsistente ? await getCitasSedeAction() : await getCitasRealesAction();
     setCitas(data);
     setLoadingCitas(false);
   };
@@ -57,7 +102,7 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
     if (!preselectedPacienteId) return;
     getPatientByIdAction(preselectedPacienteId).then(p => {
       if (p) {
-        setFormState({ mode: "create", date: toDateStr(today), preloadedPatient: p as PatientLite });
+        setFormState({ mode: "create", date: toDateStr(today), preloadedPatient: p as PatientLite, preTratamientoId });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,10 +141,16 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
     setWeekStart(getMonday(d));
     setView("day");
   }
+  // Mueve la semana visible sin cambiar de vista — usado por el mini-calendario
+  // del panel lateral de la grilla de tiempo semanal.
+  function jumpToWeek(d: Date) {
+    setWeekStart(getMonday(d));
+    setCalMonth({ year: d.getFullYear(), month: d.getMonth() });
+  }
 
   const label = (() => {
     if (view === "day") {
-      const raw = selectedDate.toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      const raw = selectedDate.toLocaleDateString("es-PE", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
       return raw.charAt(0).toUpperCase() + raw.slice(1);
     }
     if (view === "week") {
@@ -108,7 +159,7 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
       const mA = MONTHS_L[a.getMonth()].slice(0, 3).toLowerCase();
       const mB = MONTHS_L[b.getMonth()].slice(0, 3).toLowerCase();
       return sameMonth
-        ? `${a.getDate()} – ${b.getDate()} de ${MONTHS_L[a.getMonth()]} ${b.getFullYear()}`
+        ? `${a.getDate()} – ${b.getDate()} ${mA} ${b.getFullYear()}`
         : `${a.getDate()} ${mA} – ${b.getDate()} ${mB} ${b.getFullYear()}`;
     }
     if (view === "year") return String(calMonth.year);
@@ -125,10 +176,14 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
   // ── Handlers de paneles ─────────────────────────────────────────────────
   function openDaySheet(d: Date) { setDaySheetDate(d); }
   function openDetail(c: Cita) { setDaySheetDate(null); setDetailCita(c); }
-  function openCreate(date: Date, hour?: string) {
+  function openCreate(date: Date, hour?: string, doctorId?: string) {
     setDaySheetDate(null);
     setDetailCita(null);
-    setFormState({ mode: "create", date: toDateStr(date), hour });
+    const doctorNombre = doctorId ? doctorMap[doctorId]?.nombre.replace(/^Dr\.\s*/, "") : undefined;
+    // Sin un médico ya determinado por el contexto (ej. columna del día), el
+    // asistente debe elegirlo dentro del formulario — se le pasa la lista.
+    const doctoresParaElegir = isAsistente && !doctorId ? doctores : undefined;
+    setFormState({ mode: "create", date: toDateStr(date), hour, doctorId, doctorNombre, doctores: doctoresParaElegir });
   }
   function openEdit(c: Cita) {
     setDetailCita(null);
@@ -147,6 +202,16 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
         onNewCita={() => openCreate(view === "day" ? selectedDate : today)}
         tipoFiltro={tipoFiltro}
         onTipoFiltroChange={setTipoFiltro}
+        role={role}
+        doctores={doctores}
+        doctorFiltro={doctorFiltro}
+        onDoctorFiltroChange={setDoctorFiltro}
+        especialidadFiltro={especialidadFiltro}
+        onEspecialidadFiltroChange={setEspecialidadFiltro}
+        estadoFiltro={estadoFiltro}
+        onEstadoFiltroChange={setEstadoFiltro}
+        soloConCitasHoy={soloConCitasHoy}
+        onSoloConCitasHoyChange={setSoloConCitasHoy}
       />
 
       <div className="flex-1 min-h-0 relative overflow-hidden">
@@ -177,9 +242,25 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
                 today={today}
                 onDayClick={openDaySheet}
                 onEventClick={openDetail}
+                doctorMap={doctorMap}
               />
             )}
-            {view === "week" && (
+            {view === "week" && isAsistente && (
+              <MultiDoctorWeekTimeGrid
+                weekDays={weekDays}
+                citas={citasFiltradas}
+                doctoresTodos={doctores}
+                doctoresVisibles={doctoresFiltrados}
+                today={today}
+                doctorFiltro={doctorFiltro}
+                onDoctorFiltroChange={setDoctorFiltro}
+                onEventClick={openDetail}
+                onCellClick={(d: Date, hr: string) => openCreate(d, hr)}
+                onDayClick={goToDay}
+                onDateJump={jumpToWeek}
+              />
+            )}
+            {view === "week" && !isAsistente && (
               <WeekView
                 weekDays={weekDays}
                 citas={citasFiltradas}
@@ -187,9 +268,20 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
                 onDayClick={goToDay}
                 onEventClick={openDetail}
                 onCellClick={(d, hr) => openCreate(d, hr)}
+                doctorMap={doctorMap}
               />
             )}
-            {view === "day" && (
+            {view === "day" && isAsistente && (
+              <MultiDoctorDayView
+                date={selectedDate}
+                citas={citasFiltradas}
+                doctores={doctoresFiltrados}
+                today={today}
+                onEventClick={openDetail}
+                onCellClick={(doctorId: string, d: Date, hr: string) => openCreate(d, hr, doctorId)}
+              />
+            )}
+            {view === "day" && !isAsistente && (
               <DayView
                 date={selectedDate}
                 citas={citasFiltradas}
@@ -198,7 +290,16 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
                 onCellClick={(d, hr) => openCreate(d, hr)}
               />
             )}
-            {view === "year" && (
+            {view === "year" && isAsistente && (
+              <YearHeatmapView
+                year={calMonth.year}
+                citas={citasFiltradas}
+                today={today}
+                onMonthClick={goToMonthFromYear}
+                onDayClick={goToDay}
+              />
+            )}
+            {view === "year" && !isAsistente && (
               <YearView
                 year={calMonth.year}
                 citas={citasFiltradas}
@@ -212,6 +313,7 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
                 citas={citasFiltradas}
                 today={today}
                 onEventClick={openDetail}
+                doctorMap={doctorMap}
               />
             )}
           </motion.div>
@@ -228,6 +330,7 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
             onClose={() => setDaySheetDate(null)}
             onSelectCita={openDetail}
             onNewCita={() => openCreate(daySheetDate)}
+            doctorMap={doctorMap}
           />
         )}
       </AnimatePresence>
@@ -240,6 +343,7 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
             onClose={() => setDetailCita(null)}
             onEdit={openEdit}
             onChanged={() => { loadCitas(); setDetailCita(null); }}
+            role={role}
           />
         )}
       </AnimatePresence>
@@ -251,6 +355,7 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
             state={formState}
             onClose={() => setFormState(null)}
             onSuccess={() => { loadCitas(); setFormState(null); }}
+            role={role}
           />
         )}
       </AnimatePresence>
@@ -258,10 +363,10 @@ function AgendaViewInner({ initialCitas }: { initialCitas: Cita[] }) {
   );
 }
 
-export function AgendaView({ initialCitas }: { initialCitas: Cita[] }) {
+export function AgendaView({ initialCitas, preTratamientoId, prePacienteId, role, doctores }: { initialCitas: Cita[], preTratamientoId?: string, prePacienteId?: string; role: string; doctores: DoctorLite[] }) {
   return (
     <Suspense fallback={null}>
-      <AgendaViewInner initialCitas={initialCitas} />
+      <AgendaViewInner initialCitas={initialCitas} preTratamientoId={preTratamientoId} prePacienteId={prePacienteId} role={role} doctores={doctores} />
     </Suspense>
   );
 }

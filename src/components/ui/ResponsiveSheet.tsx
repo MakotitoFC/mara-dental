@@ -1,8 +1,10 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, slideUp, scaleIn } from "@/lib/animations";
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 
 /**
  * Chrome compartido por los modales del sistema: bottom sheet en mobile
@@ -22,7 +24,9 @@ export function ResponsiveSheet({
   footer?: React.ReactNode;
   maxWidthDesktop?: string;
 }) {
-  return (
+  useBodyScrollLock();
+
+  return createPortal(
     <div className="fixed inset-0 z-[70]">
       <motion.div
         variants={fadeIn}
@@ -63,7 +67,8 @@ export function ResponsiveSheet({
           {footer && <div className="px-5 pb-5 pt-3 border-t border-slate-100 dark:border-slate-700 shrink-0">{footer}</div>}
         </motion.div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -84,7 +89,7 @@ function SheetChrome({ title, header, onClose, children }: { title?: string; hea
           </button>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 md:px-5 pb-2">{children}</div>
+      <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-4 md:px-5 pb-2">{children}</div>
     </>
   );
 }

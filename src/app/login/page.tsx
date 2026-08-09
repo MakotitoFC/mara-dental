@@ -92,15 +92,10 @@ export default function LoginPage() {
   },[])
 
   return (
-    <div className="h-screen flex bg-slate-50 overflow-hidden">
+    <div className="h-screen min-h-screen min-w-0 flex bg-slate-50 overflow-x-hidden">
       {/* Panel izquierdo — formulario */}
-      <div className="flex-1 flex flex-col items-center justify-center px-5 sm:px-8 py-8 bg-white overflow-y-auto">
+      <div className="flex-1 min-h-0 min-w-0 flex flex-col items-center justify-center px-5 sm:px-8 py-8 bg-white overflow-x-hidden overflow-y-auto no-scrollbar">
         <div className="w-full max-w-90 py-4">
-
-          {/* Logo */}
-          <motion.div custom={0} initial="hidden" animate="visible" variants={fadeUp} className="mb-7">
-            <Image src="/Cian_MaraDental.png" alt="Mara Dental Group" width={220} height={90} className="object-contain max-w-[220px] h-auto" priority />
-          </motion.div>
 
           {/* Título */}
           <AnimatePresence mode="wait">
@@ -268,7 +263,7 @@ export default function LoginPage() {
           </div>
 
           <div className="text-white/40 text-xs">
-            © {new Date().getFullYear()} Mara Dental Group. Todos los derechos reservados.
+            © {new Date().getFullYear()} Kumo Systems. Todos los derechos reservados.
           </div>
         </div>
       </div>

@@ -19,8 +19,9 @@ export interface ArchivoGlobal {
 }
 
 const SELECT_BASE = `
-  id, nombre_archivo, url, tipo_archivo, categoria, descripcion, fecha_subida, tam_bytes, anotaciones,
-  personal!subido_por ( nombre, apellido, url_firma_digital, especialidad ( especialidad ) )
+  id, nombre_archivo, url, tipo_archivo_id, categoria, descripcion, fecha_subida, tam_bytes, anotaciones,
+  personal!subido_por ( nombre, apellido, url_firma_digital, especialidad ( especialidad ) ),
+  tipo_archivo ( id, tipo_archivo )
 `;
 
 function extractPaciente(row: any): { id: number; nombre: string } | null {
@@ -52,11 +53,15 @@ export async function getArchivosGlobalAction(pacienteId?: number): Promise<Arch
 
   let archivos = Array.from(porId.values()).map((a: any) => {
     const pac = extractPaciente(a);
+    const tipoRaw = a.tipo_archivo;
+    const tipo_archivo = tipoRaw && typeof tipoRaw === "object"
+      ? (tipoRaw.tipo_archivo || tipoRaw.Tipo_archivo || "desconocido")
+      : (typeof tipoRaw === "string" ? tipoRaw : "desconocido");
     return {
       id: a.id,
       nombre_archivo: a.nombre_archivo,
       url: a.url,
-      tipo_archivo: a.tipo_archivo,
+      tipo_archivo,
       categoria: a.categoria,
       descripcion: a.descripcion,
       fecha_subida: a.fecha_subida,

@@ -7,15 +7,17 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { staggerContainer, staggerItem } from "@/lib/animations";
+import type { DoctorMap } from "./agendaUtils";
 
 export function DayAppointmentsSheet({
-  date, citas, onClose, onSelectCita, onNewCita,
+  date, citas, onClose, onSelectCita, onNewCita, doctorMap,
 }: {
   date: Date;
   citas: Cita[];
   onClose: () => void;
   onSelectCita: (c: Cita) => void;
   onNewCita: () => void;
+  doctorMap?: DoctorMap;
 }) {
   const { getVars } = useTipoConsultaVars();
   const raw = date.toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" });
@@ -45,6 +47,7 @@ export function DayAppointmentsSheet({
           {citas.map(c => {
             const tipoVars = getVars(c.tipo_consulta_id);
             const estVars = estadoCitaVars(c.estado);
+            const doc = doctorMap?.[c.doctor_id];
             return (
               <motion.button
                 key={c.id}
@@ -66,6 +69,12 @@ export function DayAppointmentsSheet({
                     <span className="text-[10.5px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: estVars.bg, color: estVars.text }}>
                       {ESTADO_CITA_LABEL[c.estado]}
                     </span>
+                    {doc && (
+                      <span className="flex items-center gap-1 text-[10.5px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: doc.vars.bg, color: doc.vars.text }}>
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: doc.vars.solid }} />
+                        {doc.nombre}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <Icon name="chevron_right" size={16} className="text-slate-300 dark:text-slate-600 shrink-0" />

@@ -80,16 +80,16 @@ export function TimePicker({
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
-          className="absolute left-0 top-[calc(100%+4px)] z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-2 flex gap-1"
+          className="absolute right-0 top-[calc(100%+4px)] z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-2.5 flex gap-1.5"
         >
-          <div ref={hourColRef} className="w-14 max-h-48 overflow-y-auto flex flex-col gap-0.5 pr-1">
+          <div ref={hourColRef} className="w-16 max-h-48 overflow-y-auto no-scrollbar flex flex-col gap-1 pr-1">
             {hours.map((h) => (
               <button
                 key={h}
                 type="button"
                 data-active={current?.h === h}
                 onClick={() => setHour(h)}
-                className={`px-2 py-1.5 rounded-lg text-[12.5px] text-center transition-colors ${
+                className={`px-2.5 py-2 rounded-lg text-[12.5px] text-center transition-colors ${
                   current?.h === h ? "bg-cyan-600 text-white font-semibold" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                 }`}
               >
@@ -98,14 +98,14 @@ export function TimePicker({
             ))}
           </div>
           <div className="w-px bg-slate-100 dark:bg-slate-700" />
-          <div ref={minColRef} className="w-14 max-h-48 overflow-y-auto flex flex-col gap-0.5 pl-1">
+          <div ref={minColRef} className="w-16 max-h-48 overflow-y-auto no-scrollbar flex flex-col gap-1 pl-1">
             {minutes.map((m) => (
               <button
                 key={m}
                 type="button"
                 data-active={current?.m === m}
                 onClick={() => setMinute(m)}
-                className={`px-2 py-1.5 rounded-lg text-[12.5px] text-center transition-colors ${
+                className={`px-2.5 py-2 rounded-lg text-[12.5px] text-center transition-colors ${
                   current?.m === m ? "bg-cyan-600 text-white font-semibold" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                 }`}
               >

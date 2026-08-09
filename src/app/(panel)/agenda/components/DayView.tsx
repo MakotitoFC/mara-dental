@@ -5,6 +5,7 @@ import { Icon } from "@/components/ui/Icon";
 import type { Cita } from "@/types/agenda";
 import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
+import { useSearchParams } from "next/navigation";
 import { HOURS, SLOT_H, FIRST_H, timeToMin, toDateStr } from "./agendaUtils";
 
 function NowLine() {
@@ -44,6 +45,22 @@ export function DayView({
   };
   const dateLabel = date.toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const { getVars } = useTipoConsultaVars();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams?.get("action") === "scroll-pending") {
+      const firstPending = dayCitas.find(c => c.estado === "programada");
+      if (firstPending) {
+        const hr = firstPending.hora_inicio.slice(0, 2) + ":00";
+        setTimeout(() => {
+          const el = document.getElementById(`hour-${hr}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 200);
+      }
+    }
+  }, [searchParams, dayCitas]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-white dark:bg-slate-800">
@@ -57,13 +74,13 @@ export function DayView({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto no-scrollbar">
         <div className="relative">
           {isToday && <NowLine />}
           {HOURS.map(hr => {
             const blocks = getSlotCitas(hr);
             return (
-              <div key={hr} className="flex border-b border-slate-100 dark:border-slate-700" style={{ height: SLOT_H }}>
+              <div id={`hour-${hr}`} key={hr} className="flex border-b border-slate-100 dark:border-slate-700" style={{ height: SLOT_H }}>
                 <div className="w-14 shrink-0 pt-1 pr-3 text-right">
                   <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{hr}</span>
                 </div>
