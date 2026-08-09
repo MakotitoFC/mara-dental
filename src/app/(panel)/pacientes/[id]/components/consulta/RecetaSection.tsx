@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
-import { fadeIn, scaleIn, staggerContainer, staggerItem } from "@/lib/animations";
+import { fadeIn, scaleIn, slideUp, staggerContainer, staggerItem } from "@/lib/animations";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
+import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
+import { calcEdad } from "@/lib/date-utils";
 import {
-  buildLetterheadHeader, buildLetterheadFooter, wrapDocument, fmtGenerado,
-  downloadHtmlAsSinglePagePdf, type ClinicaInfo,
+  esc, buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, wrapDocument, fmtGenerado,
+  downloadHtmlAsSinglePagePdf, printHtml, type ClinicaInfo,
 } from "@/lib/reportExport";
 import {
   saveRecetaAction,
@@ -16,6 +20,8 @@ import {
   searchMedicamentosAction,
   getSedeInfoAction,
 } from "../../consulta.actions";
+import { getPerfilProfesionalAction, type PerfilProfesional } from "../../../../configuracion/actions";
+import { useToast } from "@/components/ui/Toast";
 
 interface Medicamento {
   id: number;
@@ -45,65 +51,81 @@ const fmtFecha = (d: string) => {
 };
 
 interface SectionProps {
-  diagnosticoId: number;
-  pacienteId: number;
+  diagnosticoId: string;
+  pacienteId: string;
   initial: Receta[];
   enabled?: boolean;
   pacienteNombre: string;
   telefono: string;
   dni: string;
+  pacienteFechaNacimiento?: string | null;
+  alergias?: string[];
   doctorNombre: string;
   diagnosticoTexto: string;
   onSaved?: () => void;
+  /** El rótulo queda fijo y solo el listado de registros scrollea (uso en el modal mobile). */
+  scrollBody?: boolean;
 }
 
 export function RecetaSection(props: SectionProps) {
-  const { diagnosticoId, pacienteId, initial, enabled = true, pacienteNombre, telefono, dni, doctorNombre, diagnosticoTexto, onSaved } = props;
+  const { diagnosticoId, pacienteId, initial, enabled = true, pacienteNombre, telefono, dni, pacienteFechaNacimiento, alergias, doctorNombre, diagnosticoTexto, onSaved, scrollBody = false } = props;
   const [recetas, setRecetas] = useState<Receta[]>(initial || []);
   const [showModal, setShowModal] = useState(false);
-  const [viewing, setViewing] = useState<DocData | null>(null);
   const [sede, setSede] = useState<ClinicaInfo | null>(null);
+  const [firmante, setFirmante] = useState<any | null>(null);
+  const edad = pacienteFechaNacimiento ? calcEdad(pacienteFechaNacimiento) : null;
+
+  useEffect(() => {
+    setRecetas(initial || []);
+  }, [initial]);
 
   useEffect(() => {
     getSedeInfoAction().then(setSede).catch(() => {});
+    // getPerfilProfesionalAction().then(setFirmante).catch(() => {});
   }, []);
+
+  const toast = useToast();
 
   async function handleToggleEstado(r: Receta) {
     const newEst = r.estado === "activa" ? "cancelada" : "activa";
-    await toggleEstadoRecetaAction(r.id, newEst, pacienteId);
+    await toggleEstadoRecetaAction(String(r.id), newEst, String(pacienteId));
     setRecetas(prev => prev.map(x => x.id === r.id ? { ...x, estado: newEst } : x));
+    toast.success(newEst === "activa" ? "Receta activada" : "Receta cancelada");
   }
+
+  const filas = recetas.flatMap((r) => r.receta_medicamento.map((m) => ({ medicamento: m, receta: r })));
 
   const [medToDelete, setMedToDelete] = useState<number | null>(null);
   async function confirmDeleteMed() {
     if (!medToDelete) return;
-    await deleteMedicamentoAction(medToDelete, pacienteId);
+    await deleteMedicamentoAction(String(medToDelete), String(pacienteId));
     setRecetas(p => p.map(r => ({ ...r, receta_medicamento: r.receta_medicamento.filter(m => m.id !== medToDelete) })));
     setMedToDelete(null);
+    toast.success("Medicamento eliminado");
   }
 
   return (
-    <motion.div variants={fadeIn} initial="hidden" animate="visible" className={`bg-white dark:bg-slate-800 rounded-2xl border overflow-hidden relative ${enabled ? "border-slate-200 dark:border-slate-700" : "border-slate-200 dark:border-slate-700 opacity-60"}`}>
+    <motion.div variants={fadeIn} initial="hidden" animate="visible" className={`bg-white dark:bg-slate-800 rounded-2xl border relative ${scrollBody ? "flex flex-col h-full overflow-hidden" : ""} ${enabled ? "border-slate-200 dark:border-slate-700" : "border-slate-200 dark:border-slate-700 opacity-60"}`}>
       {!enabled && (
         <div className="absolute inset-0 z-10 bg-white/70 dark:bg-slate-800/70 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2 rounded-2xl">
           <Icon name="lock" size={22} className="text-slate-400 dark:text-slate-500" />
           <p className="text-[12px] font-semibold text-slate-500 dark:text-slate-400">Disponible con diagnóstico definitivo</p>
         </div>
       )}
-      <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-700">
+      <div className={`${scrollBody ? "shrink-0" : ""} flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-700`}>
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 dark:text-blue-400 shrink-0">
             <Icon name="medication" size={18} />
           </div>
           <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Recetas médicas</h2>
         </div>
         <button onClick={() => enabled && setShowModal(true)} disabled={!enabled}
-          className="flex items-center gap-1.5 px-3 py-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-xl text-[13px] font-semibold transition-colors min-h-[40px]">
+          className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-cyan-200 dark:border-cyan-800 text-[12px] font-semibold text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 disabled:opacity-40 transition-colors">
           <Icon name="add" size={16} /> Nueva receta
         </button>
       </div>
 
-      <div className="p-5 flex flex-col gap-3">
+      <div className={`p-5 flex flex-col gap-4 ${scrollBody ? "flex-1 min-h-0 overflow-y-auto no-scrollbar" : ""}`}>
         {recetas.length === 0 ? (
           <div className="py-8 text-center text-slate-400 dark:text-slate-500">
             <Icon name="medication" size={28} className="opacity-30 mx-auto mb-2" />
@@ -111,28 +133,30 @@ export function RecetaSection(props: SectionProps) {
           </div>
         ) : (
           <motion.div variants={staggerContainer()} initial="hidden" animate="visible" className="flex flex-col gap-3">
-            {recetas.flatMap((r) =>
-              r.receta_medicamento.map((m) => {
-                const docData: DocData = { pacienteNombre, doctorNombre, fecha: r.fecha_emision, diagnostico: diagnosticoTexto, medicamentos: r.receta_medicamento };
-                return (
-                  <motion.div key={m.id} variants={staggerItem}>
-                    <PrescriptionRow
-                      medicamento={m}
-                      estado={r.estado}
-                      fechaEmision={r.fecha_emision}
-                      doctorNombre={doctorNombre}
-                      onView={() => setViewing(docData)}
-                      onDownload={() => handleDownloadPdf(docData, sede)}
-                      onPrint={() => handlePrint(docData)}
-                      onSend={() => window.open(buildTelegramLink(docData), "_blank")}
-                      onToggleEstado={() => handleToggleEstado(r)}
-                      onDeleteMed={() => setMedToDelete(m.id)}
-                      showManage
-                    />
-                  </motion.div>
-                );
-              }),
-            )}
+            {filas.map(({ medicamento: m, receta: r }) => {
+              const docData: DocData = {
+                pacienteNombre, doctorNombre, fecha: r.fecha_emision, diagnostico: diagnosticoTexto, medicamentos: r.receta_medicamento,
+                dni, edad, alergias,
+                doctorEspecialidad: firmante?.especialidad, doctorNumColegiatura: firmante?.num_colegiatura, doctorFirmaUrl: firmante?.firma_url,
+                clinica: sede,
+              };
+              return (
+                <motion.div key={m.id} variants={staggerItem}>
+                  <PrescriptionRow
+                    medicamento={m}
+                    estado={r.estado}
+                    fechaEmision={r.fecha_emision}
+                    doctorNombre={doctorNombre}
+                    onDownload={() => handleDownloadPdf(docData, sede)}
+                    onPrint={() => handlePrint(docData)}
+                    onSend={() => window.open(buildTelegramLink(docData), "_blank")}
+                    onToggleEstado={() => handleToggleEstado(r)}
+                    onDeleteMed={() => setMedToDelete(m.id)}
+                    showManage
+                  />
+                </motion.div>
+              );
+            })}
           </motion.div>
         )}
       </div>
@@ -146,7 +170,13 @@ export function RecetaSection(props: SectionProps) {
             pacienteNombre={pacienteNombre}
             telefono={telefono}
             dni={dni}
+            edad={edad}
+            alergias={alergias}
             doctorNombre={doctorNombre}
+            doctorEspecialidad={firmante?.especialidad}
+            doctorNumColegiatura={firmante?.num_colegiatura}
+            doctorFirmaUrl={firmante?.firma_url}
+            clinica={sede}
             diagnosticoTexto={diagnosticoTexto}
             onClose={() => setShowModal(false)}
             onSaved={onSaved}
@@ -166,11 +196,6 @@ export function RecetaSection(props: SectionProps) {
           />
         )}
       </AnimatePresence>
-
-      {/* Detalle de receta */}
-      <AnimatePresence>
-        {viewing && <RecetaDetailModal data={viewing} dni={dni} onClose={() => setViewing(null)} />}
-      </AnimatePresence>
     </motion.div>
   );
 }
@@ -180,7 +205,23 @@ const fmtFechaCorta = (d: string) => {
   catch { return d; }
 };
 
-/** Tarjeta de un medicamento — un renglón por medicamento, con estado, fecha, doctor y acciones (ver detalle/descargar/imprimir/enviar). */
+function ActionLink({ icon, label, onClick, hoverClass = "hover:text-cyan-600 dark:hover:text-cyan-400", textClass = "text-slate-500 dark:text-slate-400", className = "" }: {
+  icon: string; label: string; onClick?: () => void; hoverClass?: string; textClass?: string; className?: string;
+}) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+      title={label}
+      aria-label={label}
+      className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-lg ${textClass} ${hoverClass} hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors ${className}`}
+    >
+      <Icon name={icon} size={15} />
+    </button>
+  );
+}
+
+/** Tarjeta de un medicamento. Clic en la tarjeta abre el detalle;
+ * acciones: descargar/imprimir/enviar/cancelar/eliminar. */
 export function PrescriptionRow({ medicamento, estado, fechaEmision, doctorNombre, onView, onDownload, onPrint, onSend, onToggleEstado, onDeleteMed, showManage }: {
   medicamento: PreviewMed;
   estado: string;
@@ -195,55 +236,65 @@ export function PrescriptionRow({ medicamento, estado, fechaEmision, doctorNombr
   showManage?: boolean;
 }) {
   const isActive = estado === "activa";
-  const subtitle = [medicamento.dosis, medicamento.frecuencia].filter(Boolean).join(" • ");
+  const subtitle = [medicamento.dosis, medicamento.frecuencia].filter(Boolean).join(" · ");
 
   return (
     <div
       onClick={onView}
-      className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-3 ${onView ? "cursor-pointer hover:border-cyan-300 dark:hover:border-cyan-700 transition-colors" : ""}`}
+      className={`flex rounded-3xl overflow-hidden border border-blue-100 dark:border-blue-900/50 bg-white dark:bg-slate-800 shadow-sm ${onView ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
     >
-      <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
-        <Icon name="medication" size={20} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[14px] font-bold text-slate-800 dark:text-slate-100 truncate">{medicamento.medicamento_nombre}</p>
-        {subtitle && <p className="text-[12px] text-slate-500 dark:text-slate-400 truncate">{subtitle}</p>}
-        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${isActive ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"}`}>
+      <div className="flex-1 min-w-0 p-4 sm:p-5 flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className={`flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wide ${isActive ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-slate-500"}`}>
+            <Icon name="medication" size={14} /> Receta médica
+          </span>
+          <span className={`text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full shrink-0 ${isActive ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"}`}>
             {isActive ? "Activa" : "Cancelada"}
           </span>
-          <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
-            <Icon name="calendar_today" size={11} /> Emitida: {fmtFechaCorta(fechaEmision)}
-          </span>
         </div>
-      </div>
-      <div className="hidden sm:flex flex-col items-end gap-2 shrink-0">
-        <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-          <Icon name="person" size={12} /> Dr. {doctorNombre}
-        </span>
-        <div className="flex items-center gap-1.5">
-          <button onClick={(e) => { e.stopPropagation(); onDownload(); }} title="Descargar PDF"
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-colors">
-            <Icon name="download" size={14} />
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); onPrint(); }} title="Imprimir"
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-colors">
-            <Icon name="print" size={14} />
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); onSend(); }} title="Enviar por Telegram"
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-[#24A1DE]/10 hover:text-[#24A1DE] text-slate-500 dark:text-slate-300 flex items-center justify-center transition-colors">
-            <Icon name="send" size={14} />
-          </button>
+
+        <div>
+          <p className="text-[17px] font-bold text-slate-900 dark:text-slate-100">{medicamento.medicamento_nombre}</p>
+          {subtitle && <p className="text-[12.5px] text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0">
+            <p className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Emitida</p>
+            <p className="text-[12.5px] font-semibold text-slate-700 dark:text-slate-300 truncate">{fmtFechaCorta(fechaEmision)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Doctor</p>
+            <p className="text-[12.5px] font-semibold text-slate-700 dark:text-slate-300 truncate">Dr. {doctorNombre}</p>
+          </div>
+        </div>
+
+        {medicamento.indicaciones && (
+          <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl px-3 py-2">
+            <Icon name="info" size={13} className="text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-[11.5px] text-amber-800 dark:text-amber-300 leading-snug">{medicamento.indicaciones}</p>
+          </div>
+        )}
+
+        <div className="flex items-center justify-end flex-nowrap gap-0.5 pt-3 mt-1 -mx-4 sm:-mx-5 px-4 sm:px-5 border-t border-slate-100 dark:border-slate-700">
+          <ActionLink icon="download" label="Descargar" onClick={onDownload} hoverClass="hover:text-emerald-600 dark:hover:text-emerald-400" />
+          <ActionLink icon="print" label="Imprimir" onClick={onPrint} hoverClass="hover:text-emerald-600 dark:hover:text-emerald-400" />
+          <ActionLink icon="send" label="Enviar" onClick={onSend} hoverClass="hover:text-[#24A1DE]" />
           {showManage && (
             <>
-              <button onClick={(e) => { e.stopPropagation(); onToggleEstado?.(); }} title={isActive ? "Marcar cancelada" : "Marcar activa"}
-                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-amber-100 dark:hover:bg-amber-900/30 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-colors">
-                <Icon name={isActive ? "block" : "check_circle"} size={14} />
-              </button>
-              <button onClick={(e) => { e.stopPropagation(); onDeleteMed?.(); }} title="Quitar medicamento"
-                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 dark:text-slate-500 hover:text-red-500 flex items-center justify-center transition-colors">
-                <Icon name="delete" size={14} />
-              </button>
+              <ActionLink
+                icon={isActive ? "block" : "check_circle"}
+                label={isActive ? "Cancelar" : "Activar"}
+                onClick={onToggleEstado}
+                hoverClass="hover:text-amber-600 dark:hover:text-amber-400"
+              />
+              <ActionLink
+                icon="delete"
+                label="Eliminar"
+                onClick={onDeleteMed}
+                textClass="text-red-400 dark:text-red-400/80"
+                hoverClass="hover:text-red-600 dark:hover:text-red-400"
+              />
             </>
           )}
         </div>
@@ -287,45 +338,97 @@ export function RecetaDetailModal({ data, dni, onClose }: { data: DocData; dni?:
   );
 }
 
-function buildRecetaHtml(opts: DocData & { clinica: ClinicaInfo | null }): string {
-  const header = buildLetterheadHeader({ clinica: opts.clinica, titulo: "Receta Médica", sub: opts.pacienteNombre, generado: fmtGenerado() });
-  const medsHtml = opts.medicamentos.map((m, i) => `
-    <div style="margin-bottom:12px;padding-left:12px;border-left:3px solid #0891b2;">
-      <div style="font-size:13px;font-weight:700;color:#1e293b;">${i + 1}. ${m.medicamento_nombre} ${m.dosis ?? ""}</div>
-      ${m.frecuencia ? `<div style="font-size:11.5px;color:#64748b;">${m.frecuencia}</div>` : ""}
-      ${m.indicaciones ? `<div style="font-size:11px;color:#94a3b8;">→ ${m.indicaciones}</div>` : ""}
-    </div>`).join("");
+function buildRecetaHtml(opts: DocData): string {
+  const docCode = `Receta médica`;
+  const header = buildLetterheadHeader({
+    clinica: opts.clinica ?? null,
+    docLabel: "Receta Médica Odontológica",
+    docCode,
+    pacienteNombre: opts.pacienteNombre,
+    generado: fmtGenerado(),
+  });
 
-  const body = `
-    <div style="padding:20px 24px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:10px;gap:8px;">
-        <span style="font-size:12px;color:#64748b;">Paciente: <strong style="color:#1e293b;">${opts.pacienteNombre}</strong></span>
-        <span style="font-size:11px;color:#94a3b8;">${fmtFechaCorta(opts.fecha)}</span>
-      </div>
-      ${opts.diagnostico ? `<div style="background:#f8fafc;padding:10px 12px;border-radius:8px;margin-bottom:14px;font-size:12px;"><strong>Diagnóstico:</strong> ${opts.diagnostico}</div>` : ""}
-      <div style="font-family:Georgia,serif;font-size:24px;color:#0891b2;margin-bottom:8px;">℞</div>
-      ${medsHtml}
-      <div style="margin-top:28px;text-align:center;">
-        <div style="width:160px;border-top:1px solid #334155;margin:0 auto 4px;"></div>
-        <div style="font-size:11px;font-weight:700;color:#1e293b;">${opts.doctorNombre}</div>
-        <div style="font-size:10px;color:#64748b;">Odontólogo</div>
-      </div>
+  const infoCell = (label: string, value?: string | null) => value ? `
+    <div>
+      <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">${esc(label)}</div>
+      <div style="font-size:12px;font-weight:700;color:#1e293b;">${esc(value)}</div>
+    </div>
+  ` : "";
+
+  const infoBar = `
+    <div style="margin:0 28px 20px;padding:14px 18px;background:#ecfeff;border-radius:10px;display:flex;flex-wrap:wrap;gap:18px;">
+      ${infoCell("Paciente", opts.pacienteNombre)}
+      ${infoCell("DNI", opts.dni)}
+      ${infoCell("Edad", opts.edad != null ? `${opts.edad} años` : null)}
+      ${infoCell("Fecha", fmtFechaCorta(opts.fecha))}
+      ${infoCell("Diagnóstico", opts.diagnostico)}
     </div>
   `;
-  return wrapDocument(`${header}${body}${buildLetterheadFooter(opts.clinica)}`, 700);
+
+  const medsHtml = opts.medicamentos.map((m, i) => `
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <span style="width:22px;height:22px;border-radius:50%;background:#0891b2;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i + 1}</span>
+        <span style="font-size:13.5px;font-weight:800;color:#1e293b;">${esc(m.medicamento_nombre)}</span>
+        ${m.dosis ? `<span style="font-size:12px;color:#64748b;">${esc(m.dosis)}</span>` : ""}
+      </div>
+      ${m.frecuencia || m.indicaciones ? `
+        <div style="padding-left:32px;">
+          ${m.frecuencia ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Frecuencia</div><div style="font-size:12px;color:#334155;margin-bottom:6px;">${esc(m.frecuencia)}</div>` : ""}
+          ${m.indicaciones ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Indicaciones</div><div style="font-size:12px;color:#334155;">${esc(m.indicaciones)}</div>` : ""}
+        </div>
+      ` : ""}
+    </div>`).join("");
+
+  const alergiasHtml = (opts.alergias && opts.alergias.length > 0) ? `
+    <div style="margin:6px 0 0;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;display:flex;gap:8px;align-items:flex-start;">
+      <span style="font-size:14px;line-height:1;">⚠️</span>
+      <div style="font-size:11px;color:#92400e;line-height:1.6;"><b>Paciente con alergias registradas:</b> ${esc(opts.alergias.join(", "))}. Verificar compatibilidad antes de administrar.</div>
+    </div>
+  ` : "";
+
+  const body = `
+    ${infoBar}
+    <div style="padding:0 28px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <span style="width:34px;height:34px;border-radius:50%;background:#ecfeff;color:#0891b2;font-family:Georgia,serif;font-size:20px;display:flex;align-items:center;justify-content:center;">℞</span>
+        <div>
+          <div style="font-size:14px;font-weight:800;color:#1e293b;">Prescripción Médica</div>
+          <div style="font-size:10.5px;color:#94a3b8;">Válida por 30 días desde la fecha de emisión</div>
+        </div>
+      </div>
+      ${medsHtml}
+      ${alergiasHtml}
+    </div>
+
+    <div style="padding:28px 28px 24px;display:flex;justify-content:flex-end;">
+      ${buildSignatureBlock({ nombre: opts.doctorNombre, especialidad: opts.doctorEspecialidad, numColegiatura: opts.doctorNumColegiatura, firmaUrl: opts.doctorFirmaUrl })}
+    </div>
+  `;
+
+  return wrapDocument(`${header}${body}${buildLetterheadFooter({ clinica: opts.clinica ?? null, pacienteNombre: opts.pacienteNombre, docCode })}`, 800);
 }
 
 export async function handleDownloadPdf(d: DocData, sede: ClinicaInfo | null) {
-  const html = buildRecetaHtml({ ...d, clinica: sede });
+  const html = buildRecetaHtml({ ...d, clinica: d.clinica ?? sede });
   await downloadHtmlAsSinglePagePdf(html, `receta_${d.pacienteNombre.replace(/\s+/g, "_")}_${d.fecha}.pdf`);
 }
 
 // ─── Modal "Nueva receta electrónica" (dos paneles + vista previa) ─────────────
 
-function RecetaModal({ diagnosticoId, pacienteId, pacienteNombre, telefono, dni, doctorNombre, diagnosticoTexto, onClose, onSaved }: {
-  diagnosticoId: number; pacienteId: number; pacienteNombre: string; telefono: string; dni: string;
-  doctorNombre: string; diagnosticoTexto: string; onClose: () => void; onSaved?: () => void;
+function RecetaModal({
+  diagnosticoId, pacienteId, pacienteNombre, telefono, dni, edad, alergias,
+  doctorNombre, doctorEspecialidad, doctorNumColegiatura, doctorFirmaUrl, clinica,
+  diagnosticoTexto, onClose, onSaved,
+}: {
+  diagnosticoId: string; pacienteId: string; pacienteNombre: string; telefono: string; dni: string;
+  edad?: number | null; alergias?: string[];
+  doctorNombre: string; doctorEspecialidad?: string | null; doctorNumColegiatura?: string | null; doctorFirmaUrl?: string | null;
+  clinica?: ClinicaInfo | null;
+  diagnosticoTexto: string; onClose: () => void; onSaved?: () => void;
 }) {
+  useBodyScrollLock();
+  const isMobile = useIsMobile();
   const today = new Date().toISOString().split("T")[0];
   const [motivo, setMotivo] = useState(diagnosticoTexto || "");
   const [meds, setMeds] = useState<MedDraft[]>([emptyMed()]);
@@ -333,6 +436,7 @@ function RecetaModal({ diagnosticoId, pacienteId, pacienteNombre, telefono, dni,
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const toast = useToast();
 
   function setField(i: number, field: keyof MedDraft, value: any) {
     setMeds(p => p.map((m, j) => j === i ? { ...m, [field]: value } : m));
@@ -363,9 +467,10 @@ function RecetaModal({ diagnosticoId, pacienteId, pacienteNombre, telefono, dni,
   async function guardar(): Promise<boolean> {
     if (validMeds.length === 0) { setError("Agrega al menos un medicamento"); return false; }
     setSaving(true); setError("");
-    const res = await saveRecetaAction({ diagnostico_id: diagnosticoId, paciente_id: pacienteId, medicamentos: validMeds });
+    const res = await saveRecetaAction({ diagnostico_id: String(diagnosticoId), paciente_id: String(pacienteId), medicamentos: validMeds });
     setSaving(false);
-    if (res?.error) { setError(res.error); return false; }
+    if (res?.error) { setError(res.error); toast.error(res.error); return false; }
+    toast.success("Receta médica guardada correctamente");
     return true;
   }
 
@@ -373,12 +478,26 @@ function RecetaModal({ diagnosticoId, pacienteId, pacienteNombre, telefono, dni,
     if (await guardar()) { onSaved?.(); onClose(); }
   }
 
-  const previewData = { pacienteNombre, doctorNombre, fecha: today, diagnostico: motivo, medicamentos: validMeds };
+  const previewData: DocData = {
+    pacienteNombre, doctorNombre, fecha: today, diagnostico: motivo, medicamentos: validMeds,
+    dni, edad, alergias, doctorEspecialidad, doctorNumColegiatura, doctorFirmaUrl, clinica,
+  };
   const telegramLink = buildTelegramLink(previewData);
 
-  return (
-    <motion.div variants={fadeIn} initial="hidden" animate="visible" exit="exit" className="fixed inset-0 z-[70] flex items-center justify-center p-4 pb-20 md:pb-4 backdrop-blur-[2px]" style={{ background: "rgba(15,23,42,0.5)" }} onClick={onClose}>
-      <motion.div variants={scaleIn} initial="hidden" animate="visible" exit="exit" className="bg-white dark:bg-slate-800 rounded-2xl w-full shadow-2xl overflow-hidden flex flex-col" style={{ maxWidth: 900, maxHeight: "min(90vh, calc(100dvh - 96px))" }} onClick={e => e.stopPropagation()}>
+  return createPortal(
+    <div className="fixed inset-0 z-[70] md:flex md:items-center md:justify-center md:p-6">
+      <motion.div
+        variants={fadeIn} initial="hidden" animate="visible" exit="exit"
+        className="absolute inset-0 bg-slate-900/50 md:backdrop-blur-[2px]"
+        onClick={onClose}
+      />
+      <motion.div
+        variants={isMobile ? slideUp : scaleIn}
+        initial="hidden" animate="visible" exit="exit"
+        className="fixed inset-x-0 bottom-0 top-10 md:relative md:inset-auto rounded-t-2xl md:rounded-2xl bg-white dark:bg-slate-800 w-full shadow-2xl overflow-hidden flex flex-col"
+        style={{ maxWidth: isMobile ? undefined : 900, maxHeight: isMobile ? undefined : "min(90vh, calc(100dvh - 96px))" }}
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
           <div>
@@ -467,7 +586,7 @@ function RecetaModal({ diagnosticoId, pacienteId, pacienteNombre, telefono, dni,
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-slate-100 dark:border-slate-700 shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-slate-100 dark:border-slate-700 shrink-0" style={{ paddingBottom: isMobile ? "calc(0.75rem + env(safe-area-inset-bottom))" : undefined }}>
           <button onClick={onClose} className="px-4 py-2 text-[12px] font-medium border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
             Cancelar
           </button>
@@ -488,7 +607,8 @@ function RecetaModal({ diagnosticoId, pacienteId, pacienteNombre, telefono, dni,
           </div>
         </div>
       </motion.div>
-    </motion.div>
+    </div>,
+    document.body
   );
 }
 
@@ -570,7 +690,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ConfirmDialog({ titulo, texto, onCancel, onConfirm, confirmLabel = "Sí, eliminar" }: {
   titulo: string; texto: string; onCancel: () => void; onConfirm: () => void; confirmLabel?: string;
 }) {
-  return (
+  return createPortal(
     <motion.div variants={fadeIn} initial="hidden" animate="visible" exit="exit" className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]">
       <motion.div variants={scaleIn} initial="hidden" animate="visible" exit="exit" className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-5 max-w-sm w-full text-center">
         <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 mb-2">{titulo}</h3>
@@ -580,18 +700,25 @@ function ConfirmDialog({ titulo, texto, onCancel, onConfirm, confirmLabel = "Sí
           <button onClick={onConfirm} className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[12px] font-bold transition-colors">{confirmLabel}</button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
-export type DocData = { pacienteNombre: string; doctorNombre: string; fecha: string; diagnostico: string; medicamentos: PreviewMed[] };
+export type DocData = {
+  pacienteNombre: string; doctorNombre: string; fecha: string; diagnostico: string; medicamentos: PreviewMed[];
+  dni?: string; edad?: number | null; alergias?: string[];
+  doctorEspecialidad?: string | null; doctorNumColegiatura?: string | null; doctorFirmaUrl?: string | null;
+  clinica?: ClinicaInfo | null;
+};
 
 function buildTelegramText(d: DocData): string {
+  const contacto = [d.clinica?.telefono, d.clinica?.email_contacto].filter(Boolean).join(" · ");
   const lineas = [
-    `🦷 RECETA MÉDICA - MaraDental`,
-    `${d.doctorNombre}`,
+    `🦷 RECETA MÉDICA${d.clinica?.nombre_clinica ? ` - ${d.clinica.nombre_clinica}` : ""}`,
+    `Dr. ${d.doctorNombre}${d.doctorEspecialidad ? ` · ${d.doctorEspecialidad}` : ""}`,
     ``,
-    `Paciente: ${d.pacienteNombre}`,
+    `Paciente: ${d.pacienteNombre}${d.dni ? ` · DNI ${d.dni}` : ""}`,
     `Fecha: ${fmtFecha(d.fecha)}`,
     `Diagnóstico: ${d.diagnostico || "—"}`,
     ``,
@@ -599,8 +726,7 @@ function buildTelegramText(d: DocData): string {
     ...d.medicamentos.map((m, i) =>
       [`${i + 1}. ${m.medicamento_nombre} ${m.dosis}`, m.frecuencia ? `   ${m.frecuencia}` : "", m.indicaciones ? `   → ${m.indicaciones}` : ""].filter(Boolean).join("\n")
     ),
-    ``,
-    `MaraDental · Av. Principal 123 · +51 987 000 000`,
+    ...(contacto ? ["", contacto] : []),
   ];
   return lineas.join("\n");
 }
@@ -610,43 +736,8 @@ export function buildTelegramLink(d: DocData): string {
   return `https://t.me/share/url?url=&text=${encodeURIComponent(buildTelegramText(d))}`;
 }
 
+/** Imprime el mismo documento con membrete que se usa para descargar/telegram — antes generaba su propio HTML con datos de contacto inventados (dirección/teléfono fijos), ahora reutiliza buildRecetaHtml con los datos reales de la sede. */
 export function handlePrint(d: DocData) {
-  const medsHtml = d.medicamentos.map((m, i) => `
-    <div class="med">
-      <strong>${i + 1}. ${m.medicamento_nombre} ${m.dosis}</strong><br/>
-      ${m.frecuencia ? `<span style="color:#64748b">${m.frecuencia}</span>` : ""}
-      ${m.indicaciones ? `<br/><span style="color:#94a3b8">→ ${m.indicaciones}</span>` : ""}
-    </div>`).join("");
-
-  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
-  <title>Receta · ${d.pacienteNombre}</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:Arial,sans-serif;font-size:12px;color:#1e293b;max-width:580px;margin:32px auto;padding:0 16px}
-    .header{background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff;padding:14px 18px;border-radius:10px 10px 0 0}
-    .header h1{font-size:17px;font-weight:700;margin-bottom:3px}
-    .header p{font-size:10px;color:rgba(255,255,255,0.8);margin:1px 0}
-    .body{border:1px solid #e2e8f0;border-top:none;padding:18px;border-radius:0 0 10px 10px}
-    .row{display:flex;justify-content:space-between;margin-bottom:8px;gap:8px}
-    .dx{background:#f8fafc;padding:8px 10px;border-radius:7px;margin-bottom:10px;font-size:11px}
-    .rx-title{font-family:Georgia,serif;font-size:22px;color:#0891b2;margin:10px 0 8px}
-    .med{margin-bottom:10px;padding-left:10px;border-left:3px solid #0891b2}
-    .sig{margin-top:24px;text-align:center}
-    .sig-line{border-top:1px solid #334155;width:140px;margin:0 auto 4px}
-    .sig p{font-size:10px;color:#475569}
-    .sig .name{font-weight:700;font-size:11px;color:#1e293b}
-    @media print{body{margin:0}}
-  </style></head><body>
-    <div class="header"><h1>🦷 MaraDental</h1><p>${d.doctorNombre} · Odontología</p><p>Av. Principal 123 · Tel: +51 987 000 000</p></div>
-    <div class="body">
-      <div class="row"><span><strong>Paciente:</strong> ${d.pacienteNombre}</span><span><strong>Fecha:</strong> ${fmtFecha(d.fecha)}</span></div>
-      ${d.diagnostico ? `<div class="dx"><strong>Diagnóstico:</strong> ${d.diagnostico}</div>` : ""}
-      <div class="rx-title">℞</div>
-      ${medsHtml}
-      <div class="sig"><div class="sig-line"></div><p class="name">${d.doctorNombre}</p><p>Odontólogo</p></div>
-    </div>
-  </body></html>`;
-
-  const w = window.open("", "_blank", "width=680,height=820");
-  if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 600); }
+  const html = buildRecetaHtml(d);
+  printHtml(html, `Receta · ${d.pacienteNombre}`);
 }

@@ -3,13 +3,18 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
-import type { CalView } from "./agendaUtils";
-import { VIEW_LABELS, VIEW_ICONS } from "./agendaUtils";
+import type { CalView, DoctorLite } from "./agendaUtils";
+import { VIEW_LABELS, VIEW_ICONS, ESTADO_ORDER, ESTADO_ICON } from "./agendaUtils";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
+import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
+import type { EstadoCita } from "@/types/agenda";
+import { getDoctorVars } from "./doctorColors";
 
 const VIEWS: CalView[] = ["day", "week", "month", "year", "cronograma"];
 
 export type TipoFiltro = string | "todos"; // string is tipo_consulta_id
+export type EstadoFiltro = EstadoCita | "todos";
+export type DoctorFiltro = string[] | "todos"; // array de doctor ids seleccionados
 
 function ViewSelector({ view, onViewChange }: { view: CalView; onViewChange: (v: CalView) => void }) {
   const [open, setOpen] = useState(false);
@@ -19,11 +24,11 @@ function ViewSelector({ view, onViewChange }: { view: CalView; onViewChange: (v:
       <button
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
-        className="w-full md:w-auto flex items-center justify-between md:justify-start gap-2 h-9 pl-3 pr-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 transition-colors"
+        className="w-full md:w-[130px] flex items-center justify-between gap-2 h-9 pl-3 pr-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 transition-colors shrink-0"
       >
-        <span className="flex items-center gap-1.5">
-          <Icon name={VIEW_ICONS[view]} size={15} className="text-slate-500 dark:text-slate-400" />
-          {VIEW_LABELS[view]}
+        <span className="flex items-center gap-1.5 min-w-0 truncate">
+          <Icon name={VIEW_ICONS[view]} size={15} className="text-slate-500 dark:text-slate-400 shrink-0" />
+          <span className="truncate">{VIEW_LABELS[view]}</span>
         </span>
         <Icon name="expand_more" size={16} className="text-slate-400 dark:text-slate-500" />
       </button>
@@ -62,10 +67,135 @@ function TipoFiltroSelector({ value, onChange }: { value: TipoFiltro; onChange: 
       <button
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
-        className="w-full md:w-auto flex items-center justify-between md:justify-start gap-2 h-9 pl-3 pr-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 transition-colors"
+        className="w-full md:w-[168px] flex items-center justify-between gap-2 h-9 pl-3 pr-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 transition-colors shrink-0"
       >
         <span className="flex items-center gap-1.5 min-w-0">
           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: vars ? vars.solid : "#94a3b8" }} />
+          <span className="truncate">{label}</span>
+        </span>
+        <Icon name="expand_more" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
+      </button>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.15 }}
+          className="absolute left-0 md:left-auto md:right-0 top-10 z-30 min-w-[180px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1.5 px-1.5 flex flex-col gap-1"
+        >
+          <button
+            onMouseDown={() => onChange("todos")}
+            className={`text-left px-2.5 py-1.5 rounded-lg text-[12px] font-bold transition-colors ${value === "todos" ? "bg-cyan-600 text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"}`}
+          >
+            Todos los tipos
+          </button>
+          {tipos.map((tipo) => {
+            const v = getVars(tipo.id);
+            const active = value === tipo.id;
+            return (
+              <button
+                key={tipo.id}
+                onMouseDown={() => onChange(tipo.id)}
+                className="text-left px-2.5 py-1.5 rounded-lg text-[12px] font-bold transition-all"
+                style={active ? { background: v.solid, color: "white" } : { background: `${v.solid}1a`, color: v.solid }}
+              >
+                {tipo.tipo_consulta}
+              </button>
+            );
+          })}
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+function DoctorFiltroSelector({ doctores, value, onChange }: { doctores: DoctorLite[]; value: DoctorFiltro; onChange: (v: DoctorFiltro) => void }) {
+  const [open, setOpen] = useState(false);
+  const allSelected = value === "todos";
+  const selectedIds = allSelected ? doctores.map(d => d.id) : value;
+  const label = allSelected
+    ? "Todos los médicos"
+    : selectedIds.length === 0
+      ? "Ningún médico"
+      : selectedIds.length === 1
+        ? `Dr. ${doctores.find(d => d.id === selectedIds[0])?.apellido ?? "—"}`
+        : `${selectedIds.length} médicos`;
+
+  function toggleDoctor(id: string) {
+    const current = allSelected ? doctores.map(d => d.id) : value;
+    const next = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
+    onChange(next.length === doctores.length ? "todos" : next);
+  }
+
+  return (
+    <div className="relative flex-1 md:flex-none">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="w-full md:w-[160px] flex items-center justify-between gap-2 h-9 pl-3 pr-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 transition-colors shrink-0"
+      >
+        <span className="flex items-center gap-1.5 min-w-0">
+          <Icon name="stethoscope" size={14} className="text-slate-500 dark:text-slate-400 shrink-0" />
+          <span className="truncate">{label}</span>
+        </span>
+        <Icon name="expand_more" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
+      </button>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.15 }}
+          className="absolute left-0 md:left-auto md:right-0 top-10 z-30 min-w-[220px] max-h-72 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
+        >
+          <button
+            onMouseDown={() => onChange("todos")}
+            className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-700 ${allSelected ? "text-cyan-700 dark:text-cyan-400 font-semibold" : "text-slate-600 dark:text-slate-300"}`}
+          >
+            <span className={`w-3.5 h-3.5 rounded shrink-0 border-2 flex items-center justify-center ${allSelected ? "bg-cyan-600 border-cyan-600" : "border-slate-300 dark:border-slate-600"}`}>
+              {allSelected && <Icon name="check" size={10} className="text-white" />}
+            </span>
+            Todos los médicos
+          </button>
+          {doctores.length > 0 && <div className="my-1 border-t border-slate-100 dark:border-slate-700" />}
+          {doctores.map((doc) => {
+            const vars = getDoctorVars(doc.id);
+            const checked = selectedIds.includes(doc.id);
+            return (
+              <button
+                key={doc.id}
+                onMouseDown={() => toggleDoctor(doc.id)}
+                className="w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+              >
+                <span
+                  className={`w-3.5 h-3.5 rounded shrink-0 border-2 flex items-center justify-center ${checked ? "" : "border-slate-300 dark:border-slate-600"}`}
+                  style={checked ? { background: vars.solid, borderColor: vars.solid } : undefined}
+                >
+                  {checked && <Icon name="check" size={10} className="text-white" />}
+                </span>
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: vars.solid }} />
+                <span className="truncate">Dr. {doc.apellido}</span>
+              </button>
+            );
+          })}
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+function EstadoFiltroSelector({ value, onChange }: { value: EstadoFiltro; onChange: (v: EstadoFiltro) => void }) {
+  const [open, setOpen] = useState(false);
+  const vars = value !== "todos" ? estadoCitaVars(value) : null;
+  const label = value === "todos" ? "Todos los estados" : ESTADO_CITA_LABEL[value];
+
+  return (
+    <div className="relative flex-1 md:flex-none">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="w-full md:w-[160px] flex items-center justify-between gap-2 h-9 pl-3 pr-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 transition-colors shrink-0"
+      >
+        <span className="flex items-center gap-1.5 min-w-0">
+          <Icon name={value !== "todos" ? ESTADO_ICON[value] : "category"} size={14} className="text-slate-500 dark:text-slate-400 shrink-0" style={vars ? { color: vars.solid } : undefined} />
           <span className="truncate">{label}</span>
         </span>
         <Icon name="expand_more" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
@@ -81,20 +211,20 @@ function TipoFiltroSelector({ value, onChange }: { value: TipoFiltro; onChange: 
             onMouseDown={() => onChange("todos")}
             className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-700 ${value === "todos" ? "text-cyan-700 dark:text-cyan-400 font-semibold" : "text-slate-600 dark:text-slate-300"}`}
           >
-            <span className="w-2 h-2 rounded-full shrink-0 bg-slate-400 dark:bg-slate-500" />
-            Todos los tipos
+            <Icon name="category" size={14} className="shrink-0" />
+            Todos los estados
           </button>
-          {tipos.map((tipo) => {
-            const v = getVars(tipo.id);
+          {ESTADO_ORDER.map((e) => {
+            const v = estadoCitaVars(e);
             return (
               <button
-                key={tipo.id}
-                onMouseDown={() => onChange(tipo.id)}
-                className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-700 ${value === tipo.id ? "font-semibold" : "text-slate-600 dark:text-slate-300"}`}
-                style={value === tipo.id ? { color: v.text } : undefined}
+                key={e}
+                onMouseDown={() => onChange(e)}
+                className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-700 ${value === e ? "font-semibold" : "text-slate-600 dark:text-slate-300"}`}
+                style={value === e ? { color: v.text } : undefined}
               >
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: v.solid }} />
-                {tipo.tipo_consulta}
+                <Icon name={ESTADO_ICON[e]} size={14} style={{ color: v.solid }} />
+                {ESTADO_CITA_LABEL[e]}
               </button>
             );
           })}
@@ -104,8 +234,59 @@ function TipoFiltroSelector({ value, onChange }: { value: TipoFiltro; onChange: 
   );
 }
 
+function EspecialidadFiltroSelector({ especialidades, value, onChange }: { especialidades: string[]; value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const label = value === "todas" ? "Todas las especialidades" : value;
+
+  if (especialidades.length === 0) return null;
+
+  return (
+    <div className="relative flex-1 md:flex-none">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="w-full md:w-[170px] flex items-center justify-between gap-2 h-9 pl-3 pr-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-[12.5px] font-semibold text-slate-800 dark:text-slate-100 transition-colors shrink-0"
+      >
+        <span className="flex items-center gap-1.5 min-w-0">
+          <Icon name="medical_information" size={14} className="text-slate-500 dark:text-slate-400 shrink-0" />
+          <span className="truncate">{label}</span>
+        </span>
+        <Icon name="expand_more" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
+      </button>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.15 }}
+          className="absolute left-0 md:left-auto md:right-0 top-10 z-30 min-w-[190px] max-h-64 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
+        >
+          <button
+            onMouseDown={() => onChange("todas")}
+            className={`w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-700 ${value === "todas" ? "text-cyan-700 dark:text-cyan-400 font-semibold" : "text-slate-600 dark:text-slate-300"}`}
+          >
+            Todas las especialidades
+          </button>
+          {especialidades.map((esp) => (
+            <button
+              key={esp}
+              onMouseDown={() => onChange(esp)}
+              className={`w-full text-left px-3 py-2 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-700 ${value === esp ? "text-cyan-700 dark:text-cyan-400 font-semibold" : "text-slate-600 dark:text-slate-300"}`}
+            >
+              {esp}
+            </button>
+          ))}
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
 export function CalendarToolbar({
   view, onViewChange, label, onPrev, onNext, onToday, onNewCita, tipoFiltro, onTipoFiltroChange,
+  role, doctores, doctorFiltro, onDoctorFiltroChange,
+  especialidadFiltro, onEspecialidadFiltroChange,
+  estadoFiltro, onEstadoFiltroChange,
+  soloConCitasHoy, onSoloConCitasHoyChange,
 }: {
   view: CalView;
   onViewChange: (v: CalView) => void;
@@ -116,8 +297,20 @@ export function CalendarToolbar({
   onNewCita: () => void;
   tipoFiltro: TipoFiltro;
   onTipoFiltroChange: (v: TipoFiltro) => void;
+  role?: string;
+  doctores?: DoctorLite[];
+  doctorFiltro?: DoctorFiltro;
+  onDoctorFiltroChange?: (v: DoctorFiltro) => void;
+  especialidadFiltro?: string;
+  onEspecialidadFiltroChange?: (v: string) => void;
+  estadoFiltro?: EstadoFiltro;
+  onEstadoFiltroChange?: (v: EstadoFiltro) => void;
+  soloConCitasHoy?: boolean;
+  onSoloConCitasHoyChange?: (v: boolean) => void;
 }) {
   const isCronograma = view === "cronograma";
+  const isAsistente = role === "asistente";
+  const especialidades = Array.from(new Set((doctores ?? []).map(d => d.especialidad).filter(Boolean))) as string[];
 
   return (
     <div className="shrink-0 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 px-3 py-2.5 md:px-5 md:py-4 flex flex-col gap-2.5 md:flex-row md:items-center md:gap-3">
@@ -162,9 +355,32 @@ export function CalendarToolbar({
 
       {/* Selectores de vista + tipo + nueva cita */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:ml-auto">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <ViewSelector view={view} onViewChange={onViewChange} />
           <TipoFiltroSelector value={tipoFiltro} onChange={onTipoFiltroChange} />
+          {/* En Semana el panel lateral de la grilla de tiempo ya trae su propio
+              checklist de médicos — se ocultan estos selectores ahí para no
+              duplicar el mismo control en dos lugares. */}
+          {isAsistente && view !== "week" && doctores && onDoctorFiltroChange && (
+            <DoctorFiltroSelector doctores={doctores} value={doctorFiltro ?? "todos"} onChange={onDoctorFiltroChange} />
+          )}
+          {isAsistente && view !== "week" && onEspecialidadFiltroChange && (
+            <EspecialidadFiltroSelector especialidades={especialidades} value={especialidadFiltro ?? "todas"} onChange={onEspecialidadFiltroChange} />
+          )}
+          {isAsistente && onEstadoFiltroChange && (
+            <EstadoFiltroSelector value={estadoFiltro ?? "todos"} onChange={onEstadoFiltroChange} />
+          )}
+          {isAsistente && view === "day" && onSoloConCitasHoyChange && (
+            <button
+              onClick={() => onSoloConCitasHoyChange(!soloConCitasHoy)}
+              className={`flex items-center gap-1.5 h-9 px-3 rounded-lg text-[12.5px] font-semibold transition-colors shrink-0 ${
+                soloConCitasHoy ? "bg-cyan-600 text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+              }`}
+            >
+              <Icon name="event_available" size={15} />
+              Solo con citas
+            </button>
+          )}
         </div>
         <button
           onClick={onNewCita}

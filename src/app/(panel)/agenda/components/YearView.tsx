@@ -16,6 +16,7 @@ export function YearView({
   onDayClick: (d: Date) => void;
 }) {
   const todayStr = toDateStr(today);
+  const { getVars } = useTipoConsultaVars();
 
   const firstCitaByDay = new Map<string, Cita>();
   const countByDay = new Map<string, number>();
@@ -29,7 +30,7 @@ export function YearView({
       variants={staggerContainer(0.03)}
       initial="hidden"
       animate="visible"
-      className="h-full overflow-y-auto p-3 md:p-5"
+      className="h-full overflow-y-auto no-scrollbar p-3 md:p-5"
     >
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
         {MONTHS_L.map((monthLabel, month) => {

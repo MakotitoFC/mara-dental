@@ -100,3 +100,53 @@ export async function deleteTipoArchivoAction(id: string) {
   revalidatePath("/admin/configuracion-tipos");
   return { success: true };
 }
+
+// --- CONDICION DIENTE ---
+export async function getCondicionAction() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("condicion")
+    .select("*")
+    .order("condicion");
+  
+  if (error) {
+    console.error("Error obteniendo condiciones", error);
+    return [];
+  }
+  return data;
+}
+
+export async function createCondicionAction(data: { condicion: string; color: string }) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("condicion").insert({
+    condicion: data.condicion.trim(),
+    color: data.color,
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath("/admin/configuracion-tipos");
+  return { success: true };
+}
+
+export async function updateCondicionAction(id: string, data: { condicion: string; color: string }) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("condicion")
+    .update({
+      condicion: data.condicion.trim(),
+      color: data.color,
+    })
+    .eq("id", id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/admin/configuracion-tipos");
+  return { success: true };
+}
+
+export async function deleteCondicionAction(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("condicion").delete().eq("id", id);
+  if (error) return { error: "No se puede eliminar. Es posible que existan odontogramas vinculados a esta condición." };
+  revalidatePath("/admin/configuracion-tipos");
+  return { success: true };
+}

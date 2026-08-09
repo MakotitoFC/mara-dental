@@ -11,6 +11,7 @@ export interface Cita {
   paciente_nombre: string;
   alergias: string[];
   tipo_consulta_id: string;   // FK a tipo_consulta.id
+  doctor_id: string;       // citas.doctor_id (= usuarios.id directamente)
   doctor_nombre: string;   // derived from personal join
   fecha: string;           // YYYY-MM-DD
   hora_inicio: string;     // HH:mm

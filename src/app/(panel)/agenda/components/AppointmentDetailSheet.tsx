@@ -11,13 +11,15 @@ import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { ESTADO_ICON, ESTADO_ORDER, initials } from "./agendaUtils";
 
 export function AppointmentDetailSheet({
-  cita, onClose, onEdit, onChanged,
+  cita, onClose, onEdit, onChanged, role,
 }: {
   cita: Cita;
   onClose: () => void;
   onEdit: (c: Cita) => void;
   onChanged: () => void;
+  role?: string;
 }) {
+  const isAsistente = role === "asistente";
   const router = useRouter();
   const [statusOpen, setStatusOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -50,7 +52,7 @@ export function AppointmentDetailSheet({
   }
 
   function handleIniciarConsulta() {
-    router.push(`/pacientes/${cita.paciente_id}?tab=timeline&nueva=1`);
+    router.push(`/pacientes/${cita.paciente_id}?tab=timeline&nueva=1&citaId=${cita.id}`);
   }
 
   function goToPatient() {
@@ -70,13 +72,15 @@ export function AppointmentDetailSheet({
           )}
           {!confirmDelete ? (
             <>
-              <button
-                onClick={handleIniciarConsulta}
-                className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[13px] font-semibold transition-colors"
-              >
-                <Icon name="stethoscope" size={16} />
-                Iniciar consulta
-              </button>
+              {!isAsistente && (
+                <button
+                  onClick={handleIniciarConsulta}
+                  className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[13px] font-semibold transition-colors"
+                >
+                  <Icon name="stethoscope" size={16} />
+                  Iniciar consulta
+                </button>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={() => onEdit(cita)}
@@ -93,7 +97,7 @@ export function AppointmentDetailSheet({
               </div>
             </>
           ) : (
-            <div className="rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-3 flex flex-col gap-2.5">
+            <div className="rounded-xl border border-red-200 dark:border-red-900 p-3 flex flex-col gap-2.5">
               <p className="text-[12.5px] font-semibold text-red-700 dark:text-red-400 text-center">
                 ¿Eliminar esta cita? Esta acción no se puede deshacer.
               </p>
@@ -203,7 +207,7 @@ export function AppointmentDetailSheet({
         </div>
 
         {cita.alergias.length > 0 && (
-          <div className="flex items-center gap-3 px-3.5 py-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-100 dark:border-rose-800 rounded-xl">
+          <div className="flex items-center gap-3 px-3.5 py-3 border border-rose-200 dark:border-rose-800 rounded-xl">
             <Icon name="warning_amber" size={17} className="text-rose-500 dark:text-rose-400 shrink-0" />
             <div className="min-w-0">
               <p className="text-[10.5px] font-semibold text-rose-400 dark:text-rose-500 uppercase tracking-wide">Alergias del paciente</p>

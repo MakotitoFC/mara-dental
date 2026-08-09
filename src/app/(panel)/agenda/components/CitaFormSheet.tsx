@@ -2,32 +2,33 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
-import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { TimePicker } from "@/components/ui/TimePicker";
+import { Select } from "@/components/ui/Select";
 import type { Cita, EstadoCita } from "@/types/agenda";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { searchPatients, createCitaAction, updateCitaAction, createPacienteRapidoAction } from "../actions";
+import { getContextoClinicoPacienteAction, type ContextoClinicoPaciente } from "../../pacientes/[id]/consulta.actions";
 import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
-import { ESTADO_ICON, calcHoraFin, timeToMin, fmtHora12, fmtFechaLarga } from "./agendaUtils";
+import { ESTADO_ICON, calcHoraFin, fmtHora12, fmtFechaLarga, type DoctorLite } from "./agendaUtils";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 
 export type PatientLite = { id: string; nombre: string; apellido: string; dni?: string };
 
 export type CitaFormState =
-  | { mode: "create"; date: string; hour?: string; preloadedPatient?: PatientLite | null }
+  | { mode: "create"; date: string; hour?: string; preloadedPatient?: PatientLite | null; preTratamientoId?: string; doctorId?: string; doctorNombre?: string; doctores?: DoctorLite[] }
   | { mode: "edit"; cita: Cita };
 
-const DURACIONES = ["30", "45", "60", "90", "120"];
 const CREATE_ESTADOS: EstadoCita[] = ["programada"];
 const EDIT_ESTADOS: EstadoCita[] = ["programada", "hecho", "cancelada"];
 
 export function CitaFormSheet({
-  state, onClose, onSuccess,
+  state, onClose, onSuccess, role,
 }: {
   state: CitaFormState;
   onClose: () => void;
   onSuccess: () => void;
+  role?: string;
 }) {
   const isEdit = state.mode === "edit";
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,19 +39,52 @@ export function CitaFormSheet({
     state.mode === "create" ? (state.preloadedPatient ?? null) : null
   );
 
-  const initialDur = isEdit
-    ? String(timeToMin(state.cita.hora_fin) - timeToMin(state.cita.hora_inicio))
-    : "30";
+  const doctoresDisponibles = !isEdit ? state.doctores ?? [] : [];
+  const necesitaElegirDoctor = !isEdit && !state.doctorId && doctoresDisponibles.length > 0;
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(!isEdit ? state.doctorId ?? "" : "");
 
   const [fecha, setFecha] = useState(isEdit ? state.cita.fecha : state.date);
   const [horaInicio, setHoraInicio] = useState(isEdit ? state.cita.hora_inicio : (state.hour ?? "09:00"));
-  const [duracion, setDuracion] = useState(initialDur);
+  const [horaFin, setHoraFin] = useState(
+    isEdit ? state.cita.hora_fin : calcHoraFin(state.hour ?? "09:00", 30)
+  );
   const [tipoConsultaId, setTipoConsultaId] = useState<string>(
     isEdit ? state.cita.tipo_consulta_id : ""
   );
   const [estado, setEstado] = useState<EstadoCita>(isEdit ? state.cita.estado : "programada");
   const [notas, setNotas] = useState(isEdit ? (state.cita.notas ?? "") : "");
-  
+
+  // Contexto clínico — solo para el asistente al crear una cita: identifica
+  // la fase pendiente del tratamiento activo del paciente (o el tratamiento
+  // o diagnóstico si no hay fases registradas) para que el doctor sepa qué
+  // procedimiento le toca. Nunca inventa contenido, solo lee lo ya registrado.
+  const mostrarContextoClinico = !isEdit && role === "asistente";
+  const [contexto, setContexto] = useState<ContextoClinicoPaciente | null>(null);
+  const [cargandoContexto, setCargandoContexto] = useState(false);
+  const [contextoAplicado, setContextoAplicado] = useState(false);
+
+  useEffect(() => {
+    if (!mostrarContextoClinico || !selectedPatient) { setContexto(null); setContextoAplicado(false); return; }
+    let cancelado = false;
+    setCargandoContexto(true);
+    getContextoClinicoPacienteAction(selectedPatient.id).then((res) => {
+      if (cancelado) return;
+      setCargandoContexto(false);
+      if (!res) console.log("[ContextoClinico] Sin datos para este paciente (sin historial registrado, o RLS bloqueando la cadena diagnostico/tratamiento/plan_tratamiento para el rol asistente — a confirmar si persiste).");
+      setContexto(res);
+      if (res) {
+        const etiqueta = res.tipo === "fase" ? "Próxima fase de tratamiento" : res.tipo === "tratamiento" ? "Tratamiento en curso" : "Diagnóstico activo (sin tratamiento registrado aún)";
+        setNotas((prev) => {
+          if (prev.trim()) return prev;
+          setContextoAplicado(true);
+          return `${etiqueta}: ${res.texto}`;
+        });
+      }
+    });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPatient?.id, mostrarContextoClinico]);
+
   const [showNewPatientForm, setShowNewPatientForm] = useState(false);
   const [newPatientData, setNewPatientData] = useState({ nombre: "", apellido: "", dni: "", fecha_nacimiento: "", telefono: "" });
   const [creatingPatient, setCreatingPatient] = useState(false);
@@ -60,7 +94,6 @@ export function CitaFormSheet({
   const [needsConfirm, setNeedsConfirm] = useState(false);
 
   const estadoOptions = isEdit ? EDIT_ESTADOS : CREATE_ESTADOS;
-  const duracionOptions = DURACIONES.includes(initialDur) ? DURACIONES : [initialDur, ...DURACIONES];
 
   const { getVars, tipos } = useTipoConsultaVars();
 
@@ -85,13 +118,13 @@ export function CitaFormSheet({
   async function handleSave(force = false) {
     setError("");
     if (!isEdit && !selectedPatient) { setError("Selecciona un paciente."); return; }
+    if (necesitaElegirDoctor && !selectedDoctorId) { setError("Selecciona un médico."); return; }
     setSaving(true);
-    const horaFin = calcHoraFin(horaInicio, Number(duracion));
 
     if (isEdit) {
       const res = await updateCitaAction(state.cita.id, {
         fecha, hora_inicio: horaInicio, hora_fin: horaFin,
-        tipo_consulta_id: tipoConsultaId, estado, notas: notas || undefined,
+        tipo_consulta_id: tipoConsultaId!, estado: estado!, notas: notas || "",
       });
       setSaving(false);
       if (res && "error" in res) { setError(res.error as string); return; }
@@ -99,7 +132,9 @@ export function CitaFormSheet({
       const res = await createCitaAction({
         paciente_id: selectedPatient!.id,
         fecha, hora_inicio: horaInicio, hora_fin: horaFin,
-        tipo_consulta_id: tipoConsultaId, estado, notas: notas || undefined,
+        tipo_consulta_id: tipoConsultaId!, estado: estado!, notas: notas || "",
+        tratamiento_id: state.mode === "create" ? state.preTratamientoId : undefined,
+        doctor_id: state.doctorId || selectedDoctorId || undefined,
       }, force);
       setSaving(false);
       if (res && "error" in res) {
@@ -127,11 +162,12 @@ export function CitaFormSheet({
     if (res.error) {
       setError(res.error);
     } else if (res.paciente) {
+      const p = res.paciente as any;
       setSelectedPatient({
-        id: res.paciente.id,
-        nombre: res.paciente.nombre,
-        apellido: res.paciente.apellido,
-        dni: res.paciente.dni
+        id: p.id,
+        nombre: p.nombre,
+        apellido: p.apellido,
+        dni: p.dni
       });
       setShowNewPatientForm(false);
       setNewPatientData({ nombre: "", apellido: "", dni: "", fecha_nacimiento: "", telefono: "" });
@@ -181,6 +217,23 @@ export function CitaFormSheet({
       }
     >
       <div className="flex flex-col gap-4 pt-1 pb-2">
+        {!isEdit && state.doctorNombre && (
+          <div className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 px-3 py-2">
+            <Icon name="stethoscope" size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
+            <span className="text-[12px] text-slate-500 dark:text-slate-400">Cita para <span className="font-semibold text-slate-700 dark:text-slate-300">Dr. {state.doctorNombre}</span></span>
+          </div>
+        )}
+        {necesitaElegirDoctor && (
+          <div className="flex flex-col gap-2">
+            <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Médico</label>
+            <Select
+              value={selectedDoctorId}
+              onChange={setSelectedDoctorId}
+              options={doctoresDisponibles.map(d => ({ value: d.id, label: `Dr. ${d.apellido}` }))}
+              placeholder="Selecciona un médico…"
+            />
+          </div>
+        )}
         {/* Paciente */}
         {isEdit ? (
           <div className="flex items-center gap-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-3 py-2.5">
@@ -257,11 +310,11 @@ export function CitaFormSheet({
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="text-[11.5px] text-slate-500 whitespace-nowrap">Nacimiento *</label>
-                        <input
-                          type="date"
+                        <DatePicker
                           value={newPatientData.fecha_nacimiento}
-                          onChange={e => setNewPatientData({...newPatientData, fecha_nacimiento: e.target.value})}
-                          className="flex-1 w-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400 uppercase"
+                          onChange={(v) => setNewPatientData({...newPatientData, fecha_nacimiento: v})}
+                          placeholder="Fecha de nacimiento"
+                          className="flex-1 w-0"
                         />
                       </div>
                       <button
@@ -293,23 +346,47 @@ export function CitaFormSheet({
           </div>
         )}
 
-        {/* Fecha / hora / duración */}
+        {mostrarContextoClinico && selectedPatient && (cargandoContexto || contexto) && (
+          <div className="flex items-start gap-2.5 rounded-lg bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-100 dark:border-cyan-800 px-3 py-2.5">
+            <Icon name="history_edu" size={15} className="text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wide">
+                Contexto clínico
+              </p>
+              {cargandoContexto ? (
+                <p className="text-[12px] text-cyan-700 dark:text-cyan-400">Buscando tratamiento activo…</p>
+              ) : (
+                <>
+                  <p className="text-[12px] text-cyan-900 dark:text-cyan-200 leading-snug">
+                    {contexto!.tipo === "fase" ? "Próxima fase: " : contexto!.tipo === "tratamiento" ? "Tratamiento en curso: " : "Diagnóstico activo: "}
+                    <span className="font-semibold">{contexto!.texto}</span>
+                  </p>
+                  {contextoAplicado && (
+                    <p className="text-[10.5px] text-cyan-600 dark:text-cyan-500 mt-0.5">Se agregó a las notas — puedes editarlo.</p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Fecha / hora inicio (la hora de fin se calcula automáticamente) */}
         <div className="flex flex-col gap-2">
           <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Fecha y hora</label>
           <div className="flex gap-2 flex-wrap">
-            <DatePicker value={fecha} onChange={setFecha} className="flex-1 min-w-[130px]" />
-            <TimePicker value={horaInicio} onChange={setHoraInicio} min="07:00" max="20:00" className="w-28" />
-            <Select
-              value={duracion}
-              onChange={setDuracion}
-              options={duracionOptions.map(d => ({ value: d, label: `${d} min` }))}
-              className="w-28"
+            <DatePicker value={fecha} onChange={setFecha} className="flex-1 min-w-[160px]" />
+            <TimePicker
+              value={horaInicio}
+              onChange={(v) => { setHoraInicio(v); setHoraFin(calcHoraFin(v, 30)); }}
+              min="07:00"
+              max="20:00"
+              className="w-32"
             />
           </div>
           {fecha && horaInicio && (
             <p className="flex items-center gap-1.5 text-[11.5px] text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 rounded-lg px-2.5 py-1.5">
               <Icon name="event_available" size={13} className="shrink-0" />
-              {fmtFechaLarga(fecha)} · {fmtHora12(horaInicio)} – {fmtHora12(calcHoraFin(horaInicio, Number(duracion)))}
+              {fmtFechaLarga(fecha)} · {fmtHora12(horaInicio)} – {fmtHora12(horaFin)}
             </p>
           )}
         </div>

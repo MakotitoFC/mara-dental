@@ -6,11 +6,11 @@ import "react-odontogram/style.css";
 import { Icon } from "@/components/ui/Icon";
 import { calcEdad } from "@/lib/date-utils";
 import { OdontogramaSkeleton } from "@/components/ui/ConsultaSkeletons";
-import { getOdontogramasAction, addFindingAction, updateFindingAction, deleteFindingAction } from "../odontograma.actions";
+import { getOdontogramasAction, addFindingAction, updateFindingAction, deleteFindingAction, getCondicionesOdontogramaAction } from "../odontograma.actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Convention = "caries" | "lesion" | "preexistencia" | "hallazgo";
+type Convention = string;
 type Surface = "oclusal" | "vestibular" | "mesial" | "distal" | "palatino";
 type Dentition = "adulto" | "infantil";
 
@@ -35,16 +35,11 @@ type SurfaceConventions = Partial<Record<Surface, Convention>>;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CONVENTIONS = [
-  { key: "caries" as Convention, label: "Lesión / Caries", color: "#ef4444" },
-  { key: "lesion" as Convention, label: "Lesión", color: "#f97316" },
-  { key: "preexistencia" as Convention, label: "Preexistencia", color: "#3b82f6" },
-  { key: "hallazgo" as Convention, label: "Otro Hallazgo", color: "#a855f7" },
-];
+
 
 // Orden de prioridad visual cuando un diente tiene más de una condición: se
 // pinta con la más urgente clínicamente.
-const CONV_PRIORITY: Convention[] = ["caries", "lesion", "hallazgo", "preexistencia"];
+
 
 const SURFACES: { key: Surface; label: string }[] = [
   { key: "vestibular", label: "Vestibular" },
@@ -106,15 +101,27 @@ function fromLibraryFdi(fdi: string, dentition: Dentition): number {
 // crashear (antes usaba `.find(...)!` sin respaldo).
 const UNKNOWN_CONVENTION = { key: "hallazgo" as Convention, label: "Otro", color: "#94a3b8" };
 
-function findConvention(key: string | undefined) {
-  return CONVENTIONS.find(c => c.key === key) ?? UNKNOWN_CONVENTION;
+function findConvention(key: string | undefined, conventions: any[]) {
+  return conventions.find(c => c.key === key) ?? UNKNOWN_CONVENTION;
 }
 
-function dominantConvention(f: SessionFinding): Convention {
-  if (f.isAll && f.allConvention) return findConvention(f.allConvention).key;
+function dominantConvention(f: SessionFinding, conventions: any[]): Convention {
+  if (f.isAll && f.allConvention) return findConvention(f.allConvention, conventions).key;
   const set = new Set(f.surfaceConditions.map(sc => sc.convention));
-  const priority = CONV_PRIORITY.find(c => set.has(c));
-  return findConvention(priority ?? f.surfaceConditions[0]?.convention).key;
+  const priority = conventions.find(c => set.has(c.key))?.key;
+  return findConvention(priority ?? f.surfaceConditions[0]?.convention, conventions).key;
+}
+
+// El color de `condicion.color` puede ser muy claro (pasteles) — usarlo tal
+// cual como texto sobre su propio fondo tintado lo vuelve casi ilegible. Se
+// oscurece para el texto/ícono, manteniendo el tono original solo en fondo/borde.
+function darkenForText(hex: string): string {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map(c => c + c).join("") : clean;
+  const r = parseInt(full.slice(0, 2), 16), g = parseInt(full.slice(2, 4), 16), b = parseInt(full.slice(4, 6), 16);
+  if ([r, g, b].some(Number.isNaN)) return "#334155";
+  const mix = (c: number) => Math.round(c * 0.55);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
 }
 
 function fmtDate(d: string): { day: string; month: string } {
@@ -127,11 +134,12 @@ function fmtDate(d: string): { day: string; month: string } {
 
 // ─── Session finding row (HISTORIAL) ──────────────────────────────────────────
 
-function SessionFindingRow({ finding, isPast, highlighted, onUpdateObs, onDelete }: {
+function SessionFindingRow({ finding, isPast, highlighted, onUpdateObs, onDelete, conventions }: {
   finding: SessionFinding; isPast: boolean;
   highlighted: boolean;
   onUpdateObs: (obs: string) => void;
   onDelete: (id: string) => void;
+  conventions: any[];
 }) {
   const [editingObs, setEditingObs] = useState(finding.observaciones);
   const [isEditing, setIsEditing] = useState(false);
@@ -155,20 +163,20 @@ function SessionFindingRow({ finding, isPast, highlighted, onUpdateObs, onDelete
 
       <div className="flex flex-wrap gap-1 mb-2">
         {finding.isAll && finding.allConvention ? (() => {
-          const conv = findConvention(finding.allConvention);
+          const conv = findConvention(finding.allConvention, conventions);
           return (
-            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border"
-              style={{ background: conv.color + "12", borderColor: conv.color + "40", color: conv.color }}>
-              Completo · {conv.label}
+            <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
+              style={{ background: conv.color + "55", borderColor: conv.color + "cc", color: darkenForText(conv.color), minWidth: 120 }}>
+              completo · {conv.label}
             </span>
           );
         })() : finding.surfaceConditions.map(sc => {
-          const conv = findConvention(sc.convention);
+          const conv = findConvention(sc.convention, conventions);
           const surf = SURFACES.find(x => x.key === sc.surface);
           return (
-            <span key={sc.surface} className="text-[9px] font-bold px-2 py-0.5 rounded-full border"
-              style={{ background: conv.color + "12", borderColor: conv.color + "40", color: conv.color }}>
-              {surf?.label} · {conv.label}
+            <span key={sc.surface} className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
+              style={{ background: conv.color + "55", borderColor: conv.color + "cc", color: darkenForText(conv.color), minWidth: 120 }}>
+              {surf?.label.toLowerCase()} · {conv.label}
             </span>
           );
         })}
@@ -205,7 +213,7 @@ function SessionFindingRow({ finding, isPast, highlighted, onUpdateObs, onDelete
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consultaId?: number }) {
+export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consultaId?: string }) {
   // El registro de hallazgos solo ocurre dentro de una consulta activa; la
   // Ficha del Paciente (sin consultaId) es de solo lectura del historial.
   const isEditable = !!consultaId;
@@ -218,6 +226,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
   const defaultDentition: Dentition = edadPaciente !== null && edadPaciente < 12 ? "infantil" : "adulto";
   const showDentitionToggle = edadPaciente !== null && edadPaciente >= 6 && edadPaciente <= 13;
 
+  const [conventions, setConventions] = useState<{key:string, label:string, color:string}[]>([]);
   const [dentition, setDentition] = useState<Dentition>(defaultDentition);
   const [sessions, setSessions] = useState<ExamSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -228,7 +237,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
   const [chartResetKey, setChartResetKey] = useState(0);
 
   const [surfaceConventions, setSurfaceConventions] = useState<SurfaceConventions>({});
-  const [activeSurface, setActiveSurface] = useState<Surface | null>(null);
+  const [activeSurfaces, setActiveSurfaces] = useState<Set<Surface>>(new Set());
   const [isAll, setIsAll] = useState(false);
   const [allConvention, setAllConvention] = useState<Convention | null>(null);
   const [newObs, setNewObs] = useState("");
@@ -238,6 +247,17 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
   const fetchOdontogramas = async () => {
     setLoading(true);
     const data = await getOdontogramasAction(String(paciente.id));
+    const conds = await getCondicionesOdontogramaAction();
+    const mappedConds = conds.map((c: any) => {
+      const raw = String(c.condicion || "").toLowerCase();
+      const label = raw.replace(/\b\w/g, (match) => match.toUpperCase());
+      return {
+        key: String(c.id),
+        label,
+        color: c.color || "#94a3b8" // Default slate-400 if no color
+      };
+    });
+    setConventions(mappedConds);
     setSessions(data as ExamSession[]);
     setLoading(false);
   };
@@ -248,7 +268,6 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
 
   const isViewingSession = !!expandedSessionId;
   const selectedSession = sessions.find(s => s.id === expandedSessionId) ?? null;
-  const isPastSession = selectedSession ? selectedSession.fecha < TODAY : false;
 
   const combinedFindings = useMemo(
     () => [...sessions].reverse().flatMap(s => s.findings),
@@ -268,19 +287,19 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
   const teethConditions = useMemo(() => {
     const byConv = new Map<Convention, string[]>();
     for (const f of visibleFindings) {
-      const conv = dominantConvention(f);
+      const conv = dominantConvention(f, conventions);
       const libId = toLibraryId(f.toothNumber, dentition);
       const list = byConv.get(conv) ?? [];
       if (!list.includes(libId)) list.push(libId);
       byConv.set(conv, list);
     }
-    return CONVENTIONS.filter(c => byConv.has(c.key)).map(c => ({
+    return conventions.filter(c => byConv.has(c.key)).map(c => ({
       label: c.label,
       teeth: byConv.get(c.key)!,
       fillColor: c.color,
       outlineColor: c.color,
     }));
-  }, [visibleFindings, dentition]);
+  }, [visibleFindings, dentition, conventions]);
 
   const sessionsSorted = useMemo(
     () => [...sessions].sort((a, b) => b.fecha.localeCompare(a.fecha)),
@@ -337,28 +356,43 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
   }
 
   function resetForm() {
-    setSurfaceConventions({}); setActiveSurface(null);
+    setSurfaceConventions({}); setActiveSurfaces(new Set());
     setIsAll(false); setAllConvention(null); setNewObs("");
   }
 
   function toggleAll() {
-    setIsAll(p => { if (!p) { setSurfaceConventions({}); setActiveSurface(null); } return !p; });
+    setIsAll(p => { if (!p) { setSurfaceConventions({}); setActiveSurfaces(new Set()); } return !p; });
   }
 
   function handleSelectSurface(s: Surface) {
-    setActiveSurface(p => (p === s ? null : s));
+    setActiveSurfaces(prev => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s); else next.add(s);
+      return next;
+    });
   }
 
+  // Aplica la condición elegida a todas las superficies seleccionadas a la vez
+  // (antes solo se podía asignar de a una superficie por vez).
   function assignConvention(conv: Convention) {
     if (isAll) { setAllConvention(conv); return; }
-    if (!activeSurface) return;
-    setSurfaceConventions(p => ({ ...p, [activeSurface]: conv }));
-    setActiveSurface(null);
+    if (activeSurfaces.size === 0) return;
+    setSurfaceConventions(p => {
+      const next = { ...p };
+      activeSurfaces.forEach(s => { next[s] = conv; });
+      return next;
+    });
+    setActiveSurfaces(new Set());
   }
 
   function removeSurfaceConvention(s: Surface) {
     setSurfaceConventions(p => { const n = { ...p }; delete n[s]; return n; });
-    if (activeSurface === s) setActiveSurface(null);
+    setActiveSurfaces(prev => {
+      if (!prev.has(s)) return prev;
+      const next = new Set(prev);
+      next.delete(s);
+      return next;
+    });
   }
 
   async function addRecord() {
@@ -368,7 +402,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
 
     setSaving(true);
     const res = await addFindingAction({
-      consulta_id: consultaId,
+      consulta_id: String(consultaId),
       diente: selectedTooth,
       isAll,
       allConvention: isAll ? (allConvention ?? undefined) : undefined,
@@ -391,7 +425,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
 
   async function handleUpdateFindingObs(finding: SessionFinding, obs: string) {
     setSaving(true);
-    const res = await updateFindingAction(finding.db_ids, obs);
+    const res = await updateFindingAction(finding.db_ids.map(String), obs);
     setSaving(false);
     if (!res?.error) {
       fetchOdontogramas();
@@ -401,7 +435,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
   async function confirmDeleteFinding() {
     if (!findingToDelete) return;
     setSaving(true);
-    const res = await deleteFindingAction(findingToDelete.db_ids);
+    const res = await deleteFindingAction(findingToDelete.db_ids.map(String));
     setSaving(false);
     setFindingToDelete(null);
     if (!res?.error) {
@@ -410,13 +444,15 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
   }
 
   const canAdd = isAll ? !!allConvention : Object.keys(surfaceConventions).length > 0;
-  const canPickConv = isAll || !!activeSurface;
+  const canPickConv = isAll || activeSurfaces.size > 0;
 
   const convPickerLabel = isAll
     ? "Condición — diente completo"
-    : activeSurface
-      ? `Condición — ${SURFACES.find(s => s.key === activeSurface)?.label}`
-      : "Condición";
+    : activeSurfaces.size === 1
+      ? `Condición — ${SURFACES.find(s => s.key === [...activeSurfaces][0])?.label}`
+      : activeSurfaces.size > 1
+        ? `Condición — ${activeSurfaces.size} superficies`
+        : "Condición";
 
   if (loading) return <OdontogramaSkeleton />;
 
@@ -469,7 +505,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
           </div>
 
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-6 flex flex-col items-center gap-4">
-            <div className="w-full max-w-[220px]">
+            <div className="w-full max-w-55">
               <Odontogram
                 key={`${dentition}-${chartResetKey}`}
                 theme="light"
@@ -514,29 +550,11 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
         {/* COLUMNA 2 — Formulario de registro e historial */}
         <div className="w-full lg:flex-1 min-w-0 flex flex-col gap-4">
 
-          {!isEditable ? (
-            <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3">
-              <Icon name="info" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
-              <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Los hallazgos se registran durante una consulta activa, desde el Calendario.</p>
-            </div>
-          ) : isViewingSession ? (
-            <div className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-100 dark:border-cyan-800 rounded-xl px-4 py-3 flex justify-between items-center shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-cyan-100 dark:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400 flex items-center justify-center">
-                  <Icon name="history" size={16} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-widest">Modo revisión {isPastSession && "· Solo lectura"}</p>
-                  <p className="text-[14px] font-bold text-cyan-800 dark:text-cyan-300 leading-tight">{selectedSession?.tipo}</p>
-                </div>
-              </div>
-              <button onClick={() => { setExpandedSessionId(null); setSelectedTooth(null); setChartResetKey(k => k + 1); }} className="text-[11px] text-white bg-cyan-600 hover:bg-cyan-700 px-3 py-1.5 rounded-lg font-bold transition-colors border-0">Salir de revisión</button>
-            </div>
-          ) : (
+          {!isEditable ? null : isViewingSession ? null : (
             <div className={`transition-opacity duration-200 ${!selectedTooth ? "opacity-40 pointer-events-none select-none" : ""}`}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Registro de Superficies</p>
-                <button onClick={toggleAll} className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-colors ${isAll ? "bg-cyan-600 text-white border-cyan-600" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800"}`}>
+                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Registro de superficies</p>
+                <button onClick={toggleAll} className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${isAll ? "bg-cyan-600 text-white border-cyan-600" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800"}`}>
                   <Icon name="tooth" size={13} className={isAll ? "text-white" : "text-slate-400 dark:text-slate-500"} />
                   Diente completo
                 </button>
@@ -546,17 +564,17 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Superficie */}
                   <div className={isAll ? "opacity-40 pointer-events-none" : ""}>
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">Superficie</p>
+                    <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Superficie</p>
                     <div className="flex flex-wrap gap-1.5">
                       {SURFACES.map(s => {
-                        const conv = surfaceConventions[s.key] ? CONVENTIONS.find(c => c.key === surfaceConventions[s.key]) : null;
-                        const isActv = activeSurface === s.key;
+                        const conv = surfaceConventions[s.key] ? conventions.find(c => c.key === surfaceConventions[s.key]) : null;
+                        const isActv = activeSurfaces.has(s.key);
                         return (
                           <button key={s.key} type="button" onClick={() => handleSelectSurface(s.key)}
                             className={`flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-xl text-[11.5px] font-semibold border transition-all ${
                               isActv && !conv ? "border-cyan-400 dark:border-cyan-600 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400" : !conv ? "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800" : ""
-                            }`}
-                            style={conv ? { background: conv.color + "15", color: conv.color, borderColor: isActv ? conv.color : conv.color + "40" } : undefined}
+                            } ${isActv && conv ? "ring-2 ring-cyan-500 ring-offset-1 ring-offset-slate-50 dark:ring-offset-slate-900" : ""}`}
+                            style={conv ? { background: conv.color + "1a", color: darkenForText(conv.color), borderColor: isActv ? conv.color : conv.color + "55" } : undefined}
                           >
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: conv ? conv.color : "#cbd5e1" }} />
                             {s.label}
@@ -568,23 +586,24 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
                         );
                       })}
                     </div>
+                    {activeSurfaces.size > 1 && (
+                      <p className="text-[10.5px] text-cyan-600 dark:text-cyan-400 font-medium mt-1.5">
+                        {activeSurfaces.size} superficies seleccionadas — elige una condición para aplicarla a todas.
+                      </p>
+                    )}
                   </div>
 
                   {/* Condición — el color de cada opción es la única leyenda */}
                   <div>
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">{convPickerLabel}</p>
+                    <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1.5">{convPickerLabel.toLowerCase()}</p>
                     <div className={`flex flex-wrap gap-1.5 ${!canPickConv ? "opacity-30 pointer-events-none" : ""}`}>
-                      {CONVENTIONS.map(c => {
-                        const isActive = isAll ? allConvention === c.key : activeSurface ? surfaceConventions[activeSurface] === c.key : false;
+                      {conventions.map(c => {
+                        const isActive = isAll ? allConvention === c.key : false;
                         return (
                           <button key={c.key} onClick={() => assignConvention(c.key)}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11.5px] font-bold border transition-all"
-                            style={isActive
-                              ? { background: c.color, borderColor: c.color, color: "white" }
-                              : { background: c.color + "12", borderColor: c.color + "30", color: c.color }
-                            }
+                            className={`px-3 py-2 rounded-full text-[12px] font-semibold border transition-all shadow-sm ${isActive ? "ring-2 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-900 ring-cyan-500" : ""}`}
+                            style={{ background: c.color + "66", borderColor: c.color + "cc", color: darkenForText(c.color) }}
                           >
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: isActive ? "white" : c.color }} />
                             {c.label}
                           </button>
                         );
@@ -594,8 +613,8 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
                 </div>
 
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Observaciones</p>
-                  <textarea rows={1} value={newObs} onChange={e => setNewObs(e.target.value)}
+                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">Observaciones</p>
+                  <textarea rows={3} value={newObs} onChange={e => setNewObs(e.target.value)}
                     placeholder="Escribe detalles del hallazgo clínico…"
                     className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 resize-none text-[16px] sm:text-[13px]"
                   />
@@ -613,7 +632,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
           <div className="flex flex-col gap-3">
             <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Historial de Exámenes</p>
 
-            <div className="flex flex-col gap-2 w-full max-h-[400px] overflow-y-auto pr-1">
+            <div className="flex flex-col gap-2 w-full max-h-100 overflow-y-auto pr-1">
               {sessionsSorted.length === 0 ? (
                 <div className="text-center p-6 border border-dashed rounded-xl border-slate-200 dark:border-slate-700">
                   <Icon name="history" size={24} className="text-slate-300 dark:text-slate-600 mx-auto mb-2" />
@@ -648,6 +667,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
                             highlighted={selectedTooth === f.toothNumber}
                             onUpdateObs={(obs) => handleUpdateFindingObs(f, obs)}
                             onDelete={() => setFindingToDelete(f)}
+                            conventions={conventions}
                           />
                         ))}
                       </div>

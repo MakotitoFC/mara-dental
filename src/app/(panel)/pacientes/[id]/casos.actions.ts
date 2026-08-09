@@ -17,7 +17,7 @@ export async function getCasosClinicosAction(pacienteId: string) {
   // 2. Obtener las notas clínicas (casos)
   const { data: notas } = await supabase
     .from("nota_clinica")
-    .select("id, estado, created_at, updated_at")
+    .select("id, titulo_caso_clinico, estado, created_at, updated_at")
     .eq("historia_clinica_id", hc.id)
     .order("created_at", { ascending: false });
 
@@ -53,9 +53,8 @@ export async function getCasosClinicosAction(pacienteId: string) {
   // Estructurar los casos
   const casos = notas.map(n => {
     const cons = consultasPorNota.get(n.id) || [];
-    // Usar el motivo de la consulta más antigua (última en el array porque está ordenado DESC)
-    // o de la primera, dependiendo de tu preferencia. Aquí usamos la más antigua (índice final)
-    const motivo_principal = cons.length > 0 ? cons[cons.length - 1].motivo : "Caso sin motivo principal";
+    // Usar el título de la nota, o el motivo de la consulta más antigua si no hay título
+    const motivo_principal = n.titulo_caso_clinico || (cons.length > 0 ? cons[cons.length - 1].motivo : "Caso sin motivo principal");
     
     return {
       ...n,
@@ -120,7 +119,7 @@ export async function crearHistoriaClinicaAction(pacienteId: string) {
   return { success: true };
 }
 
-export async function crearCasoClinicoAction(pacienteId: string, motivo: string) {
+export async function crearCasoClinicoAction(pacienteId: string, motivo: string, tituloCaso?: string) {
   const supabase = await createClient();
   let { data: hc } = await supabase.from("historia_clinica")
     .select("id")
@@ -147,6 +146,7 @@ export async function crearCasoClinicoAction(pacienteId: string, motivo: string)
 
   const { data: nota, error } = await supabase.from("nota_clinica").insert({
     historia_clinica_id: hc.id,
+    titulo_caso_clinico: tituloCaso || motivo,
     estado: "En Consulta"
   }).select("id").single();
 
@@ -171,9 +171,12 @@ export async function agregarConsultaAction(notaId: string, data: any) {
     observaciones: data.observaciones,
     examen_fisico: data.examen_fisico,
     fecha_consulta: data.fecha_consulta || new Date().toISOString()
-  }).select("id").single();
+  }).select("id");
 
   if (error) return { error: "No se pudo agregar consulta" };
-  // Nota: Idealmente se pasa pacienteId para el revalidatePath
-  return { success: true, consultaId: consulta.id };
+  
+  // Extraer el id ya sea si retorna un objeto o un arreglo
+  const idValue = Array.isArray(consulta) && consulta.length > 0 ? consulta[0].id : (consulta as any)?.id;
+  
+  return { success: true, consultaId: String(idValue) };
 }
