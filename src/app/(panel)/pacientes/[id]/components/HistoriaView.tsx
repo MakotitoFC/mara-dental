@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 import { calcEdad } from "@/lib/date-utils";
 import { slideHorizontal } from "@/lib/animations";
 import { getConsultaActivaAction } from "../consulta.actions";
@@ -62,6 +63,7 @@ export function HistoriaView({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const confirm = useConfirm();
 
   const [tab, setTab] = useState<TabKey>("info");
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -136,7 +138,14 @@ export function HistoriaView({
     }
   }
 
-  function salirDeConsulta() {
+  async function salirDeConsulta() {
+    const ok = await confirm({
+      title: "Salir de la consulta",
+      message: "Vas a salir de la consulta en curso. Lo que ya guardaste se mantiene, pero dejarás de estar en modo consulta.",
+      requireText: "salir de consulta",
+      confirmLabel: "Salir de consulta",
+    });
+    if (!ok) return;
     setConsultaId(null);
     setConsultaData(null);
     goTo(tab, { consultaId: null });
@@ -291,14 +300,14 @@ export function HistoriaView({
         </div>
       </div>
 
-      {/* ── Barra de consulta activa ── */}
+      {/* ── Barra de consulta activa — mismo fondo/texto que la pestaña activa ── */}
       {consultaId && tab !== "info" && tab !== "timeline" && (
-        <div className="flex items-center justify-between gap-3 px-3 sm:px-6 md:px-8 py-2 bg-cyan-50 dark:bg-cyan-900/20 border-b border-cyan-100 dark:border-cyan-800 shrink-0">
-          <span className="flex items-center gap-1.5 text-[12px] font-semibold text-cyan-700 dark:text-cyan-400">
-            <Icon name="stethoscope" size={14} />
+        <div className="flex items-center justify-between gap-3 px-3 sm:px-6 md:px-8 py-2 bg-cyan-600 shrink-0">
+          <span className="flex items-center gap-1.5 text-[12px] font-semibold text-white">
+            <Icon name="stethoscope" size={14} className="text-white" />
             Consulta en curso
           </span>
-          <button onClick={salirDeConsulta} className="text-[11.5px] font-semibold text-cyan-700 dark:text-cyan-400 hover:text-cyan-900 dark:hover:text-cyan-300 underline-offset-2 hover:underline">
+          <button onClick={salirDeConsulta} className="text-[11.5px] font-semibold text-white border border-white rounded-lg px-2.5 py-1 bg-transparent hover:bg-white/10 transition-colors">
             Salir de consulta
           </button>
         </div>
@@ -310,7 +319,7 @@ export function HistoriaView({
       <div
         ref={tab !== "chat" && tab !== "presupuestos" ? contenidoScroll.ref : undefined}
         style={tab !== "chat" && tab !== "presupuestos" ? contenidoScroll.style : undefined}
-        className={`flex-1 min-h-0 overflow-x-hidden no-scrollbar ${tab === "presupuestos" ? "overflow-hidden" : "overflow-y-auto"} ${tab === "chat" || tab === "timeline" ? "" : "p-3 sm:p-4 md:p-6 pb-2 md:pb-10 lg:pb-12"}`}
+        className={`flex-1 min-h-0 overflow-x-hidden no-scrollbar ${tab === "presupuestos" ? "overflow-hidden" : "overflow-y-auto"} ${tab === "chat" || tab === "timeline" || tab === "dental" ? "" : "p-3 sm:p-4 md:p-6 pb-2 md:pb-10 lg:pb-12"}`}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -332,17 +341,7 @@ export function HistoriaView({
               />
             )}
             {tab === "dental" && (
-              <div className="flex flex-col gap-4">
-                <OdontogramaTab paciente={p} consultaId={(consultaId && consultaId !== "null" && consultaId !== "undefined" && consultaId !== "NaN") ? consultaId : undefined} />
-                {consultaId && (
-                  <button
-                    onClick={() => goTo("diagnosticos")}
-                    className="self-end flex items-center gap-1.5 h-10 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[13px] font-semibold transition-colors"
-                  >
-                    Continuar a Diagnóstico <Icon name="chevron_right" size={16} />
-                  </button>
-                )}
-              </div>
+              <OdontogramaTab paciente={p} consultaId={(consultaId && consultaId !== "null" && consultaId !== "undefined" && consultaId !== "NaN") ? consultaId : undefined} onNavigateTab={(t) => goTo(t as TabKey)} />
             )}
             {tab === "diagnosticos" && (
               <DiagnosticoTab
@@ -373,6 +372,7 @@ export function HistoriaView({
           </motion.div>
         </AnimatePresence>
       </div>
+
     </div>
   );
 }

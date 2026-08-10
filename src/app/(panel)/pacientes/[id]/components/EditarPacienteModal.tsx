@@ -8,7 +8,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { updatePacienteAction } from "../actions";
 
 const GRUPOS_SANGUINEOS = ["A+", "A−", "B+", "B−", "AB+", "AB−", "O+", "O−"];
-const SEXOS = ["Masculino", "Femenino", "Otro"];
+const SEXOS = ["Masculino", "Femenino"];
 const ESTADOS_CIVILES = ["Soltero/a", "Casado/a", "Conviviente", "Viudo/a", "Divorciado/a"];
 const SEXO_OPTIONS = SEXOS.map((s) => ({ value: s, label: s }));
 const GRUPO_OPTIONS = GRUPOS_SANGUINEOS.map((g) => ({ value: g, label: g }));

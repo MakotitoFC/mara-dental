@@ -143,13 +143,6 @@ export function PacientesView({ initialData }: { initialData: any[] }) {
       <div className="flex-1 min-w-0 flex flex-col gap-4">
         {/* Toolbar */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowNuevoModal(true)}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[13px] font-medium transition-colors shrink-0"
-          >
-            <Icon name="add" size={15} />
-            Nuevo
-          </button>
           <div className="relative w-full max-w-[280px]">
             <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -159,6 +152,13 @@ export function PacientesView({ initialData }: { initialData: any[] }) {
               className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-cyan-500 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 transition-colors text-[16px] sm:text-[13px]"
             />
           </div>
+          <button
+            onClick={() => setShowNuevoModal(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[13px] font-medium transition-colors shrink-0"
+          >
+            <Icon name="add" size={15} />
+            Nuevo
+          </button>
         </div>
 
         {/* Loading */}
