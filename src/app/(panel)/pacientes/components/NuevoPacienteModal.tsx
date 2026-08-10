@@ -8,7 +8,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { createPacienteAction } from "../actions";
 
 const GRUPOS_SANGUINEOS = ["A+", "A−", "B+", "B−", "AB+", "AB−", "O+", "O−"];
-const SEXOS = ["Masculino", "Femenino", "Otro"];
+const SEXOS = ["Masculino", "Femenino"];
 const SEXO_OPTIONS = SEXOS.map((s) => ({ value: s, label: s }));
 const GRUPO_OPTIONS = GRUPOS_SANGUINEOS.map((g) => ({ value: g, label: g }));
 
@@ -49,7 +49,7 @@ function ChipField({
           type="button"
           onClick={onAdd}
           disabled={!input.trim()}
-          className="px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-600 text-[12px] font-semibold transition-colors"
+          className="px-3.5 rounded-xl border border-cyan-500 text-cyan-600 hover:bg-cyan-50 disabled:opacity-40 bg-transparent text-[12px] font-semibold transition-colors"
         >
           Añadir
         </button>

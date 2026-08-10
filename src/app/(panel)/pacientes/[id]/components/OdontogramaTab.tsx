@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Odontogram, type ToothDetail } from "react-odontogram";
 import "react-odontogram/style.css";
 import { Icon } from "@/components/ui/Icon";
+import { Select } from "@/components/ui/Select";
 import { calcEdad } from "@/lib/date-utils";
 import { OdontogramaSkeleton } from "@/components/ui/ConsultaSkeletons";
 import { getOdontogramasAction, addFindingAction, updateFindingAction, deleteFindingAction, getCondicionesOdontogramaAction } from "../odontograma.actions";
+import { useScrollFade } from "@/lib/hooks/useScrollFade";
+import { useToast } from "@/components/ui/Toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +36,15 @@ interface ExamSession {
 
 type SurfaceConventions = Partial<Record<Surface, Convention>>;
 
+interface ToothDraft {
+  isAll: boolean;
+  allConvention: Convention | null;
+  surfaceConventions: SurfaceConventions;
+  observaciones: string;
+}
+
+const emptyDraft = (): ToothDraft => ({ isAll: false, allConvention: null, surfaceConventions: {}, observaciones: "" });
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 
@@ -48,6 +60,10 @@ const SURFACES: { key: Surface; label: string }[] = [
   { key: "distal", label: "Distal" },
   { key: "oclusal", label: "Oclusal/Incisal" },
 ];
+
+const SURFACE_INITIAL: Record<Surface, string> = {
+  vestibular: "V", palatino: "P", mesial: "M", distal: "D", oclusal: "O",
+};
 
 const TOOTH_NAMES: Record<number, string> = {
   18: "3er Molar Sup. Der.", 17: "2do Molar Sup. Der.", 16: "1er Molar Sup. Der.",
@@ -83,14 +99,187 @@ const TODAY = new Date().toISOString().split("T")[0];
 
 const isAdultCode = (n: number) => n < 50;
 
+// react-odontogram (layout="circle") dibuja el cuadrante 3 (31-38) en la
+// posición de pantalla INFERIOR-IZQUIERDA y el cuadrante 4 (41-48) en
+// INFERIOR-DERECHA — al revés de la convención odontológica estándar, donde
+// el lado derecho del paciente se dibuja SIEMPRE a la izquierda de la imagen
+// (arriba y abajo por igual — así el cuadrante 1 ya sale correcto sobre el
+// cuadrante 4, no sobre el 3). Se corrige acá, en el límite entre nuestros
+// datos reales (FDI) y el id interno de la librería, sin tocar el paquete:
+// swapQuadrant34 intercambia solo 3↔4. Aplica igual a dentición infantil,
+// que reutiliza los mismos cuadrantes (51-85 = 11-45 + 40).
+function swapQuadrant34(permanent: number): number {
+  const quadrant = Math.floor(permanent / 10);
+  const unit = permanent % 10;
+  if (quadrant === 3) return 40 + unit;
+  if (quadrant === 4) return 30 + unit;
+  return permanent;
+}
+
 function toLibraryId(toothNumber: number, dentition: Dentition): string {
   const permanent = dentition === "infantil" ? toothNumber - 40 : toothNumber;
-  return `teeth-${permanent}`;
+  return `teeth-${swapQuadrant34(permanent)}`;
 }
 
 function fromLibraryFdi(fdi: string, dentition: Dentition): number {
-  const permanent = Number(fdi);
+  const permanent = swapQuadrant34(Number(fdi));
   return dentition === "infantil" ? permanent + 40 : permanent;
+}
+
+// ─── Overlay de orientación (maxilar superior/inferior, derecha/izquierda,
+// regiones 1-4 y numeración de cada pieza) ─────────────────────────────────
+// react-odontogram no expone esta geometría como prop, así que se replica acá
+// la ubicación real de cada cuadrante (misma matriz que `oldquadrants` del
+// paquete, viewBox 409x694) para poder dibujar nuestras propias etiquetas
+// encima del SVG, ya corregidas con swapQuadrant34.
+
+const VIEWBOX_W = 409;
+const VIEWBOX_H = 694;
+
+// La dentición infantil solo dibuja 5 piezas por cuadrante (maxTeeth=5) en
+// vez de 8 — las piezas 1-5 del cuadrante ocupan como mucho y≈[1, 142] (ver
+// TOOTH_BOX abajo), muy lejos del centro del viewBox (y=347). Como el arco
+// completo de 8 piezas SÍ llega hasta y≈290, el maxilar superior/inferior
+// infantil queda con un hueco enorme en el medio si se dibuja en el mismo
+// viewBox de 694 sin recortar. INFANTIL_CROP_Y (con margen para la
+// numeración empujada hacia afuera) define, simétrico arriba/abajo, hasta
+// dónde llega cada arco — se usa para recortar el SVG en dos paneles
+// (superior/inferior) y "juntarlos" sin distorsionar el tamaño real de los
+// dientes (un scaleY uniforme encogería igual el hueco Y los dientes).
+const INFANTIL_CROP_Y = 180;
+// La pieza 1 (la más al frente del arco) empuja su número hacia y≈-7 —
+// fuera del viewBox real (y=0 es su borde) — así que recortar exacto en
+// y=0 lo clipea invisible y deja el texto "Maxilar superior/inferior" sin
+// aire respecto al arco. INFANTIL_TOP_MARGIN extiende cada panel ese
+// colchón hacia el borde externo (arriba del superior, abajo del inferior).
+const INFANTIL_TOP_MARGIN = 35;
+const INFANTIL_PANEL_H = INFANTIL_CROP_Y + INFANTIL_TOP_MARGIN;
+
+// Caja real (bbox) de cada pieza (1-8) dentro de un cuadrante, en el espacio
+// de coordenadas SIN transformar del paquete — centro + medio-ancho/medio-alto,
+// obtenidos renderizando los 8 outlinePath reales de data.ts y midiendo con
+// `getBBox()` en el navegador (no una aproximación a mano: la versión
+// original, basada en el primer punto de cada path, quedaba hasta 28
+// unidades desviada para las piezas de en medio del arco).
+const TOOTH_BOX: Record<number, { cx: number; cy: number; hw: number; hh: number }> = {
+  1: { cx: 179.1, cy: 30.9, hw: 24.9, hh: 29.8 },
+  2: { cx: 133.2, cy: 36.1, hw: 21.6, hh: 26.8 },
+  3: { cx: 101.1, cy: 56.9, hw: 27.1, hh: 24.3 },
+  4: { cx: 76.8, cy: 87.0, hw: 28.3, hh: 22.4 },
+  5: { cx: 59.5, cy: 121.0, hw: 30.1, hh: 20.6 },
+  6: { cx: 43.1, cy: 170.6, hw: 36.5, hh: 32.7 },
+  7: { cx: 35.2, cy: 233.5, hw: 34.6, hh: 29.5 },
+  8: { cx: 32.3, cy: 290.1, hw: 31.6, hh: 27.2 },
+};
+
+// Centro real del arco (centroide de los 8 centros) — solo se usa para
+// decidir CUÁL de las dos normales perpendiculares a la tangente local es la
+// que apunta "hacia afuera" (ver tangentNormal). Ya NO se usa como origen del
+// que irradian los empujes: empujar en línea recta desde un solo punto
+// converge mal cerca de la línea media (los incisivos 1-2 terminaban
+// empujados el uno HACIA el otro en vez de alejarse por el borde real —
+// verificado: con ese modelo, 20 de 32 números quedaban geométricamente más
+// cerca del diente vecino que del propio).
+const ARCH_CENTER: [number, number] = [82.5, 128.3];
+
+// Línea media real del cuadrante (mitad del viewBox) — el diente 1 queda
+// justo ahí, pegado al cuadrante espejado (2). Se usa para reconstruir un
+// "vecino anterior" virtual del diente 1 (el reflejo del diente 2 sobre esta
+// línea), necesario para calcular su tangente local sin salirse del cuadrante.
+const MID_X = VIEWBOX_W / 2;
+
+const QUADRANT_TRANSFORM: Record<1 | 2 | 3 | 4, (x: number, y: number) => [number, number]> = {
+  1: (x, y) => [x, y],
+  2: (x, y) => [VIEWBOX_W - x, y],
+  3: (x, y) => [x, VIEWBOX_H - y],
+  4: (x, y) => [VIEWBOX_W - x, VIEWBOX_H - y],
+};
+
+// Margen fijo, chico, más allá del propio borde del diente — no es la
+// distancia total (esa se calcula por diente), solo el "aire" extra para
+// que el número no quede pegado al trazo.
+const LABEL_MARGIN = 8;
+
+// Diente vecino (en la secuencia real 1-8) usado para estimar la tangente
+// local del arco en la posición `pos`. Para el diente 1 (pegado a la línea
+// media) el "anterior" no existe dentro del cuadrante — se usa el reflejo
+// del diente 2 sobre esa línea media, para que la tangente en el límite
+// quede casi horizontal (apuntando hacia afuera), no hacia el diente del
+// cuadrante espejado. Para el diente 8 (última muela) no hay "siguiente" —
+// se repite el propio diente, dejando el tangente definido solo por el lado
+// que sí existe.
+function neighborTooth(pos: number, dir: 1 | -1): { cx: number; cy: number } {
+  const n = pos + dir;
+  if (n >= 1 && n <= 8) return TOOTH_BOX[n];
+  if (n === 0) {
+    const t2 = TOOTH_BOX[2];
+    return { cx: 2 * MID_X - t2.cx, cy: t2.cy };
+  }
+  return TOOTH_BOX[8];
+}
+
+// Dirección "hacia afuera" real en la posición `pos`: perpendicular a la
+// tangente local del arco (aproximada con el diente anterior/siguiente en la
+// secuencia), no una línea recta desde un centro fijo — así los dientes
+// vecinos se separan siguiendo la curva real en vez de converger unos sobre
+// otros cerca de la línea media (ver ARCH_CENTER). De las dos perpendiculares
+// posibles se elige la que apunta lejos de ARCH_CENTER (la de "afuera").
+function tangentNormal(pos: number): [number, number] {
+  const prev = neighborTooth(pos, -1);
+  const next = neighborTooth(pos, 1);
+  const tx = next.cx - prev.cx;
+  const ty = next.cy - prev.cy;
+  let nx = -ty;
+  let ny = tx;
+  const tooth = TOOTH_BOX[pos];
+  const toCenterX = tooth.cx - ARCH_CENTER[0];
+  const toCenterY = tooth.cy - ARCH_CENTER[1];
+  if (nx * toCenterX + ny * toCenterY < 0) {
+    nx = -nx;
+    ny = -ny;
+  }
+  const d = Math.hypot(nx, ny) || 1;
+  return [nx / d, ny / d];
+}
+
+// Empuja el diente en su dirección "hacia afuera" (ver tangentNormal) hasta
+// SU PROPIO borde (intersección rayo-caja, usando su ancho/alto real de
+// TOOTH_BOX) más el margen fijo — cada número despeja su diente exacto, sea
+// angosto o ancho, sin acercarse al vecino.
+function pushOutward(pos: number): [number, number] {
+  const tooth = TOOTH_BOX[pos];
+  const [ux, uy] = tangentNormal(pos);
+  const edge = Math.min(
+    ux !== 0 ? tooth.hw / Math.abs(ux) : Infinity,
+    uy !== 0 ? tooth.hh / Math.abs(uy) : Infinity,
+  );
+  const total = edge + LABEL_MARGIN;
+  return [tooth.cx + ux * total, tooth.cy + uy * total];
+}
+
+function screenPosition(realTooth: number, dentition: Dentition): { left: string; top: string } {
+  const permanent = dentition === "infantil" ? realTooth - 40 : realTooth;
+  const libraryPermanent = swapQuadrant34(permanent);
+  const quadrant = Math.floor(libraryPermanent / 10) as 1 | 2 | 3 | 4;
+  const pos = libraryPermanent % 10;
+  if (!TOOTH_BOX[pos]) return { left: "0%", top: "0%" };
+  const [ox, oy] = pushOutward(pos);
+  const [fx, fy] = QUADRANT_TRANSFORM[quadrant](ox, oy);
+  return { left: `${(fx / VIEWBOX_W) * 100}%`, top: `${(fy / VIEWBOX_H) * 100}%` };
+}
+
+// Remapea un top% relativo al viewBox COMPLETO (694) al top% local dentro de
+// uno de los dos paneles recortados de la dentición infantil (ver
+// INFANTIL_CROP_Y) — cada panel muestra solo INFANTIL_CROP_Y unidades de
+// imagen, así que un número que en el viewBox completo caía cerca del centro
+// (dentro del hueco recortado) se reubica al borde más cercano de su panel.
+function panelPosition(fullTop: string, fullLeft: string): { panel: "top" | "bottom"; left: string; top: string } {
+  const y = (parseFloat(fullTop) / 100) * VIEWBOX_H;
+  const bottomStart = VIEWBOX_H - INFANTIL_CROP_Y;
+  if (y <= bottomStart) {
+    return { panel: "top", left: fullLeft, top: `${((y + INFANTIL_TOP_MARGIN) / INFANTIL_PANEL_H) * 100}%` };
+  }
+  return { panel: "bottom", left: fullLeft, top: `${((y - bottomStart) / INFANTIL_PANEL_H) * 100}%` };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -110,6 +299,17 @@ function dominantConvention(f: SessionFinding, conventions: any[]): Convention {
   const set = new Set(f.surfaceConditions.map(sc => sc.convention));
   const priority = conventions.find(c => set.has(c.key))?.key;
   return findConvention(priority ?? f.surfaceConditions[0]?.convention, conventions).key;
+}
+
+// Color representativo de un borrador (sin guardar aún) — usado en las chips
+// de "dientes seleccionados" para dar una vista previa rápida de qué se le
+// asignó a cada uno. Gris neutro mientras no tenga nada registrado todavía.
+function draftDominantColor(draft: ToothDraft | undefined, conventions: any[]): string {
+  if (!draft) return "#cbd5e1";
+  if (draft.isAll && draft.allConvention) return findConvention(draft.allConvention, conventions).color;
+  const values = Object.values(draft.surfaceConventions);
+  if (values.length === 0) return "#cbd5e1";
+  return findConvention(values[0], conventions).color;
 }
 
 // El color de `condicion.color` puede ser muy claro (pasteles) — usarlo tal
@@ -211,9 +411,58 @@ function SessionFindingRow({ finding, isPast, highlighted, onUpdateObs, onDelete
   );
 }
 
+// ─── Tags de un borrador (superficies asignadas / resumen) ────────────────────
+// Mismo componente para "Superficies asignadas" (removible, del diente activo)
+// y "Resumen" (solo lectura, uno por cada diente seleccionado).
+
+function DraftTags({ draft, conventions, removable, onRemoveSurface, onRemoveAll }: {
+  draft: ToothDraft;
+  conventions: any[];
+  removable?: boolean;
+  onRemoveSurface?: (s: Surface) => void;
+  onRemoveAll?: () => void;
+}) {
+  if (draft.isAll && draft.allConvention) {
+    const conv = findConvention(draft.allConvention, conventions);
+    return (
+      <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-[11px] font-semibold border"
+        style={{ background: conv.color + "1a", borderColor: conv.color + "55", color: darkenForText(conv.color) }}>
+        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: conv.color }} />
+        Diente completo · {conv.label}
+        {removable && (
+          <button type="button" onClick={onRemoveAll} className="w-3.5 h-3.5 rounded-full hover:bg-black/10 flex items-center justify-center text-[10px] ml-0.5 border-0 bg-transparent">×</button>
+        )}
+      </span>
+    );
+  }
+
+  const entries = Object.entries(draft.surfaceConventions) as [Surface, Convention][];
+  if (entries.length === 0) {
+    return <span className="text-[11px] text-slate-400 dark:text-slate-500 italic">Sin superficies registradas</span>;
+  }
+
+  return (
+    <>
+      {entries.map(([s, c]) => {
+        const conv = findConvention(c, conventions);
+        return (
+          <span key={s} className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-[11px] font-semibold border"
+            style={{ background: conv.color + "1a", borderColor: conv.color + "55", color: darkenForText(conv.color) }}>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: conv.color }} />
+            {SURFACE_INITIAL[s]} · {conv.label}
+            {removable && (
+              <button type="button" onClick={() => onRemoveSurface?.(s)} className="w-3.5 h-3.5 rounded-full hover:bg-black/10 flex items-center justify-center text-[10px] ml-0.5 border-0 bg-transparent">×</button>
+            )}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consultaId?: string }) {
+export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { paciente: any; consultaId?: string; onNavigateTab?: (tab: string) => void }) {
   // El registro de hallazgos solo ocurre dentro de una consulta activa; la
   // Ficha del Paciente (sin consultaId) es de solo lectura del historial.
   const isEditable = !!consultaId;
@@ -226,21 +475,28 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
   const defaultDentition: Dentition = edadPaciente !== null && edadPaciente < 12 ? "infantil" : "adulto";
   const showDentitionToggle = edadPaciente !== null && edadPaciente >= 6 && edadPaciente <= 13;
 
-  const [conventions, setConventions] = useState<{key:string, label:string, color:string}[]>([]);
+  const [conventions, setConventions] = useState<{ key: string, label: string, color: string }[]>([]);
   const [dentition, setDentition] = useState<Dentition>(defaultDentition);
   const [sessions, setSessions] = useState<ExamSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
-  const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
   const [chartResetKey, setChartResetKey] = useState(0);
 
-  const [surfaceConventions, setSurfaceConventions] = useState<SurfaceConventions>({});
+  // ── Selección múltiple de dientes ────────────────────────────────────────
+  // `selectedTeeth` refleja lo que react-odontogram tiene marcado (ya no usa
+  // `singleSelect`); cada diente seleccionado tiene su propio borrador
+  // (superficies/condición/observaciones) en `drafts`, independiente de los
+  // demás. `activeTooth` es cuál de esos borradores se está editando ahora
+  // mismo (el panel de la derecha siempre edita uno solo a la vez).
+  const [selectedTeeth, setSelectedTeeth] = useState<number[]>([]);
+  const [activeTooth, setActiveTooth] = useState<number | null>(null);
+  const [drafts, setDrafts] = useState<Record<number, ToothDraft>>({});
   const [activeSurfaces, setActiveSurfaces] = useState<Set<Surface>>(new Set());
-  const [isAll, setIsAll] = useState(false);
-  const [allConvention, setAllConvention] = useState<Convention | null>(null);
-  const [newObs, setNewObs] = useState("");
+  const prevSelectedRef = useRef<number[]>([]);
+  const registroScroll = useScrollFade<HTMLDivElement>();
+  const toast = useToast();
 
   const [findingToDelete, setFindingToDelete] = useState<SessionFinding | null>(null);
 
@@ -301,20 +557,50 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
     }));
   }, [visibleFindings, dentition, conventions]);
 
+  // Numeración de cada pieza, siempre visible sobre el gráfico (antes solo
+  // aparecía al pasar el cursor, vía tooltip). Depende únicamente de la
+  // dentición activa — no de los hallazgos registrados.
+  const toothLabels = useMemo(() => {
+    const quadrantes = dentition === "adulto" ? [1, 2, 3, 4] : [5, 6, 7, 8];
+    const piezasPorCuadrante = dentition === "adulto" ? 8 : 5;
+    const list: { num: number; left: string; top: string }[] = [];
+    for (const q of quadrantes) {
+      for (let i = 1; i <= piezasPorCuadrante; i++) {
+        const num = q * 10 + i;
+        list.push({ num, ...screenPosition(num, dentition) });
+      }
+    }
+    return list;
+  }, [dentition]);
+
+  // Solo se usa en dentición infantil, para repartir toothLabels entre los
+  // dos paneles recortados (ver INFANTIL_CROP_Y).
+  const panelLabels = useMemo(
+    () => toothLabels.map(t => ({ num: t.num, ...panelPosition(t.top, t.left) })),
+    [toothLabels],
+  );
+
   const sessionsSorted = useMemo(
     () => [...sessions].sort((a, b) => b.fecha.localeCompare(a.fecha)),
     [sessions],
   );
 
+  function resetSelection() {
+    setSelectedTeeth([]);
+    setDrafts({});
+    setActiveTooth(null);
+    setActiveSurfaces(new Set());
+    prevSelectedRef.current = [];
+  }
+
+  function clearSelection() {
+    resetSelection();
+    setChartResetKey(k => k + 1); // el paquete no expone forma de deseleccionar desde afuera — se remonta el SVG
+  }
+
   function toggleSession(id: string) {
-    if (expandedSessionId === id) {
-      setExpandedSessionId(null);
-      setSelectedTooth(null);
-    } else {
-      setExpandedSessionId(id);
-      setSelectedTooth(null);
-      resetForm();
-    }
+    resetSelection();
+    setExpandedSessionId(expandedSessionId === id ? null : id);
     setChartResetKey(k => k + 1);
   }
 
@@ -325,43 +611,52 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
     // actualizamos nuestro estado de forma síncrona. setTimeout(0) lo saca por
     // completo del ciclo de render/commit actual (más confiable que un microtask,
     // que aún puede correr antes de que React termine de confirmar la actualización).
-    //
-    // Importante: la librería puede reinvocar onChange más de una vez para el
-    // MISMO diente ya seleccionado (no solo al cambiar de diente). Antes,
-    // resetForm() se llamaba en cada invocación sin importar si el diente
-    // cambiaba — eso borraba la superficie/condición/observaciones que el
-    // usuario ya había elegido casi de inmediato, dando la sensación de que
-    // "no se puede registrar nada". Ahora solo reseteamos el formulario cuando
-    // el diente seleccionado realmente cambia.
     setTimeout(() => {
-      const first = selected[0];
-      if (!first) {
-        setSelectedTooth(null);
-        if (!isViewingSession) resetForm();
-        return;
+      const nums = selected.map(d => fromLibraryFdi(d.notations.fdi, dentition));
+      const prev = prevSelectedRef.current;
+      const added = nums.find(n => !prev.includes(n));
+      prevSelectedRef.current = nums;
+
+      setSelectedTeeth(nums);
+      if (isViewingSession) return;
+
+      if (added !== undefined) {
+        // Diente nuevo en la selección — le da su propio borrador y pasa a ser
+        // el que se edita en el panel de la derecha.
+        setDrafts(d => (d[added] ? d : { ...d, [added]: emptyDraft() }));
+        setActiveTooth(added);
+        setActiveSurfaces(new Set());
+      } else if (nums.length > 0) {
+        // Se quitó un diente de la selección (clic de nuevo sobre uno ya
+        // marcado) — si era el que se estaba editando, pasa a editar otro.
+        setActiveTooth(at => (at !== null && nums.includes(at) ? at : nums[nums.length - 1]));
+        setActiveSurfaces(new Set());
+      } else {
+        setActiveTooth(null);
       }
-      const num = fromLibraryFdi(first.notations.fdi, dentition);
-      setSelectedTooth(prev => {
-        if (prev !== num && !isViewingSession) resetForm();
-        return num;
-      });
     }, 0);
   }
 
   function changeDentition(next: Dentition) {
     setDentition(next);
-    setSelectedTooth(null);
-    resetForm();
+    resetSelection();
     setChartResetKey(k => k + 1);
   }
 
-  function resetForm() {
-    setSurfaceConventions({}); setActiveSurfaces(new Set());
-    setIsAll(false); setAllConvention(null); setNewObs("");
+  function currentDraft(): ToothDraft {
+    return (activeTooth !== null && drafts[activeTooth]) || emptyDraft();
+  }
+
+  function updateActiveDraft(patch: Partial<ToothDraft>) {
+    if (activeTooth === null) return;
+    const tooth = activeTooth;
+    setDrafts(d => ({ ...d, [tooth]: { ...(d[tooth] ?? emptyDraft()), ...patch } }));
   }
 
   function toggleAll() {
-    setIsAll(p => { if (!p) { setSurfaceConventions({}); setActiveSurfaces(new Set()); } return !p; });
+    const draft = currentDraft();
+    if (!draft.isAll) setActiveSurfaces(new Set());
+    updateActiveDraft({ isAll: !draft.isAll, ...(!draft.isAll ? { surfaceConventions: {} } : {}) });
   }
 
   function handleSelectSurface(s: Surface) {
@@ -375,18 +670,20 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
   // Aplica la condición elegida a todas las superficies seleccionadas a la vez
   // (antes solo se podía asignar de a una superficie por vez).
   function assignConvention(conv: Convention) {
-    if (isAll) { setAllConvention(conv); return; }
+    const draft = currentDraft();
+    if (draft.isAll) { updateActiveDraft({ allConvention: conv }); return; }
     if (activeSurfaces.size === 0) return;
-    setSurfaceConventions(p => {
-      const next = { ...p };
-      activeSurfaces.forEach(s => { next[s] = conv; });
-      return next;
-    });
+    const nextSurfaceConventions = { ...draft.surfaceConventions };
+    activeSurfaces.forEach(s => { nextSurfaceConventions[s] = conv; });
+    updateActiveDraft({ surfaceConventions: nextSurfaceConventions });
     setActiveSurfaces(new Set());
   }
 
   function removeSurfaceConvention(s: Surface) {
-    setSurfaceConventions(p => { const n = { ...p }; delete n[s]; return n; });
+    const draft = currentDraft();
+    const next = { ...draft.surfaceConventions };
+    delete next[s];
+    updateActiveDraft({ surfaceConventions: next });
     setActiveSurfaces(prev => {
       if (!prev.has(s)) return prev;
       const next = new Set(prev);
@@ -395,31 +692,59 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
     });
   }
 
-  async function addRecord() {
-    if (!isEditable || isViewingSession || !selectedTooth) return;
-    if (isAll && !allConvention) return;
-    if (!isAll && Object.keys(surfaceConventions).length === 0) return;
+  function clearAllConvention() {
+    updateActiveDraft({ isAll: false, allConvention: null });
+  }
+
+  // Copia el borrador del diente activo (superficies/condición/observaciones)
+  // a los demás dientes seleccionados — atajo para no repetir la misma
+  // condición diente por diente cuando aplica a todos por igual.
+  function applyActiveToAll() {
+    if (activeTooth === null) return;
+    const draft = currentDraft();
+    setDrafts(d => {
+      const next = { ...d };
+      for (const t of selectedTeeth) {
+        if (t === activeTooth) continue;
+        next[t] = { ...draft, surfaceConventions: { ...draft.surfaceConventions } };
+      }
+      return next;
+    });
+  }
+
+  const readyTeeth = selectedTeeth.filter(t => {
+    const d = drafts[t];
+    if (!d) return false;
+    return d.isAll ? !!d.allConvention : Object.keys(d.surfaceConventions).length > 0;
+  });
+
+  async function addRecords() {
+    if (!isEditable || isViewingSession || readyTeeth.length === 0) return;
 
     setSaving(true);
-    const res = await addFindingAction({
-      consulta_id: String(consultaId),
-      diente: selectedTooth,
-      isAll,
-      allConvention: isAll ? (allConvention ?? undefined) : undefined,
-      surfaceConditions: isAll ? [] : Object.entries(surfaceConventions).map(([s, c]) => ({
-        surface: s as string, convention: c as string,
-      })),
-      observaciones: newObs
-    });
+    let firstError: string | null = null;
+    for (const tooth of readyTeeth) {
+      const d = drafts[tooth];
+      const res = await addFindingAction({
+        consulta_id: String(consultaId),
+        diente: tooth,
+        isAll: d.isAll,
+        allConvention: d.isAll ? (d.allConvention ?? undefined) : undefined,
+        surfaceConditions: d.isAll ? [] : Object.entries(d.surfaceConventions).map(([s, c]) => ({
+          surface: s as string, convention: c as string,
+        })),
+        observaciones: d.observaciones,
+      });
+      if (res?.error && !firstError) firstError = res.error;
+    }
     setSaving(false);
 
-    if (!res?.error) {
-      resetForm();
-      setSelectedTooth(null);
-      setChartResetKey(k => k + 1);
+    if (!firstError) {
+      toast.success(readyTeeth.length > 1 ? `${readyTeeth.length} registros guardados correctamente` : "Registro guardado correctamente");
+      clearSelection();
       fetchOdontogramas(); // Recargar datos
     } else {
-      alert("Error al guardar: " + res.error);
+      toast.error("Error al guardar: " + firstError);
     }
   }
 
@@ -443,10 +768,10 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
     }
   }
 
-  const canAdd = isAll ? !!allConvention : Object.keys(surfaceConventions).length > 0;
-  const canPickConv = isAll || activeSurfaces.size > 0;
+  const activeDraft = currentDraft();
+  const canPickConv = activeDraft.isAll || activeSurfaces.size > 0;
 
-  const convPickerLabel = isAll
+  const convPickerLabel = activeDraft.isAll
     ? "Condición — diente completo"
     : activeSurfaces.size === 1
       ? `Condición — ${SURFACES.find(s => s.key === [...activeSurfaces][0])?.label}`
@@ -454,10 +779,15 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
         ? `Condición — ${activeSurfaces.size} superficies`
         : "Condición";
 
+  // El lado "Registro clínico" solo tiene sentido dentro de una consulta activa
+  // y mientras no se esté revisando el historial — fuera de eso, la tarjeta
+  // muestra solo el odontograma (de solo lectura), sin dividir en dos lados.
+  const showRegistro = isEditable && !isViewingSession;
+
   if (loading) return <OdontogramaSkeleton />;
 
   return (
-    <div className="flex flex-col gap-4 w-full relative">
+    <div className="flex flex-col gap-4 w-full lg:h-full relative bg-white dark:bg-slate-900">
 
       {/* Modal de confirmación de eliminación */}
       {findingToDelete && (
@@ -476,11 +806,13 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-5 items-start w-full">
+      {/* Sin tarjeta/contenedor propio — el odontograma y el registro clínico
+          quedan directamente sobre el fondo blanco de la vista; el trazo
+          (border-r en desktop, border-b en mobile) es lo único que los separa. */}
+      <div className="flex flex-col lg:flex-row w-full lg:flex-1 lg:min-h-0">
 
-        {/* COLUMNA 1 — Odontograma: dentición + leyenda arriba, indicador flotante abajo */}
-        <div className="w-full lg:flex-1 flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="w-full lg:flex-1 lg:min-h-0 flex flex-col items-center gap-4 sm:gap-6 p-4 sm:p-6 border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <div className="flex flex-wrap items-center gap-3 w-full">
             {showDentitionToggle ? (
               // Dentición mixta (~6-13 años): el doctor puede necesitar alternar entre
               // piezas permanentes y deciduas en la misma visita.
@@ -504,181 +836,410 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
             )}
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-6 flex flex-col items-center gap-4">
-            <div className="w-full max-w-55">
-              <Odontogram
-                key={`${dentition}-${chartResetKey}`}
-                theme="light"
-                layout="circle"
-                maxTeeth={dentition === "adulto" ? 8 : 5}
-                singleSelect
-                readOnly={!isEditable || isViewingSession}
-                showTooltip
-                showLabels={false}
-                teethConditions={teethConditions}
-                onChange={handleOdontogramChange}
-                tooltip={{
-                  placement: "top",
-                  content: (payload) => {
-                    if (!payload) return null;
-                    const num = fromLibraryFdi(payload.notations.fdi, dentition);
-                    return (
-                      <div className="text-[11px] leading-tight">
-                        <strong className="block text-slate-900 font-bold">Diente {num}</strong>
-                        <span className="text-slate-500">{TOOTH_NAMES[num] ?? payload.type}</span>
-                      </div>
-                    );
-                  },
-                }}
-              />
-            </div>
+          <div className="flex-1 w-full flex items-start justify-center">
+          <div className="flex items-center w-full gap-2">
+            {/* DERECHA — convención odontológica: el lado derecho del paciente
+                se dibuja a la izquierda de la imagen, arriba y abajo por igual.
+                Va en el borde exterior de toda la columna (no pegada al
+                gráfico) y se lee de abajo hacia arriba — al revés de
+                IZQUIERDA — para que ambas "apunten" hacia el centro. */}
+            <span
+              className="shrink-0 flex items-center justify-center text-[16px] font-bold tracking-widest text-slate-400 dark:text-slate-500"
+              style={{ writingMode: "vertical-rl", textOrientation: "mixed", transform: "rotate(180deg)" }}
+            >
+              DERECHA
+            </span>
 
-            {/* Indicador — solo tiene sentido en modo editable (dentro de una consulta) */}
-            {isEditable && (
-              <div className={`flex items-center gap-2 rounded-full pl-2.5 pr-3.5 py-2 border max-w-full ${selectedTooth ? "bg-cyan-50 dark:bg-cyan-900/30 border-cyan-200 dark:border-cyan-800" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${selectedTooth ? "bg-cyan-100 dark:bg-cyan-900/50" : "bg-slate-100 dark:bg-slate-700"}`}>
-                  <Icon name="dentistry" size={13} className={selectedTooth ? "text-cyan-600 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500"} />
+            <div className="flex-1 min-w-0 max-w-64 mx-auto">
+            {dentition === "adulto" ? (
+              <div className="relative w-full">
+                <Odontogram
+                  key={`${dentition}-${chartResetKey}`}
+                  theme="light"
+                  layout="circle"
+                  maxTeeth={8}
+                  readOnly={!isEditable || isViewingSession}
+                  showTooltip={false}
+                  showLabels={false}
+                  teethConditions={teethConditions}
+                  onChange={handleOdontogramChange}
+                />
+
+                {/* Overlay de orientación — maxilar sup./inf., regiones 1-4 y
+                      numeración de cada pieza. Puramente visual (pointer-events-none),
+                      los clics siguen yendo al SVG de abajo. */}
+                <div className="absolute inset-0 pointer-events-none select-none">
+                  <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[12px] font-bold text-slate-500 dark:text-slate-400" style={{ top: "44%" }}>
+                    Maxilar superior
+                  </span>
+                  {/* Separador entre maxilar superior e inferior */}
+                  <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 h-px w-1/3 bg-slate-200 dark:bg-slate-700" style={{ top: "50%" }} />
+                  <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[12px] font-bold text-slate-500 dark:text-slate-400" style={{ top: "56%" }}>
+                    Maxilar inferior
+                  </span>
+
+                  {toothLabels.map(t => (
+                    <span
+                      key={t.num}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 text-[12px] font-semibold text-slate-500 dark:text-slate-400"
+                      style={{ left: t.left, top: t.top }}
+                    >
+                      {t.num}
+                    </span>
+                  ))}
                 </div>
-                <span className={`text-[12px] font-semibold truncate ${selectedTooth ? "text-cyan-800 dark:text-cyan-300" : "text-slate-500 dark:text-slate-400"}`}>
-                  {selectedTooth ? `Diente ${selectedTooth} · ${TOOTH_NAMES[selectedTooth]}` : "Toca un diente para registrar"}
-                </span>
+              </div>
+            ) : (
+              // Dentición infantil (5 piezas/cuadrante): el arco completo de
+              // 694 unidades deja un hueco enorme en el centro entre maxilar
+              // superior e inferior (ver INFANTIL_CROP_Y). En vez de un
+              // scaleY (que encogería los dientes junto con el hueco), se
+              // recorta el mismo SVG en dos paneles — cada uno muestra solo
+              // su franja real de contenido — y se apilan pegados.
+              <div className="flex flex-col gap-2">
+                <div className="relative w-full overflow-hidden" style={{ height: 0, paddingBottom: `${(INFANTIL_PANEL_H / VIEWBOX_W) * 100}%` }}>
+                  <div className="absolute left-0 w-full" style={{ top: 0, transform: `translateY(${(INFANTIL_TOP_MARGIN / VIEWBOX_H) * 100}%)` }}>
+                    <Odontogram
+                      key={`${dentition}-${chartResetKey}-top`}
+                      theme="light"
+                      layout="circle"
+                      maxTeeth={5}
+                      readOnly={!isEditable || isViewingSession}
+                      showTooltip={false}
+                      showLabels={false}
+                      teethConditions={teethConditions}
+                      onChange={handleOdontogramChange}
+                    />
+                  </div>
+                  <div className="absolute inset-0 pointer-events-none select-none">
+                    {panelLabels.filter(p => p.panel === "top").map(p => (
+                      <span
+                        key={p.num}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 text-[12px] font-semibold text-slate-500 dark:text-slate-400"
+                        style={{ left: p.left, top: p.top }}
+                      >
+                        {p.num}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Maxilar superior/inferior flanqueando el separador central —
+                    igual que en dentición adulta, donde ambos textos y la
+                    línea viven juntos en el hueco entre los dos arcos. */}
+                <p className="text-center text-[12px] font-bold text-slate-500 dark:text-slate-400 mb-0">Maxilar superior</p>
+                <div className="h-px w-1/3 mx-auto bg-slate-200 dark:bg-slate-700" />
+                <p className="text-center text-[12px] font-bold text-slate-500 dark:text-slate-400 mt-0">Maxilar inferior</p>
+
+                <div className="relative w-full overflow-hidden" style={{ height: 0, paddingBottom: `${(INFANTIL_PANEL_H / VIEWBOX_W) * 100}%` }}>
+                  <div className="absolute left-0 w-full" style={{ top: 0, transform: `translateY(-${((VIEWBOX_H - INFANTIL_CROP_Y) / VIEWBOX_H) * 100}%)` }}>
+                    <Odontogram
+                      key={`${dentition}-${chartResetKey}-bottom`}
+                      theme="light"
+                      layout="circle"
+                      maxTeeth={5}
+                      readOnly={!isEditable || isViewingSession}
+                      showTooltip={false}
+                      showLabels={false}
+                      teethConditions={teethConditions}
+                      onChange={handleOdontogramChange}
+                    />
+                  </div>
+                  <div className="absolute inset-0 pointer-events-none select-none">
+                    {panelLabels.filter(p => p.panel === "bottom").map(p => (
+                      <span
+                        key={p.num}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 text-[12px] font-semibold text-slate-500 dark:text-slate-400"
+                        style={{ left: p.left, top: p.top }}
+                      >
+                        {p.num}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
+            </div>
+
+            {/* IZQUIERDA — lado izquierdo del paciente, a la derecha de la imagen.
+                Se lee de arriba hacia abajo (al revés de DERECHA). */}
+            <span
+              className="shrink-0 flex items-center justify-center text-[16px] font-bold tracking-widest text-slate-400 dark:text-slate-500"
+              style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+            >
+              IZQUIERDA
+            </span>
+          </div>
           </div>
         </div>
 
-        {/* COLUMNA 2 — Formulario de registro e historial */}
-        <div className="w-full lg:flex-1 min-w-0 flex flex-col gap-4">
-
-          {!isEditable ? null : isViewingSession ? null : (
-            <div className={`transition-opacity duration-200 ${!selectedTooth ? "opacity-40 pointer-events-none select-none" : ""}`}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Registro de superficies</p>
-                <button onClick={toggleAll} className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${isAll ? "bg-cyan-600 text-white border-cyan-600" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800"}`}>
-                  <Icon name="tooth" size={13} className={isAll ? "text-white" : "text-slate-400 dark:text-slate-500"} />
-                  Diente completo
-                </button>
+        {/* Todo el panel es UNA sola región de scroll (con su humo), acotada a
+            la altura del odontograma en desktop — antes tenía dos cajas
+            internas (editor + historial) cada una con su propio
+            overflow-y-auto + overscroll-contain; al llegar al borde de la
+            caja chica, overscroll-contain frenaba en seco el scroll en vez de
+            dejarlo continuar, sintiéndose "trabado". Con una sola caja no hay
+            ese límite intermedio. */}
+        <div
+          ref={registroScroll.ref}
+          style={registroScroll.style}
+          className="w-full lg:flex-[1.15] lg:min-w-[360px] xl:min-w-[440px] lg:max-w-[620px] lg:min-h-0 min-w-0 flex flex-col gap-3 p-4 sm:p-6 bg-white dark:bg-slate-900 lg:overflow-y-auto lg:overflow-x-visible no-scrollbar overscroll-contain"
+        >
+          {showRegistro && (
+            <>
+              <div>
+                <h3 className="text-[14px] font-bold text-slate-800 dark:text-slate-100">Registro clínico</h3>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">Cada superficie puede tener su propia condición</p>
               </div>
 
-              <div className="flex flex-col gap-3 bg-slate-50/80 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Superficie */}
-                  <div className={isAll ? "opacity-40 pointer-events-none" : ""}>
-                    <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Superficie</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {SURFACES.map(s => {
-                        const conv = surfaceConventions[s.key] ? conventions.find(c => c.key === surfaceConventions[s.key]) : null;
-                        const isActv = activeSurfaces.has(s.key);
-                        return (
-                          <button key={s.key} type="button" onClick={() => handleSelectSurface(s.key)}
-                            className={`flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-xl text-[11.5px] font-semibold border transition-all ${
-                              isActv && !conv ? "border-cyan-400 dark:border-cyan-600 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400" : !conv ? "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800" : ""
-                            } ${isActv && conv ? "ring-2 ring-cyan-500 ring-offset-1 ring-offset-slate-50 dark:ring-offset-slate-900" : ""}`}
-                            style={conv ? { background: conv.color + "1a", color: darkenForText(conv.color), borderColor: isActv ? conv.color : conv.color + "55" } : undefined}
-                          >
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: conv ? conv.color : "#cbd5e1" }} />
-                            {s.label}
-                            {conv && (
-                              <span onClick={e => { e.stopPropagation(); removeSurfaceConvention(s.key); }}
-                                className="w-3.5 h-3.5 rounded-full bg-black/10 hover:bg-black/20 flex items-center justify-center text-[9px] ml-0.5">×</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {activeSurfaces.size > 1 && (
-                      <p className="text-[10.5px] text-cyan-600 dark:text-cyan-400 font-medium mt-1.5">
-                        {activeSurfaces.size} superficies seleccionadas — elige una condición para aplicarla a todas.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Condición — el color de cada opción es la única leyenda */}
-                  <div>
-                    <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1.5">{convPickerLabel.toLowerCase()}</p>
-                    <div className={`flex flex-wrap gap-1.5 ${!canPickConv ? "opacity-30 pointer-events-none" : ""}`}>
-                      {conventions.map(c => {
-                        const isActive = isAll ? allConvention === c.key : false;
-                        return (
-                          <button key={c.key} onClick={() => assignConvention(c.key)}
-                            className={`px-3 py-2 rounded-full text-[12px] font-semibold border transition-all shadow-sm ${isActive ? "ring-2 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-900 ring-cyan-500" : ""}`}
-                            style={{ background: c.color + "66", borderColor: c.color + "cc", color: darkenForText(c.color) }}
-                          >
-                            {c.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+              {/* Dientes seleccionados */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Dientes seleccionados</p>
+                  {selectedTeeth.length > 0 && (
+                    <button onClick={clearSelection} className="text-[12.5px] font-semibold text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 rounded-lg px-3 py-1.5 bg-transparent hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">
+                      Limpiar selección
+                    </button>
+                  )}
                 </div>
 
-                <div>
-                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">Observaciones</p>
-                  <textarea rows={3} value={newObs} onChange={e => setNewObs(e.target.value)}
-                    placeholder="Escribe detalles del hallazgo clínico…"
-                    className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 resize-none text-[16px] sm:text-[13px]"
-                  />
-                </div>
-
-                <button onClick={addRecord} disabled={!canAdd || saving} className="flex items-center justify-center gap-1.5 py-2 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-lg text-[12.5px] font-bold transition-colors w-full sm:w-fit sm:self-end border-0">
-                  <Icon name="add" size={14} />
-                  {saving ? "Guardando..." : "Agregar registro"}
-                </button>
+                {selectedTeeth.length === 0 ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="border border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-6 flex flex-col items-center text-center gap-1">
+                      <Icon name="lightbulb" size={22} className="text-slate-300 dark:text-slate-600 mb-1" />
+                      <p className="text-[13px] font-semibold text-slate-500 dark:text-slate-400">Toca uno o más dientes en el odontograma</p>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500">Cada superficie puede tener su propia condición</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 text-[12px] font-semibold text-center py-2.5">
+                      Selecciona dientes en el odontograma
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedTeeth.map(t => {
+                      const isActive = activeTooth === t;
+                      return (
+                        <button key={t} type="button" onClick={() => { setActiveTooth(t); setActiveSurfaces(new Set()); }}
+                          className={`flex items-center gap-1.5 pl-2.5 pr-2 py-1.5 rounded-lg text-[12px] font-bold border transition-colors ${isActive ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800"
+                            }`}
+                        >
+                          {t}
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: draftDominantColor(drafts[t], conventions) }} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
 
-          {/* Historial de Exámenes */}
-          <div className="flex flex-col gap-3">
-            <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Historial de Exámenes</p>
-
-            <div className="flex flex-col gap-2 w-full max-h-100 overflow-y-auto pr-1">
-              {sessionsSorted.length === 0 ? (
-                <div className="text-center p-6 border border-dashed rounded-xl border-slate-200 dark:border-slate-700">
-                  <Icon name="history" size={24} className="text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                  <p className="text-[12px] text-slate-400 dark:text-slate-500 italic">Sin registros aún</p>
-                </div>
-              ) : sessionsSorted.map(s => {
-                const isExpanded = expandedSessionId === s.id;
-                const fdate = fmtDate(s.fecha);
-                return (
-                  <div key={s.id} className={`border rounded-xl transition-all ${isExpanded ? "border-cyan-500 dark:border-cyan-600 bg-cyan-50/20 dark:bg-cyan-900/10 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"}`}>
-                    {/* Header de la Sesión */}
-                    <div className="flex items-center gap-3 p-3 cursor-pointer select-none" onClick={() => toggleSession(s.id)}>
-                      <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 flex flex-col items-center justify-center border dark:border-slate-600 shrink-0">
-                        <span className="text-[14px] font-bold text-slate-700 dark:text-slate-200 leading-none">{fdate.day}</span>
-                        <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">{fdate.month}</span>
+              {selectedTeeth.length > 0 && (
+                <>
+                  {/* Editor del diente activo — ya no tiene su propio scroll,
+                      scrollea junto con todo el panel (ver contenedor arriba). */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-bold text-slate-800 dark:text-slate-100">#{activeTooth}</span>
+                        {activeTooth !== null && TOOTH_NAMES[activeTooth] && (
+                          <span className="text-[11.5px] text-slate-400 dark:text-slate-500">{TOOTH_NAMES[activeTooth]}</span>
+                        )}
+                        {activeDraft.isAll ? (
+                          <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400">
+                            Diente completo registrado
+                          </span>
+                        ) : Object.keys(activeDraft.surfaceConventions).length > 0 && (
+                          <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400">
+                            {Object.keys(activeDraft.surfaceConventions).length} superficie{Object.keys(activeDraft.surfaceConventions).length > 1 ? "s" : ""} registrada{Object.keys(activeDraft.surfaceConventions).length > 1 ? "s" : ""}
+                          </span>
+                        )}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100 leading-tight truncate">{s.tipo}</p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">{s.dentista}</p>
-                      </div>
-                      <Icon name={isExpanded ? "expand_less" : "expand_more"} size={16} className="text-slate-400 dark:text-slate-500" />
+                      {selectedTeeth.length > 1 && (
+                        <button onClick={applyActiveToAll} className="text-[12.5px] font-semibold text-cyan-700 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-700 rounded-lg px-3 py-1.5 bg-transparent hover:bg-cyan-50 dark:hover:bg-cyan-950/30 transition-colors">
+                          Aplicar a todos los dientes
+                        </button>
+                      )}
                     </div>
 
-                    {/* Hallazgos dentro de la Sesión */}
-                    {isExpanded && (
-                      <div className="px-3 pb-3 border-t border-slate-100 dark:border-slate-700 pt-2 flex flex-col gap-2 bg-slate-50/50 dark:bg-slate-900/30 rounded-b-xl">
-                        {s.findings.length === 0 ? (
-                          <p className="text-[11px] text-slate-400 dark:text-slate-500 italic p-2 text-center">No se registraron anomalías</p>
-                        ) : s.findings.map(f => (
-                          <SessionFindingRow
-                            key={f.id} finding={f} isPast={!isEditable || s.fecha < TODAY}
-                            highlighted={selectedTooth === f.toothNumber}
-                            onUpdateObs={(obs) => handleUpdateFindingObs(f, obs)}
-                            onDelete={() => setFindingToDelete(f)}
-                            conventions={conventions}
+                    <button onClick={toggleAll} className={`self-start flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${activeDraft.isAll ? "bg-cyan-600 text-white border-cyan-600" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800"}`}>
+                      <Icon name="tooth" size={13} className={activeDraft.isAll ? "text-white" : "text-slate-400 dark:text-slate-500"} />
+                      Diente completo
+                    </button>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Superficie */}
+                      <div className={activeDraft.isAll ? "opacity-40 pointer-events-none" : ""}>
+                        <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 mb-1.5">Superficie</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {SURFACES.map(s => {
+                            const conv = activeDraft.surfaceConventions[s.key] ? conventions.find(c => c.key === activeDraft.surfaceConventions[s.key]) : null;
+                            const isActv = activeSurfaces.has(s.key);
+                            return (
+                              <button key={s.key} type="button" onClick={() => handleSelectSurface(s.key)}
+                                className={`flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-xl text-[11.5px] font-semibold border transition-all ${isActv && !conv ? "border-cyan-400 dark:border-cyan-600 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400" : !conv ? "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800" : ""
+                                  } ${isActv && conv ? "ring-2 ring-cyan-500 ring-offset-1 ring-offset-slate-50 dark:ring-offset-slate-900" : ""}`}
+                                style={conv ? { background: conv.color + "1a", color: darkenForText(conv.color), borderColor: isActv ? conv.color : conv.color + "55" } : undefined}
+                              >
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: conv ? conv.color : "#cbd5e1" }} />
+                                {s.label}
+                                {conv && (
+                                  <span onClick={e => { e.stopPropagation(); removeSurfaceConvention(s.key); }}
+                                    className="w-3.5 h-3.5 rounded-full bg-black/10 hover:bg-black/20 flex items-center justify-center text-[9px] ml-0.5">×</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {activeSurfaces.size > 1 && (
+                          <p className="text-[10.5px] text-cyan-600 dark:text-cyan-400 font-medium mt-1.5">
+                            {activeSurfaces.size} superficies seleccionadas — elige una condición para aplicarla a todas.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Condición — el color de cada opción es la única leyenda */}
+                      <div>
+                        <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 mb-1.5">{convPickerLabel}</p>
+                        <div className={`flex flex-wrap gap-1.5 ${!canPickConv ? "pointer-events-none" : ""}`}>
+                          {conventions.map(c => {
+                            const isActive = activeDraft.isAll ? activeDraft.allConvention === c.key : false;
+                            return (
+                              <button key={c.key} onClick={() => assignConvention(c.key)}
+                                className={`px-3 py-2 rounded-full text-[12px] font-semibold border transition-all shadow-sm ${isActive ? "ring-2 ring-offset-2 ring-offset-slate-50 dark:ring-offset-slate-900 ring-cyan-500" : ""} ${!canPickConv ? "grayscale opacity-60" : ""}`}
+                                style={{ background: c.color + "66", borderColor: c.color + "cc", color: darkenForText(c.color) }}
+                              >
+                                {c.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {/* Sin esto, el bloque deshabilitado se lee como roto en vez
+                            de "elige primero una superficie" — Vestibular puede verse
+                            "seleccionada" (tiene condición asignada) sin estar activa
+                            para edición, lo cual confunde si no se explica. */}
+                        {!canPickConv && (
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">Toca una superficie arriba para asignarle una condición.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Superficies asignadas — tags removibles del diente activo */}
+                    <div>
+                      <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200 mb-1.5">Superficies asignadas</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <DraftTags draft={activeDraft} conventions={conventions} removable onRemoveSurface={removeSurfaceConvention} onRemoveAll={clearAllConvention} />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1 gap-2">
+                        <p className="text-[13px] font-bold text-slate-700 dark:text-slate-200">Observaciones</p>
+                        {selectedTeeth.length > 1 && (
+                          <Select
+                            value={String(activeTooth ?? "")}
+                            onChange={v => { setActiveTooth(Number(v)); setActiveSurfaces(new Set()); }}
+                            options={selectedTeeth.map(t => ({ value: String(t), label: `Diente #${t}` }))}
+                            className="w-36"
                           />
-                        ))}
+                        )}
                       </div>
+                      <textarea rows={3} value={activeDraft.observaciones} onChange={e => updateActiveDraft({ observaciones: e.target.value })}
+                        placeholder="Escribe detalles del hallazgo clínico…"
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 resize-none text-[16px] sm:text-[13px]"
+                      />
+                      {/* La BD guarda la observación pegada a una superficie/condición — un
+                          diente sin ninguna asignada no tiene dónde guardarla, aunque tenga
+                          texto escrito. Avisa ANTES de que se pierda al guardar. */}
+                      {activeDraft.observaciones.trim().length > 0 && !(activeDraft.isAll ? activeDraft.allConvention : Object.keys(activeDraft.surfaceConventions).length > 0) && (
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1.5 flex items-center gap-1">
+                          <Icon name="warning" size={13} className="shrink-0" />
+                          Esta observación no se guardará si al diente #{activeTooth} no le asignas al menos una superficie (o "Diente completo") con una condición.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Guardar + Continuar a Diagnóstico — fuera del contenedor con
+                      scroll (y de su efecto humo), siempre visibles. Ya no es
+                      flotante: vive junto a Guardar, en el otro extremo, y solo
+                      se habilita con contenido en Observaciones. */}
+                  <div className="flex items-center justify-between gap-2">
+                    <button onClick={addRecords} disabled={readyTeeth.length === 0 || saving} className="h-10 shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-lg text-[12.5px] font-bold transition-colors border-0">
+                      <Icon name="add" size={14} />
+                      {saving ? "Guardando..." : readyTeeth.length > 1 ? `Guardar ${readyTeeth.length} registros` : "Agregar registro"}
+                    </button>
+                    {onNavigateTab && (
+                      <button onClick={() => onNavigateTab("diagnosticos")} disabled={!activeDraft.observaciones.trim()} className="h-10 shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-[12.5px] font-bold transition-colors border-0">
+                        Continuar a Diagnóstico
+                        <Icon name="chevron_right" size={14} />
+                      </button>
                     )}
                   </div>
-                );
-              })}
+                  </>
+              )}
+
+                  {/* Separador — debajo de Guardar (o del estado vacío), antes del
+                      historial. Solo tiene sentido si el historial de abajo
+                      realmente se muestra (no en consulta activa). */}
+                  {!isEditable && <div className="border-t border-slate-200 dark:border-slate-700" />}
+                </>
+              )}
+
+              {/* Historial de Exámenes — scrollea junto con todo el panel (ver
+                  contenedor arriba). No se muestra dentro de una consulta
+                  activa (isEditable), solo al ver el odontograma fuera de ese
+                  flujo. */}
+              {!isEditable && (
+              <div className="flex flex-col gap-3">
+                <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Historial de Exámenes</p>
+
+                <div className="flex flex-col gap-2 w-full">
+                  {sessionsSorted.length === 0 ? (
+                    <div className="text-center p-6 border border-dashed rounded-xl border-slate-200 dark:border-slate-700">
+                      <Icon name="history" size={24} className="text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                      <p className="text-[12px] text-slate-400 dark:text-slate-500 italic">Sin registros aún</p>
+                    </div>
+                  ) : sessionsSorted.map(s => {
+                    const isExpanded = expandedSessionId === s.id;
+                    const fdate = fmtDate(s.fecha);
+                    return (
+                      <div key={s.id} className={`border rounded-xl transition-all ${isExpanded ? "border-cyan-500 dark:border-cyan-600 bg-cyan-50/20 dark:bg-cyan-900/10 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"}`}>
+                        {/* Header de la Sesión */}
+                        <div className="flex items-center gap-3 p-3 cursor-pointer select-none" onClick={() => toggleSession(s.id)}>
+                          <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 flex flex-col items-center justify-center border dark:border-slate-600 shrink-0">
+                            <span className="text-[14px] font-bold text-slate-700 dark:text-slate-200 leading-none">{fdate.day}</span>
+                            <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">{fdate.month}</span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100 leading-tight truncate">{s.tipo}</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">{s.dentista}</p>
+                          </div>
+                          <Icon name={isExpanded ? "expand_less" : "expand_more"} size={16} className="text-slate-400 dark:text-slate-500" />
+                        </div>
+
+                        {/* Hallazgos dentro de la Sesión */}
+                        {isExpanded && (
+                          <div className="px-3 pb-3 border-t border-slate-100 dark:border-slate-700 pt-2 flex flex-col gap-2 bg-slate-50/50 dark:bg-slate-900/30 rounded-b-xl">
+                            {s.findings.length === 0 ? (
+                              <p className="text-[11px] text-slate-400 dark:text-slate-500 italic p-2 text-center">No se registraron anomalías</p>
+                            ) : s.findings.map(f => (
+                              <SessionFindingRow
+                                key={f.id} finding={f} isPast={!isEditable || s.fecha < TODAY}
+                                highlighted={selectedTeeth.includes(f.toothNumber)}
+                                onUpdateObs={(obs) => handleUpdateFindingObs(f, obs)}
+                                onDelete={() => setFindingToDelete(f)}
+                                conventions={conventions}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              )}
             </div>
-          </div>
         </div>
       </div>
-    </div>
-  );
+      );
 }
