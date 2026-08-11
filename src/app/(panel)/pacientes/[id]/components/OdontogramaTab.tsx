@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import { motion, useDragControls, type PanInfo } from "framer-motion";
 import { Odontogram, type ToothDetail } from "react-odontogram";
 import "react-odontogram/style.css";
 import { Icon } from "@/components/ui/Icon";
@@ -411,6 +412,119 @@ function SessionFindingRow({ finding, isPast, highlighted, onUpdateObs, onDelete
   );
 }
 
+// ─── Historial de Exámenes — lista compartida entre la versión inline
+// (desktop, dentro del scroll del panel) y el bottom sheet (mobile) ───────────
+
+function HistorialList({ sessions, expandedSessionId, onToggleSession, selectedTeeth, isEditable, conventions, onUpdateObs, onDeleteFinding }: {
+  sessions: ExamSession[];
+  expandedSessionId: string | null;
+  onToggleSession: (id: string) => void;
+  selectedTeeth: number[];
+  isEditable: boolean;
+  conventions: any[];
+  onUpdateObs: (finding: SessionFinding, obs: string) => void;
+  onDeleteFinding: (finding: SessionFinding) => void;
+}) {
+  if (sessions.length === 0) {
+    return (
+      <div className="text-center p-6 border border-dashed rounded-xl border-slate-200 dark:border-slate-700">
+        <Icon name="history" size={24} className="text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+        <p className="text-[12px] text-slate-400 dark:text-slate-500 italic">Sin registros aún</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {sessions.map(s => {
+        const isExpanded = expandedSessionId === s.id;
+        const fdate = fmtDate(s.fecha);
+        return (
+          <div key={s.id} className={`border rounded-xl transition-all ${isExpanded ? "border-cyan-500 dark:border-cyan-600 bg-cyan-50/20 dark:bg-cyan-900/10 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"}`}>
+            {/* Header de la Sesión */}
+            <div className="flex items-center gap-3 p-3 cursor-pointer select-none" onClick={() => onToggleSession(s.id)}>
+              <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 flex flex-col items-center justify-center border dark:border-slate-600 shrink-0">
+                <span className="text-[14px] font-bold text-slate-700 dark:text-slate-200 leading-none">{fdate.day}</span>
+                <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">{fdate.month}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100 leading-tight truncate">{s.tipo}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">{s.dentista}</p>
+              </div>
+              <Icon name={isExpanded ? "expand_less" : "expand_more"} size={16} className="text-slate-400 dark:text-slate-500" />
+            </div>
+
+            {/* Hallazgos dentro de la Sesión */}
+            {isExpanded && (
+              <div className="px-3 pb-3 border-t border-slate-100 dark:border-slate-700 pt-2 flex flex-col gap-2 bg-slate-50/50 dark:bg-slate-900/30 rounded-b-xl">
+                {s.findings.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 italic p-2 text-center">No se registraron anomalías</p>
+                ) : s.findings.map(f => (
+                  <SessionFindingRow
+                    key={f.id} finding={f} isPast={!isEditable || s.fecha < TODAY}
+                    highlighted={selectedTeeth.includes(f.toothNumber)}
+                    onUpdateObs={(obs) => onUpdateObs(f, obs)}
+                    onDelete={() => onDeleteFinding(f)}
+                    conventions={conventions}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+type SheetState = "peek" | "half" | "expanded";
+const SHEET_HEIGHT: Record<SheetState, string> = { peek: "14vh", half: "50vh", expanded: "88vh" };
+
+/** Bottom sheet del Historial — solo mobile. A diferencia de ResponsiveSheet
+ * (modal bloqueante con fondo desenfocado), este es un panel PERSISTENTE:
+ * no tiene backdrop ni se puede cerrar del todo, solo colapsar a un "peek"
+ * de header nomás — así se ve el odontograma y el historial a la vez, que
+ * es el punto de tenerlo así. Arrastrar desde el handle sube/baja un
+ * estado (peek ↔ half ↔ expanded); nunca se dispara desde el contenido,
+ * que tiene su propio scroll independiente. */
+function HistorialBottomSheet({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<SheetState>("half");
+  const dragControls = useDragControls();
+
+  function handleDragEnd(_: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) {
+    const subiendo = info.offset.y < -40 || info.velocity.y < -400;
+    const bajando = info.offset.y > 40 || info.velocity.y > 400;
+    if (subiendo) setState(s => (s === "peek" ? "half" : "expanded"));
+    else if (bajando) setState(s => (s === "expanded" ? "half" : "peek"));
+  }
+
+  return (
+    <motion.div
+      drag="y"
+      dragControls={dragControls}
+      dragListener={false}
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={{ top: 0.04, bottom: 0.04 }}
+      onDragEnd={handleDragEnd}
+      animate={{ height: SHEET_HEIGHT[state] }}
+      transition={{ type: "spring", damping: 32, stiffness: 320 }}
+      className="lg:hidden fixed inset-x-0 z-40 bg-white dark:bg-slate-800 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.12)] border-t border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden"
+      style={{ bottom: "calc(56px + env(safe-area-inset-bottom))" }}
+    >
+      <div
+        onPointerDown={(e) => dragControls.start(e)}
+        className="flex flex-col items-center pt-2 pb-1.5 shrink-0 cursor-grab active:cursor-grabbing touch-none"
+      >
+        <span className="w-10 h-1.5 rounded-full bg-slate-200 dark:bg-slate-600 mb-1.5" />
+        <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Historial de Exámenes</p>
+      </div>
+      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-3 flex flex-col gap-2">
+        {children}
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Tags de un borrador (superficies asignadas / resumen) ────────────────────
 // Mismo componente para "Superficies asignadas" (removible, del diente activo)
 // y "Resumen" (solo lectura, uno por cada diente seleccionado).
@@ -604,6 +718,34 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
     setChartResetKey(k => k + 1);
   }
 
+  // Núcleo de "cambió la selección de dientes", independiente de quién lo
+  // dispare — el <Odontogram> de la librería (desktop) o la grilla custom de
+  // mobile (ver MobileOdontogramaGrid), que no pasa por la librería en
+  // absoluto y por lo tanto no necesita el workaround de setTimeout de abajo.
+  function applySelectedTeeth(nums: number[]) {
+    const prev = prevSelectedRef.current;
+    const added = nums.find(n => !prev.includes(n));
+    prevSelectedRef.current = nums;
+
+    setSelectedTeeth(nums);
+    if (isViewingSession) return;
+
+    if (added !== undefined) {
+      // Diente nuevo en la selección — le da su propio borrador y pasa a ser
+      // el que se edita en el panel de la derecha.
+      setDrafts(d => (d[added] ? d : { ...d, [added]: emptyDraft() }));
+      setActiveTooth(added);
+      setActiveSurfaces(new Set());
+    } else if (nums.length > 0) {
+      // Se quitó un diente de la selección (clic de nuevo sobre uno ya
+      // marcado) — si era el que se estaba editando, pasa a editar otro.
+      setActiveTooth(at => (at !== null && nums.includes(at) ? at : nums[nums.length - 1]));
+      setActiveSurfaces(new Set());
+    } else {
+      setActiveTooth(null);
+    }
+  }
+
   function handleOdontogramChange(selected: ToothDetail[]) {
     // react-odontogram llama a onChange desde dentro del updater de su propio
     // setState interno (no desde el evento de clic directamente), lo que dispara
@@ -613,27 +755,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
     // que aún puede correr antes de que React termine de confirmar la actualización).
     setTimeout(() => {
       const nums = selected.map(d => fromLibraryFdi(d.notations.fdi, dentition));
-      const prev = prevSelectedRef.current;
-      const added = nums.find(n => !prev.includes(n));
-      prevSelectedRef.current = nums;
-
-      setSelectedTeeth(nums);
-      if (isViewingSession) return;
-
-      if (added !== undefined) {
-        // Diente nuevo en la selección — le da su propio borrador y pasa a ser
-        // el que se edita en el panel de la derecha.
-        setDrafts(d => (d[added] ? d : { ...d, [added]: emptyDraft() }));
-        setActiveTooth(added);
-        setActiveSurfaces(new Set());
-      } else if (nums.length > 0) {
-        // Se quitó un diente de la selección (clic de nuevo sobre uno ya
-        // marcado) — si era el que se estaba editando, pasa a editar otro.
-        setActiveTooth(at => (at !== null && nums.includes(at) ? at : nums[nums.length - 1]));
-        setActiveSurfaces(new Set());
-      } else {
-        setActiveTooth(null);
-      }
+      applySelectedTeeth(nums);
     }, 0);
   }
 
@@ -787,6 +909,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
   if (loading) return <OdontogramaSkeleton />;
 
   return (
+    <>
     <div className="flex flex-col gap-4 w-full lg:h-full relative bg-white dark:bg-slate-900">
 
       {/* Modal de confirmación de eliminación */}
@@ -850,7 +973,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
               DERECHA
             </span>
 
-            <div className="flex-1 min-w-0 max-w-64 mx-auto">
+            <div className="flex-1 min-w-0 max-w-56 sm:max-w-64 mx-auto">
             {dentition === "adulto" ? (
               <div className="relative w-full">
                 <Odontogram
@@ -971,6 +1094,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
             </span>
           </div>
           </div>
+
         </div>
 
         {/* Todo el panel es UNA sola región de scroll (con su humo), acotada a
@@ -1184,62 +1308,47 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                 </>
               )}
 
-              {/* Historial de Exámenes — scrollea junto con todo el panel (ver
-                  contenedor arriba). No se muestra dentro de una consulta
+              {/* Historial de Exámenes. No se muestra dentro de una consulta
                   activa (isEditable), solo al ver el odontograma fuera de ese
-                  flujo. */}
+                  flujo. Desktop: inline, scrollea con todo el panel (ver
+                  contenedor arriba). Mobile: bottom sheet flotante aparte —
+                  así se ven los dientes y el historial a la vez (ver
+                  HistorialBottomSheet). */}
               {!isEditable && (
-              <div className="flex flex-col gap-3">
+              <div className="hidden lg:flex flex-col gap-3">
                 <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Historial de Exámenes</p>
-
                 <div className="flex flex-col gap-2 w-full">
-                  {sessionsSorted.length === 0 ? (
-                    <div className="text-center p-6 border border-dashed rounded-xl border-slate-200 dark:border-slate-700">
-                      <Icon name="history" size={24} className="text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                      <p className="text-[12px] text-slate-400 dark:text-slate-500 italic">Sin registros aún</p>
-                    </div>
-                  ) : sessionsSorted.map(s => {
-                    const isExpanded = expandedSessionId === s.id;
-                    const fdate = fmtDate(s.fecha);
-                    return (
-                      <div key={s.id} className={`border rounded-xl transition-all ${isExpanded ? "border-cyan-500 dark:border-cyan-600 bg-cyan-50/20 dark:bg-cyan-900/10 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"}`}>
-                        {/* Header de la Sesión */}
-                        <div className="flex items-center gap-3 p-3 cursor-pointer select-none" onClick={() => toggleSession(s.id)}>
-                          <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 flex flex-col items-center justify-center border dark:border-slate-600 shrink-0">
-                            <span className="text-[14px] font-bold text-slate-700 dark:text-slate-200 leading-none">{fdate.day}</span>
-                            <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">{fdate.month}</span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100 leading-tight truncate">{s.tipo}</p>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">{s.dentista}</p>
-                          </div>
-                          <Icon name={isExpanded ? "expand_less" : "expand_more"} size={16} className="text-slate-400 dark:text-slate-500" />
-                        </div>
-
-                        {/* Hallazgos dentro de la Sesión */}
-                        {isExpanded && (
-                          <div className="px-3 pb-3 border-t border-slate-100 dark:border-slate-700 pt-2 flex flex-col gap-2 bg-slate-50/50 dark:bg-slate-900/30 rounded-b-xl">
-                            {s.findings.length === 0 ? (
-                              <p className="text-[11px] text-slate-400 dark:text-slate-500 italic p-2 text-center">No se registraron anomalías</p>
-                            ) : s.findings.map(f => (
-                              <SessionFindingRow
-                                key={f.id} finding={f} isPast={!isEditable || s.fecha < TODAY}
-                                highlighted={selectedTeeth.includes(f.toothNumber)}
-                                onUpdateObs={(obs) => handleUpdateFindingObs(f, obs)}
-                                onDelete={() => setFindingToDelete(f)}
-                                conventions={conventions}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  <HistorialList
+                    sessions={sessionsSorted}
+                    expandedSessionId={expandedSessionId}
+                    onToggleSession={toggleSession}
+                    selectedTeeth={selectedTeeth}
+                    isEditable={isEditable}
+                    conventions={conventions}
+                    onUpdateObs={handleUpdateFindingObs}
+                    onDeleteFinding={(f) => setFindingToDelete(f)}
+                  />
                 </div>
               </div>
               )}
             </div>
         </div>
       </div>
-      );
+
+      {!isEditable && (
+        <HistorialBottomSheet>
+          <HistorialList
+            sessions={sessionsSorted}
+            expandedSessionId={expandedSessionId}
+            onToggleSession={toggleSession}
+            selectedTeeth={selectedTeeth}
+            isEditable={isEditable}
+            conventions={conventions}
+            onUpdateObs={handleUpdateFindingObs}
+            onDeleteFinding={(f) => setFindingToDelete(f)}
+          />
+        </HistorialBottomSheet>
+      )}
+    </>
+  );
 }

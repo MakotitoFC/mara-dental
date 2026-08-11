@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
+import { GuardedLink } from "./GuardedLink";
 
 const NAV_MAIN = [
   { href: "/dashboard",       icon: "home",             label: "Dashboard" },
@@ -114,7 +114,7 @@ export function Sidebar() {
         {mainItems.map((item) => {
           const active = isActive(item.href);
           return (
-            <Link
+            <GuardedLink
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
@@ -130,7 +130,7 @@ export function Sidebar() {
                 className={`shrink-0 ${active ? "text-cyan-700 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
               />
               {!collapsed && <span className="text-[13px] font-medium truncate">{item.label}</span>}
-            </Link>
+            </GuardedLink>
           );
         })}
 
@@ -163,7 +163,7 @@ export function Sidebar() {
                     {doctorItems.map((item) => {
                       const active = isActive(item.href);
                       return (
-                        <Link
+                        <GuardedLink
                           key={item.href}
                           href={item.href}
                           title={collapsed ? item.label : undefined}
@@ -179,7 +179,7 @@ export function Sidebar() {
                             className={`shrink-0 ${active ? "text-cyan-700 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
                           />
                           {!collapsed && <span className="text-[13px] font-medium truncate">{item.label}</span>}
-                        </Link>
+                        </GuardedLink>
                       );
                     })}
                   </div>
@@ -195,7 +195,7 @@ export function Sidebar() {
         {NAV_BOTTOM.map((item) => {
           const active = isActive(item.href);
           return (
-            <Link
+            <GuardedLink
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
@@ -211,7 +211,7 @@ export function Sidebar() {
                 className={`shrink-0 ${active ? "text-cyan-700 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
               />
               {!collapsed && <span className="text-[13px] font-medium truncate">{item.label}</span>}
-            </Link>
+            </GuardedLink>
           );
         })}
 

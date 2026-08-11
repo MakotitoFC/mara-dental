@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useConfirm } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/Toast";
+import { GuardedLink } from "@/components/layout/GuardedLink";
+import { useActiveConsultaGuard } from "@/components/layout/ActiveConsultaGuard";
 import { calcEdad } from "@/lib/date-utils";
 import { slideHorizontal } from "@/lib/animations";
 import { getConsultaActivaAction } from "../consulta.actions";
@@ -64,6 +66,8 @@ export function HistoriaView({
   const router = useRouter();
   const pathname = usePathname();
   const confirm = useConfirm();
+  const toast = useToast();
+  const { setActiveConsultaExit } = useActiveConsultaGuard();
 
   const [tab, setTab] = useState<TabKey>("info");
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -78,6 +82,14 @@ export function HistoriaView({
   const [loadingConsulta, setLoadingConsulta] = useState(false);
   const [showNuevaConsultaModal, setShowNuevaConsultaModal] = useState(false);
   const [preselectedCitaId, setPreselectedCitaId] = useState<string | null>(null);
+
+  // Registra/desregistra esta consulta en el guard global — así el
+  // Sidebar/BottomNav/GuardedLink saben, sin conocer este componente, si
+  // hay algo que confirmar antes de dejar salir al usuario de la ficha.
+  useEffect(() => {
+    setActiveConsultaExit(consultaId ? () => { setConsultaId(null); setConsultaData(null); } : null);
+    return () => setActiveConsultaExit(null);
+  }, [consultaId, setActiveConsultaExit]);
 
   const refetchConsultaData = useCallback(async () => {
     if (!consultaId) return;
@@ -138,17 +150,38 @@ export function HistoriaView({
     }
   }
 
-  async function salirDeConsulta() {
+  // Compartido entre el botón "Salir de consulta" y el guard de la tab bar
+  // (guardedGoTo) — confirma, y si se acepta, limpia el estado de la
+  // consulta. Quien llama decide a qué pestaña navegar después.
+  async function confirmSalirDeConsulta() {
     const ok = await confirm({
       title: "Salir de la consulta",
       message: "Vas a salir de la consulta en curso. Lo que ya guardaste se mantiene, pero dejarás de estar en modo consulta.",
       requireText: "salir de consulta",
       confirmLabel: "Salir de consulta",
     });
-    if (!ok) return;
+    if (!ok) return false;
     setConsultaId(null);
     setConsultaData(null);
-    goTo(tab, { consultaId: null });
+    toast.success("Saliste de la consulta correctamente");
+    return true;
+  }
+
+  async function salirDeConsulta() {
+    if (await confirmSalirDeConsulta()) goTo(tab, { consultaId: null });
+  }
+
+  // Cambiar de pestaña "a mano" (tab bar) en consulta activa también debe
+  // confirmar — solo la navegación GUIADA de la propia consulta (ej.
+  // "Continuar a Diagnóstico" desde Odontograma, o abrir "dental" al crear
+  // una consulta nueva) llama a goTo() directo y se salta este guard.
+  async function guardedGoTo(key: TabKey) {
+    if (key === tab) return;
+    if (consultaId) {
+      if (await confirmSalirDeConsulta()) goTo(key, { consultaId: null });
+      return;
+    }
+    goTo(key);
   }
 
   const nombreCompleto = [p.nombre, p.apellido].filter(Boolean).join(" ") || "Paciente";
@@ -200,13 +233,13 @@ export function HistoriaView({
 
       {/* ── Sub-header paciente ── */}
       <div className="flex items-center gap-2.5 sm:gap-3 px-3 sm:px-6 md:px-8 py-3 sm:py-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
-        <Link
+        <GuardedLink
           href="/pacientes"
           aria-label="Volver a pacientes"
           className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors shrink-0"
         >
           <Icon name="chevron_left" size={20} />
-        </Link>
+        </GuardedLink>
 
         <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-cyan-50 dark:bg-cyan-900/30 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center shrink-0 select-none">
           <span className="text-[14px] sm:text-[15px] font-bold text-cyan-700 dark:text-cyan-400 uppercase">
@@ -286,7 +319,7 @@ export function HistoriaView({
             return (
               <button
                 key={key}
-                onClick={() => goTo(key)}
+                onClick={() => guardedGoTo(key)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-semibold whitespace-nowrap transition-colors shrink-0 border-0 ${
                   active ? "bg-cyan-600 text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                 }`}
@@ -300,8 +333,10 @@ export function HistoriaView({
         </div>
       </div>
 
-      {/* ── Barra de consulta activa — mismo fondo/texto que la pestaña activa ── */}
-      {consultaId && tab !== "info" && tab !== "timeline" && (
+      {/* ── Barra de consulta activa — mismo fondo/texto que la pestaña activa.
+          Visible en TODAS las pestañas (antes se ocultaba en info/timeline,
+          lo que hacía parecer que la consulta se había cerrado ahí). ── */}
+      {consultaId && (
         <div className="flex items-center justify-between gap-3 px-3 sm:px-6 md:px-8 py-2 bg-cyan-600 shrink-0">
           <span className="flex items-center gap-1.5 text-[12px] font-semibold text-white">
             <Icon name="stethoscope" size={14} className="text-white" />
