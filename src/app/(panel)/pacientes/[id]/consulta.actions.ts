@@ -204,6 +204,78 @@ export async function getConsultaActivaAction(consultaId: string, pacienteId: st
   };
 }
 
+export async function getConsultaReanudableAction(pacienteId: string) {
+  noStore();
+  const supabase = await createClient();
+
+  const { data: hc } = await supabase
+    .from("historia_clinica")
+    .select("id")
+    .eq("paciente_id", pacienteId)
+    .maybeSingle();
+
+  if (!hc) return null;
+
+  const { data: notas } = await supabase
+    .from("nota_clinica")
+    .select("id")
+    .eq("historia_clinica_id", hc.id);
+
+  const notaIds = (notas || []).map((n) => n.id);
+  if (notaIds.length === 0) return null;
+
+  const { data: consultas, error } = await supabase
+    .from("consultas")
+    .select("id, fecha_consulta, created_at, motivo, finalizada")
+    .in("nota_clinica_id", notaIds)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error || !consultas || consultas.length === 0) return null;
+
+  const ultima = consultas[0];
+
+  // Si fue marcada como finalizada explícitamente en BD
+  if (ultima.finalizada === true) return null;
+
+  const timestampStr = ultima.created_at || ultima.fecha_consulta;
+  if (!timestampStr) return null;
+
+  const fechaCreacion = new Date(timestampStr).getTime();
+  const ahora = Date.now();
+  const transcurridoMs = ahora - fechaCreacion;
+  const maxMs = 60 * 60 * 1000; // 1 hora (60 minutos)
+
+  if (transcurridoMs < 0 || transcurridoMs > maxMs) return null;
+
+  const minutosTranscurridos = Math.max(0, Math.floor(transcurridoMs / 60000));
+  const minutosRestantes = Math.max(0, Math.ceil((maxMs - transcurridoMs) / 60000));
+
+  return {
+    id: String(ultima.id),
+    motivo: ultima.motivo || "Consulta en curso",
+    fechaCreacion: timestampStr,
+    minutosTranscurridos,
+    minutosRestantes,
+  };
+}
+
+export async function finalizarConsultaAction(consultaId: string, pacienteId: string) {
+  const supabase = await createClient();
+
+  try {
+    await supabase
+      .from("consultas")
+      .update({ finalizada: true, updated_at: new Date().toISOString() })
+      .eq("id", consultaId);
+  } catch (e) {
+    console.error("Error al finalizar consulta en BD:", e);
+  }
+
+  revalidatePath(`/pacientes/${pacienteId}`);
+  return { success: true };
+}
+
 export async function searchCIE10Action(query: string) {
   const supabase = await createClient();
   if (!query || query.trim().length < 2) return [];

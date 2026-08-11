@@ -49,3 +49,4 @@ database.sqlite
 .sqlite
 dashboard.md
 rls_updates.sql
+dashboard_unification.sql

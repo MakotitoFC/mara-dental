@@ -1,5 +1,6 @@
 import { Header } from "@/components/layout/Header";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { DashboardView } from "./components/DashboardView";
 import { DashboardAsistenteView } from "./components/DashboardAsistenteView";
 import { getDashboardDataAction, getDashboardAsistenteDataAction } from "./actions";
@@ -12,6 +13,10 @@ export default async function DashboardPage() {
   if (user) {
     const { data: usr } = await supabase.from("usuarios").select("rol ( rol )").eq("id", user.id).single();
     rol = (usr?.rol as any)?.rol ?? "";
+  }
+
+  if (rol === "admin" || rol === "superadmin") {
+    redirect("/admin/dashboard");
   }
 
   if (rol === "asistente") {
