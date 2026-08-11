@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
 import { getAlertasAction, type AlertasData } from "./alertas.actions";
 import { createClient } from "@/lib/supabase/client";
+import { GuardedLink } from "./GuardedLink";
 
 export interface Breadcrumb {
   label: string;
@@ -203,9 +203,9 @@ function AlertasButton() {
                   return (
                     <div key={r.key} className="flex group px-2 mx-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                       {r.link ? (
-                        <Link href={r.link} className="flex-1 flex items-start gap-3 py-2.5 min-w-0 pr-2">
+                        <GuardedLink href={r.link} className="flex-1 flex items-start gap-3 py-2.5 min-w-0 pr-2">
                           {content}
-                        </Link>
+                        </GuardedLink>
                       ) : (
                         <div className="flex-1 flex items-start gap-3 py-2.5 min-w-0 pr-2">
                           {content}
@@ -250,13 +250,13 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
         {breadcrumbs && (
           <>
             <Icon name="chevron_right" size={16} className="text-slate-300 dark:text-slate-600 shrink-0 hidden sm:block" />
-            <Link
+            <GuardedLink
               href={backHref}
               aria-label="Volver"
               className="sm:hidden w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
             >
               <Icon name="chevron_left" size={18} />
-            </Link>
+            </GuardedLink>
 
             <nav className="hidden sm:flex items-center min-w-0">
               {breadcrumbs.map((crumb, i) => {
@@ -269,12 +269,12 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
                         {crumb.label}
                       </span>
                     ) : (
-                      <Link
+                      <GuardedLink
                         href={crumb.href ?? "#"}
                         className="text-[13px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors shrink-0 whitespace-nowrap"
                       >
                         {crumb.label}
-                      </Link>
+                      </GuardedLink>
                     )}
                   </span>
                 );

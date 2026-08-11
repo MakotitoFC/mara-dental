@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, memo, useCallback } from "react";
-import Link from "next/link";
+import { GuardedLink } from "@/components/layout/GuardedLink";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
@@ -239,7 +239,7 @@ function PacienteCardBase({
 
   return (
     <motion.div variants={staggerItem} onMouseEnter={() => onHoverStart(p.id)} onMouseLeave={() => onHoverEnd(p.id)}>
-      <Link
+      <GuardedLink
         href={`/pacientes/${p.id}`}
         className={`flex items-start gap-3 bg-white dark:bg-slate-800 rounded-2xl border p-4 hover:border-cyan-300 dark:hover:border-cyan-700 hover:shadow-sm active:scale-[0.99] transition-all ${
           active ? "border-cyan-400 dark:border-cyan-600 ring-1 ring-cyan-100 dark:ring-cyan-900/40" : "border-slate-200 dark:border-slate-700"
@@ -285,7 +285,7 @@ function PacienteCardBase({
             </span>
           )}
         </div>
-      </Link>
+      </GuardedLink>
     </motion.div>
   );
 }
@@ -369,27 +369,27 @@ function PacientePreviewPanel({
 
       {/* Acciones */}
       <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-        <Link
+        <GuardedLink
           href={`/pacientes/${p.id}`}
           className="flex items-center justify-center gap-1.5 h-9 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[12px] font-medium transition-colors"
         >
           <Icon name="contact_page" size={14} />
           Ver Ficha
-        </Link>
-        <Link
+        </GuardedLink>
+        <GuardedLink
           href={`/agenda?paciente=${p.id}`}
           className="flex items-center justify-center gap-1.5 h-9 rounded-xl border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-medium transition-colors"
         >
           <Icon name="calendar_today" size={14} />
           Nueva Cita
-        </Link>
-        <Link
+        </GuardedLink>
+        <GuardedLink
           href={`/pacientes/${p.id}?tab=presupuestos`}
           className="col-span-2 flex items-center justify-center gap-1.5 h-9 rounded-xl border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-medium transition-colors"
         >
           <Icon name="payments" size={14} />
           Presupuestos
-        </Link>
+        </GuardedLink>
       </div>
     </motion.div>
   );

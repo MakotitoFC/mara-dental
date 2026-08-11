@@ -156,7 +156,24 @@ function getAdminClient() {
   );
 }
 
+/** getAdminClient() bypassa RLS por completo — antes de usarlo hay que
+ * verificar server-side (con el cliente normal, sujeto a RLS) que quien
+ * llama es realmente admin/superadmin. Sin este check, cualquier usuario
+ * autenticado (asistente incluido) podía invocar estas server actions
+ * directamente y escribir en catalogo_tratamientos/cie10 con privilegios
+ * completos, sin pasar por RLS ni por ninguna verificación de rol. */
+async function requireAdminRole() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autorizado");
+  const { data } = await supabase.from("usuarios").select("rol(rol)").eq("id", user.id).single();
+  const rolRaw = data?.rol as any;
+  const rol = (Array.isArray(rolRaw) ? rolRaw[0]?.rol : rolRaw?.rol) as string | undefined;
+  if (rol !== "admin" && rol !== "superadmin") throw new Error("Sin permisos");
+}
+
 export async function toggleTratamientoActivoAction(id: number, activo: boolean) {
+  await requireAdminRole();
   const supabase = getAdminClient();
   const { error } = await supabase.from("catalogo_tratamientos").update({ activo }).eq("id", id);
   if (error) return { error: error.message };
@@ -164,6 +181,7 @@ export async function toggleTratamientoActivoAction(id: number, activo: boolean)
 }
 
 export async function saveTratamientoAction(data: any) {
+  await requireAdminRole();
   const supabase = getAdminClient();
   if (data.id) {
     const { error } = await supabase.from("catalogo_tratamientos").update(data).eq("id", data.id);
@@ -182,6 +200,7 @@ export async function getCie10Action() {
 }
 
 export async function saveCie10Action(data: any) {
+  await requireAdminRole();
   const supabase = getAdminClient();
   if (data.codigo_antiguo) {
     const { codigo_antiguo, ...updateData } = data;
