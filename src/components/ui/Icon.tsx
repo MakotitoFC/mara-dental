@@ -26,8 +26,8 @@ import {
   Sun, Moon, Laptop, ListChecks, Home,
   Eraser, Type, MoveUpRight,
   Send, FolderHeart, History, Network, Copy, CheckCheck, Hand,
-  Landmark, Calculator, BadgeDollarSign, TrendingUp, UserCheck, Database
-
+  Landmark, Calculator, BadgeDollarSign, TrendingUp, UserCheck, Database,
+  Play
 } from "lucide-react";
 
 interface IconProps {
@@ -218,6 +218,8 @@ const ICONS: Record<string, LucideIcon> = {
   devices:              Laptop,
   schedule_view:        ListChecks,
   database:             Database,
+  play_arrow:           Play,
+  play:                 Play,
 };
 
 // Iconos con SVG propio (no vienen de lucide-react) — mismo contrato de props.

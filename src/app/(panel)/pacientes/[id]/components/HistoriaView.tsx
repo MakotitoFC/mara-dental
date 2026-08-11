@@ -322,31 +322,6 @@ export function HistoriaView({
               <Icon name="edit" size={15} className="text-slate-400" />
               <span className="hidden sm:inline">Editar</span>
             </button>
-
-            <div className="relative">
-              <button
-                onClick={() => setMenuOpen((v) => !v)}
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                <Icon name="more_vert" size={18} />
-              </button>
-              {menuOpen && (
-                <div
-                  className="absolute right-0 top-full mt-1.5 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-30"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <a
-                    href={telegramLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full text-left px-3 py-2 text-[12.5px] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                  >
-                    <Icon name="send" size={15} className="text-cyan-500" />
-                    Enviar mensaje Telegram
-                  </a>
-                </div>
-              )}
-            </div>
           </div>
 
         </div>
