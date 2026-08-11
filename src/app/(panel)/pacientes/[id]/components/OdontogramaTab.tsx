@@ -105,6 +105,8 @@ function findConvention(key: string | undefined, conventions: any[]) {
   return conventions.find(c => c.key === key) ?? UNKNOWN_CONVENTION;
 }
 
+const odontogramaCache = new Map<string, { data: any[], conds: any[] }>();
+
 function dominantConvention(f: SessionFinding, conventions: any[]): Convention {
   if (f.isAll && f.allConvention) return findConvention(f.allConvention, conventions).key;
   const set = new Set(f.surfaceConditions.map(sc => sc.convention));
@@ -244,10 +246,20 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
 
   const [findingToDelete, setFindingToDelete] = useState<SessionFinding | null>(null);
 
-  const fetchOdontogramas = async () => {
+  const fetchOdontogramas = async (force = false) => {
+    if (!force && odontogramaCache.has(String(paciente.id))) {
+      const cached = odontogramaCache.get(String(paciente.id))!;
+      setSessions(cached.data);
+      setConventions(cached.conds);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    const data = await getOdontogramasAction(String(paciente.id));
-    const conds = await getCondicionesOdontogramaAction();
+    const [data, conds] = await Promise.all([
+      getOdontogramasAction(String(paciente.id)),
+      getCondicionesOdontogramaAction()
+    ]);
     const mappedConds = conds.map((c: any) => {
       const raw = String(c.condicion || "").toLowerCase();
       const label = raw.replace(/\b\w/g, (match) => match.toUpperCase());
@@ -285,14 +297,24 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
   );
 
   const teethConditions = useMemo(() => {
-    const byConv = new Map<Convention, string[]>();
+    // 1. Determinar la condición definitiva (la última cronológicamente) por cada diente
+    const finalToothConv = new Map<string, string>();
     for (const f of visibleFindings) {
       const conv = dominantConvention(f, conventions);
       const libId = toLibraryId(f.toothNumber, dentition);
+      // Dado que visibleFindings procesa desde el más antiguo al más reciente
+      // el último en registrarse para este diente sobrescribirá a los anteriores.
+      finalToothConv.set(libId, conv);
+    }
+
+    // 2. Agrupar por condición para dárselo a la librería
+    const byConv = new Map<Convention, string[]>();
+    for (const [libId, conv] of finalToothConv.entries()) {
       const list = byConv.get(conv) ?? [];
-      if (!list.includes(libId)) list.push(libId);
+      list.push(libId);
       byConv.set(conv, list);
     }
+
     return conventions.filter(c => byConv.has(c.key)).map(c => ({
       label: c.label,
       teeth: byConv.get(c.key)!,
@@ -417,7 +439,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
       resetForm();
       setSelectedTooth(null);
       setChartResetKey(k => k + 1);
-      fetchOdontogramas(); // Recargar datos
+      fetchOdontogramas(true); // Recargar datos
     } else {
       alert("Error al guardar: " + res.error);
     }
@@ -428,7 +450,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
     const res = await updateFindingAction(finding.db_ids.map(String), obs);
     setSaving(false);
     if (!res?.error) {
-      fetchOdontogramas();
+      fetchOdontogramas(true);
     }
   }
 
@@ -439,7 +461,7 @@ export function OdontogramaTab({ paciente, consultaId }: { paciente: any; consul
     setSaving(false);
     setFindingToDelete(null);
     if (!res?.error) {
-      fetchOdontogramas();
+      fetchOdontogramas(true);
     }
   }
 

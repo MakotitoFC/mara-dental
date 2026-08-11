@@ -38,7 +38,8 @@ export function Select({
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 max-h-56 overflow-y-auto"
+          onMouseDown={(e) => e.preventDefault()}
+          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 max-h-48 sm:max-h-56 overflow-y-auto touch-pan-y"
         >
           {options.map((o) => (
             <button

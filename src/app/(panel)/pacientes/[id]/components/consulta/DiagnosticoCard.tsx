@@ -33,9 +33,10 @@ interface Props {
   consultaId: string;
   pacienteId: string;
   onSaved?: () => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
-export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved }: Props) {
+export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, onNavigateTab }: Props) {
   const [editing, setEditing] = useState(false);
   const [visor, setVisor] = useState<Archivo | null>(null);
 
@@ -185,6 +186,8 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved }
               archivo={visor}
               todos={diagnostico.archivos}
               onClose={() => setVisor(null)}
+              onDelete={confirmDelete}
+              onNavigateTab={onNavigateTab}
               onNav={setVisor}
             />
           )}

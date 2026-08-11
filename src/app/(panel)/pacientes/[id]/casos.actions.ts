@@ -180,3 +180,44 @@ export async function agregarConsultaAction(notaId: string, data: any) {
   
   return { success: true, consultaId: String(idValue) };
 }
+
+export async function editarConsultaAction(consultaId: string, data: any) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  // 1. Obtener la consulta y validar que exista
+  const { data: consultaDb, error: errGet } = await supabase
+    .from("consultas")
+    .select("fecha_consulta, doctor_id")
+    .eq("id", consultaId)
+    .single();
+
+  if (errGet || !consultaDb) return { error: "Consulta no encontrada" };
+
+  // 2. Validar que la consulta sea del MISMO DÍA que hoy
+  const hoy = new Date();
+  const fechaConsulta = new Date(consultaDb.fecha_consulta);
+  const isSameDay = hoy.getFullYear() === fechaConsulta.getFullYear() &&
+                    hoy.getMonth() === fechaConsulta.getMonth() &&
+                    hoy.getDate() === fechaConsulta.getDate();
+
+  if (!isSameDay) {
+    return { error: "Solo se puede editar una consulta el mismo día en que fue creada" };
+  }
+
+  // 3. Actualizar la consulta
+  const { error: errUpdate } = await supabase
+    .from("consultas")
+    .update({
+      motivo: data.motivo,
+      observaciones: data.observaciones,
+      examen_fisico: data.examen_fisico,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", consultaId);
+
+  if (errUpdate) return { error: "Error al actualizar la consulta" };
+
+  return { success: true };
+}

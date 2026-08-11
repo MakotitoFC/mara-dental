@@ -37,6 +37,7 @@ export default async function PersonalPage({
   const search = (params.search as string) || "";
   const especialidadId = params.especialidadId ? parseInt(params.especialidadId as string, 10) : null;
   const puestoId = params.puestoId ? parseInt(params.puestoId as string, 10) : null;
+  const rolId = params.rolId ? parseInt(params.rolId as string, 10) : null;
   const sedeId = params.sedeId ? parseInt(params.sedeId as string, 10) : profile.sede_id;
 
   const { data, count, totalPages } = await getPersonalAction({
@@ -46,9 +47,10 @@ export default async function PersonalPage({
     especialidadId,
     puestoId,
     sedeId,
+    rolId,
   });
 
-  const { especialidades, puestos } = await getFiltrosPersonalAction();
+  const { especialidades, puestos, roles } = await getFiltrosPersonalAction();
   
   let sedes: any[] = [];
   if (userRole === "superadmin") {
@@ -57,11 +59,16 @@ export default async function PersonalPage({
 
   return (
     <div className="w-full max-w-[1400px] mx-auto p-4 md:p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Personal</h1>
-        <p className="text-slate-500 mt-1">
-          Administra el personal de la sede
-        </p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Personal</h1>
+          <p className="text-slate-500 mt-1">
+            Administra el personal de la sede
+          </p>
+        </div>
+        {/* We will let PersonalClient handle the "Nuevo" button by moving it to the top of its tree, 
+            so it renders below this header but outside the filters. Or we can just render the client 
+            component and it handles its layout. */}
       </div>
 
       <PersonalClient
@@ -72,6 +79,7 @@ export default async function PersonalPage({
         especialidades={especialidades}
         puestos={puestos}
         sedes={sedes}
+        roles={roles}
         userRole={userRole}
         userSedeId={profile.sede_id}
       />

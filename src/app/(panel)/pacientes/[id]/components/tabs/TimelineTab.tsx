@@ -11,6 +11,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
 import { useScrollFade } from "@/lib/hooks/useScrollFade";
+import { EditarConsultaModal } from "../EditarConsultaModal";
 
 const ESTADO_CASO_OPTIONS = [
   { value: "En Consulta", label: "En Consulta" },
@@ -70,6 +71,7 @@ export function TimelineTab({
   const [detalleActivo, setDetalleActivo] = useState<any>(null);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+  const [isEditingConsulta, setIsEditingConsulta] = useState(false);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -231,7 +233,7 @@ export function TimelineTab({
                     </div>
                   )}
                   {detalleActivo ? (
-                    <ConsultaDetail consulta={detalleActivo} onNavigateTab={onNavigateTab} />
+                    <ConsultaDetail consulta={detalleActivo} onNavigateTab={onNavigateTab} onEdit={() => setIsEditingConsulta(true)} />
                   ) : (
                     <div className="p-8 text-center text-slate-400">Selecciona una consulta</div>
                   )}
@@ -257,12 +259,26 @@ export function TimelineTab({
                 <ConsultaDetail consulta={detalleActivo} onNavigateTab={(tab) => {
                   setIsMobileModalOpen(false);
                   if (onNavigateTab) onNavigateTab(tab);
-                }} />
+                }} onEdit={() => setIsEditingConsulta(true)} />
               ) : (
                 <div className="p-8 text-center text-slate-400">Cargando detalles...</div>
               )}
             </div>
           </ResponsiveSheet>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isEditingConsulta && detalleActivo && (
+          <EditarConsultaModal
+            consulta={detalleActivo}
+            pacienteId={pacienteId}
+            onClose={() => setIsEditingConsulta(false)}
+            onSaved={() => {
+              setIsEditingConsulta(false);
+              window.location.reload();
+            }}
+          />
         )}
       </AnimatePresence>
     </div>
@@ -334,20 +350,38 @@ function TimelineNode({
 
 // ─── Detalle de consulta (compartido entre panel fijo y acordeón mobile) ──────
 
-function ConsultaDetail({ consulta: c, onNavigateTab }: { consulta: any; onNavigateTab?: (tab: TabNav) => void }) {
+function ConsultaDetail({ consulta: c, onNavigateTab, onEdit }: { consulta: any; onNavigateTab?: (tab: TabNav) => void; onEdit?: () => void }) {
   const { getVars } = useTipoConsultaVars();
   const vars = getVars(c.motivo_id);
 
+  // Check if same day
+  const hoy = new Date();
+  const fechaConsulta = new Date(c.fecha);
+  const isSameDay = hoy.getFullYear() === fechaConsulta.getFullYear() &&
+                    hoy.getMonth() === fechaConsulta.getMonth() &&
+                    hoy.getDate() === fechaConsulta.getDate();
+
   return (
     <div className="p-4 flex flex-col gap-3">
-      <div className="pb-3 border-b border-slate-100 dark:border-slate-700">
+      <div className="pb-3 border-b border-slate-100 dark:border-slate-700 relative">
         <span
           className="inline-block px-2 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wide mb-1.5"
           style={{ background: vars.bg, color: vars.text }}
         >
           {vars.label}
         </span>
-        <p className="text-[14.5px] font-bold text-slate-900 dark:text-slate-100 leading-snug">{c.motivo || "Consulta sin motivo"}</p>
+        
+        {isSameDay && onEdit && (
+          <button 
+            onClick={onEdit}
+            className="absolute top-0 right-0 w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-amber-50 dark:bg-slate-800 dark:hover:bg-amber-900/30 text-slate-400 hover:text-amber-600 transition-colors"
+            title="Editar consulta"
+          >
+            <Icon name="edit" size={15} />
+          </button>
+        )}
+
+        <p className="text-[14.5px] font-bold text-slate-900 dark:text-slate-100 leading-snug pr-8">{c.motivo || "Consulta sin motivo"}</p>
         <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-0.5">{fmtFull(c.fecha)}{c.doctor ? ` · ${c.doctor}` : ""}</p>
       </div>
 
