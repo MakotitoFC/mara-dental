@@ -4,26 +4,23 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
-import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
 import { staggerContainer, staggerItem } from "@/lib/animations";
-import { getArchivosPacienteAction, subirArchivoGeneralAction, deleteArchivoClinicoAction } from "../../consulta.actions";
+import { 
+  getArchivosPacienteAction, 
+  deleteArchivoClinicoAction, 
+  getTiposArchivoAction, 
+  updateArchivoClinicoAction 
+} from "../../consulta.actions";
 import { VisorModal } from "../consulta/VisorModal";
 
-const CATEGORIAS = [
-  { value: "Rx panoramica", label: "Rx panorámica" },
-  { value: "Rx periapical", label: "Rx periapical" },
-  { value: "Foto intraoral", label: "Foto intraoral" },
-  { value: "Tomografia", label: "Tomografía" },
-  { value: "otros", label: "Otros" },
-];
-
 interface Archivo {
-  id: number;
+  id: number | string;
   nombre_archivo: string;
   url: string;
   tipo_archivo: string;
+  tipo_archivo_id?: number;
   categoria: string;
   descripcion?: string | null;
   fecha_subida: string;
@@ -48,83 +45,147 @@ function isImagen(a: Archivo) {
   return a.tipo_archivo === "image" || /\.(jpg|jpeg|png|gif|webp)$/i.test(a.nombre_archivo);
 }
 
-function UploadModal({ consultaId, pacienteId, onClose, onUploaded }: {
-  consultaId: string; pacienteId: string; onClose: () => void; onUploaded: () => void;
+function EditarArchivoModal({
+  archivo,
+  pacienteId,
+  onClose,
+  onSaved,
+}: {
+  archivo: Archivo;
+  pacienteId: string;
+  onClose: () => void;
+  onSaved: () => void;
 }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [categoria, setCategoria] = useState("otros");
-  const [descripcion, setDescripcion] = useState("");
+  const [nombreArchivo, setNombreArchivo] = useState(archivo.nombre_archivo || "");
+  const [tipoArchivoId, setTipoArchivoId] = useState<string>(String(archivo.tipo_archivo_id || 1));
+  const [descripcion, setDescripcion] = useState(archivo.descripcion || "");
+  const [tipos, setTipos] = useState<any[]>([]);
+  const [loadingTipos, setLoadingTipos] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const toast = useToast();
 
-  async function handleSubir() {
-    if (!file) return;
-    setSaving(true); setError("");
-    const fd = new FormData();
-    fd.append("archivo", file);
-    fd.append("categoria", categoria);
-    fd.append("descripcion", descripcion.trim());
-    fd.append("consulta_id", String(consultaId));
-    fd.append("paciente_id", String(pacienteId));
-    const res = await subirArchivoGeneralAction(fd);
+  useEffect(() => {
+    getTiposArchivoAction().then((data) => {
+      setTipos(data || []);
+      setLoadingTipos(false);
+      if (archivo.tipo_archivo_id) {
+        setTipoArchivoId(String(archivo.tipo_archivo_id));
+      } else if (data && data.length > 0) {
+        const found = data.find((t: any) => (t.tipo_archivo || t.Tipo_archivo)?.toLowerCase() === archivo.tipo_archivo?.toLowerCase());
+        if (found) setTipoArchivoId(String(found.id));
+        else setTipoArchivoId(String(data[0].id));
+      }
+    });
+  }, [archivo]);
+
+  async function handleSave() {
+    if (!nombreArchivo.trim()) {
+      toast.error("El nombre del archivo es obligatorio");
+      return;
+    }
+    setSaving(true);
+    const res = await updateArchivoClinicoAction({
+      id: String(archivo.id),
+      nombre_archivo: nombreArchivo.trim(),
+      tipo_archivo_id: parseInt(tipoArchivoId),
+      descripcion: descripcion.trim() || null,
+      pacienteId,
+    });
     setSaving(false);
-    if (res?.error) { setError(res.error); return; }
-    onUploaded();
+
+    if (res?.error) {
+      toast.error(res.error || "No se pudo actualizar el archivo");
+    } else {
+      toast.success("Archivo actualizado correctamente");
+      onSaved();
+      onClose();
+    }
   }
 
   return (
-    <ResponsiveSheet
-      onClose={onClose}
-      title="Subir archivo"
-      maxWidthDesktop="400px"
-      footer={
-        <button onClick={handleSubir} disabled={!file || saving}
-          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-xl text-[13px] font-semibold transition-colors">
-          <Icon name="cloud_upload" size={15} /> {saving ? "Subiendo…" : "Subir archivo"}
-        </button>
-      }
+    <div
+      className="fixed inset-0 z-150 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]"
+      onClick={onClose}
     >
-      <div className="flex flex-col gap-4">
-        {file ? (
-          <div className="flex items-center gap-2 p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl">
-            <Icon name={file.type.startsWith("image/") ? "image" : "description"} size={16} className="text-slate-500 dark:text-slate-400 shrink-0" />
-            <span className="text-[12px] text-slate-700 dark:text-slate-300 flex-1 truncate">{file.name}</span>
-            <button onClick={() => setFile(null)} className="text-red-400 dark:text-red-500 hover:text-red-600 dark:hover:text-red-400 shrink-0">
-              <Icon name="close" size={13} />
-            </button>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 8 }}
+        transition={{ duration: 0.18 }}
+        className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-5 max-w-md w-full border border-slate-100 dark:border-slate-700 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
+              <Icon name="edit" size={18} />
+            </div>
+            <h3 className="text-[14px] font-bold text-slate-800 dark:text-slate-100">Editar Archivo Clínico</h3>
           </div>
-        ) : (
-          <label className="border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl p-6 flex flex-col items-center justify-center text-center text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
-            <Icon name="cloud_upload" size={24} className="mb-2 opacity-50" />
-            <p className="text-[12px] font-medium text-slate-600 dark:text-slate-300">Haz clic para elegir un archivo</p>
-            <p className="text-[10px]">Radiografías, fotos, PDF</p>
-            <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          </label>
-        )}
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Categoría</label>
-          <Select value={categoria} onChange={setCategoria} options={CATEGORIAS} />
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <Icon name="close" size={18} />
+          </button>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Descripción (opcional)</label>
-          <textarea
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            rows={3}
-            placeholder="Hallazgos, zona, notas clínicas…"
-            className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
-          />
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Nombre del archivo*</label>
+            <input
+              type="text"
+              value={nombreArchivo}
+              onChange={(e) => setNombreArchivo(e.target.value)}
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+              placeholder="Nombre del archivo..."
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Tipo de archivo*</label>
+            {loadingTipos ? (
+              <div className="h-9 w-full bg-slate-100 dark:bg-slate-700 rounded-xl animate-pulse" />
+            ) : (
+              <Select
+                value={tipoArchivoId}
+                onChange={(v) => setTipoArchivoId(v)}
+                options={tipos.map((t: any) => ({
+                  value: String(t.id),
+                  label: t.tipo_archivo || t.Tipo_archivo || "Sin nombre",
+                }))}
+              />
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Descripción (Opcional)</label>
+            <input
+              type="text"
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+              placeholder="Descripción del archivo..."
+            />
+          </div>
         </div>
 
-        {error && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900 rounded-xl text-[12px] text-red-600 dark:text-red-400">
-            <Icon name="warning" size={14} className="shrink-0" /> {error}
-          </div>
-        )}
-      </div>
-    </ResponsiveSheet>
+        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3.5 py-1.5 text-[12px] font-medium text-slate-600 dark:text-slate-300 hover:text-slate-800"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-xl text-[12px] font-semibold flex items-center gap-1.5 transition-colors"
+          >
+            <Icon name="check" size={14} /> {saving ? "Guardando..." : "Guardar cambios"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
   );
 }
 
@@ -138,7 +199,7 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [visor, setVisor] = useState<Archivo | null>(null);
-  const [showUpload, setShowUpload] = useState(false);
+  const [editingArchivo, setEditingArchivo] = useState<Archivo | null>(null);
   const confirm = useConfirm();
   const toast = useToast();
 
@@ -200,7 +261,7 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
           ) : view === "grid" ? (
             <motion.div variants={staggerContainer(0.04)} initial="hidden" animate="visible" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {archivos.map((a) => (
-                <motion.div key={a.id} variants={staggerItem} className="group relative border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                <motion.div key={a.id} variants={staggerItem} className="group relative border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-800">
                   <button onClick={() => setVisor(a)} className="w-full text-left">
                     <div className="h-24 bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
                       {isImagen(a) ? (
@@ -210,28 +271,35 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
                       )}
                     </div>
                     <div className="p-2">
-                      <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate">{a.nombre_archivo}</p>
+                      <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate" title={a.nombre_archivo}>{a.nombre_archivo}</p>
                       <p className="text-[10px] text-slate-400 dark:text-slate-500">{fmtFecha(a.fecha_subida)}{a.tam_bytes ? ` · ${fmtSize(a.tam_bytes)}` : ""}</p>
+                      {a.descripcion && (
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 italic truncate mt-0.5" title={a.descripcion}>
+                          {a.descripcion}
+                        </p>
+                      )}
                     </div>
                   </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(a); }}
-                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-800 text-red-500 dark:text-red-400 flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Icon name="delete" size={13} />
-                  </button>
+
+                  {/* Acciones flotantes en tarjeta Grid */}
+                  <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingArchivo(a); }}
+                      className="w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-800 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shadow-sm"
+                      title="Editar archivo"
+                    >
+                      <Icon name="edit" size={13} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(a); }}
+                      className="w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-800 text-red-500 dark:text-red-400 flex items-center justify-center shadow-sm"
+                      title="Eliminar archivo"
+                    >
+                      <Icon name="delete" size={13} />
+                    </button>
+                  </div>
                 </motion.div>
               ))}
-
-              <button
-                onClick={() => consultaId && setShowUpload(true)}
-                disabled={!consultaId}
-                title={!consultaId ? "Sube archivos durante una consulta activa" : undefined}
-                className="h-full min-h-[104px] border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl flex flex-col items-center justify-center gap-1.5 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <Icon name="add_circle" size={22} />
-                <span className="text-[11px] font-medium">Subir Archivo</span>
-              </button>
             </motion.div>
           ) : (
             <motion.div variants={staggerContainer(0.04)} initial="hidden" animate="visible" className="flex flex-col gap-2">
@@ -243,22 +311,36 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[12.5px] font-medium text-slate-800 dark:text-slate-100 truncate">{a.nombre_archivo}</p>
-                      <p className="text-[10.5px] text-slate-400 dark:text-slate-500">{a.categoria} · {fmtFecha(a.fecha_subida)}{a.tam_bytes ? ` · ${fmtSize(a.tam_bytes)}` : ""}</p>
+                      <p className="text-[10.5px] text-slate-400 dark:text-slate-500">
+                        {typeof a.tipo_archivo === "object" ? (a.tipo_archivo as any)?.tipo_archivo : a.tipo_archivo} · {fmtFecha(a.fecha_subida)}{a.tam_bytes ? ` · ${fmtSize(a.tam_bytes)}` : ""}
+                      </p>
+                      {a.descripcion && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic truncate" title={a.descripcion}>
+                          {a.descripcion}
+                        </p>
+                      )}
                     </div>
                   </button>
-                  <button onClick={() => handleDelete(a)} className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">
-                    <Icon name="delete" size={14} />
-                  </button>
+
+                  {/* Acciones en Vista Lista */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => setEditingArchivo(a)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-950/30 transition-colors"
+                      title="Editar archivo"
+                    >
+                      <Icon name="edit" size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(a)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                      title="Eliminar archivo"
+                    >
+                      <Icon name="delete" size={14} />
+                    </button>
+                  </div>
                 </motion.div>
               ))}
-              <button
-                onClick={() => consultaId && setShowUpload(true)}
-                disabled={!consultaId}
-                title={!consultaId ? "Sube archivos durante una consulta activa" : undefined}
-                className="flex items-center justify-center gap-1.5 p-3 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <Icon name="add_circle" size={16} /> <span className="text-[12px] font-medium">Subir Archivo</span>
-              </button>
             </motion.div>
           )}
 
@@ -271,8 +353,8 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
       <AnimatePresence>
         {visor && (
           <VisorModal 
-            archivo={visor} 
-            todos={archivos} 
+            archivo={visor as any} 
+            todos={archivos as any[]} 
             paciente={paciente} 
             onClose={() => setVisor(null)} 
             onNav={(a) => setVisor(a as Archivo)} 
@@ -282,12 +364,12 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showUpload && consultaId && (
-          <UploadModal
-            consultaId={consultaId}
+        {editingArchivo && (
+          <EditarArchivoModal
+            archivo={editingArchivo}
             pacienteId={pacienteId}
-            onClose={() => setShowUpload(false)}
-            onUploaded={() => { setShowUpload(false); fetchArchivos(); }}
+            onClose={() => setEditingArchivo(null)}
+            onSaved={fetchArchivos}
           />
         )}
       </AnimatePresence>

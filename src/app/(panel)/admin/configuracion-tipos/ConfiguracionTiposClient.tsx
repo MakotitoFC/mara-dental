@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 import {
   getTiposConsultaAction,
   createTipoConsultaAction,
@@ -38,15 +39,22 @@ interface ConfiguracionTiposClientProps {
   initialArchivos: any[];
   initialCondiciones: any[];
   initialCie10: any[];
+  initialRoles: any[];
+  initialPuestos: any[];
+  initialEspecialidades: any[];
 }
 
 export default function ConfiguracionTiposClient({
   initialConsultas,
   initialArchivos,
   initialCondiciones,
-  initialCie10
+  initialCie10,
+  initialRoles,
+  initialPuestos,
+  initialEspecialidades
 }: ConfiguracionTiposClientProps) {
-  const [activeTab, setActiveTab] = useState<"consultas" | "archivos" | "condiciones" | "cie10">("consultas");
+  const confirm = useConfirm();
+  const [activeTab, setActiveTab] = useState<"consultas" | "archivos" | "condiciones" | "cie10" | "roles" | "puestos" | "especialidades">("consultas");
 
   // Estado Consultas
   const [consultas, setConsultas] = useState<any[]>(initialConsultas);
@@ -68,17 +76,38 @@ export default function ConfiguracionTiposClient({
   const [isCie10ModalOpen, setIsCie10ModalOpen] = useState(false);
   const [cie10Form, setCie10Form] = useState({ codigo: "", descripcion: "", codigo_antiguo: "" });
 
+  // Estado Roles
+  const [roles, setRoles] = useState<any[]>(initialRoles);
+  const [isRolModalOpen, setIsRolModalOpen] = useState(false);
+  const [rolForm, setRolForm] = useState({ id: "", rol: "", descripcion: "", estado: true });
+
+  // Estado Puestos
+  const [puestos, setPuestos] = useState<any[]>(initialPuestos);
+  const [isPuestoModalOpen, setIsPuestoModalOpen] = useState(false);
+  const [puestoForm, setPuestoForm] = useState({ id: "", puesto: "", descripcion: "", estado: true });
+
+  // Estado Especialidades
+  const [especialidades, setEspecialidades] = useState<any[]>(initialEspecialidades);
+  const [isEspecialidadModalOpen, setIsEspecialidadModalOpen] = useState(false);
+  const [especialidadForm, setEspecialidadForm] = useState({ id: "", especialidad: "", descripcion: "", estado: true });
+
   async function loadData() {
-    const [cData, aData, condData, cieData] = await Promise.all([
+    const [cData, aData, condData, cieData, rData, pData, eData] = await Promise.all([
       getTiposConsultaAction(), 
       getTiposArchivoAction(), 
       getCondicionAction(),
-      import("../admin.actions").then(m => m.getCie10Action())
+      import("../admin.actions").then(m => m.getCie10Action()),
+      import("../admin.actions").then(m => m.getRolesAdminAction()),
+      import("../admin.actions").then(m => m.getPuestosAdminAction()),
+      import("../admin.actions").then(m => m.getEspecialidadesAdminAction())
     ]);
     setConsultas(cData);
     setArchivos(aData);
     setCondiciones(condData);
     setCie10(cieData);
+    setRoles(rData);
+    setPuestos(pData);
+    setEspecialidades(eData);
   }
 
   // --- Handlers Consultas ---
@@ -158,6 +187,87 @@ export default function ConfiguracionTiposClient({
     }
   };
 
+  // --- Handlers Roles ---
+  const handleSaveRol = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rolForm.rol.trim()) return;
+    const { saveRolAdminAction } = await import("../admin.actions");
+    const res = await saveRolAdminAction(rolForm);
+    if ((res as any)?.error) alert((res as any).error);
+    else {
+      setIsRolModalOpen(false);
+      loadData();
+    }
+  };
+
+  const handleDeleteRol = async (id: number) => {
+    const ok = await confirm({
+      title: "Eliminar Rol",
+      message: "¿Estás seguro que deseas eliminar este rol? Será desactivado y dejará de estar disponible.",
+      requireText: "ELIMINAR",
+      confirmLabel: "Desactivar Rol",
+    });
+    if (!ok) return;
+    const { softDeleteRolAction } = await import("../admin.actions");
+    const res = await softDeleteRolAction(id);
+    if ((res as any)?.error) alert((res as any).error);
+    loadData();
+  };
+
+  // --- Handlers Puestos ---
+  const handleSavePuesto = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!puestoForm.puesto.trim()) return;
+    const { savePuestoAdminAction } = await import("../admin.actions");
+    const res = await savePuestoAdminAction(puestoForm);
+    if ((res as any)?.error) alert((res as any).error);
+    else {
+      setIsPuestoModalOpen(false);
+      loadData();
+    }
+  };
+
+  const handleDeletePuesto = async (id: number) => {
+    const ok = await confirm({
+      title: "Eliminar Puesto",
+      message: "¿Estás seguro que deseas eliminar este puesto? Será desactivado y dejará de estar disponible.",
+      requireText: "ELIMINAR",
+      confirmLabel: "Desactivar Puesto",
+    });
+    if (!ok) return;
+    const { softDeletePuestoAction } = await import("../admin.actions");
+    const res = await softDeletePuestoAction(id);
+    if ((res as any)?.error) alert((res as any).error);
+    loadData();
+  };
+
+  // --- Handlers Especialidades ---
+  const handleSaveEspecialidad = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!especialidadForm.especialidad.trim()) return;
+    const { saveEspecialidadAdminAction } = await import("../admin.actions");
+    const res = await saveEspecialidadAdminAction(especialidadForm);
+    if ((res as any)?.error) alert((res as any).error);
+    else {
+      setIsEspecialidadModalOpen(false);
+      loadData();
+    }
+  };
+
+  const handleDeleteEspecialidad = async (id: number) => {
+    const ok = await confirm({
+      title: "Eliminar Especialidad",
+      message: "¿Estás seguro que deseas eliminar esta especialidad? Será desactivada y dejará de estar disponible.",
+      requireText: "ELIMINAR",
+      confirmLabel: "Desactivar Especialidad",
+    });
+    if (!ok) return;
+    const { softDeleteEspecialidadAction } = await import("../admin.actions");
+    const res = await softDeleteEspecialidadAction(id);
+    if ((res as any)?.error) alert((res as any).error);
+    loadData();
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50">
       {/* HEADER */}
@@ -173,10 +283,10 @@ export default function ConfiguracionTiposClient({
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+        <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit overflow-x-auto max-w-full">
           <button
             onClick={() => setActiveTab("consultas")}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
               activeTab === "consultas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}
           >
@@ -184,15 +294,15 @@ export default function ConfiguracionTiposClient({
           </button>
           <button
             onClick={() => setActiveTab("archivos")}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
               activeTab === "archivos" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}
           >
-            Tipos de Archivos
+            Tipos de Archivo
           </button>
           <button
             onClick={() => setActiveTab("condiciones")}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
               activeTab === "condiciones" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}
           >
@@ -200,11 +310,35 @@ export default function ConfiguracionTiposClient({
           </button>
           <button
             onClick={() => setActiveTab("cie10")}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
               activeTab === "cie10" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}
           >
             CIE-10
+          </button>
+          <button
+            onClick={() => setActiveTab("roles")}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
+              activeTab === "roles" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Roles
+          </button>
+          <button
+            onClick={() => setActiveTab("puestos")}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
+              activeTab === "puestos" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Puestos
+          </button>
+          <button
+            onClick={() => setActiveTab("especialidades")}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
+              activeTab === "especialidades" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            Especialidades
           </button>
         </div>
       </header>
@@ -391,6 +525,155 @@ export default function ConfiguracionTiposClient({
                 {cie10.length === 0 && (
                   <div className="col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
                     No hay códigos CIE-10 configurados.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {/* TABS: Roles */}
+        {activeTab === "roles" && (
+          <div className="h-full flex flex-col bg-slate-50 relative">
+            <div className="flex-none p-4 pb-0 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-slate-800">Catálogo de Roles</h2>
+              <button 
+                onClick={() => {
+                  setRolForm({ id: "", rol: "", descripcion: "", estado: true });
+                  setIsRolModalOpen(true);
+                }}
+                className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+              >
+                <Icon name="add" size={16} /> Agregar Rol
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {roles.map(r => (
+                  <div key={r.id} className={`border ${r.estado ? 'border-slate-200 bg-white' : 'border-red-200 bg-red-50/50 opacity-70'} rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow`}>
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => {
+                        setRolForm({ id: r.id, rol: r.rol, descripcion: r.descripcion, estado: r.estado });
+                        setIsRolModalOpen(true);
+                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg">
+                        <Icon name="edit_note" size={16} />
+                      </button>
+                      {r.estado && (
+                        <button onClick={() => handleDeleteRol(r.id)} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg">
+                          <Icon name="delete" size={16} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${r.estado ? 'bg-cyan-500' : 'bg-red-500'}`}></div>
+                      <h3 className="font-bold text-slate-800 break-all">{r.rol}</h3>
+                    </div>
+                    <p className="text-sm text-slate-600 line-clamp-3">{r.descripcion}</p>
+                    {!r.estado && <span className="text-xs font-bold text-red-500 bg-red-100 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
+                  </div>
+                ))}
+                {roles.length === 0 && (
+                  <div className="col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                    No hay roles configurados.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TABS: Puestos */}
+        {activeTab === "puestos" && (
+          <div className="h-full flex flex-col bg-slate-50 relative">
+            <div className="flex-none p-4 pb-0 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-slate-800">Catálogo de Puestos</h2>
+              <button 
+                onClick={() => {
+                  setPuestoForm({ id: "", puesto: "", descripcion: "", estado: true });
+                  setIsPuestoModalOpen(true);
+                }}
+                className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+              >
+                <Icon name="add" size={16} /> Agregar Puesto
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {puestos.map(p => (
+                  <div key={p.id} className={`border ${p.estado ? 'border-slate-200 bg-white' : 'border-red-200 bg-red-50/50 opacity-70'} rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow`}>
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => {
+                        setPuestoForm({ id: p.id, puesto: p.puesto, descripcion: p.descripcion, estado: p.estado });
+                        setIsPuestoModalOpen(true);
+                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg">
+                        <Icon name="edit_note" size={16} />
+                      </button>
+                      {p.estado && (
+                        <button onClick={() => handleDeletePuesto(p.id)} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg">
+                          <Icon name="delete" size={16} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${p.estado ? 'bg-cyan-500' : 'bg-red-500'}`}></div>
+                      <h3 className="font-bold text-slate-800 break-all">{p.puesto}</h3>
+                    </div>
+                    <p className="text-sm text-slate-600 line-clamp-3">{p.descripcion}</p>
+                    {!p.estado && <span className="text-xs font-bold text-red-500 bg-red-100 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
+                  </div>
+                ))}
+                {puestos.length === 0 && (
+                  <div className="col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                    No hay puestos configurados.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TABS: Especialidades */}
+        {activeTab === "especialidades" && (
+          <div className="h-full flex flex-col bg-slate-50 relative">
+            <div className="flex-none p-4 pb-0 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-slate-800">Catálogo de Especialidades</h2>
+              <button 
+                onClick={() => {
+                  setEspecialidadForm({ id: "", especialidad: "", descripcion: "", estado: true });
+                  setIsEspecialidadModalOpen(true);
+                }}
+                className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+              >
+                <Icon name="add" size={16} /> Agregar Especialidad
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {especialidades.map(e => (
+                  <div key={e.id} className={`border ${e.estado ? 'border-slate-200 bg-white' : 'border-red-200 bg-red-50/50 opacity-70'} rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow`}>
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => {
+                        setEspecialidadForm({ id: e.id, especialidad: e.especialidad, descripcion: e.descripcion, estado: e.estado });
+                        setIsEspecialidadModalOpen(true);
+                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg">
+                        <Icon name="edit_note" size={16} />
+                      </button>
+                      {e.estado && (
+                        <button onClick={() => handleDeleteEspecialidad(e.id)} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg">
+                          <Icon name="delete" size={16} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${e.estado ? 'bg-cyan-500' : 'bg-red-500'}`}></div>
+                      <h3 className="font-bold text-slate-800 break-all">{e.especialidad}</h3>
+                    </div>
+                    <p className="text-sm text-slate-600 line-clamp-3">{e.descripcion}</p>
+                    {!e.estado && <span className="text-xs font-bold text-red-500 bg-red-100 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
+                  </div>
+                ))}
+                {especialidades.length === 0 && (
+                  <div className="col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                    No hay especialidades configuradas.
                   </div>
                 )}
               </div>
@@ -602,6 +885,161 @@ export default function ConfiguracionTiposClient({
 
               <div className="flex items-center justify-end gap-3 mt-4">
                 <button type="button" onClick={() => setIsCie10ModalOpen(false)} className="px-4 py-2 font-semibold text-slate-500 hover:bg-slate-100 rounded-lg text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" className="px-4 py-2 font-bold text-white bg-cyan-600 hover:bg-cyan-700 rounded-lg text-sm shadow-sm transition-colors flex items-center gap-2">
+                  <Icon name="save" size={16} /> Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL ROL */}
+      {isRolModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsRolModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="font-bold text-slate-800">{rolForm.id ? "Editar Rol" : "Nuevo Rol"}</h3>
+              <button onClick={() => setIsRolModalOpen(false)} className="text-slate-400 hover:text-slate-600"><Icon name="close" size={20} /></button>
+            </div>
+            <form onSubmit={handleSaveRol} className="p-5 flex flex-col gap-5">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Nombre del Rol</label>
+                <input 
+                  type="text" 
+                  required 
+                  autoFocus
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+                  value={rolForm.rol}
+                  onChange={(e) => setRolForm({...rolForm, rol: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Descripción</label>
+                <textarea 
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-sm resize-none"
+                  value={rolForm.descripcion}
+                  onChange={(e) => setRolForm({...rolForm, descripcion: e.target.value})}
+                ></textarea>
+              </div>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  id="rol_estado"
+                  checked={rolForm.estado}
+                  onChange={(e) => setRolForm({...rolForm, estado: e.target.checked})}
+                  className="w-4 h-4 text-cyan-600 border-slate-300 rounded focus:ring-cyan-500"
+                />
+                <label htmlFor="rol_estado" className="text-sm font-semibold text-slate-700">Activo (Visible en el sistema)</label>
+              </div>
+              <div className="flex items-center justify-end gap-3 mt-4">
+                <button type="button" onClick={() => setIsRolModalOpen(false)} className="px-4 py-2 font-semibold text-slate-500 hover:bg-slate-100 rounded-lg text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" className="px-4 py-2 font-bold text-white bg-cyan-600 hover:bg-cyan-700 rounded-lg text-sm shadow-sm transition-colors flex items-center gap-2">
+                  <Icon name="save" size={16} /> Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PUESTO */}
+      {isPuestoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsPuestoModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="font-bold text-slate-800">{puestoForm.id ? "Editar Puesto" : "Nuevo Puesto"}</h3>
+              <button onClick={() => setIsPuestoModalOpen(false)} className="text-slate-400 hover:text-slate-600"><Icon name="close" size={20} /></button>
+            </div>
+            <form onSubmit={handleSavePuesto} className="p-5 flex flex-col gap-5">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Nombre del Puesto</label>
+                <input 
+                  type="text" 
+                  required 
+                  autoFocus
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+                  value={puestoForm.puesto}
+                  onChange={(e) => setPuestoForm({...puestoForm, puesto: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Descripción</label>
+                <textarea 
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-sm resize-none"
+                  value={puestoForm.descripcion}
+                  onChange={(e) => setPuestoForm({...puestoForm, descripcion: e.target.value})}
+                ></textarea>
+              </div>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  id="puesto_estado"
+                  checked={puestoForm.estado}
+                  onChange={(e) => setPuestoForm({...puestoForm, estado: e.target.checked})}
+                  className="w-4 h-4 text-cyan-600 border-slate-300 rounded focus:ring-cyan-500"
+                />
+                <label htmlFor="puesto_estado" className="text-sm font-semibold text-slate-700">Activo (Visible en el sistema)</label>
+              </div>
+              <div className="flex items-center justify-end gap-3 mt-4">
+                <button type="button" onClick={() => setIsPuestoModalOpen(false)} className="px-4 py-2 font-semibold text-slate-500 hover:bg-slate-100 rounded-lg text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" className="px-4 py-2 font-bold text-white bg-cyan-600 hover:bg-cyan-700 rounded-lg text-sm shadow-sm transition-colors flex items-center gap-2">
+                  <Icon name="save" size={16} /> Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ESPECIALIDAD */}
+      {isEspecialidadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsEspecialidadModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="font-bold text-slate-800">{especialidadForm.id ? "Editar Especialidad" : "Nueva Especialidad"}</h3>
+              <button onClick={() => setIsEspecialidadModalOpen(false)} className="text-slate-400 hover:text-slate-600"><Icon name="close" size={20} /></button>
+            </div>
+            <form onSubmit={handleSaveEspecialidad} className="p-5 flex flex-col gap-5">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Nombre de la Especialidad</label>
+                <input 
+                  type="text" 
+                  required 
+                  autoFocus
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+                  value={especialidadForm.especialidad}
+                  onChange={(e) => setEspecialidadForm({...especialidadForm, especialidad: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Descripción</label>
+                <textarea 
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-sm resize-none"
+                  value={especialidadForm.descripcion}
+                  onChange={(e) => setEspecialidadForm({...especialidadForm, descripcion: e.target.value})}
+                ></textarea>
+              </div>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  id="especialidad_estado"
+                  checked={especialidadForm.estado}
+                  onChange={(e) => setEspecialidadForm({...especialidadForm, estado: e.target.checked})}
+                  className="w-4 h-4 text-cyan-600 border-slate-300 rounded focus:ring-cyan-500"
+                />
+                <label htmlFor="especialidad_estado" className="text-sm font-semibold text-slate-700">Activa (Visible en el sistema)</label>
+              </div>
+              <div className="flex items-center justify-end gap-3 mt-4">
+                <button type="button" onClick={() => setIsEspecialidadModalOpen(false)} className="px-4 py-2 font-semibold text-slate-500 hover:bg-slate-100 rounded-lg text-sm transition-colors">
                   Cancelar
                 </button>
                 <button type="submit" className="px-4 py-2 font-bold text-white bg-cyan-600 hover:bg-cyan-700 rounded-lg text-sm shadow-sm transition-colors flex items-center gap-2">

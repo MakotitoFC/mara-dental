@@ -193,3 +193,81 @@ export async function saveCie10Action(data: any) {
   }
   return { success: true };
 }
+
+// --- ROLES CRUD ---
+export async function getRolesAdminAction() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("rol").select("*").order("id");
+  return data || [];
+}
+
+export async function saveRolAdminAction(data: any) {
+  const supabase = getAdminClient();
+  if (data.id) {
+    const { error } = await supabase.from("rol").update({ rol: data.rol, descripcion: data.descripcion, estado: data.estado }).eq("id", data.id);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from("rol").insert([{ rol: data.rol, descripcion: data.descripcion, estado: data.estado !== undefined ? data.estado : true }]);
+    if (error) return { error: error.message };
+  }
+  return { success: true };
+}
+
+export async function softDeleteRolAction(id: number) {
+  const supabase = getAdminClient();
+  const { error } = await supabase.from("rol").update({ estado: false }).eq("id", id);
+  if (error) return { error: error.message };
+  return { success: true };
+}
+
+// --- PUESTOS CRUD ---
+export async function getPuestosAdminAction() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("puesto").select("*").order("id");
+  return data || [];
+}
+
+export async function savePuestoAdminAction(data: any) {
+  const supabase = getAdminClient();
+  if (data.id) {
+    const { error } = await supabase.from("puesto").update({ puesto: data.puesto, descripcion: data.descripcion, estado: data.estado }).eq("id", data.id);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from("puesto").insert([{ puesto: data.puesto, descripcion: data.descripcion, estado: data.estado !== undefined ? data.estado : true }]);
+    if (error) return { error: error.message };
+  }
+  return { success: true };
+}
+
+export async function softDeletePuestoAction(id: number) {
+  const supabase = getAdminClient();
+  const { error } = await supabase.from("puesto").update({ estado: false }).eq("id", id);
+  if (error) return { error: error.message };
+  return { success: true };
+}
+
+// --- ESPECIALIDADES CRUD ---
+export async function getEspecialidadesAdminAction() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("especialidad").select("*").order("id");
+  return data || [];
+}
+
+export async function saveEspecialidadAdminAction(data: any) {
+  const supabase = getAdminClient();
+  if (data.id) {
+    const { error } = await supabase.from("especialidad").update({ especialidad: data.especialidad, descripcion: data.descripcion, estado: data.estado }).eq("id", data.id);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase.from("especialidad").insert([{ especialidad: data.especialidad, descripcion: data.descripcion, estado: data.estado !== undefined ? data.estado : true }]);
+    if (error) return { error: error.message };
+  }
+  return { success: true };
+}
+
+export async function softDeleteEspecialidadAction(id: number) {
+  const supabase = getAdminClient();
+  const { error } = await supabase.from("especialidad").update({ estado: false }).eq("id", id);
+  if (error) return { error: error.message };
+  return { success: true };
+}

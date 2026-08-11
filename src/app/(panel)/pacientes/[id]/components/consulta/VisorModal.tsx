@@ -16,7 +16,7 @@ import {
 } from "@/lib/reportExport";
 
 interface Archivo {
-  id: number;
+  id: number | string;
   nombre_archivo: string;
   url: string;
   tipo_archivo: string;
@@ -705,7 +705,7 @@ export function VisorModal({
       clinica: sede,
       pacienteNombre,
       pacienteId: paciente?.id,
-      archivoId: a.id,
+      archivoId: a.id as any,
       nombreArchivo: a.nombre_archivo,
       categoria: a.categoria,
       tipoArchivo: a.tipo_archivo,

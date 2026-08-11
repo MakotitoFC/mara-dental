@@ -116,9 +116,10 @@ export async function createPacienteAction(data: {
   // es recién creado y no tiene citas asignadas, el SELECT falla arrojando el error 42501.
   const nuevoPacienteId = randomUUID();
 
-  const { error } = await supabase.from("pacientes").insert({
+    const { error } = await supabase.from("pacientes").insert({
     id:                nuevoPacienteId,
     sede_id:           usuarioData.sede_id,
+    creado_por:        user.id,
     nombre:            data.nombre.trim(),
     apellido:          data.apellido.trim(),
     dni:               data.dni.trim(),

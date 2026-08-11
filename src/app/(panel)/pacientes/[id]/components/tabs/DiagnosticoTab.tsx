@@ -113,13 +113,14 @@ function DiagnosticoAsideCardCompact({ d, isActual, isSelected, onClick }: {
 /** Mobile — modal por debajo con el detalle del registro de historial, organizado
  * como carrusel horizontal (Diagnóstico / Tratamiento / Recomendaciones / Receta).
  * Flecha hacia abajo centrada arriba para salir; puntos de paginación abajo. */
-function DiagnosticoCarouselModal({ seleccionado, detalleSel, pacienteId, paciente, onClose, onSaved }: {
+function DiagnosticoCarouselModal({ seleccionado, detalleSel, pacienteId, paciente, onClose, onSaved, onNavigateTab }: {
   seleccionado: any;
   detalleSel: { tratamientos: any[]; recomendaciones: any[]; recetas: any[] } | null;
   pacienteId: string;
   paciente: any;
   onClose: () => void;
   onSaved: () => void;
+  onNavigateTab?: (tab: string) => void;
 }) {
   useBodyScrollLock();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -192,6 +193,7 @@ function DiagnosticoCarouselModal({ seleccionado, detalleSel, pacienteId, pacien
                       consultaId={String(seleccionado.consulta_id)}
                       pacienteId={pacienteId}
                       onSaved={onSaved}
+                      onNavigateTab={onNavigateTab}
                     />
                   </div>
                 )}
@@ -363,13 +365,14 @@ function WizardFooter({ step, canGoNext, onBack, onNext }: { step: number; canGo
   );
 }
 
-export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, onFinalizarConsulta }: {
+export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, onFinalizarConsulta, onNavigateTab }: {
   paciente: any;
   consultaId?: string | null;
   data: any;
   loading: boolean;
   refetch: () => void;
   onFinalizarConsulta?: () => void;
+  onNavigateTab?: (tab: string) => void;
 }) {
   const pacienteId = String(paciente.id);
   const [planItems, setPlanItems] = useState<{ estado: string }[] | null>(null);
@@ -407,17 +410,6 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
       setHistorialPaciente(safeList);
 
       if (safeList.length > 0) {
-        const entries = await Promise.all(
-          safeList.map(async (d: any) => {
-            const [tratamientos, recomendaciones, recetas] = await Promise.all([
-              getTratamientosAction(String(d.id)),
-              getRecomendacionesConsultaAction(String(d.consulta_id)),
-              getRecetasAction(String(d.id)),
-            ]);
-            return [String(d.id), { tratamientos, recomendaciones, recetas }] as const;
-          })
-        );
-        setDetalleMap(Object.fromEntries(entries));
         setSelectedId((prev) =>
           prev && safeList.some((d: any) => String(d.id) === prev)
             ? prev
@@ -434,6 +426,32 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
       setSelectedId(null);
     }
   }, [pacienteId]);
+
+  useEffect(() => {
+    if (!selectedId || !historialPaciente) return;
+    if (detalleMap[selectedId]) return; // Ya se cargó el detalle
+
+    const d = historialPaciente.find((d: any) => String(d.id) === selectedId);
+    if (!d) return;
+
+    const fetchDetalle = async () => {
+      try {
+        const [tratamientos, recomendaciones, recetas] = await Promise.all([
+          getTratamientosAction(String(d.id)),
+          getRecomendacionesConsultaAction(String(d.consulta_id)),
+          getRecetasAction(String(d.id)),
+        ]);
+        setDetalleMap((prev) => ({
+          ...prev,
+          [selectedId]: { tratamientos, recomendaciones, recetas },
+        }));
+      } catch (error) {
+        console.error("Error al cargar el detalle del diagnóstico:", error);
+      }
+    };
+
+    fetchDetalle();
+  }, [selectedId, historialPaciente, detalleMap]);
 
   useEffect(() => {
     fetchHistorialPaciente();
@@ -517,6 +535,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                     consultaId={String(seleccionado.consulta_id)}
                     pacienteId={String(pacienteId)}
                     onSaved={fetchHistorialPaciente}
+                    onNavigateTab={onNavigateTab}
                   />
                   {detalleSel ? (
                     <>
@@ -576,6 +595,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
             paciente={paciente}
             onClose={() => setShowMobileModal(false)}
             onSaved={fetchHistorialPaciente}
+            onNavigateTab={onNavigateTab}
           />
         )}
       </AnimatePresence>
@@ -642,7 +662,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
 
           {step === 0 && (
             actual ? (
-              <DiagnosticoCard diagnostico={actual} consultaId={String(consultaId)} pacienteId={String(pacienteId)} onSaved={refetch} />
+              <DiagnosticoCard diagnostico={actual} consultaId={String(consultaId)} pacienteId={String(pacienteId)} onSaved={refetch} onNavigateTab={onNavigateTab} />
             ) : (
               <DiagnosticoForm consultaId={String(consultaId)} pacienteId={String(pacienteId)} onSaved={() => { justCreatedDiagRef.current = true; refetch(); }} />
             )

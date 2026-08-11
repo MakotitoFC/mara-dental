@@ -40,30 +40,17 @@ async function resolveOdontogramaContext(
 export async function getOdontogramasAction(pacienteId: string) {
   const supabase = await createClient();
 
-  const { data: hc } = await supabase
-    .from("historia_clinica")
-    .select("id")
-    .eq("paciente_id", pacienteId)
-    .maybeSingle();
-
-  if (!hc) return [];
-
-  const { data: notas } = await supabase
-    .from("nota_clinica")
-    .select("id")
-    .eq("historia_clinica_id", hc.id);
-
-  const notaIds = (notas || []).map((n) => n.id);
-  if (notaIds.length === 0) return [];
-
   const { data: records, error } = await supabase
     .from("odontograma")
     .select(`
       id, created_at, notas_generales,
       usuarios ( personal (nombre, apellido) ),
-      odontograma_diente(id, diente, superficie, descripcion, condicion_id)
+      odontograma_diente(id, diente, superficie, descripcion, condicion_id),
+      nota_clinica!inner (
+        historia_clinica!inner ( paciente_id )
+      )
     `)
-    .in("nota_clinica_id", notaIds)
+    .eq("nota_clinica.historia_clinica.paciente_id", pacienteId)
     .order("created_at", { ascending: false });
 
   if (error || !records) return [];

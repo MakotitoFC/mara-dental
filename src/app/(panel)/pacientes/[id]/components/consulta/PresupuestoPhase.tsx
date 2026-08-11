@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
 import { useScrollFade } from "@/lib/hooks/useScrollFade";
 import {
   searchCatalogoAction,
+  getCatalogoTratamientosAction,
   crearPresupuestoAction,
   editPresupuestoAction,
   updateEstadoPresupuestoAction,
@@ -195,7 +196,108 @@ export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto
   return <PresupuestoBuilder consultaId={consultaId} pacienteId={pacienteId} onSaved={onSaved} />;
 }
 
-// ─── Builder (no hay presupuesto aún) ─────────────────────────────────────────
+function PresupuestoSelectCombobox({
+  onSelect,
+}: {
+  onSelect: (item: any) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [catalogoList, setCatalogoList] = useState<any[]>([]);
+  const [filterText, setFilterText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    getCatalogoTratamientosAction().then((data) => {
+      setCatalogoList(data || []);
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = catalogoList.filter((item) =>
+    item.nombre.toLowerCase().includes(filterText.toLowerCase())
+  );
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <div
+        onClick={() => setOpen(true)}
+        className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-[13px] flex items-center justify-between gap-2 cursor-pointer focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100 dark:focus-within:ring-cyan-900/40 shadow-sm"
+      >
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Icon name="search" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
+          <input
+            type="text"
+            value={filterText}
+            onChange={(e) => {
+              setFilterText(e.target.value);
+              if (!open) setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            placeholder="Buscar o seleccionar tratamiento del catálogo para agregar…"
+            className="w-full bg-transparent text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none text-[16px] sm:text-[13px]"
+          />
+        </div>
+        <div className="flex items-center gap-1 shrink-0 text-slate-400">
+          {loading && <div className="w-3.5 h-3.5 border-2 border-cyan-200 border-t-cyan-600 rounded-full animate-spin" />}
+          <Icon name={open ? "expand_less" : "expand_more"} size={18} />
+        </div>
+      </div>
+
+      {/* Menú flotante (Límite visual de 4 elementos a la vez con scroll) */}
+      {open && (
+        <div
+          onMouseDown={(e) => e.preventDefault()}
+          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-[168px] overflow-y-auto py-1"
+        >
+          {loading ? (
+            <div className="px-3 py-4 text-center text-[12px] text-slate-400 flex items-center justify-center gap-2">
+              <div className="w-4 h-4 border-2 border-slate-200 border-t-cyan-600 rounded-full animate-spin" />
+              Cargando catálogo...
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="px-3 py-3 text-center text-[12px] text-slate-400">
+              No se encontraron tratamientos
+            </div>
+          ) : (
+            filtered.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  onSelect(item);
+                  setOpen(false);
+                  setFilterText("");
+                }}
+                className="w-full text-left px-3 py-2 hover:bg-cyan-50 dark:hover:bg-slate-700/60 border-b border-slate-100 dark:border-slate-700/50 last:border-0 flex items-center justify-between gap-2 transition-colors cursor-pointer"
+              >
+                <span className="text-[13px] font-medium text-slate-800 dark:text-slate-100 truncate flex-1 min-w-0">
+                  {item.nombre}
+                </span>
+                <span className="text-[12px] font-semibold text-slate-500 dark:text-slate-400 shrink-0">
+                  {item.moneda || "S/"} {item.precio}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Builder (no hay presupuesto aún o edición) ─────────────────────────────────────────
 
 function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSaved, onCancel }: {
   consultaId: string; pacienteId: string; initialPresupuesto?: PresupuestoData; onSaved?: () => void; onCancel?: () => void;
@@ -211,9 +313,6 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
   );
   const [descuento, setDescuento] = useState(initialPresupuesto ? initialPresupuesto.descuento_porcentaje : 0);
   const [notas, setNotas] = useState(initialPresupuesto?.notas || "");
-  const [query, setQuery] = useState("");
-  const [resultados, setResultados] = useState<any[]>([]);
-  const [buscando, setBuscando] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -223,15 +322,6 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
     } else {
       setLineas(prev => [...prev, l]);
     }
-  }
-
-  async function buscar(q: string) {
-    setQuery(q);
-    if (q.trim().length < 2) { setResultados([]); return; }
-    setBuscando(true);
-    const res = await searchCatalogoAction(q);
-    setResultados(res);
-    setBuscando(false);
   }
 
   const totalBruto = lineas.reduce((acc, l) => acc + l.cantidad * l.precio_unitario, 0);
@@ -261,10 +351,10 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
         notas: notas || undefined,
       });
     }
-    
+
     setSaving(false);
-    if (res?.error) { setError(res.error); return; }
-    onSaved?.();
+    if (!res?.error) onSaved?.();
+    else setError(res?.error || "Error al guardar el presupuesto");
   }
 
   return (
@@ -279,25 +369,18 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
         </div>
       </div>
 
-      {/* Buscador de catálogo */}
-      <div className="relative">
-        <Icon name="search" size={16} className="absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
-        <input value={query} onChange={e => buscar(e.target.value)}
-          placeholder="Buscar tratamiento del catálogo para agregar…"
-          className="w-full border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 bg-white dark:bg-slate-900 dark:text-slate-100" />
-        {buscando && <div className="absolute right-3 top-2.5 w-4 h-4 rounded-full border-2 border-cyan-200 border-t-cyan-600 animate-spin" />}
-        {resultados.length > 0 && (
-          <div className="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-52 overflow-y-auto z-10">
-            {resultados.map(r => (
-              <button key={r.id} onClick={() => { addLinea({ catalogo_id: r.id, nombre: r.nombre, cantidad: 1, precio_unitario: Number(r.precio), moneda: r.moneda ?? "PEN" }); setQuery(""); setResultados([]); }}
-                className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-50 dark:border-slate-700 last:border-0 flex items-center justify-between gap-2">
-                <span className="text-[13px] text-slate-700 dark:text-slate-300 truncate">{r.nombre}</span>
-                <span className="text-[12px] font-semibold text-slate-500 dark:text-slate-400 shrink-0">{money(Number(r.precio), r.moneda ?? "PEN")}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Buscador / Selector Combobox de catálogo */}
+      <PresupuestoSelectCombobox
+        onSelect={(r) =>
+          addLinea({
+            catalogo_id: r.id,
+            nombre: r.nombre,
+            cantidad: 1,
+            precio_unitario: Number(r.precio),
+            moneda: r.moneda ?? "PEN",
+          })
+        }
+      />
 
       {/* Líneas */}
       {lineas.length === 0 ? (

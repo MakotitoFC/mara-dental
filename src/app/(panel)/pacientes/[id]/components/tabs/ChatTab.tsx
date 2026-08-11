@@ -27,17 +27,30 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
       .channel("messages_changes")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter: `paciente_id=eq.${pacienteId}` },
+        { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
+          if (payload.new.paciente_id !== pacienteId) return;
+
           setMessages((prev) => {
-            // Avoid duplicates from optimistic UI
             if (prev.some(m => m.id === payload.new.id)) return prev;
             return [...prev, payload.new];
           });
+          
+          setPaciente((prev) => prev && !prev.telegram_chat_id ? { ...prev, telegram_chat_id: "linked" } : prev);
+          
           setTimeout(scrollToBottom, 100);
 
           if (payload.new.direction === "inbound" && !payload.new.is_read) {
             supabase.from("messages").update({ is_read: true }).eq("id", payload.new.id).then();
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "pacientes" },
+        (payload) => {
+          if (payload.new.id === pacienteId) {
+            setPaciente((prev) => ({ ...prev, ...payload.new }));
           }
         }
       )

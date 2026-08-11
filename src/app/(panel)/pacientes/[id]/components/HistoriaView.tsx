@@ -122,7 +122,7 @@ export function HistoriaView({
       if (opts.consultaId == null) params.delete("consulta");
       else params.set("consulta", String(opts.consultaId));
     }
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
   }
 
   function handleConsultaCreada(id: string) {
@@ -352,6 +352,7 @@ export function HistoriaView({
                 loading={loadingConsulta}
                 refetch={refetchConsultaData}
                 onFinalizarConsulta={salirDeConsulta}
+                onNavigateTab={(t) => goTo(t as TabKey)}
               />
             )}
             {tab === "archivos" && (

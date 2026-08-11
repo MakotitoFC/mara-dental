@@ -614,7 +614,7 @@ export async function getTratamientosAction(diagnosticoId: string) {
       catalogo_tratamientos ( nombre ),
       plan_tratamiento (
         id, fase, orden, descripcion, tiempo_estimado, estado,
-        procedimiento_efectuado ( id, notas, created_at, consulta_id )
+        archivos_clinicos ( id, nombre_archivo, url, tipo_archivo_id, categoria, descripcion, fecha_subida, tam_bytes, tipo_archivo(id, tipo_archivo) )
       )
     `)
     .eq("diagnostico_id", diagnosticoId)
@@ -624,6 +624,14 @@ export async function getTratamientosAction(diagnosticoId: string) {
     console.error("getTratamientosAction error:", error);
     return [];
   }
+
+  // Recolectar todos los archivos para firmar en una llamada batch
+  const todosLosArchivos = (data || []).flatMap((t: any) => 
+    (t.plan_tratamiento || []).flatMap((p: any) => p.archivos_clinicos || [])
+  );
+  
+  const archivosFirmados = todosLosArchivos.length > 0 ? await firmarUrls(supabase, todosLosArchivos) : [];
+  const mapArchivos = new Map(archivosFirmados.map((a: any) => [a.id, a]));
 
   return (data || []).map((t: any) => ({
     id: t.id,
@@ -637,14 +645,19 @@ export async function getTratamientosAction(diagnosticoId: string) {
       descripcion: p.descripcion,
       tiempo_estimado: p.tiempo_estimado,
       estado: p.estado,
-      avances: (p.procedimiento_efectuado || []).sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).map((av: any) => ({
-        id: av.id,
-        notas: av.notas,
-        fecha: av.created_at,
-        consulta_id: av.consulta_id
-      }))
+      archivos: (p.archivos_clinicos || []).map((a: any) => mapArchivos.get(a.id)).filter(Boolean)
     }))
   }));
+}
+
+export async function getCatalogoTratamientosAction() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("catalogo_tratamientos")
+    .select("id, nombre, descripcion, precio, moneda")
+    .eq("activo", true)
+    .order("nombre", { ascending: true });
+  return data || [];
 }
 
 export async function searchCatalogoAction(query: string) {
@@ -861,9 +874,6 @@ export async function deletePlanTrabajoAction(id: string, pacienteId: string) {
   // Desvincular archivos clínicos
   await supabase.from("archivos_clinicos").update({ plan_tratamiento_id: null }).eq("plan_tratamiento_id", id);
   
-  // Eliminar avances
-  await supabase.from("procedimiento_efectuado").delete().eq("plan_tratamiento_id", id);
-  
   // Eliminar fase
   const { error } = await supabase.from("plan_tratamiento").delete().eq("id", id);
   if (error) {
@@ -873,22 +883,6 @@ export async function deletePlanTrabajoAction(id: string, pacienteId: string) {
 
   revalidatePath(`/pacientes/${pacienteId}`);
   return { success: true };
-}
-
-export async function saveAvanceAction(data: { plan_tratamiento_id: string; consulta_id: string; notas: string; paciente_id: string }) {
-  const supabase = await createClient();
-  const { data: newRow, error } = await supabase.from("procedimiento_efectuado").insert({
-    plan_tratamiento_id: data.plan_tratamiento_id,
-    consulta_id: data.consulta_id,
-    notas: data.notas,
-  }).select("id, fecha").single();
-
-  if (error || !newRow) {
-    console.error("saveAvanceAction error:", error);
-    return { error: "No se pudo guardar el avance" };
-  }
-  revalidatePath(`/pacientes/${data.paciente_id}`);
-  return { success: true, id: newRow.id, fecha: newRow.fecha };
 }
 
 // ── Receta ────────────────────────────────────────────────────────────────────
@@ -1448,24 +1442,18 @@ async function firmarUrls(supabase: SupabaseClient, archivos: any[]) {
 
       if (a.url && !a.url.startsWith("http")) {
         try {
-          const { data, error } = await supabase.storage
-            .from("archivos_clinicos")
-            .createSignedUrl(a.url, 60 * 60);
-          
-          if (error || !data) throw new Error(error?.message || "No se pudo firmar la URL con Supabase");
-          
-          return { ...a, tipo_archivo: tipo_str, displayUrl: data.signedUrl };
-        } catch (e) {
-          // Fallback a R2 si no existe en Supabase
+          // Firma local instantánea en R2 (sin latencia de red)
+          const command = new GetObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Key: a.url,
+          });
+          const signedUrl = await getSignedUrl(r2Client, command, { expiresIn: 60 * 60 });
+          return { ...a, tipo_archivo: tipo_str, displayUrl: signedUrl };
+        } catch (r2Error) {
           try {
-            const command = new GetObjectCommand({
-              Bucket: process.env.R2_BUCKET_NAME,
-              Key: a.url,
-            });
-            const signedUrl = await getSignedUrl(r2Client, command, { expiresIn: 60 * 60 });
-            return { ...a, tipo_archivo: tipo_str, displayUrl: signedUrl };
-          } catch (r2Error) {
-            console.error("Error signing URL with R2 as fallback:", r2Error);
+            const { data } = await supabase.storage.from("archivos_clinicos").createSignedUrl(a.url, 60 * 60);
+            return { ...a, tipo_archivo: tipo_str, displayUrl: data?.signedUrl || a.url };
+          } catch (e) {
             return { ...a, tipo_archivo: tipo_str, displayUrl: a.url };
           }
         }
@@ -1475,17 +1463,51 @@ async function firmarUrls(supabase: SupabaseClient, archivos: any[]) {
   );
 }
 
+async function resolveAllFileIdsParaPaciente(supabase: SupabaseClient, pacienteId: string): Promise<{ consultaIds: number[]; planIds: string[]; diagnosticoIds: string[] }> {
+  const { data: hc } = await supabase.from("historia_clinica").select("id").eq("paciente_id", pacienteId).maybeSingle();
+  if (!hc) return { consultaIds: [], planIds: [], diagnosticoIds: [] };
+
+  const { data: notas } = await supabase.from("nota_clinica").select("id").eq("historia_clinica_id", hc.id);
+  const notaIds = (notas || []).map((n) => n.id);
+  if (notaIds.length === 0) return { consultaIds: [], planIds: [], diagnosticoIds: [] };
+
+  // Ejecutar consultas de consultas, diagnosticos y tratamientos en paralelo
+  const [consultasRes, diagsRes, tratsRes] = await Promise.all([
+    supabase.from("consultas").select("id").in("nota_clinica_id", notaIds),
+    supabase.from("diagnostico").select("id").in("nota_clinica_id", notaIds),
+    supabase.from("tratamiento").select("id").in("nota_clinica_id", notaIds),
+  ]);
+
+  const consultaIds = (consultasRes.data || []).map((c) => c.id);
+  const diagnosticoIds = (diagsRes.data || []).map((d) => String(d.id));
+  const tratamientoIds = (tratsRes.data || []).map((t) => t.id);
+
+  let planIds: string[] = [];
+  if (tratamientoIds.length > 0) {
+    const { data: planes } = await supabase.from("plan_tratamiento").select("id").in("tratamiento_id", tratamientoIds);
+    planIds = (planes || []).map((p) => String(p.id));
+  }
+
+  return { consultaIds, planIds, diagnosticoIds };
+}
+
 export async function getArchivosPacienteAction(pacienteId: string) {
   const supabase = await createClient();
 
-  const consultaIds = await resolveConsultaIdsParaPaciente(supabase, pacienteId);
-  if (consultaIds.length === 0) return [];
+  const { consultaIds, planIds, diagnosticoIds } = await resolveAllFileIdsParaPaciente(supabase, pacienteId);
+
+  const filterParts: string[] = [];
+  if (consultaIds.length > 0) filterParts.push(`consulta_id.in.(${consultaIds.join(",")})`);
+  if (planIds.length > 0) filterParts.push(`plan_tratamiento_id.in.(${planIds.join(",")})`);
+  if (diagnosticoIds.length > 0) filterParts.push(`diagnostico_id.in.(${diagnosticoIds.join(",")})`);
+
+  if (filterParts.length === 0) return [];
 
   const { data: archivos, error } = await supabase
     .from("archivos_clinicos")
-    .select(`id, nombre_archivo, url, tipo_archivo_id, categoria, descripcion, fecha_subida, tam_bytes, anotaciones, tipo_archivo (id, tipo_archivo),
+    .select(`id, nombre_archivo, url, tipo_archivo_id, categoria, descripcion, fecha_subida, tam_bytes, anotaciones, consulta_id, plan_tratamiento_id, diagnostico_id, tipo_archivo (id, tipo_archivo),
       usuarios!subido_por ( personal ( nombre, apellido, url_firma_digital, especialidad ( especialidad ) ) )`)
-    .in("consulta_id", consultaIds)
+    .or(filterParts.join(","))
     .order("fecha_subida", { ascending: false });
 
   if (error || !archivos) {
@@ -1499,6 +1521,39 @@ export async function getArchivosPacienteAction(pacienteId: string) {
   }));
 
   return firmarUrls(supabase, mapeados);
+}
+
+export async function updateArchivoClinicoAction(data: {
+  id: string;
+  nombre_archivo: string;
+  tipo_archivo_id: number;
+  descripcion: string | null;
+  pacienteId: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  if (!data.nombre_archivo || !data.nombre_archivo.trim()) {
+    return { error: "El nombre del archivo no puede estar vacío" };
+  }
+
+  const { error } = await supabase
+    .from("archivos_clinicos")
+    .update({
+      nombre_archivo: data.nombre_archivo.trim(),
+      tipo_archivo_id: data.tipo_archivo_id,
+      descripcion: data.descripcion ? data.descripcion.trim() : null,
+    })
+    .eq("id", data.id);
+
+  if (error) {
+    console.error("Error updateArchivoClinicoAction:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/pacientes/${data.pacienteId}`);
+  return { success: true };
 }
 
 /** Datos reales de la sede del usuario actual — para membrete de exportación. */
@@ -1527,6 +1582,8 @@ export async function subirArchivoGeneralAction(formData: FormData) {
 
   const consulta_id = formData.get("consulta_id") as string;
   const paciente_id = formData.get("paciente_id") as string;
+  const diagnostico_id = formData.get("diagnostico_id") as string | null;
+  const tipo_archivo_id = formData.get("tipo_archivo_id") as string | null;
   const categoria = (formData.get("categoria") as string) || "otros";
   const descripcion = (formData.get("descripcion") as string) || null;
   const file = formData.get("archivo") as File;
@@ -1534,29 +1591,47 @@ export async function subirArchivoGeneralAction(formData: FormData) {
 
   const ext = file.name.split(".").pop();
   const safeName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-  const filePath = `private/consultas/${consulta_id}/${safeName}`;
+  const objectKey = `consulta/${consulta_id}/${safeName}`;
 
-  const { error: uploadError } = await supabase.storage.from("archivos_clinicos").upload(filePath, file);
-  if (uploadError) {
-    console.error("Error subiendo archivo:", uploadError);
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const command = new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: objectKey,
+      Body: buffer,
+      ContentType: file.type,
+    });
+
+    await r2Client.send(command);
+  } catch (uploadError) {
+    console.error("Error subiendo archivo a R2:", uploadError);
     return { error: "No se pudo subir el archivo" };
   }
 
-  const { error: insertError } = await supabase.from("archivos_clinicos").insert({
+  const parsedTipoId = tipo_archivo_id ? parseInt(tipo_archivo_id) : 1;
+  const catStr = file.type.startsWith("image/") ? "imagen" : "pdf";
+
+  const insertPayload: any = {
     nombre_archivo: file.name,
-    url: filePath,
-    tipo_archivo: file.type.startsWith("image/") ? "image" : "pdf",
-    categoria,
-    descripcion,
+    url: objectKey,
+    tipo_archivo_id: isNaN(parsedTipoId) ? 1 : parsedTipoId,
+    categoria: catStr,
+    descripcion: descripcion || null,
     tam_bytes: file.size,
-    consulta_id,
     subido_por: user.id,
     fecha_subida: new Date().toISOString(),
-  });
+  };
+
+  if (consulta_id) insertPayload.consulta_id = consulta_id;
+  if (diagnostico_id) insertPayload.diagnostico_id = diagnostico_id;
+
+  const { error: insertError } = await supabase.from("archivos_clinicos").insert(insertPayload);
 
   if (insertError) {
-    console.error("Error insertando archivo:", insertError);
-    return { error: "No se pudo registrar el archivo" };
+    console.error("Error insertando archivo en archivos_clinicos:", insertError);
+    return { error: `No se pudo registrar el archivo: ${insertError.message}` };
   }
 
   if (paciente_id) revalidatePath(`/pacientes/${paciente_id}`);
@@ -1567,7 +1642,7 @@ export async function subirArchivoGeneralAction(formData: FormData) {
 export async function getConsultaDetalleTimelineAction(consultaId: string) {
   const supabase = await createClient();
 
-  // 1. Obtener datos básicos de la consulta
+  // 1. Obtener datos básicos de la consulta primero (necesitamos nota_clinica_id)
   const { data: consulta, error } = await supabase
     .from("consultas")
     .select(`
@@ -1582,119 +1657,146 @@ export async function getConsultaDetalleTimelineAction(consultaId: string) {
     return null;
   }
 
-  // 2. Obtener diagnósticos con CIE10 y archivos asociados a la consulta
-  const { data: diagnosticosRaw, error: diagError } = await supabase
-    .from("diagnostico")
-    .select(`
-      id, diagnostico, "esTratado", es_definitivo, fecha_deteccion,
-      cie10(id, codigo, descripcion),
-      archivos_clinicos ( id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, tam_bytes, anotaciones )
-    `)
-    .eq("consulta_origen_id", consultaId)
-    .order("fecha_deteccion", { ascending: false });
-  if (diagError) console.error("Error en diagnosticos:", diagError);
+  // 2. Ejecutar todas las consultas independientes EN PARALELO
+  const [
+    { data: diagnosticosRaw, error: diagError },
+    { data: odontogramasRaw, error: odonError },
+    { data: recomendacionesRaw, error: recError },
+    { data: presupuestosRaw },
+    { data: archivosConsultaRaw }
+  ] = await Promise.all([
+    supabase
+      .from("diagnostico")
+      .select(`
+        id, diagnostico, "esTratado", es_definitivo, fecha_deteccion,
+        cie10(id, codigo, descripcion),
+        archivos_clinicos ( id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, tam_bytes, anotaciones )
+      `)
+      .eq("consulta_origen_id", consultaId)
+      .order("fecha_deteccion", { ascending: false }),
+      
+    supabase
+      .from("odontograma")
+      .select("id, tipo_tratamiento, created_at, odontograma_diente ( id, diente, condicion_id, superficie, descripcion )")
+      .eq("consulta_id", consultaId),
 
-  // 3. Obtener recetas de todos los diagnósticos de esta consulta
+    supabase
+      .from("recomendacion")
+      .select("id, contenido")
+      .eq("consulta_id", consultaId)
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("presupuestos")
+      .select(`id, total_bruto, descuento_monto, total_neto, estado, fecha_emision`)
+      .eq("nota_clinica_id", consulta.nota_clinica_id)
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("archivos_clinicos")
+      .select("id, nombre_archivo, url, tipo_archivo_id, categoria, descripcion, fecha_subida, tam_bytes, anotaciones, tipo_archivo(id, tipo_archivo)")
+      .eq("consulta_id", consultaId)
+      .is("diagnostico_id", null)
+  ]);
+
+  if (diagError) console.error("Error en diagnosticos:", diagError);
+  if (odonError) console.error("Error en odontograma:", odonError);
+  if (recError) console.error("Error en recomendacion:", recError);
+
+  // 3. Obtener Recetas y Tratamientos basados en los Diagnósticos (también en paralelo)
   let recetasAll: any[] = [];
   let tratamientosAll: any[] = [];
+  
   if (diagnosticosRaw && diagnosticosRaw.length > 0) {
     const dIds = diagnosticosRaw.map(d => d.id);
     
-    const { data: recRaw, error: recError } = await supabase
-      .from("recetas")
-      .select(`id, diagnostico_id, fecha_emision, estado, receta_medicamento ( id, medicamento_nombre, medicamento_id, dosis, frecuencia, indicaciones )`)
-      .in("diagnostico_id", dIds);
-    if (recError) console.error("Error en recetas:", recError);
-    if (recRaw) recetasAll = recRaw;
+    const [ { data: recRaw, error: rError }, { data: tratRaw, error: tError } ] = await Promise.all([
+      supabase
+        .from("recetas")
+        .select(`id, diagnostico_id, fecha_emision, estado, receta_medicamento ( id, medicamento_nombre, medicamento_id, dosis, frecuencia, indicaciones )`)
+        .in("diagnostico_id", dIds),
+        
+      supabase
+        .from("tratamiento")
+        .select(`
+          id, diagnostico_id, tratamiento, created_at,
+          catalogo_tratamientos ( nombre, precio, moneda ),
+          plan_tratamiento ( id, fase, orden, descripcion, estado, tiempo_estimado )
+        `)
+        .in("diagnostico_id", dIds)
+        .order("created_at", { ascending: false })
+    ]);
 
-    const { data: tratRaw, error: tratError } = await supabase
-      .from("tratamiento")
-      .select(`
-        id, diagnostico_id, tratamiento, created_at,
-        catalogo_tratamientos ( nombre, precio, moneda ),
-        plan_tratamiento ( id, fase, orden, descripcion, estado, tiempo_estimado )
-      `)
-      .in("diagnostico_id", dIds)
-      .order("created_at", { ascending: false });
-    if (tratError) console.error("Error en tratamientos:", tratError);
-    if (tratRaw) tratamientosAll = tratRaw;
+    if (rError) console.error("Error en recetas:", rError);
+    if (tError) console.error("Error en tratamientos:", tError);
+    
+    recetasAll = recRaw || [];
+    tratamientosAll = tratRaw || [];
   }
 
-  const diagnosticos = diagnosticosRaw ? await Promise.all(
-    diagnosticosRaw.map(async (d: any) => {
-      const archivosFirmados = await firmarUrls(supabase, d.archivos_clinicos || []);
-      const recetas = recetasAll.filter(r => r.diagnostico_id === d.id).map(r => ({
-        ...r, 
-        medicamentos: (r.receta_medicamento || []).map((m: any) => ({
-          ...m,
-          nombre: m.medicamento_nombre
-        }))
-      }));
-      const tratamientosRaw = tratamientosAll.filter(t => t.diagnostico_id === d.id);
-      
-      const tratamientos = tratamientosRaw.map(t => ({
-        id: t.id,
-        nombre: t.catalogo_tratamientos?.nombre || "Tratamiento sin nombre",
-        descripcion: t.tratamiento,
-        precio: t.catalogo_tratamientos?.precio,
-        moneda: t.catalogo_tratamientos?.moneda,
-        fecha: t.created_at,
-        plan: (t.plan_tratamiento || []).map((p: any) => ({
-          ...p,
-          etapa: p.fase || p.descripcion || `Etapa ${p.orden}`,
-          tiempo: p.tiempo_estimado
-        }))
-      }));
+  // 4. Firmar URLs de TODOS los archivos (consulta + diagnósticos) en una sola llamada masiva
+  const todosLosArchivosParaFirmar = [
+    ...(archivosConsultaRaw || []),
+    ...(diagnosticosRaw || []).flatMap(d => d.archivos_clinicos || [])
+  ];
+  
+  // Usar Map para quitar duplicados antes de firmar
+  const uniqueFilesMap = new Map();
+  todosLosArchivosParaFirmar.forEach(f => {
+    if (f && f.id) uniqueFilesMap.set(f.id, f);
+  });
+  const uniqueFilesArray = Array.from(uniqueFilesMap.values());
+  
+  // Firmar todos juntos
+  const archivosFirmadosBase = uniqueFilesArray.length > 0 
+    ? await firmarUrls(supabase, uniqueFilesArray) 
+    : [];
+    
+  const firmadosMap = new Map(archivosFirmadosBase.map((a: any) => [a.id, a]));
 
-      return {
-        id: d.id,
-        texto: d.diagnostico,
-        es_tratado: d.esTratado,
-        es_definitivo: d.es_definitivo,
-        fecha_deteccion: d.fecha_deteccion,
-        cie10: d.cie10,
-        archivos: archivosFirmados,
-        recetas,
-        tratamientos
-      };
-    })
-  ) : [];
+  // 5. Ensamblar la respuesta
+  const diagnosticos = diagnosticosRaw ? diagnosticosRaw.map((d: any) => {
+    // Relacionar archivos firmados a este diagnóstico
+    const archivosDelDiag = (d.archivos_clinicos || [])
+      .map((a: any) => firmadosMap.get(a.id))
+      .filter(Boolean);
 
-  // 4. Obtener Odontograma, Recomendaciones y Presupuestos
-  const { data: odontogramasRaw, error: odonError } = await supabase
-    .from("odontograma")
-    .select("id, tipo_tratamiento, created_at, odontograma_diente ( id, diente, condicion_id, superficie, descripcion )")
-    .eq("consulta_id", consultaId);
-  if (odonError) console.error("Error en odontograma:", odonError);
+    const recetas = recetasAll.filter(r => r.diagnostico_id === d.id).map(r => ({
+      ...r, 
+      medicamentos: (r.receta_medicamento || []).map((m: any) => ({
+        ...m,
+        nombre: m.medicamento_nombre
+      }))
+    }));
 
-  const { data: recomendacionesRaw, error: recError } = await supabase
-    .from("recomendacion")
-    .select("id, contenido")
-    .eq("consulta_id", consultaId)
-    .order("created_at", { ascending: false });
-  if (recError) console.error("Error en recomendacion:", recError);
+    const tratamientos = tratamientosAll.filter(t => t.diagnostico_id === d.id).map(t => ({
+      id: t.id,
+      nombre: t.catalogo_tratamientos?.nombre || "Tratamiento sin nombre",
+      descripcion: t.tratamiento,
+      precio: t.catalogo_tratamientos?.precio,
+      moneda: t.catalogo_tratamientos?.moneda,
+      fecha: t.created_at,
+      plan: (t.plan_tratamiento || []).map((p: any) => ({
+        ...p,
+        etapa: p.fase || p.descripcion || `Etapa ${p.orden}`,
+        tiempo: p.tiempo_estimado
+      }))
+    }));
 
-  const { data: presupuestosRaw } = await supabase
-    .from("presupuestos")
-    .select(`id, total_bruto, descuento_monto, total_neto, estado, fecha_emision`)
-    .eq("nota_clinica_id", consulta.nota_clinica_id)
-    .order("created_at", { ascending: false });
+    return {
+      id: d.id,
+      texto: d.diagnostico,
+      es_tratado: d.esTratado,
+      es_definitivo: d.es_definitivo,
+      fecha_deteccion: d.fecha_deteccion,
+      cie10: d.cie10,
+      archivos: archivosDelDiag,
+      recetas,
+      tratamientos
+    };
+  }) : [];
 
   const doctorName = (consulta.usuarios as any)?.personal ? `${((consulta.usuarios as any).personal as any).nombre} ${((consulta.usuarios as any).personal as any).apellido}`.trim() : "Doctor";
-
-  const { data: archivosConsultaRaw } = await supabase
-    .from("archivos_clinicos")
-    .select("id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, tam_bytes, anotaciones")
-    .eq("consulta_id", consultaId);
-  const archivosConsulta = await firmarUrls(supabase, archivosConsultaRaw || []);
-  const archivosDiag = diagnosticos.flatMap((d: any) => d.archivos || []);
-  
-  // Filtrar duplicados por ID
-  const allArchivosMap = new Map();
-  [...archivosConsulta, ...archivosDiag].forEach(a => {
-    if (a && a.id) allArchivosMap.set(a.id, a);
-  });
-  const archivosUnicos = Array.from(allArchivosMap.values());
 
   return {
     id: consulta.id,
@@ -1712,6 +1814,6 @@ export async function getConsultaDetalleTimelineAction(consultaId: string) {
     odontogramas: odontogramasRaw || [],
     recomendaciones: recomendacionesRaw || [],
     presupuestos: presupuestosRaw || [],
-    archivos: archivosUnicos,
+    archivos: archivosFirmadosBase,
   };
 }
