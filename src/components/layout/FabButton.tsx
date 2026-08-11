@@ -21,7 +21,7 @@ export function FabButton() {
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-      className="md:hidden fixed right-4 z-40"
+      className="md:hidden fixed right-4 z-40 print:hidden"
       style={{ bottom: "calc(56px + env(safe-area-inset-bottom) + 16px)" }}
     >
       <Link

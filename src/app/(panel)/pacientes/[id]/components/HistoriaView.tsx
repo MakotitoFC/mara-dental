@@ -7,7 +7,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { calcEdad } from "@/lib/date-utils";
 import { slideHorizontal } from "@/lib/animations";
-import { getConsultaActivaAction } from "../consulta.actions";
+import { useConfirm } from "@/components/ui/ConfirmModal";
+import { 
+  getConsultaActivaAction, 
+  getConsultaReanudableAction, 
+  finalizarConsultaAction 
+} from "../consulta.actions";
 import { OdontogramaTab } from "./OdontogramaTab";
 import { NuevaConsultaModal } from "./NuevaConsultaModal";
 import { EditarPacienteModal } from "./EditarPacienteModal";
@@ -49,19 +54,20 @@ function initials(nombre: string) {
 
 export function HistoriaView({
   paciente: p,
-  citas,
-  notas: _notas,
+  citas = [],
   historial,
   datosCasos,
+  notas,
 }: {
   paciente: any;
-  citas: any[];
-  notas: any[];
+  citas?: any[];
   historial: any[];
   datosCasos: any;
+  notas?: any[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const confirmModal = useConfirm();
 
   const [tab, setTab] = useState<TabKey>("info");
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -76,6 +82,14 @@ export function HistoriaView({
   const [loadingConsulta, setLoadingConsulta] = useState(false);
   const [showNuevaConsultaModal, setShowNuevaConsultaModal] = useState(false);
   const [preselectedCitaId, setPreselectedCitaId] = useState<string | null>(null);
+
+  // Consulta reanudable (ventana de 1 hora ante salida involuntaria)
+  const [reanudableConsulta, setReanudableConsulta] = useState<{
+    id: string;
+    motivo: string;
+    minutosTranscurridos: number;
+    minutosRestantes: number;
+  } | null>(null);
 
   const refetchConsultaData = useCallback(async () => {
     if (!consultaId) return;
@@ -94,6 +108,50 @@ export function HistoriaView({
     if (consultaId) refetchConsultaData();
     else setConsultaData(null);
   }, [consultaId, refetchConsultaData]);
+
+  // Verificar si existe una consulta reanudable cuando NO hay una consulta abierta
+  const checkReanudable = useCallback(async () => {
+    if (consultaId) {
+      setReanudableConsulta(null);
+      return;
+    }
+    try {
+      const res = await getConsultaReanudableAction(String(p.id));
+      if (res && res.id) {
+        const localFinalizada = typeof window !== "undefined" && localStorage.getItem(`consulta_finalizada_${res.id}`) === "true";
+        if (!localFinalizada) {
+          setReanudableConsulta(res);
+          return;
+        }
+      }
+      setReanudableConsulta(null);
+    } catch (e) {
+      console.error("Error al verificar consulta reanudable:", e);
+      setReanudableConsulta(null);
+    }
+  }, [consultaId, p.id]);
+
+  useEffect(() => {
+    checkReanudable();
+  }, [checkReanudable]);
+
+  // Timer para ir descontando los minutos restantes en el banner
+  useEffect(() => {
+    if (!reanudableConsulta) return;
+    const interval = setInterval(() => {
+      setReanudableConsulta((prev) => {
+        if (!prev) return null;
+        const remaining = prev.minutosRestantes - 1;
+        if (remaining <= 0) return null;
+        return {
+          ...prev,
+          minutosTranscurridos: prev.minutosTranscurridos + 1,
+          minutosRestantes: remaining,
+        };
+      });
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [reanudableConsulta]);
 
   // Restaura pestaña/consulta activa desde el query param al montar; abre el
   // modal de nueva consulta si viene de "Iniciar consulta" en Agenda (?nueva=1).
@@ -125,9 +183,16 @@ export function HistoriaView({
     window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
   }
 
+  function handleReanudarConsulta(idToResume: string) {
+    setConsultaId(idToResume);
+    setReanudableConsulta(null);
+    goTo("dental", { consultaId: idToResume });
+  }
+
   function handleConsultaCreada(id: string) {
     const stringId = String(id);
     setShowNuevaConsultaModal(false);
+    setReanudableConsulta(null);
     if (stringId !== "undefined" && stringId !== "null" && stringId !== "NaN") {
       setConsultaId(stringId);
       goTo("dental", { consultaId: stringId });
@@ -136,9 +201,27 @@ export function HistoriaView({
     }
   }
 
-  function salirDeConsulta() {
+  async function salirDeConsulta() {
+    const ok = await confirmModal({
+      title: "¿Deseas salir de la consulta en curso?",
+      message: "Al confirmar la salida, la consulta se dará por finalizada y no se podrá volver a reanudar. ¿Estás seguro?",
+      confirmLabel: "Sí, finalizar y salir",
+      cancelLabel: "Cancelar",
+      danger: true,
+    });
+
+    if (!ok) return;
+
+    if (consultaId) {
+      await finalizarConsultaAction(consultaId, String(p.id));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`consulta_finalizada_${consultaId}`, "true");
+      }
+    }
+
     setConsultaId(null);
     setConsultaData(null);
+    setReanudableConsulta(null);
     goTo(tab, { consultaId: null });
   }
 
@@ -146,8 +229,6 @@ export function HistoriaView({
   const edad = p.fecha_nacimiento ? calcEdad(p.fecha_nacimiento) : null;
   const telegramLink = `https://t.me/share/url?url=&text=${encodeURIComponent(`Hola ${p.nombre?.split(" ")[0] ?? ""}, le contactamos desde MaraDental.`)}`;
 
-  // Adaptador — RecetaSection/PresupuestoPhase esperan la forma que antes
-  // devolvía getConsultaDetalleAction, distinta de la de este `paciente` prop.
   const pacienteAdapter = {
     id: p.id,
     paciente_id_num: String(p.id),
@@ -178,113 +259,114 @@ export function HistoriaView({
         <EditarPacienteModal
           paciente={p}
           onClose={() => setShowEditModal(false)}
-          onSaved={() => { setShowEditModal(false); router.refresh(); }}
+          onSaved={() => router.refresh()}
         />
       )}
 
       {showDescargarModal && (
         <DescargarExpedienteModal
-          paciente={{ id: p.id, nombre: p.nombre, apellido: p.apellido, dni: p.dni }}
+          paciente={p}
           onClose={() => setShowDescargarModal(false)}
         />
       )}
 
-      {/* ── Sub-header paciente ── */}
-      <div className="flex items-center gap-2.5 sm:gap-3 px-3 sm:px-6 md:px-8 py-3 sm:py-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
-        <Link
-          href="/pacientes"
-          aria-label="Volver a pacientes"
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors shrink-0"
-        >
-          <Icon name="chevron_left" size={20} />
-        </Link>
+      {/* ── Encabezado fijo del paciente ── */}
+      <div className="shrink-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-3 sm:px-6 md:px-8 py-2.5 sm:py-3.5">
+        <div className="flex items-center justify-between gap-3">
 
-        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-cyan-50 dark:bg-cyan-900/30 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center shrink-0 select-none">
-          <span className="text-[14px] sm:text-[15px] font-bold text-cyan-700 dark:text-cyan-400 uppercase">
-            {initials(nombreCompleto)}
-          </span>
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <h1 className="text-[14.5px] sm:text-[17px] font-bold text-slate-900 dark:text-slate-100 truncate leading-tight">
-            {nombreCompleto}
-          </h1>
-          <p className="text-[11.5px] sm:text-[12.5px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">
-            DNI {p.dni || "—"}{edad !== null ? ` · ${edad} años` : ""}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={() => setShowDescargarModal(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 text-cyan-700 dark:text-cyan-400 text-[11.5px] font-semibold transition-colors border border-cyan-200 dark:border-cyan-800"
-          >
-            <Icon name="download" size={13} />Descargar expediente
-          </button>
-
-          <button
-            onClick={() => setShowEditModal(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-[11.5px] font-semibold transition-colors border border-slate-200 dark:border-slate-600"
-          >
-            <Icon name="edit" size={13} />Editar
-          </button>
-
-          <div className="relative">
-            <button
-              onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
-              className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-              aria-label="Más opciones"
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+            <Link
+              href="/pacientes"
+              className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-800 dark:hover:text-slate-100 transition-colors shrink-0"
+              title="Volver a la lista de pacientes"
             >
-              <Icon name="more_vert" size={17} />
+              <Icon name="arrow_back" size={18} />
+            </Link>
+
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center shrink-0 shadow-sm">
+              {initials(nombreCompleto)}
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-[14px] sm:text-[16px] font-bold text-slate-900 dark:text-slate-100 truncate leading-tight">
+                  {nombreCompleto}
+                </h1>
+                {edad !== null && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium shrink-0">
+                    {edad} años
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                DNI: <span className="font-medium text-slate-600 dark:text-slate-300">{p.dni || "—"}</span>
+                {p.telefono && <span className="ml-2">• Tel: {p.telefono}</span>}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              onClick={() => setShowDescargarModal(true)}
+              className="flex items-center gap-1.5 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-[12px] font-medium transition-colors"
+              title="Exportar Historia Clínica a PDF"
+            >
+              <Icon name="picture_as_pdf" size={15} className="text-red-500" />
+              <span className="hidden sm:inline">Exportar</span>
             </button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
+
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="flex items-center gap-1.5 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 text-[12px] font-medium transition-colors"
+            >
+              <Icon name="edit" size={15} className="text-slate-400" />
+              <span className="hidden sm:inline">Editar</span>
+            </button>
+
+            <div className="relative">
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              >
+                <Icon name="more_vert" size={18} />
+              </button>
+              {menuOpen && (
                 <div
-                  className="absolute right-0 top-full mt-1.5 z-30 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden w-40"
-                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-0 top-full mt-1.5 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-30"
+                  onClick={() => setMenuOpen(false)}
                 >
-                  <button
-                    onClick={() => { setShowEditModal(true); setMenuOpen(false); }}
-                    className="sm:hidden w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <Icon name="edit" size={14} className="text-slate-500 dark:text-slate-400 shrink-0" />Editar paciente
-                  </button>
-                  <button
-                    onClick={() => { setShowDescargarModal(true); setMenuOpen(false); }}
-                    className="sm:hidden w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
-                  >
-                    <Icon name="download" size={14} className="text-cyan-600 dark:text-cyan-400 shrink-0" />Descargar expediente
-                  </button>
                   <a
-                    href={telegramLink} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
+                    href={telegramLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full text-left px-3 py-2 text-[12.5px] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
                   >
-                    <Icon name="send" size={15} className="text-[#24A1DE] shrink-0" />Telegram
+                    <Icon name="send" size={15} className="text-cyan-500" />
+                    Enviar mensaje Telegram
                   </a>
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* ── Tab bar horizontal ── */}
-      <div className="scroll-x-touch bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
-        <div className="flex gap-1 px-3 sm:px-6 md:px-8 py-2.5 w-max min-w-full">
-          {TABS.map(({ key, icon, label }) => {
-            const active = tab === key;
+        </div>
+
+        {/* ── Submenú de navegación por tabs ── */}
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar mt-3 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+          {TABS.map((t) => {
+            const active = tab === t.key;
             return (
               <button
-                key={key}
-                onClick={() => goTo(key)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-semibold whitespace-nowrap transition-colors shrink-0 border-0 ${
-                  active ? "bg-cyan-600 text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                key={t.key}
+                onClick={() => goTo(t.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-semibold transition-all whitespace-nowrap shrink-0 ${
+                  active
+                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-700/40"
                 }`}
-                style={{ minHeight: 36 }}
               >
-                <Icon name={icon} size={15} className={active ? "text-white" : "text-slate-400 dark:text-slate-500"} />
-                {label}
+                <Icon name={t.icon} size={15} />
+                <span>{t.label}</span>
               </button>
             );
           })}
@@ -298,15 +380,43 @@ export function HistoriaView({
             <Icon name="stethoscope" size={14} />
             Consulta en curso
           </span>
-          <button onClick={salirDeConsulta} className="text-[11.5px] font-semibold text-cyan-700 dark:text-cyan-400 hover:text-cyan-900 dark:hover:text-cyan-300 underline-offset-2 hover:underline">
+          <button onClick={salirDeConsulta} className="text-[11.5px] font-semibold text-cyan-700 dark:text-cyan-400 hover:text-cyan-900 dark:hover:text-cyan-300 underline-offset-2 hover:underline cursor-pointer">
             Salir de consulta
           </button>
         </div>
       )}
 
-      {/* ── Contenido — único contenedor con scroll interno de toda la vista del paciente.
-          "presupuestos" es la excepción: no scrollea a este nivel — su encabezado y total
-          quedan fijos y solo sus registros scrollean (ver PresupuestoTab/PresupuestoPhase). ── */}
+      {/* ── Banner de Consulta en Curso Interrumpida (Reanudable dentro de 1 hora) ── */}
+      {reanudableConsulta && !consultaId && (
+        <div className="mx-3 sm:mx-6 md:mx-8 mt-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-cyan-500/10 to-blue-500/10 border border-amber-400/40 dark:border-cyan-500/40 flex flex-wrap items-center justify-between gap-3 shadow-sm animate-fadeIn shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
+              <Icon name="history" size={22} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-[13.5px] font-bold text-slate-800 dark:text-slate-100">
+                  Consulta en curso interrumpida
+                </h4>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-semibold border border-amber-300 dark:border-amber-800">
+                  Iniciada hace {reanudableConsulta.minutosTranscurridos} min
+                </span>
+              </div>
+              <p className="text-[12px] text-slate-600 dark:text-slate-400 truncate mt-0.5">
+                Motivo: <span className="font-medium text-slate-700 dark:text-slate-300">{reanudableConsulta.motivo}</span> • Tienes <strong className="text-cyan-600 dark:text-cyan-400 font-semibold">{reanudableConsulta.minutosRestantes} min</strong> para reanudar antes de que expire.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleReanudarConsulta(reanudableConsulta.id)}
+            className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 text-white rounded-xl text-[12.5px] font-bold shadow-md shadow-cyan-600/20 flex items-center gap-2 transition-all cursor-pointer shrink-0"
+          >
+            <Icon name="play_arrow" size={16} /> Reanudar Consulta
+          </button>
+        </div>
+      )}
+
+      {/* ── Contenido — único contenedor con scroll interno de toda la vista del paciente. ── */}
       <div
         ref={tab !== "chat" && tab !== "presupuestos" ? contenidoScroll.ref : undefined}
         style={tab !== "chat" && tab !== "presupuestos" ? contenidoScroll.style : undefined}
@@ -337,7 +447,7 @@ export function HistoriaView({
                 {consultaId && (
                   <button
                     onClick={() => goTo("diagnosticos")}
-                    className="self-end flex items-center gap-1.5 h-10 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[13px] font-semibold transition-colors"
+                    className="self-end flex items-center gap-1.5 h-10 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[13px] font-semibold transition-colors cursor-pointer"
                   >
                     Continuar a Diagnóstico <Icon name="chevron_right" size={16} />
                   </button>
@@ -368,9 +478,7 @@ export function HistoriaView({
                 onNavigateTab={(t) => goTo(t as TabKey)}
               />
             )}
-            {tab === "chat" && (
-              <ChatTab pacienteId={String(p.id)} />
-            )}
+            {tab === "chat" && <ChatTab pacienteId={String(p.id)} />}
           </motion.div>
         </AnimatePresence>
       </div>

@@ -240,7 +240,7 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-      className="sticky top-0 z-40 h-13 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-6 shrink-0 gap-3"
+      className="sticky top-0 z-40 h-13 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-6 shrink-0 gap-3 print:hidden"
     >
       {/* Lado izquierdo */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
