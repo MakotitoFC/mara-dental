@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { motion, useDragControls, type PanInfo } from "framer-motion";
 import { Odontogram, type ToothDetail } from "react-odontogram";
 import "react-odontogram/style.css";
 import { Icon } from "@/components/ui/Icon";
@@ -477,51 +476,25 @@ function HistorialList({ sessions, expandedSessionId, onToggleSession, selectedT
   );
 }
 
-type SheetState = "peek" | "half" | "expanded";
-const SHEET_HEIGHT: Record<SheetState, string> = { peek: "14vh", half: "50vh", expanded: "88vh" };
-
-/** Bottom sheet del Historial — solo mobile. A diferencia de ResponsiveSheet
- * (modal bloqueante con fondo desenfocado), este es un panel PERSISTENTE:
- * no tiene backdrop ni se puede cerrar del todo, solo colapsar a un "peek"
- * de header nomás — así se ve el odontograma y el historial a la vez, que
- * es el punto de tenerlo así. Arrastrar desde el handle sube/baja un
- * estado (peek ↔ half ↔ expanded); nunca se dispara desde el contenido,
- * que tiene su propio scroll independiente. */
+/** Panel del Historial — solo mobile. A diferencia de ResponsiveSheet (modal
+ * bloqueante con fondo desenfocado), este es un panel PERSISTENTE sin
+ * backdrop, fijo a media pantalla — así se ve el odontograma y el
+ * historial a la vez, que es el punto de tenerlo así. El handle es
+ * decorativo por ahora (sin arrastre — se sacó esa funcionalidad). */
 function HistorialBottomSheet({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<SheetState>("half");
-  const dragControls = useDragControls();
-
-  function handleDragEnd(_: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) {
-    const subiendo = info.offset.y < -40 || info.velocity.y < -400;
-    const bajando = info.offset.y > 40 || info.velocity.y > 400;
-    if (subiendo) setState(s => (s === "peek" ? "half" : "expanded"));
-    else if (bajando) setState(s => (s === "expanded" ? "half" : "peek"));
-  }
-
   return (
-    <motion.div
-      drag="y"
-      dragControls={dragControls}
-      dragListener={false}
-      dragConstraints={{ top: 0, bottom: 0 }}
-      dragElastic={{ top: 0.04, bottom: 0.04 }}
-      onDragEnd={handleDragEnd}
-      animate={{ height: SHEET_HEIGHT[state] }}
-      transition={{ type: "spring", damping: 32, stiffness: 320 }}
+    <div
       className="lg:hidden fixed inset-x-0 z-40 bg-white dark:bg-slate-800 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.12)] border-t border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden"
-      style={{ bottom: "calc(56px + env(safe-area-inset-bottom))" }}
+      style={{ bottom: "calc(56px + env(safe-area-inset-bottom))", height: "50vh" }}
     >
-      <div
-        onPointerDown={(e) => dragControls.start(e)}
-        className="flex flex-col items-center pt-2 pb-1.5 shrink-0 cursor-grab active:cursor-grabbing touch-none"
-      >
+      <div className="flex flex-col items-center pt-2 pb-1.5 shrink-0">
         <span className="w-10 h-1.5 rounded-full bg-slate-200 dark:bg-slate-600 mb-1.5" />
         <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Historial de Exámenes</p>
       </div>
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-3 flex flex-col gap-2">
         {children}
       </div>
-    </motion.div>
+    </div>
   );
 }
 

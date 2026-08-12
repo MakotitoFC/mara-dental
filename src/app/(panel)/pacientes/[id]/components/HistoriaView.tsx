@@ -171,6 +171,16 @@ export function HistoriaView({
     if (await confirmSalirDeConsulta()) goTo(tab, { consultaId: null });
   }
 
+  // Al "Finalizar consulta" desde el wizard de Diagnóstico, el registro ya
+  // se confirmó dentro de ese mismo modal — no debe pedirse de nuevo el
+  // texto "salir de consulta", solo se limpia el estado y se avisa del éxito.
+  function finalizarConsultaDirecto() {
+    setConsultaId(null);
+    setConsultaData(null);
+    toast.success("Consulta finalizada correctamente");
+    goTo(tab, { consultaId: null });
+  }
+
   // Cambiar de pestaña "a mano" (tab bar) en consulta activa también debe
   // confirmar — solo la navegación GUIADA de la propia consulta (ej.
   // "Continuar a Diagnóstico" desde Odontograma, o abrir "dental" al crear
@@ -183,6 +193,11 @@ export function HistoriaView({
     }
     goTo(key);
   }
+
+  // El wizard de Diagnóstico (con su stepper fijo) solo existe con consulta
+  // activa — sin ella, "diagnosticos" muestra el historial del paciente y
+  // necesita el scroll normal de este contenedor (ver comentario más abajo).
+  const diagnosticoWizardActivo = tab === "diagnosticos" && !!consultaId;
 
   const nombreCompleto = [p.nombre, p.apellido].filter(Boolean).join(" ") || "Paciente";
   const edad = p.fecha_nacimiento ? calcEdad(p.fecha_nacimiento) : null;
@@ -259,9 +274,9 @@ export function HistoriaView({
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setShowDescargarModal(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 text-cyan-700 dark:text-cyan-400 text-[11.5px] font-semibold transition-colors border border-cyan-200 dark:border-cyan-800"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-transparent hover:bg-cyan-50 dark:hover:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 text-[11.5px] font-semibold transition-colors border border-cyan-200 dark:border-cyan-800"
           >
-            <Icon name="download" size={13} />Descargar expediente
+            <Icon name="download" size={13} />Expediente
           </button>
 
           <button
@@ -296,7 +311,7 @@ export function HistoriaView({
                     onClick={() => { setShowDescargarModal(true); setMenuOpen(false); }}
                     className="sm:hidden w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
                   >
-                    <Icon name="download" size={14} className="text-cyan-600 dark:text-cyan-400 shrink-0" />Descargar expediente
+                    <Icon name="download" size={14} className="text-cyan-600 dark:text-cyan-400 shrink-0" />Expediente
                   </button>
                   <a
                     href={telegramLink} target="_blank" rel="noreferrer"
@@ -349,12 +364,20 @@ export function HistoriaView({
       )}
 
       {/* ── Contenido — único contenedor con scroll interno de toda la vista del paciente.
-          "presupuestos" es la excepción: no scrollea a este nivel — su encabezado y total
-          quedan fijos y solo sus registros scrollean (ver PresupuestoTab/PresupuestoPhase). ── */}
+          "diagnosticos" solo es la excepción CON consulta activa: ahí su encabezado
+          (stepper de pasos) queda fijo y solo su contenido interno scrollea (ver
+          DiagnosticoTab). Antes el stepper usaba position:sticky DENTRO de este scroll —
+          funcionaba, pero en mobile el compositor puede "atrasarse" un frame durante
+          scroll rápido y dejar ver el contenido de abajo un instante; sacarlo del scroll
+          de raíz lo evita del todo, no solo lo disimula. Sin consulta activa, "diagnosticos"
+          muestra el historial del paciente (mismo patrón que "presupuestos") y SÍ usa este
+          scroll normal — su contenido (detalle + historial) no tiene una región interna
+          propia que scrollee, así que necesita el scroll de acá para que todo sea
+          alcanzable (antes quedaba con overflow-hidden y el detalle quedaba inalcanzable). ── */}
       <div
-        ref={tab !== "chat" && tab !== "presupuestos" ? contenidoScroll.ref : undefined}
-        style={tab !== "chat" && tab !== "presupuestos" ? contenidoScroll.style : undefined}
-        className={`flex-1 min-h-0 overflow-x-hidden no-scrollbar ${tab === "presupuestos" ? "overflow-hidden" : "overflow-y-auto"} ${tab === "chat" || tab === "timeline" || tab === "dental" ? "" : "p-3 sm:p-4 md:p-6 pb-2 md:pb-10 lg:pb-12"}`}
+        ref={tab !== "chat" && !diagnosticoWizardActivo ? contenidoScroll.ref : undefined}
+        style={tab !== "chat" && !diagnosticoWizardActivo ? contenidoScroll.style : undefined}
+        className={`flex-1 min-h-0 overflow-x-hidden no-scrollbar ${diagnosticoWizardActivo ? "overflow-hidden" : "overflow-y-auto"} ${tab === "chat" || tab === "timeline" || tab === "dental" ? "" : "p-3 sm:p-4 md:p-6 pb-2 md:pb-10 lg:pb-12"}`}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -363,7 +386,7 @@ export function HistoriaView({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={tab === "presupuestos" ? "h-full" : "lg:h-full"}
+            className={diagnosticoWizardActivo ? "h-full" : "lg:h-full"}
           >
             {tab === "info" && <InfoTab paciente={p} historial={historial} datosCasos={datosCasos} onNavigateTab={(t) => goTo(t as TabKey)} />}
             {tab === "timeline" && (
@@ -385,7 +408,7 @@ export function HistoriaView({
                 data={consultaData}
                 loading={loadingConsulta}
                 refetch={refetchConsultaData}
-                onFinalizarConsulta={salirDeConsulta}
+                onFinalizarConsulta={finalizarConsultaDirecto}
               />
             )}
             {tab === "archivos" && (

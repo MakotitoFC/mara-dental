@@ -91,6 +91,7 @@ export function RecetaSection(props: SectionProps) {
     await toggleEstadoRecetaAction(String(r.id), newEst, String(pacienteId));
     setRecetas(prev => prev.map(x => x.id === r.id ? { ...x, estado: newEst } : x));
     toast.success(newEst === "activa" ? "Receta activada" : "Receta cancelada");
+    onSaved?.();
   }
 
   const filas = recetas.flatMap((r) => r.receta_medicamento.map((m) => ({ medicamento: m, receta: r })));
@@ -102,6 +103,7 @@ export function RecetaSection(props: SectionProps) {
     setRecetas(p => p.map(r => ({ ...r, receta_medicamento: r.receta_medicamento.filter(m => m.id !== medToDelete) })));
     setMedToDelete(null);
     toast.success("Medicamento eliminado");
+    onSaved?.();
   }
 
   return (

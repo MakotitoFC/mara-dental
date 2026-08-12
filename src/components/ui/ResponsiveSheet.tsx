@@ -1,23 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import { createPortal } from "react-dom";
-import { motion, useDragControls, type PanInfo } from "framer-motion";
+import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, slideUp, scaleIn } from "@/lib/animations";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 
 /**
  * Chrome compartido por los modales del sistema: bottom sheet en mobile
- * (desliza desde abajo, handle de arrastre, cierre al tocar fuera) y modal
+ * (desliza desde abajo, handle decorativo, cierre al tocar fuera) y modal
  * centrado en desktop, ambos con el mismo fondo desenfocado. El padre debe
  * envolver el uso condicional en <AnimatePresence> para que las animaciones
  * de salida se reproduzcan.
- *
- * El handle es arrastrable en mobile: abajo fuerte cierra, arriba fuerte
- * expande a casi pantalla completa, y sin gesto claro vuelve a su alto por
- * defecto — mismo mecanismo (dragControls iniciado solo desde el handle,
- * nunca desde el contenido) que HistorialBottomSheet en OdontogramaTab.
  */
 export function ResponsiveSheet({
   onClose, title, header, children, footer, maxWidthDesktop = "440px",
@@ -31,18 +25,6 @@ export function ResponsiveSheet({
   maxWidthDesktop?: string;
 }) {
   useBodyScrollLock();
-  const dragControls = useDragControls();
-  const [expanded, setExpanded] = useState(false);
-
-  function handleDragEnd(_: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) {
-    if (info.offset.y > 120 || info.velocity.y > 600) {
-      onClose();
-    } else if (info.offset.y < -60 || info.velocity.y < -600) {
-      setExpanded(true);
-    } else if (info.offset.y > 40) {
-      setExpanded(false);
-    }
-  }
 
   return createPortal(
     <div className="fixed inset-0 z-[70]">
@@ -61,20 +43,10 @@ export function ResponsiveSheet({
         initial="hidden"
         animate="visible"
         exit="exit"
-        drag="y"
-        dragControls={dragControls}
-        dragListener={false}
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0.1, bottom: 0.6 }}
-        onDragEnd={handleDragEnd}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className={`md:hidden absolute inset-x-0 bottom-0 ${expanded ? "max-h-[96vh]" : "max-h-[85vh]"} bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden transition-[max-height] duration-200`}
+        className="md:hidden absolute inset-x-0 bottom-0 max-h-[85vh] bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div
-          onPointerDown={(e) => dragControls.start(e)}
-          className="flex justify-center pt-2.5 pb-1 shrink-0 cursor-grab active:cursor-grabbing touch-none"
-        >
+        <div className="flex justify-center pt-2.5 pb-1 shrink-0">
           <span className="w-10 h-1.5 rounded-full bg-slate-200 dark:bg-slate-600" />
         </div>
         <SheetChrome title={title} header={header} onClose={onClose}>{children}</SheetChrome>

@@ -198,7 +198,14 @@ export function TratamientoSection({
         ) : (
           <motion.div variants={staggerContainer()} initial="hidden" animate="visible" className="flex flex-col gap-5">
             {items.map(t => (
-              <TratamientoCard key={t.id} tratamiento={t} pacienteId={pacienteId} consultaId={consultaId} onDelete={() => handleDelete(t.id)} />
+              <TratamientoCard
+                key={t.id}
+                tratamiento={t}
+                pacienteId={pacienteId}
+                consultaId={consultaId}
+                onDelete={() => handleDelete(t.id)}
+                onPlanChange={(plan) => updateItems(items.map(i => i.id === t.id ? { ...i, plan } : i))}
+              />
             ))}
           </motion.div>
         )}
@@ -207,13 +214,18 @@ export function TratamientoSection({
   );
 }
 
-function TratamientoCard({ tratamiento, pacienteId, consultaId, onDelete }: { tratamiento: Tratamiento; pacienteId: string; consultaId: string; onDelete: () => void }) {
+function TratamientoCard({ tratamiento, pacienteId, consultaId, onDelete, onPlanChange }: { tratamiento: Tratamiento; pacienteId: string; consultaId: string; onDelete: () => void; onPlanChange?: (plan: PlanTratamiento[]) => void }) {
   const [addingFase, setAddingFase] = useState(false);
   const [faseForm, setFaseForm] = useState({ etapa: "", descripcion: "", tiempo_pronostico: "", estado: "pendiente" });
   const [savingFase, setSavingFase] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [localPlan, setLocalPlan] = useState<PlanTratamiento[]>(tratamiento.plan || []);
   const toast = useToast();
+
+  function updatePlan(next: PlanTratamiento[]) {
+    setLocalPlan(next);
+    onPlanChange?.(next);
+  }
 
   async function handleAddFase() {
     if (!faseForm.etapa || !faseForm.descripcion) return;
@@ -226,7 +238,7 @@ function TratamientoCard({ tratamiento, pacienteId, consultaId, onDelete }: { tr
     setSavingFase(false);
     if (!res?.error) {
       setAddingFase(false);
-      setLocalPlan([...localPlan, {
+      updatePlan([...localPlan, {
         id: res.id,
         fase: faseForm.etapa,
         orden: localPlan.length + 1,
@@ -292,7 +304,7 @@ function TratamientoCard({ tratamiento, pacienteId, consultaId, onDelete }: { tr
               ) : (
                 <div className="flex flex-col gap-2 border-l-2 border-slate-200 dark:border-slate-700 pl-3 ml-1">
                   {localPlan.map(fase => (
-                    <FaseCard key={fase.id} fase={fase} pacienteId={pacienteId} consultaId={consultaId} onDeleted={(id) => setLocalPlan(p => p.filter(x => x.id !== id))} onUpdated={(id, updated) => setLocalPlan(p => p.map(x => x.id === id ? { ...x, ...updated } : x))} />
+                    <FaseCard key={fase.id} fase={fase} pacienteId={pacienteId} consultaId={consultaId} onDeleted={(id) => updatePlan(localPlan.filter(x => x.id !== id))} onUpdated={(id, updated) => updatePlan(localPlan.map(x => x.id === id ? { ...x, ...updated } : x))} />
                   ))}
                 </div>
               )}
@@ -328,12 +340,14 @@ function FaseCard({ fase, pacienteId, consultaId, onDeleted, onUpdated }: { fase
     setSavingAvance(false);
     if (!res?.error) {
       setAddingAvance(false);
-      setLocalAvances([...localAvances, {
+      const nextAvances = [...localAvances, {
         id: res.id,
         notas: avanceNotas,
         fecha: res.fecha || new Date().toISOString(),
         consulta_id: consultaId
-      }]);
+      }];
+      setLocalAvances(nextAvances);
+      onUpdated?.(fase.id, { avances: nextAvances });
       setAvanceNotas("");
       toast.success("Avance registrado correctamente");
     } else {
