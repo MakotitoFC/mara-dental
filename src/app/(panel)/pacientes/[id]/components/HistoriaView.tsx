@@ -10,7 +10,11 @@ import { GuardedLink } from "@/components/layout/GuardedLink";
 import { useActiveConsultaGuard } from "@/components/layout/ActiveConsultaGuard";
 import { calcEdad } from "@/lib/date-utils";
 import { slideHorizontal } from "@/lib/animations";
-import { getConsultaActivaAction } from "../consulta.actions";
+import {
+  getConsultaActivaAction, 
+  getConsultaReanudableAction, 
+  finalizarConsultaAction 
+} from "../consulta.actions";
 import { OdontogramaTab } from "./OdontogramaTab";
 import { NuevaConsultaModal } from "./NuevaConsultaModal";
 import { EditarPacienteModal } from "./EditarPacienteModal";
@@ -52,16 +56,16 @@ function initials(nombre: string) {
 
 export function HistoriaView({
   paciente: p,
-  citas,
-  notas: _notas,
+  citas = [],
   historial,
   datosCasos,
+  notas,
 }: {
   paciente: any;
-  citas: any[];
-  notas: any[];
+  citas?: any[];
   historial: any[];
   datosCasos: any;
+  notas?: any[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -91,6 +95,14 @@ export function HistoriaView({
     return () => setActiveConsultaExit(null);
   }, [consultaId, setActiveConsultaExit]);
 
+  // Consulta reanudable (ventana de 1 hora ante salida involuntaria)
+  const [reanudableConsulta, setReanudableConsulta] = useState<{
+    id: string;
+    motivo: string;
+    minutosTranscurridos: number;
+    minutosRestantes: number;
+  } | null>(null);
+
   const refetchConsultaData = useCallback(async () => {
     if (!consultaId) return;
     setLoadingConsulta(true);
@@ -108,6 +120,50 @@ export function HistoriaView({
     if (consultaId) refetchConsultaData();
     else setConsultaData(null);
   }, [consultaId, refetchConsultaData]);
+
+  // Verificar si existe una consulta reanudable cuando NO hay una consulta abierta
+  const checkReanudable = useCallback(async () => {
+    if (consultaId) {
+      setReanudableConsulta(null);
+      return;
+    }
+    try {
+      const res = await getConsultaReanudableAction(String(p.id));
+      if (res && res.id) {
+        const localFinalizada = typeof window !== "undefined" && localStorage.getItem(`consulta_finalizada_${res.id}`) === "true";
+        if (!localFinalizada) {
+          setReanudableConsulta(res);
+          return;
+        }
+      }
+      setReanudableConsulta(null);
+    } catch (e) {
+      console.error("Error al verificar consulta reanudable:", e);
+      setReanudableConsulta(null);
+    }
+  }, [consultaId, p.id]);
+
+  useEffect(() => {
+    checkReanudable();
+  }, [checkReanudable]);
+
+  // Timer para ir descontando los minutos restantes en el banner
+  useEffect(() => {
+    if (!reanudableConsulta) return;
+    const interval = setInterval(() => {
+      setReanudableConsulta((prev) => {
+        if (!prev) return null;
+        const remaining = prev.minutosRestantes - 1;
+        if (remaining <= 0) return null;
+        return {
+          ...prev,
+          minutosTranscurridos: prev.minutosTranscurridos + 1,
+          minutosRestantes: remaining,
+        };
+      });
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [reanudableConsulta]);
 
   // Restaura pestaña/consulta activa desde el query param al montar; abre el
   // modal de nueva consulta si viene de "Iniciar consulta" en Agenda (?nueva=1).
@@ -136,18 +192,40 @@ export function HistoriaView({
       if (opts.consultaId == null) params.delete("consulta");
       else params.set("consulta", String(opts.consultaId));
     }
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+  }
+
+  function handleReanudarConsulta(idToResume: string) {
+    setConsultaId(idToResume);
+    setReanudableConsulta(null);
+    goTo("dental", { consultaId: idToResume });
   }
 
   function handleConsultaCreada(id: string) {
     const stringId = String(id);
     setShowNuevaConsultaModal(false);
+    setReanudableConsulta(null);
     if (stringId !== "undefined" && stringId !== "null" && stringId !== "NaN") {
       setConsultaId(stringId);
       goTo("dental", { consultaId: stringId });
     } else {
       goTo("dental");
     }
+  }
+
+  // Limpieza compartida al salir/finalizar una consulta: la marca como
+  // finalizada en BD (para que no vuelva a aparecer como "reanudable" en el
+  // banner de arriba) y limpia todo el estado local relacionado.
+  async function cerrarConsultaState() {
+    if (consultaId) {
+      await finalizarConsultaAction(consultaId, String(p.id));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`consulta_finalizada_${consultaId}`, "true");
+      }
+    }
+    setConsultaId(null);
+    setConsultaData(null);
+    setReanudableConsulta(null);
   }
 
   // Compartido entre el botón "Salir de consulta" y el guard de la tab bar
@@ -161,8 +239,7 @@ export function HistoriaView({
       confirmLabel: "Salir de consulta",
     });
     if (!ok) return false;
-    setConsultaId(null);
-    setConsultaData(null);
+    await cerrarConsultaState();
     toast.success("Saliste de la consulta correctamente");
     return true;
   }
@@ -174,9 +251,8 @@ export function HistoriaView({
   // Al "Finalizar consulta" desde el wizard de Diagnóstico, el registro ya
   // se confirmó dentro de ese mismo modal — no debe pedirse de nuevo el
   // texto "salir de consulta", solo se limpia el estado y se avisa del éxito.
-  function finalizarConsultaDirecto() {
-    setConsultaId(null);
-    setConsultaData(null);
+  async function finalizarConsultaDirecto() {
+    await cerrarConsultaState();
     toast.success("Consulta finalizada correctamente");
     goTo(tab, { consultaId: null });
   }
@@ -203,8 +279,6 @@ export function HistoriaView({
   const edad = p.fecha_nacimiento ? calcEdad(p.fecha_nacimiento) : null;
   const telegramLink = `https://t.me/share/url?url=&text=${encodeURIComponent(`Hola ${p.nombre?.split(" ")[0] ?? ""}, le contactamos desde MaraDental.`)}`;
 
-  // Adaptador — RecetaSection/PresupuestoPhase esperan la forma que antes
-  // devolvía getConsultaDetalleAction, distinta de la de este `paciente` prop.
   const pacienteAdapter = {
     id: p.id,
     paciente_id_num: String(p.id),
@@ -235,13 +309,13 @@ export function HistoriaView({
         <EditarPacienteModal
           paciente={p}
           onClose={() => setShowEditModal(false)}
-          onSaved={() => { setShowEditModal(false); router.refresh(); }}
+          onSaved={() => router.refresh()}
         />
       )}
 
       {showDescargarModal && (
         <DescargarExpedienteModal
-          paciente={{ id: p.id, nombre: p.nombre, apellido: p.apellido, dni: p.dni }}
+          paciente={p}
           onClose={() => setShowDescargarModal(false)}
         />
       )}
@@ -326,26 +400,23 @@ export function HistoriaView({
         </div>
       </div>
 
-      {/* ── Tab bar horizontal ── */}
-      <div className="scroll-x-touch bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
-        <div className="flex gap-1 px-3 sm:px-6 md:px-8 py-2.5 w-max min-w-full">
-          {TABS.map(({ key, icon, label }) => {
-            const active = tab === key;
-            return (
-              <button
-                key={key}
-                onClick={() => guardedGoTo(key)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-semibold whitespace-nowrap transition-colors shrink-0 border-0 ${
-                  active ? "bg-cyan-600 text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                }`}
-                style={{ minHeight: 36 }}
-              >
-                <Icon name={icon} size={15} className={active ? "text-white" : "text-slate-400 dark:text-slate-500"} />
-                {label}
-              </button>
-            );
-          })}
-        </div>
+      {/* ── Submenú de navegación por tabs ── */}
+      <div className="flex items-center gap-1 overflow-x-auto no-scrollbar px-3 sm:px-6 md:px-8 py-2 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
+        {TABS.map((t) => {
+          const active = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => guardedGoTo(t.key)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-semibold whitespace-nowrap transition-colors shrink-0 border-0 ${
+                active ? "bg-cyan-600 text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              }`}
+            >
+              <Icon name={t.icon} size={15} className={active ? "text-white" : "text-slate-400 dark:text-slate-500"} />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Barra de consulta activa — mismo fondo/texto que la pestaña activa.
@@ -359,6 +430,36 @@ export function HistoriaView({
           </span>
           <button onClick={salirDeConsulta} className="text-[11.5px] font-semibold text-white border border-white rounded-lg px-2.5 py-1 bg-transparent hover:bg-white/10 transition-colors">
             Salir de consulta
+          </button>
+        </div>
+      )}
+
+      {/* ── Banner de Consulta en Curso Interrumpida (Reanudable dentro de 1 hora) ── */}
+      {reanudableConsulta && !consultaId && (
+        <div className="mx-3 sm:mx-6 md:mx-8 mt-3 p-3.5 sm:p-4 rounded-2xl bg-linear-to-r from-amber-500/10 via-cyan-500/10 to-blue-500/10 border border-amber-400/40 dark:border-cyan-500/40 flex flex-wrap items-center justify-between gap-3 shadow-sm animate-fadeIn shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
+              <Icon name="history" size={22} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-[13.5px] font-bold text-slate-800 dark:text-slate-100">
+                  Consulta en curso interrumpida
+                </h4>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-semibold border border-amber-300 dark:border-amber-800">
+                  Iniciada hace {reanudableConsulta.minutosTranscurridos} min
+                </span>
+              </div>
+              <p className="text-[12px] text-slate-600 dark:text-slate-400 truncate mt-0.5">
+                Motivo: <span className="font-medium text-slate-700 dark:text-slate-300">{reanudableConsulta.motivo}</span> • Tienes <strong className="text-cyan-600 dark:text-cyan-400 font-semibold">{reanudableConsulta.minutosRestantes} min</strong> para reanudar antes de que expire.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleReanudarConsulta(reanudableConsulta.id)}
+            className="px-4 py-2 bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 text-white rounded-xl text-[12.5px] font-bold shadow-md shadow-cyan-600/20 flex items-center gap-2 transition-all cursor-pointer shrink-0"
+          >
+            <Icon name="play_arrow" size={16} /> Reanudar Consulta
           </button>
         </div>
       )}
@@ -424,9 +525,7 @@ export function HistoriaView({
                 onNavigateTab={(t) => goTo(t as TabKey)}
               />
             )}
-            {tab === "chat" && (
-              <ChatTab pacienteId={String(p.id)} />
-            )}
+            {tab === "chat" && <ChatTab pacienteId={String(p.id)} />}
           </motion.div>
         </AnimatePresence>
       </div>

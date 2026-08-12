@@ -3,15 +3,23 @@ import {
   getTiposArchivoAction, 
   getCondicionAction 
 } from "./actions";
-import { getCie10Action } from "../admin.actions";
+import { 
+  getCie10Action,
+  getRolesAdminAction,
+  getPuestosAdminAction,
+  getEspecialidadesAdminAction
+} from "../admin.actions";
 import ConfiguracionTiposClient from "./ConfiguracionTiposClient";
 
 export default async function ConfiguracionTiposPage() {
-  const [cData, aData, condData, cieData] = await Promise.all([
+  const [cData, aData, condData, cieData, rolesData, puestosData, especialidadesData] = await Promise.all([
     getTiposConsultaAction(), 
     getTiposArchivoAction(), 
     getCondicionAction(),
-    getCie10Action()
+    getCie10Action(),
+    getRolesAdminAction(),
+    getPuestosAdminAction(),
+    getEspecialidadesAdminAction()
   ]);
 
   return (
@@ -19,7 +27,10 @@ export default async function ConfiguracionTiposPage() {
       initialConsultas={cData} 
       initialArchivos={aData} 
       initialCondiciones={condData} 
-      initialCie10={cieData} 
+      initialCie10={cieData}
+      initialRoles={rolesData}
+      initialPuestos={puestosData}
+      initialEspecialidades={especialidadesData}
     />
   );
 }

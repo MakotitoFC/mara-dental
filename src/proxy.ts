@@ -46,10 +46,24 @@ export async function proxy(request: NextRequest) {
   const isPublicRoute = pathname.startsWith('/login') || pathname === '/';
 
   if(user){
-    //Evitar que un usuario loeguado vea el login
+    const { data: userData, error } = await supabase.from('usuarios').select('activo, rol_id, rol (rol)').eq('id', user.id).single();
+
+    // EXPULSIÓN INMEDIATA: Si el usuario fue desactivado por un admin/superadmin, cerrar sesión en el servidor y redirigir
+    if (!error && userData && userData.activo === false) {
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('error', 'desactivado');
+      const redirectResponse = NextResponse.redirect(url);
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.delete(cookie.name);
+      });
+      return redirectResponse;
+    }
+
+    // Evitar que un usuario logueado vea el login
     if(isPublicRoute){
       const url = request.nextUrl.clone();
-      console.log(url)
       url.pathname = '/dashboard';
       const redirectResponse = NextResponse.redirect(url);
       
@@ -60,7 +74,6 @@ export async function proxy(request: NextRequest) {
       
       return redirectResponse;
     }
-    const {data:userData,error} = await supabase.from('usuarios').select(`rol_id,rol (rol)`).eq('id',user.id).single();
 
     if(!error && userData){
       const roleName = (userData.rol as any)?.rol?.toLowerCase();

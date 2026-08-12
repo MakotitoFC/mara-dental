@@ -28,14 +28,16 @@ async function getUsuarioConRol(supabase: Awaited<ReturnType<typeof createClient
 
 export async function getFiltrosPersonalAction() {
   const supabase = await createClient();
-  const [{ data: especialidades }, { data: puestos }] = await Promise.all([
+  const [{ data: especialidades }, { data: puestos }, { data: roles }] = await Promise.all([
     supabase.from("especialidad").select("id, especialidad"),
     supabase.from("puesto").select("id, puesto"),
+    supabase.from("rol").select("id, rol"),
   ]);
   
   return {
     especialidades: especialidades || [],
     puestos: puestos || [],
+    roles: roles || [],
   };
 }
 
@@ -46,6 +48,7 @@ export async function getPersonalAction({
   especialidadId = null,
   puestoId = null,
   sedeId = null,
+  rolId = null,
 }: {
   page?: number;
   limit?: number;
@@ -53,6 +56,7 @@ export async function getPersonalAction({
   especialidadId?: number | null;
   puestoId?: number | null;
   sedeId?: number | null; // Solo usado si es superadmin
+  rolId?: number | null;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -88,9 +92,8 @@ export async function getPersonalAction({
       created_at,
       puesto ( id, puesto ),
       especialidad ( id, especialidad ),
-      usuarios!inner ( activo, sede_id, rol ( rol ) )
-    `, { count: "exact" })
-    .eq("usuarios.activo", true);
+      usuarios!inner ( activo, rol_id, sede_id, rol ( rol ) )
+    `, { count: "exact" });
 
   if (targetSedeId) {
     query = query.eq("usuarios.sede_id", targetSedeId);
@@ -102,6 +105,10 @@ export async function getPersonalAction({
 
   if (puestoId) {
     query = query.eq("puesto_id", puestoId);
+  }
+
+  if (rolId) {
+    query = query.eq("usuarios.rol_id", rolId);
   }
 
   if (search.trim()) {
@@ -217,7 +224,9 @@ export async function editEmpleadoAction(userId: string, formData: FormData) {
   const numColegiatura = formData.get("num_colegiatura") as string;
   const puestoId = Number(formData.get("puesto_id"));
   const especialidadId = formData.get("especialidad_id") ? Number(formData.get("especialidad_id")) : null;
+  const activo = formData.getAll("activo").includes("true") || formData.get("activo") === "true";
 
+  // 1. Actualizar Personal
   const { error } = await adminClient
     .from("personal")
     .update({
@@ -232,6 +241,45 @@ export async function editEmpleadoAction(userId: string, formData: FormData) {
     .eq("usuario_id", userId);
 
   if (error) throw new Error("Error al actualizar el personal");
+
+  // 2. Actualizar estado activo en Usuarios
+  const { error: userError } = await adminClient
+    .from("usuarios")
+    .update({ activo })
+    .eq("id", userId);
+
+  if (userError) throw new Error("Error al actualizar estado del usuario");
+
+  // Si fue desactivado, revocar de inmediato todos sus tokens de sesión activa
+  if (!activo) {
+    try {
+      await adminClient.auth.admin.signOut(userId, "global");
+    } catch (signOutErr) {
+      console.error("[editEmpleadoAction] Error al revocar sesión activa:", signOutErr);
+    }
+  }
+
+  revalidatePath("/admin/personal");
+  return { success: true };
+}
+
+export async function toggleEmpleadoEstadoAction(userId: string, nuevoEstado: boolean) {
+  const adminClient = getAdminClient();
+  const { error } = await adminClient
+    .from("usuarios")
+    .update({ activo: nuevoEstado })
+    .eq("id", userId);
+
+  if (error) throw new Error("Error al cambiar el estado del usuario");
+
+  if (!nuevoEstado) {
+    try {
+      await adminClient.auth.admin.signOut(userId, "global");
+    } catch (signOutErr) {
+      console.error("[toggleEmpleadoEstadoAction] Error al revocar sesión activa:", signOutErr);
+    }
+  }
+
   revalidatePath("/admin/personal");
   return { success: true };
 }
@@ -244,6 +292,14 @@ export async function softDeleteEmpleadoAction(userId: string) {
     .eq("id", userId);
 
   if (error) throw new Error("Error al eliminar al empleado");
+
+  // Revocar de inmediato todos sus tokens de sesión activa
+  try {
+    await adminClient.auth.admin.signOut(userId, "global");
+  } catch (signOutErr) {
+    console.error("[softDeleteEmpleadoAction] Error al revocar sesión activa:", signOutErr);
+  }
+
   revalidatePath("/admin/personal");
   return { success: true };
 }

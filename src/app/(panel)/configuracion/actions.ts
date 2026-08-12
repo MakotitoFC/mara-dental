@@ -18,9 +18,11 @@ const r2Client = new S3Client({
 });
 
 export interface PerfilProfesional {
+  usuario_id: string;
   nombre: string;
   apellido: string;
   email: string;
+  fecha_nacimiento: string | null;
   telefono: string | null;
   num_colegiatura: string | null;
   especialidad: string | null;
@@ -33,6 +35,30 @@ export interface HorarioRango {
   hora_fin: string;
 }
 
+export interface SedeData {
+  id: number;
+  nombre_clinica: string;
+  logo_url: string | null;
+  telefono: string | null;
+  email_contacto: string | null;
+  direccion: string | null;
+  business_phone: string | null;
+  telegram_bot: string | null;
+  horario_atencion: Record<number, { hora_inicio: string; hora_fin: string }[]> | null;
+}
+
+async function signLogoUrl(logoUrl: string | null): Promise<string | null> {
+  if (!logoUrl) return null;
+  if (logoUrl.startsWith("http")) return logoUrl;
+  try {
+    const command = new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: logoUrl });
+    return await getSignedUrl(r2Client, command, { expiresIn: 60 * 60 });
+  } catch (err) {
+    console.error("Error firmando URL del logo:", err);
+    return null;
+  }
+}
+
 export async function getPerfilProfesionalAction(): Promise<PerfilProfesional | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -40,7 +66,7 @@ export async function getPerfilProfesionalAction(): Promise<PerfilProfesional | 
 
   const { data: personal, error: personalError } = await supabase
     .from("personal")
-    .select("nombre, apellido, email, telefono, num_colegiatura, url_firma_digital, especialidad ( especialidad )")
+    .select("usuario_id, nombre, apellido, email, fecha_nacimiento, telefono, num_colegiatura, url_firma_digital, especialidad ( especialidad )")
     .eq("usuario_id", user.id)
     .single();
 
@@ -64,14 +90,183 @@ export async function getPerfilProfesionalAction(): Promise<PerfilProfesional | 
   const especialidad = Array.isArray(especialidadRaw) ? especialidadRaw[0] : especialidadRaw;
 
   return {
+    usuario_id: personal.usuario_id,
     nombre: personal.nombre,
     apellido: personal.apellido,
     email: personal.email,
+    fecha_nacimiento: personal.fecha_nacimiento ? String(personal.fecha_nacimiento) : null,
     telefono: personal.telefono,
     num_colegiatura: personal.num_colegiatura,
     especialidad: especialidad?.especialidad ?? null,
     firma_url: firmaUrl,
   };
+}
+
+export async function updatePerfilPersonalAction(formData: {
+  nombre: string;
+  apellido: string;
+  email: string;
+  fecha_nacimiento?: string | null;
+  telefono?: string | null;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { error } = await supabase
+    .from("personal")
+    .update({
+      nombre: formData.nombre,
+      apellido: formData.apellido,
+      email: formData.email,
+      fecha_nacimiento: formData.fecha_nacimiento || null,
+      telefono: formData.telefono || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("usuario_id", user.id);
+
+  if (error) {
+    console.error("Error actualizando perfil personal:", error);
+    return { error: "No se pudo actualizar la información personal" };
+  }
+
+  revalidatePath("/configuracion");
+  return { success: true };
+}
+
+export async function getSedeAdminAction(): Promise<SedeData | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: usr } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
+  if (!usr?.sede_id) return null;
+
+  const adminClient = getAdminClient();
+  const { data: sede, error } = await adminClient
+    .from("sede")
+    .select("id, nombre_clinica, logo_url, telefono, email_contacto, direccion, business_phone, telegram_bot, horario_atencion")
+    .eq("id", usr.sede_id)
+    .single();
+
+  if (error || !sede) {
+    console.error("Error obteniendo la sede del admin:", error);
+    return null;
+  }
+
+  return {
+    ...sede,
+    logo_url: await signLogoUrl(sede.logo_url),
+  };
+}
+
+export async function getAllSedesAction(): Promise<SedeData[]> {
+  const adminClient = getAdminClient();
+  const { data: sedes, error } = await adminClient
+    .from("sede")
+    .select("id, nombre_clinica, logo_url, telefono, email_contacto, direccion, business_phone, telegram_bot, horario_atencion")
+    .order("id", { ascending: true });
+
+  if (error || !sedes) {
+    console.error("Error obteniendo todas las sedes:", error);
+    return [];
+  }
+
+  const result: SedeData[] = [];
+  for (const s of sedes) {
+    result.push({
+      ...s,
+      logo_url: await signLogoUrl(s.logo_url),
+    });
+  }
+  return result;
+}
+
+export async function updateSedeAction(sedeId: number, data: Partial<SedeData>) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: usr } = await supabase.from("usuarios").select("rol ( rol ), sede_id").eq("id", user.id).single();
+  const userRol = (usr?.rol as any)?.rol;
+
+  if (userRol !== "superadmin" && userRol !== "admin") {
+    return { error: "Permisos insuficientes" };
+  }
+  if (userRol === "admin" && usr?.sede_id !== sedeId) {
+    return { error: "No tienes permiso para modificar esta sede" };
+  }
+
+  const adminClient = getAdminClient();
+  const { error } = await adminClient
+    .from("sede")
+    .update({
+      nombre_clinica: data.nombre_clinica,
+      telefono: data.telefono,
+      email_contacto: data.email_contacto,
+      direccion: data.direccion,
+      business_phone: data.business_phone,
+      telegram_bot: data.telegram_bot,
+      horario_atencion: data.horario_atencion,
+    })
+    .eq("id", sedeId);
+
+  if (error) {
+    console.error("Error actualizando sede:", error);
+    return { error: "No se pudo guardar la información de la sede" };
+  }
+
+  revalidatePath("/configuracion");
+  return { success: true };
+}
+
+export async function updateLogoSedeAction(sedeId: number, formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: usr } = await supabase.from("usuarios").select("rol ( rol ), sede_id").eq("id", user.id).single();
+  const userRol = (usr?.rol as any)?.rol;
+
+  if (userRol !== "superadmin" && userRol !== "admin") {
+    return { error: "Permisos insuficientes" };
+  }
+  if (userRol === "admin" && usr?.sede_id !== sedeId) {
+    return { error: "No tienes permiso para modificar esta sede" };
+  }
+
+  const file = formData.get("logo") as File;
+  if (!file || file.size === 0) return { error: "Selecciona una imagen válida" };
+
+  const ext = file.name.split(".").pop();
+  const objectKey = `logos/sede_${sedeId}_${Date.now()}.${ext}`;
+
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await r2Client.send(new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: objectKey,
+      Body: buffer,
+      ContentType: file.type,
+    }));
+  } catch (uploadError) {
+    console.error("Error subiendo logo de sede a R2:", uploadError);
+    return { error: "No se pudo subir el logo" };
+  }
+
+  const adminClient = getAdminClient();
+  const { error: updateError } = await adminClient
+    .from("sede")
+    .update({ logo_url: objectKey })
+    .eq("id", sedeId);
+
+  if (updateError) {
+    console.error("Error actualizando logo_url en tabla sede:", updateError);
+    return { error: "No se pudo guardar la URL del logo en la sede" };
+  }
+
+  revalidatePath("/configuracion");
+  return { success: true };
 }
 
 export async function updateFirmaDigitalAction(formData: FormData) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
@@ -9,6 +9,7 @@ import { TimePicker } from "@/components/ui/TimePicker";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { crearCasoClinicoAction, agregarConsultaAction } from "../casos.actions";
+import { subirArchivoGeneralAction, getTiposArchivoAction } from "../consulta.actions";
 import { useTipoConsulta } from "@/providers/TipoConsultaProvider";
 
 type Campo = { clave: string; valor: string };
@@ -72,6 +73,22 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
   const [motivo, setMotivo] = useState("");
   const [observaciones, setObservaciones] = useState("");
   const [campos, setCampos] = useState<Campo[]>([{ clave: "", valor: "" }]);
+  const [files, setFiles] = useState<File[]>([]);
+  const [categorias, setCategorias] = useState<Record<string, string>>({});
+  const [descripciones, setDescripciones] = useState<Record<string, string>>({});
+  const [tiposArchivo, setTiposArchivo] = useState<any[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    getTiposArchivoAction().then(data => setTiposArchivo(data));
+  }, []);
+
+  function handleFileAdd(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files.length > 0) {
+      const added = Array.from(e.target.files);
+      setFiles(prev => [...prev, ...added]);
+    }
+  }
   
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -120,8 +137,32 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
       examen_fisico,
     });
 
+    if ("error" in res) { 
+      setSaving(false); 
+      setError(res.error ?? "Ocurrió un error al agregar la consulta"); 
+      return; 
+    }
+
+    // Subir archivos si los hay
+    if (files.length > 0 && res.consultaId) {
+      const uploadPromises = files.map(async (file) => {
+        const fd = new FormData();
+        fd.append("archivo", file);
+        if (categorias[file.name]) {
+          fd.append("tipo_archivo_id", categorias[file.name]);
+        } else if (tiposArchivo.length > 0) {
+          fd.append("tipo_archivo_id", String(tiposArchivo[0].id));
+        }
+        fd.append("categoria", file.type.startsWith("image/") ? "img" : "pdf");
+        fd.append("descripcion", descripciones[file.name] || "");
+        fd.append("consulta_id", String(res.consultaId));
+        fd.append("paciente_id", String(pacienteId));
+        return subirArchivoGeneralAction(fd);
+      });
+      await Promise.all(uploadPromises);
+    }
+
     setSaving(false);
-    if ("error" in res) { setError(res.error ?? "Ocurrió un error al agregar la consulta"); return; }
     onCreated(res.consultaId);
   }
 
@@ -292,6 +333,79 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
               placeholder="Notas de evolución, diagnóstico diferencial, comentarios..."
               className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
             />
+          </div>
+        </div>
+
+        {/* Archivos Adjuntos */}
+        <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+          <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <Icon name="attach_file" size={16} className="text-slate-400" />
+            Archivos Adjuntos (Opcional)
+          </label>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <label className="flex-1 flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl cursor-pointer hover:border-cyan-400 hover:bg-cyan-50/50 dark:hover:bg-cyan-900/20 transition-colors group">
+                <Icon name="cloud_upload" size={28} className="text-slate-400 group-hover:text-cyan-500 mb-2 transition-colors" />
+                <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Añadir Archivos</span>
+                <span className="text-[11px] text-slate-500 text-center mt-1">Imágenes o PDFs (Opcional)</span>
+                <input 
+                  type="file" 
+                  multiple 
+                  accept="image/*,application/pdf"
+                  className="hidden" 
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      const added = Array.from(e.target.files);
+                      setFiles(prev => [...prev, ...added]);
+                    }
+                  }} 
+                />
+              </label>
+            </div>
+            
+            {files.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                {files.map((f, i) => {
+                  const isImg = f.type.startsWith('image/');
+                  return (
+                    <div key={i} className="border border-slate-200 dark:border-slate-700 rounded-xl flex flex-col relative bg-white dark:bg-slate-800">
+                      <div className="relative h-24 bg-slate-50 dark:bg-slate-900 flex items-center justify-center rounded-t-xl overflow-hidden border-b border-slate-100 dark:border-slate-700">
+                        {isImg ? (
+                          <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Icon name="description" size={28} className="text-red-400 dark:text-red-500" />
+                        )}
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setFiles(prev => prev.filter((_, idx) => idx !== i));
+                          }} 
+                          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-700 text-red-500 dark:text-red-400 flex items-center justify-center shadow-sm"
+                          title="Quitar archivo"
+                        >
+                          <Icon name="close" size={13} />
+                        </button>
+                      </div>
+                      <div className="p-2.5 flex flex-col gap-2">
+                        <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate" title={f.name}>{f.name}</p>
+                        <Select
+                          value={categorias[f.name] || (tiposArchivo.length > 0 ? String(tiposArchivo[0].id) : "")}
+                          onChange={(v) => setCategorias(p => ({ ...p, [f.name]: v }))}
+                          options={tiposArchivo.map((t: any) => ({ value: String(t.id), label: t.tipo_archivo || t.Tipo_archivo || t.TIPO_ARCHIVO || "Sin nombre" }))}
+                        />
+                        <textarea
+                          placeholder="Descripción (opcional)..."
+                          value={descripciones[f.name] || ""}
+                          onChange={(e) => setDescripciones(p => ({ ...p, [f.name]: e.target.value }))}
+                          className="w-full text-[11px] p-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                          rows={2}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 

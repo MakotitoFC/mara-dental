@@ -40,14 +40,25 @@ export async function loginAction(formData: FormData){
 
     const actualUserId = data.user.id;
 
-    // 2. Buscar rol del usuario para redirección
+    // 2. Buscar rol y estado activo del usuario
     const { data: usuario } = await supabase
       .from("usuarios")
       .select(`
+        activo,
         rol:rol_id (rol)
       `)
       .eq("id", actualUserId)
       .single();
+
+    if (usuario && usuario.activo === false) {
+      await supabase.auth.signOut();
+      await supabase.rpc("registrar_sesion", {
+        p_usuario_id: actualUserId,
+        p_ip: ip,
+        p_user_agent: "Fallo: Intento de inicio de sesión en cuenta desactivada por administrador"
+      });
+      return { error: "Tu cuenta ha sido desactivada. Por favor, comunícate con el administrador de la clínica." };
+    }
 
     // @ts-ignore
     const roleName = (usuario?.rol?.rol || "").toLowerCase();
