@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import {
@@ -44,6 +45,7 @@ const TEST_USERS = [
 ];
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState<"login" | "register">("login");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -53,6 +55,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [isRemember, setIsRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("error") === "desactivado") {
+      setError("Tu sesión se cerró porque tu cuenta ha sido desactivada por el administrador.");
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
-import { createEmpleadoAction, editEmpleadoAction, softDeleteEmpleadoAction } from "./personal.actions";
+import { createEmpleadoAction, editEmpleadoAction, softDeleteEmpleadoAction, toggleEmpleadoEstadoAction } from "./personal.actions";
 import { AnimatePresence, motion } from "framer-motion";
 
 export default function PersonalClient({
@@ -41,6 +41,7 @@ export default function PersonalClient({
   const [editingPersonal, setEditingPersonal] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedRol, setSelectedRol] = useState("1");
+  const [isActivo, setIsActivo] = useState(true);
 
   // Filtros
   const handleFilter = (key: string, value: string) => {
@@ -65,6 +66,7 @@ export default function PersonalClient({
   const openModal = (personal: any = null) => {
     setEditingPersonal(personal);
     setSelectedRol(personal ? personal.usuarios?.rol_id?.toString() : "1");
+    setIsActivo(personal ? Boolean(personal.usuarios?.activo) : true);
     setIsModalOpen(true);
   };
 
@@ -81,16 +83,36 @@ export default function PersonalClient({
     try {
       if (editingPersonal) {
         await editEmpleadoAction(editingPersonal.usuario_id, formData);
-        toast.success("Personal actualizado");
+        toast.success("Personal actualizado correctamente");
       } else {
         await createEmpleadoAction(formData);
         toast.success("Personal creado con éxito");
       }
       closeModal();
+      router.refresh();
     } catch (err: any) {
       toast.error(err.message || "Error al guardar");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleEstado = async (usuarioId: string, currentActivo: boolean) => {
+    const nuevoEstado = !currentActivo;
+    const accionText = nuevoEstado ? "activar" : "desactivar";
+    const ok = await confirm({
+      title: `${nuevoEstado ? "Activar" : "Desactivar"} empleado`,
+      message: `¿Estás seguro de ${accionText} a este empleado?${nuevoEstado ? " Podrá volver a ingresar al sistema." : " Su sesión se cerrará de inmediato si está activa."}`,
+      confirmLabel: nuevoEstado ? "Activar" : "Desactivar",
+    });
+    if (!ok) return;
+
+    try {
+      await toggleEmpleadoEstadoAction(usuarioId, nuevoEstado);
+      toast.success(`Empleado ${nuevoEstado ? "activado" : "desactivado"} correctamente`);
+      router.refresh();
+    } catch (err: any) {
+      toast.error(`Error al ${accionText} el empleado`);
     }
   };
 
@@ -105,7 +127,8 @@ export default function PersonalClient({
 
     try {
       await softDeleteEmpleadoAction(usuarioId);
-      toast.success("Empleado eliminado");
+      toast.success("Empleado desactivado correctamente");
+      router.refresh();
     } catch (err: any) {
       toast.error("Error al eliminar");
     }
@@ -247,6 +270,17 @@ export default function PersonalClient({
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
+                        onClick={() => handleToggleEstado(p.usuario_id, Boolean(p.usuarios?.activo))}
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                          p.usuarios?.activo
+                            ? "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
+                            : "text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
+                        }`}
+                        title={p.usuarios?.activo ? "Desactivar empleado" : "Activar empleado"}
+                      >
+                        <Icon name={p.usuarios?.activo ? "block" : "check_circle"} size={16} />
+                      </button>
+                      <button
                         onClick={() => openModal(p)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition-colors"
                         title="Editar"
@@ -382,11 +416,16 @@ export default function PersonalClient({
                     <div className="flex items-center gap-3">
                       <label className="text-sm font-medium text-slate-700">Estado del Empleado:</label>
                       <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="hidden" name="activo" value="false" />
-                        <input type="checkbox" name="activo" value="true" defaultChecked={editingPersonal.usuarios?.activo} className="sr-only peer" />
+                        <input type="hidden" name="activo" value={isActivo ? "true" : "false"} />
+                        <input
+                          type="checkbox"
+                          checked={isActivo}
+                          onChange={(e) => setIsActivo(e.target.checked)}
+                          className="sr-only peer"
+                        />
                         <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                        <span className="ml-3 text-sm font-medium text-slate-600 peer-checked:text-emerald-600">
-                          Activo en el sistema
+                        <span className={`ml-3 text-sm font-medium ${isActivo ? "text-emerald-600" : "text-red-500"}`}>
+                          {isActivo ? "Activo en el sistema" : "Inactivo / Desactivado"}
                         </span>
                       </label>
                     </div>

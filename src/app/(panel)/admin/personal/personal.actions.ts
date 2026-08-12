@@ -224,7 +224,7 @@ export async function editEmpleadoAction(userId: string, formData: FormData) {
   const numColegiatura = formData.get("num_colegiatura") as string;
   const puestoId = Number(formData.get("puesto_id"));
   const especialidadId = formData.get("especialidad_id") ? Number(formData.get("especialidad_id")) : null;
-  const activo = formData.get("activo") === "true"; // Nuevo campo
+  const activo = formData.getAll("activo").includes("true") || formData.get("activo") === "true";
 
   // 1. Actualizar Personal
   const { error } = await adminClient
@@ -250,6 +250,36 @@ export async function editEmpleadoAction(userId: string, formData: FormData) {
 
   if (userError) throw new Error("Error al actualizar estado del usuario");
 
+  // Si fue desactivado, revocar de inmediato todos sus tokens de sesión activa
+  if (!activo) {
+    try {
+      await adminClient.auth.admin.signOut(userId, "global");
+    } catch (signOutErr) {
+      console.error("[editEmpleadoAction] Error al revocar sesión activa:", signOutErr);
+    }
+  }
+
+  revalidatePath("/admin/personal");
+  return { success: true };
+}
+
+export async function toggleEmpleadoEstadoAction(userId: string, nuevoEstado: boolean) {
+  const adminClient = getAdminClient();
+  const { error } = await adminClient
+    .from("usuarios")
+    .update({ activo: nuevoEstado })
+    .eq("id", userId);
+
+  if (error) throw new Error("Error al cambiar el estado del usuario");
+
+  if (!nuevoEstado) {
+    try {
+      await adminClient.auth.admin.signOut(userId, "global");
+    } catch (signOutErr) {
+      console.error("[toggleEmpleadoEstadoAction] Error al revocar sesión activa:", signOutErr);
+    }
+  }
+
   revalidatePath("/admin/personal");
   return { success: true };
 }
@@ -262,6 +292,14 @@ export async function softDeleteEmpleadoAction(userId: string) {
     .eq("id", userId);
 
   if (error) throw new Error("Error al eliminar al empleado");
+
+  // Revocar de inmediato todos sus tokens de sesión activa
+  try {
+    await adminClient.auth.admin.signOut(userId, "global");
+  } catch (signOutErr) {
+    console.error("[softDeleteEmpleadoAction] Error al revocar sesión activa:", signOutErr);
+  }
+
   revalidatePath("/admin/personal");
   return { success: true };
 }
