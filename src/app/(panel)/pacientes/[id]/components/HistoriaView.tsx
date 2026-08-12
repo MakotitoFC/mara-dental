@@ -283,7 +283,7 @@ export function HistoriaView({
               <Icon name="arrow_back" size={18} />
             </Link>
 
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center shrink-0 shadow-sm">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-linear-to-br from-cyan-500 to-blue-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center shrink-0 shadow-sm">
               {initials(nombreCompleto)}
             </div>
 
@@ -363,7 +363,7 @@ export function HistoriaView({
 
       {/* ── Banner de Consulta en Curso Interrumpida (Reanudable dentro de 1 hora) ── */}
       {reanudableConsulta && !consultaId && (
-        <div className="mx-3 sm:mx-6 md:mx-8 mt-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-cyan-500/10 to-blue-500/10 border border-amber-400/40 dark:border-cyan-500/40 flex flex-wrap items-center justify-between gap-3 shadow-sm animate-fadeIn shrink-0">
+        <div className="mx-3 sm:mx-6 md:mx-8 mt-3 p-3.5 sm:p-4 rounded-2xl bg-linear-to-r from-amber-500/10 via-cyan-500/10 to-blue-500/10 border border-amber-400/40 dark:border-cyan-500/40 flex flex-wrap items-center justify-between gap-3 shadow-sm animate-fadeIn shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
               <Icon name="history" size={22} />
@@ -384,7 +384,7 @@ export function HistoriaView({
           </div>
           <button
             onClick={() => handleReanudarConsulta(reanudableConsulta.id)}
-            className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 text-white rounded-xl text-[12.5px] font-bold shadow-md shadow-cyan-600/20 flex items-center gap-2 transition-all cursor-pointer shrink-0"
+            className="px-4 py-2 bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 text-white rounded-xl text-[12.5px] font-bold shadow-md shadow-cyan-600/20 flex items-center gap-2 transition-all cursor-pointer shrink-0"
           >
             <Icon name="play_arrow" size={16} /> Reanudar Consulta
           </button>

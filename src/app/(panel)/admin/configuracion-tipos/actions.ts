@@ -18,11 +18,12 @@ export async function getTiposConsultaAction() {
   return data;
 }
 
-export async function createTipoConsultaAction(data: { tipo_consulta: string; color: string }) {
+export async function createTipoConsultaAction(data: { tipo_consulta: string; color: string; estado?: boolean }) {
   const supabase = await createClient();
   const { error } = await supabase.from("tipo_consulta").insert({
     tipo_consulta: data.tipo_consulta.trim(),
     color: data.color,
+    estado: data.estado !== undefined ? data.estado : true,
   });
 
   if (error) return { error: error.message };
@@ -30,13 +31,14 @@ export async function createTipoConsultaAction(data: { tipo_consulta: string; co
   return { success: true };
 }
 
-export async function updateTipoConsultaAction(id: string, data: { tipo_consulta: string; color: string }) {
+export async function updateTipoConsultaAction(id: string, data: { tipo_consulta: string; color: string; estado?: boolean }) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("tipo_consulta")
     .update({
       tipo_consulta: data.tipo_consulta.trim(),
       color: data.color,
+      estado: data.estado !== undefined ? data.estado : true,
     })
     .eq("id", id);
 
@@ -47,8 +49,8 @@ export async function updateTipoConsultaAction(id: string, data: { tipo_consulta
 
 export async function deleteTipoConsultaAction(id: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("tipo_consulta").delete().eq("id", id);
-  if (error) return { error: "No se puede eliminar. Es posible que existan consultas vinculadas a este tipo." };
+  const { error } = await supabase.from("tipo_consulta").update({ estado: false }).eq("id", id);
+  if (error) return { error: error.message };
   revalidatePath("/admin/configuracion-tipos");
   return { success: true };
 }
@@ -68,10 +70,11 @@ export async function getTiposArchivoAction() {
   return data;
 }
 
-export async function createTipoArchivoAction(tipo_archivo: string) {
+export async function createTipoArchivoAction(tipo_archivo: string, estado = true) {
   const supabase = await createClient();
   const { error } = await supabase.from("tipo_archivo").insert({
     tipo_archivo: tipo_archivo.trim(),
+    estado,
   });
 
   if (error) return { error: error.message };
@@ -79,12 +82,13 @@ export async function createTipoArchivoAction(tipo_archivo: string) {
   return { success: true };
 }
 
-export async function updateTipoArchivoAction(id: string, tipo_archivo: string) {
+export async function updateTipoArchivoAction(id: string, tipo_archivo: string, estado = true) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("tipo_archivo")
     .update({
       tipo_archivo: tipo_archivo.trim(),
+      estado,
     })
     .eq("id", id);
 
@@ -95,8 +99,8 @@ export async function updateTipoArchivoAction(id: string, tipo_archivo: string) 
 
 export async function deleteTipoArchivoAction(id: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("tipo_archivo").delete().eq("id", id);
-  if (error) return { error: "No se puede eliminar. Existen archivos vinculados a este tipo." };
+  const { error } = await supabase.from("tipo_archivo").update({ estado: false }).eq("id", id);
+  if (error) return { error: error.message };
   revalidatePath("/admin/configuracion-tipos");
   return { success: true };
 }
@@ -116,11 +120,12 @@ export async function getCondicionAction() {
   return data;
 }
 
-export async function createCondicionAction(data: { condicion: string; color: string }) {
+export async function createCondicionAction(data: { condicion: string; color: string; estado?: boolean }) {
   const supabase = await createClient();
   const { error } = await supabase.from("condicion").insert({
     condicion: data.condicion.trim(),
     color: data.color,
+    estado: data.estado !== undefined ? data.estado : true,
   });
 
   if (error) return { error: error.message };
@@ -128,13 +133,14 @@ export async function createCondicionAction(data: { condicion: string; color: st
   return { success: true };
 }
 
-export async function updateCondicionAction(id: string, data: { condicion: string; color: string }) {
+export async function updateCondicionAction(id: string, data: { condicion: string; color: string; estado?: boolean }) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("condicion")
     .update({
       condicion: data.condicion.trim(),
       color: data.color,
+      estado: data.estado !== undefined ? data.estado : true,
     })
     .eq("id", id);
 
@@ -145,8 +151,8 @@ export async function updateCondicionAction(id: string, data: { condicion: strin
 
 export async function deleteCondicionAction(id: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("condicion").delete().eq("id", id);
-  if (error) return { error: "No se puede eliminar. Es posible que existan odontogramas vinculados a esta condición." };
+  const { error } = await supabase.from("condicion").update({ estado: false }).eq("id", id);
+  if (error) return { error: error.message };
   revalidatePath("/admin/configuracion-tipos");
   return { success: true };
 }

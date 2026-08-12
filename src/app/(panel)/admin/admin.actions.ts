@@ -183,14 +183,25 @@ export async function getCie10Action() {
 
 export async function saveCie10Action(data: any) {
   const supabase = getAdminClient();
-  if (data.codigo_antiguo) {
-    const { codigo_antiguo, ...updateData } = data;
+  const payload = {
+    ...data,
+    estado: data.estado !== undefined ? data.estado : true,
+  };
+  if (payload.codigo_antiguo) {
+    const { codigo_antiguo, ...updateData } = payload;
     const { error } = await supabase.from("cie10").update(updateData).eq("codigo", codigo_antiguo);
     if (error) return { error: error.message };
   } else {
-    const { error } = await supabase.from("cie10").insert([data]);
+    const { error } = await supabase.from("cie10").insert([payload]);
     if (error) return { error: error.message };
   }
+  return { success: true };
+}
+
+export async function softDeleteCie10Action(codigo: string) {
+  const supabase = getAdminClient();
+  const { error } = await supabase.from("cie10").update({ estado: false }).eq("codigo", codigo);
+  if (error) return { error: error.message };
   return { success: true };
 }
 
