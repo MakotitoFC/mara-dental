@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useConfirm } from "@/components/ui/ConfirmModal";
+import { useToast } from "@/components/ui/Toast";
 import {
   getTiposConsultaAction,
   createTipoConsultaAction,
@@ -54,27 +55,28 @@ export default function ConfiguracionTiposClient({
   initialEspecialidades
 }: ConfiguracionTiposClientProps) {
   const confirm = useConfirm();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<"consultas" | "archivos" | "condiciones" | "cie10" | "roles" | "puestos" | "especialidades">("consultas");
 
   // Estado Consultas
   const [consultas, setConsultas] = useState<any[]>(initialConsultas);
   const [isConsultaModalOpen, setIsConsultaModalOpen] = useState(false);
-  const [consultaForm, setConsultaForm] = useState({ id: "", tipo_consulta: "", color: "#3b82f6" });
+  const [consultaForm, setConsultaForm] = useState({ id: "", tipo_consulta: "", color: "#3b82f6", estado: true });
   
   // Estado Condicion Diente
   const [condiciones, setCondiciones] = useState<any[]>(initialCondiciones);
   const [isCondicionModalOpen, setIsCondicionModalOpen] = useState(false);
-  const [condicionForm, setCondicionForm] = useState({ id: "", condicion: "", color: "#bae6fd" });
+  const [condicionForm, setCondicionForm] = useState({ id: "", condicion: "", color: "#bae6fd", estado: true });
   
   // Estado Archivos
   const [archivos, setArchivos] = useState<any[]>(initialArchivos);
   const [isArchivoModalOpen, setIsArchivoModalOpen] = useState(false);
-  const [archivoForm, setArchivoForm] = useState({ id: "", tipo_archivo: "" });
+  const [archivoForm, setArchivoForm] = useState({ id: "", tipo_archivo: "", estado: true });
 
   // Estado CIE-10
   const [cie10, setCie10] = useState<any[]>(initialCie10);
   const [isCie10ModalOpen, setIsCie10ModalOpen] = useState(false);
-  const [cie10Form, setCie10Form] = useState({ codigo: "", descripcion: "", codigo_antiguo: "" });
+  const [cie10Form, setCie10Form] = useState({ codigo: "", descripcion: "", codigo_antiguo: "", estado: true });
 
   // Estado Roles
   const [roles, setRoles] = useState<any[]>(initialRoles);
@@ -115,19 +117,44 @@ export default function ConfiguracionTiposClient({
     e.preventDefault();
     if (!consultaForm.tipo_consulta.trim()) return;
     
-    if (consultaForm.id) {
-      await updateTipoConsultaAction(consultaForm.id, consultaForm);
-    } else {
-      await createTipoConsultaAction(consultaForm);
-    }
+    const isEditing = Boolean(consultaForm.id);
     setIsConsultaModalOpen(false);
+
+    // Actualización instantánea en frontend
+    if (isEditing) {
+      setConsultas(prev => prev.map(c => String(c.id) === String(consultaForm.id) ? { ...c, ...consultaForm } : c));
+      toast.success("Tipo de consulta actualizado correctamente");
+    } else {
+      setConsultas(prev => [...prev, { ...consultaForm, id: Date.now().toString(), estado: true }]);
+      toast.success("Tipo de consulta creado correctamente");
+    }
+
+    const res = consultaForm.id 
+      ? await updateTipoConsultaAction(consultaForm.id, consultaForm)
+      : await createTipoConsultaAction(consultaForm);
+
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
+    }
     loadData();
   };
 
   const handleDeleteConsulta = async (id: string) => {
-    if (!confirm("¿Seguro que deseas eliminar este tipo de consulta?")) return;
+    const ok = await confirm({
+      title: "Desactivar Tipo de Consulta",
+      message: "¿Estás seguro de desactivar este tipo de consulta?",
+      confirmLabel: "Desactivar",
+    });
+    if (!ok) return;
+
+    // Actualización instantánea en frontend
+    setConsultas(prev => prev.map(c => String(c.id) === String(id) ? { ...c, estado: false } : c));
+    toast.success("Tipo de consulta desactivado correctamente");
+
     const res = await deleteTipoConsultaAction(id);
-    if ((res as any)?.error) alert((res as any).error);
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
+    }
     loadData();
   };
 
@@ -136,19 +163,42 @@ export default function ConfiguracionTiposClient({
     e.preventDefault();
     if (!condicionForm.condicion.trim()) return;
     
-    if (condicionForm.id) {
-      await updateCondicionAction(condicionForm.id, condicionForm);
-    } else {
-      await createCondicionAction(condicionForm);
-    }
+    const isEditing = Boolean(condicionForm.id);
     setIsCondicionModalOpen(false);
+
+    if (isEditing) {
+      setCondiciones(prev => prev.map(c => String(c.id) === String(condicionForm.id) ? { ...c, ...condicionForm } : c));
+      toast.success("Condición actualizada correctamente");
+    } else {
+      setCondiciones(prev => [...prev, { ...condicionForm, id: Date.now().toString(), estado: true }]);
+      toast.success("Condición creada correctamente");
+    }
+
+    const res = condicionForm.id
+      ? await updateCondicionAction(condicionForm.id, condicionForm)
+      : await createCondicionAction(condicionForm);
+
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
+    }
     loadData();
   };
 
   const handleDeleteCondicion = async (id: string) => {
-    if (!confirm("¿Seguro que deseas eliminar esta condición?")) return;
+    const ok = await confirm({
+      title: "Desactivar Condición",
+      message: "¿Estás seguro de desactivar esta condición?",
+      confirmLabel: "Desactivar",
+    });
+    if (!ok) return;
+
+    setCondiciones(prev => prev.map(c => String(c.id) === String(id) ? { ...c, estado: false } : c));
+    toast.success("Condición desactivada correctamente");
+
     const res = await deleteCondicionAction(id);
-    if ((res as any)?.error) alert((res as any).error);
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
+    }
     loadData();
   };
 
@@ -157,19 +207,42 @@ export default function ConfiguracionTiposClient({
     e.preventDefault();
     if (!archivoForm.tipo_archivo.trim()) return;
     
-    if (archivoForm.id) {
-      await updateTipoArchivoAction(archivoForm.id, archivoForm.tipo_archivo);
-    } else {
-      await createTipoArchivoAction(archivoForm.tipo_archivo);
-    }
+    const isEditing = Boolean(archivoForm.id);
     setIsArchivoModalOpen(false);
+
+    if (isEditing) {
+      setArchivos(prev => prev.map(a => String(a.id) === String(archivoForm.id) ? { ...a, ...archivoForm } : a));
+      toast.success("Tipo de archivo actualizado correctamente");
+    } else {
+      setArchivos(prev => [...prev, { ...archivoForm, id: Date.now().toString(), estado: true }]);
+      toast.success("Tipo de archivo creado correctamente");
+    }
+
+    const res = archivoForm.id
+      ? await updateTipoArchivoAction(archivoForm.id, archivoForm.tipo_archivo, archivoForm.estado)
+      : await createTipoArchivoAction(archivoForm.tipo_archivo, archivoForm.estado);
+
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
+    }
     loadData();
   };
 
   const handleDeleteArchivo = async (id: string) => {
-    if (!confirm("¿Seguro que deseas eliminar este tipo de archivo?")) return;
+    const ok = await confirm({
+      title: "Desactivar Tipo de Archivo",
+      message: "¿Estás seguro de desactivar este tipo de archivo?",
+      confirmLabel: "Desactivar",
+    });
+    if (!ok) return;
+
+    setArchivos(prev => prev.map(a => String(a.id) === String(id) ? { ...a, estado: false } : a));
+    toast.success("Tipo de archivo desactivado correctamente");
+
     const res = await deleteTipoArchivoAction(id);
-    if ((res as any)?.error) alert((res as any).error);
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
+    }
     loadData();
   };
 
@@ -178,39 +251,87 @@ export default function ConfiguracionTiposClient({
     e.preventDefault();
     if (!cie10Form.codigo.trim() || !cie10Form.descripcion.trim()) return;
     
+    const isEditing = Boolean(cie10Form.codigo_antiguo);
+    setIsCie10ModalOpen(false);
+
+    if (isEditing) {
+      setCie10(prev => prev.map(c => String(c.codigo) === String(cie10Form.codigo_antiguo) ? { ...c, ...cie10Form } : c));
+      toast.success("Código CIE-10 actualizado correctamente");
+    } else {
+      setCie10(prev => [...prev, { ...cie10Form, estado: true }]);
+      toast.success("Código CIE-10 creado correctamente");
+    }
+
     const { saveCie10Action } = await import("../admin.actions");
     const res = await saveCie10Action(cie10Form);
-    if ((res as any)?.error) alert((res as any).error);
-    else {
-      setIsCie10ModalOpen(false);
-      loadData();
+
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
     }
+    loadData();
+  };
+
+  const handleDeleteCie10 = async (codigo: string) => {
+    const ok = await confirm({
+      title: "Desactivar Código CIE-10",
+      message: "¿Estás seguro de desactivar este código CIE-10?",
+      confirmLabel: "Desactivar",
+    });
+    if (!ok) return;
+
+    setCie10(prev => prev.map(c => String(c.codigo) === String(codigo) ? { ...c, estado: false } : c));
+    toast.success("Código CIE-10 desactivado correctamente");
+
+    const { softDeleteCie10Action } = await import("../admin.actions");
+    const res = await softDeleteCie10Action(codigo);
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
+    }
+    loadData();
   };
 
   // --- Handlers Roles ---
   const handleSaveRol = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rolForm.rol.trim()) return;
+
+    const isEditing = Boolean(rolForm.id);
+    setIsRolModalOpen(false);
+
+    if (isEditing) {
+      setRoles(prev => prev.map(r => String(r.id) === String(rolForm.id) ? { ...r, ...rolForm } : r));
+      toast.success("Rol actualizado correctamente");
+    } else {
+      setRoles(prev => [...prev, { ...rolForm, id: Date.now(), estado: true }]);
+      toast.success("Rol creado correctamente");
+    }
+
     const { saveRolAdminAction } = await import("../admin.actions");
     const res = await saveRolAdminAction(rolForm);
-    if ((res as any)?.error) alert((res as any).error);
-    else {
-      setIsRolModalOpen(false);
-      loadData();
+
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
     }
+    loadData();
   };
 
   const handleDeleteRol = async (id: number) => {
     const ok = await confirm({
-      title: "Eliminar Rol",
-      message: "¿Estás seguro que deseas eliminar este rol? Será desactivado y dejará de estar disponible.",
-      requireText: "ELIMINAR",
+      title: "Desactivar Rol",
+      message: "¿Estás seguro que deseas desactivar este rol? Dejará de estar disponible.",
+      requireText: "DESACTIVAR",
       confirmLabel: "Desactivar Rol",
     });
     if (!ok) return;
+
+    setRoles(prev => prev.map(r => Number(r.id) === Number(id) ? { ...r, estado: false } : r));
+    toast.success("Rol desactivado correctamente");
+
     const { softDeleteRolAction } = await import("../admin.actions");
     const res = await softDeleteRolAction(id);
-    if ((res as any)?.error) alert((res as any).error);
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
+    }
     loadData();
   };
 
@@ -218,26 +339,44 @@ export default function ConfiguracionTiposClient({
   const handleSavePuesto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!puestoForm.puesto.trim()) return;
+
+    const isEditing = Boolean(puestoForm.id);
+    setIsPuestoModalOpen(false);
+
+    if (isEditing) {
+      setPuestos(prev => prev.map(p => String(p.id) === String(puestoForm.id) ? { ...p, ...puestoForm } : p));
+      toast.success("Puesto actualizado correctamente");
+    } else {
+      setPuestos(prev => [...prev, { ...puestoForm, id: Date.now(), estado: true }]);
+      toast.success("Puesto creado correctamente");
+    }
+
     const { savePuestoAdminAction } = await import("../admin.actions");
     const res = await savePuestoAdminAction(puestoForm);
-    if ((res as any)?.error) alert((res as any).error);
-    else {
-      setIsPuestoModalOpen(false);
-      loadData();
+
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
     }
+    loadData();
   };
 
   const handleDeletePuesto = async (id: number) => {
     const ok = await confirm({
-      title: "Eliminar Puesto",
-      message: "¿Estás seguro que deseas eliminar este puesto? Será desactivado y dejará de estar disponible.",
-      requireText: "ELIMINAR",
+      title: "Desactivar Puesto",
+      message: "¿Estás seguro que deseas desactivar este puesto? Dejará de estar disponible.",
+      requireText: "DESACTIVAR",
       confirmLabel: "Desactivar Puesto",
     });
     if (!ok) return;
+
+    setPuestos(prev => prev.map(p => Number(p.id) === Number(id) ? { ...p, estado: false } : p));
+    toast.success("Puesto desactivado correctamente");
+
     const { softDeletePuestoAction } = await import("../admin.actions");
     const res = await softDeletePuestoAction(id);
-    if ((res as any)?.error) alert((res as any).error);
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
+    }
     loadData();
   };
 
@@ -245,26 +384,44 @@ export default function ConfiguracionTiposClient({
   const handleSaveEspecialidad = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!especialidadForm.especialidad.trim()) return;
+
+    const isEditing = Boolean(especialidadForm.id);
+    setIsEspecialidadModalOpen(false);
+
+    if (isEditing) {
+      setEspecialidades(prev => prev.map(es => String(es.id) === String(especialidadForm.id) ? { ...es, ...especialidadForm } : es));
+      toast.success("Especialidad actualizada correctamente");
+    } else {
+      setEspecialidades(prev => [...prev, { ...especialidadForm, id: Date.now(), estado: true }]);
+      toast.success("Especialidad creada correctamente");
+    }
+
     const { saveEspecialidadAdminAction } = await import("../admin.actions");
     const res = await saveEspecialidadAdminAction(especialidadForm);
-    if ((res as any)?.error) alert((res as any).error);
-    else {
-      setIsEspecialidadModalOpen(false);
-      loadData();
+
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
     }
+    loadData();
   };
 
   const handleDeleteEspecialidad = async (id: number) => {
     const ok = await confirm({
-      title: "Eliminar Especialidad",
-      message: "¿Estás seguro que deseas eliminar esta especialidad? Será desactivada y dejará de estar disponible.",
-      requireText: "ELIMINAR",
+      title: "Desactivar Especialidad",
+      message: "¿Estás seguro que deseas desactivar esta especialidad? Dejará de estar disponible.",
+      requireText: "DESACTIVAR",
       confirmLabel: "Desactivar Especialidad",
     });
     if (!ok) return;
+
+    setEspecialidades(prev => prev.map(es => Number(es.id) === Number(id) ? { ...es, estado: false } : es));
+    toast.success("Especialidad desactivada correctamente");
+
     const { softDeleteEspecialidadAction } = await import("../admin.actions");
     const res = await softDeleteEspecialidadAction(id);
-    if ((res as any)?.error) alert((res as any).error);
+    if ((res as any)?.error) {
+      toast.error((res as any).error);
+    }
     loadData();
   };
 
@@ -353,7 +510,7 @@ export default function ConfiguracionTiposClient({
               </h2>
               <button
                 onClick={() => {
-                  setConsultaForm({ id: "", tipo_consulta: "", color: "#3b82f6" });
+                  setConsultaForm({ id: "", tipo_consulta: "", color: "#3b82f6", estado: true });
                   setIsConsultaModalOpen(true);
                 }}
                 className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600 text-white text-[13px] font-semibold rounded-lg hover:bg-cyan-700 transition-colors shadow-sm shadow-cyan-600/20"
@@ -365,24 +522,31 @@ export default function ConfiguracionTiposClient({
             <div className="p-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {consultas.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:border-slate-300 transition-colors bg-white">
+                  <div key={c.id} className={`flex items-center justify-between p-3 border rounded-xl transition-colors ${c.estado === false ? 'border-amber-200 bg-amber-50/40 opacity-70' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm ring-1 ring-black/5" style={{ backgroundColor: c.color }}></div>
-                      <span className="font-semibold text-[13px] text-slate-700">{c.tipo_consulta}</span>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-[13px] text-slate-700">{c.tipo_consulta}</span>
+                        {c.estado === false && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded w-fit mt-0.5">INACTIVO</span>}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <button 
                         onClick={() => { setConsultaForm(c); setIsConsultaModalOpen(true); }}
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                        title="Editar"
                       >
                         <Icon name="edit" size={16} />
                       </button>
-                      <button 
-                        onClick={() => handleDeleteConsulta(c.id)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                      >
-                        <Icon name="delete" size={16} />
-                      </button>
+                      {c.estado !== false && (
+                        <button 
+                          onClick={() => handleDeleteConsulta(c.id)}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                          title="Desactivar"
+                        >
+                          <Icon name="block" size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -401,7 +565,7 @@ export default function ConfiguracionTiposClient({
               </h2>
               <button
                 onClick={() => {
-                  setCondicionForm({ id: "", condicion: "", color: "#bae6fd" });
+                  setCondicionForm({ id: "", condicion: "", color: "#bae6fd", estado: true });
                   setIsCondicionModalOpen(true);
                 }}
                 className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600 text-white text-[13px] font-semibold rounded-lg hover:bg-cyan-700 transition-colors shadow-sm shadow-cyan-600/20"
@@ -413,24 +577,31 @@ export default function ConfiguracionTiposClient({
             <div className="p-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {condiciones.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:border-slate-300 transition-colors bg-white">
+                  <div key={c.id} className={`flex items-center justify-between p-3 border rounded-xl transition-colors ${c.estado === false ? 'border-amber-200 bg-amber-50/40 opacity-70' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm ring-1 ring-black/5" style={{ backgroundColor: c.color }}></div>
-                      <span className="font-semibold text-[13px] text-slate-700 uppercase">{c.condicion}</span>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-[13px] text-slate-700 uppercase">{c.condicion}</span>
+                        {c.estado === false && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded w-fit mt-0.5">INACTIVO</span>}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <button 
                         onClick={() => { setCondicionForm(c); setIsCondicionModalOpen(true); }}
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                        title="Editar"
                       >
                         <Icon name="edit" size={16} />
                       </button>
-                      <button 
-                        onClick={() => handleDeleteCondicion(c.id)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                      >
-                        <Icon name="delete" size={16} />
-                      </button>
+                      {c.estado !== false && (
+                        <button 
+                          onClick={() => handleDeleteCondicion(c.id)}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                          title="Desactivar"
+                        >
+                          <Icon name="block" size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -448,7 +619,7 @@ export default function ConfiguracionTiposClient({
               </h2>
               <button
                 onClick={() => {
-                  setArchivoForm({ id: "", tipo_archivo: "" });
+                  setArchivoForm({ id: "", tipo_archivo: "", estado: true });
                   setIsArchivoModalOpen(true);
                 }}
                 className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600 text-white text-[13px] font-semibold rounded-lg hover:bg-cyan-700 transition-colors shadow-sm shadow-cyan-600/20"
@@ -460,26 +631,33 @@ export default function ConfiguracionTiposClient({
             <div className="p-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {archivos.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between p-3 border border-slate-200 rounded-xl hover:border-slate-300 transition-colors bg-white">
+                  <div key={a.id} className={`flex items-center justify-between p-3 border rounded-xl transition-colors ${a.estado === false ? 'border-amber-200 bg-amber-50/40 opacity-70' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500">
                         <Icon name="description" size={16} />
                       </div>
-                      <span className="font-semibold text-[13px] text-slate-700 uppercase">{a.tipo_archivo}</span>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-[13px] text-slate-700 uppercase">{a.tipo_archivo}</span>
+                        {a.estado === false && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded w-fit mt-0.5">INACTIVO</span>}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <button 
                         onClick={() => { setArchivoForm(a); setIsArchivoModalOpen(true); }}
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                        title="Editar"
                       >
                         <Icon name="edit" size={16} />
                       </button>
-                      <button 
-                        onClick={() => handleDeleteArchivo(a.id)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                      >
-                        <Icon name="delete" size={16} />
-                      </button>
+                      {a.estado !== false && (
+                        <button 
+                          onClick={() => handleDeleteArchivo(a.id)}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                          title="Desactivar"
+                        >
+                          <Icon name="block" size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -495,7 +673,7 @@ export default function ConfiguracionTiposClient({
               <h2 className="font-semibold text-slate-700">Clasificación Internacional de Enfermedades (CIE-10)</h2>
               <button 
                 onClick={() => {
-                  setCie10Form({ codigo: "", descripcion: "", codigo_antiguo: "" });
+                  setCie10Form({ codigo: "", descripcion: "", codigo_antiguo: "", estado: true });
                   setIsCie10ModalOpen(true);
                 }}
                 className="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
@@ -506,20 +684,26 @@ export default function ConfiguracionTiposClient({
             <div className="flex-1 overflow-auto p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {cie10.map(c => (
-                  <div key={c.codigo} className="border border-slate-200 rounded-xl p-4 flex flex-col gap-3 relative group bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div key={c.codigo} className={`border rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow ${c.estado === false ? 'border-amber-200 bg-amber-50/40 opacity-70' : 'border-slate-200 bg-white'}`}>
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => {
-                        setCie10Form({ codigo: c.codigo, descripcion: c.descripcion, codigo_antiguo: c.codigo });
+                        setCie10Form({ codigo: c.codigo, descripcion: c.descripcion, codigo_antiguo: c.codigo, estado: c.estado !== undefined ? c.estado : true });
                         setIsCie10ModalOpen(true);
-                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg">
+                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
                         <Icon name="edit_note" size={16} />
                       </button>
+                      {c.estado !== false && (
+                        <button onClick={() => handleDeleteCie10(c.codigo)} className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
+                          <Icon name="block" size={16} />
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-cyan-500"></div>
+                      <div className={`w-2 h-2 rounded-full ${c.estado === false ? 'bg-amber-500' : 'bg-cyan-500'}`}></div>
                       <h3 className="font-bold text-slate-800 break-all">{c.codigo}</h3>
                     </div>
                     <p className="text-sm text-slate-600 line-clamp-3" title={c.descripcion}>{c.descripcion}</p>
+                    {c.estado === false && <span className="text-xs font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
                   </div>
                 ))}
                 {cie10.length === 0 && (
@@ -554,12 +738,12 @@ export default function ConfiguracionTiposClient({
                       <button onClick={() => {
                         setRolForm({ id: r.id, rol: r.rol, descripcion: r.descripcion, estado: r.estado });
                         setIsRolModalOpen(true);
-                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg">
+                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
                         <Icon name="edit_note" size={16} />
                       </button>
                       {r.estado && (
-                        <button onClick={() => handleDeleteRol(r.id)} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg">
-                          <Icon name="delete" size={16} />
+                        <button onClick={() => handleDeleteRol(r.id)} className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
+                          <Icon name="block" size={16} />
                         </button>
                       )}
                     </div>
@@ -604,12 +788,12 @@ export default function ConfiguracionTiposClient({
                       <button onClick={() => {
                         setPuestoForm({ id: p.id, puesto: p.puesto, descripcion: p.descripcion, estado: p.estado });
                         setIsPuestoModalOpen(true);
-                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg">
+                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
                         <Icon name="edit_note" size={16} />
                       </button>
                       {p.estado && (
-                        <button onClick={() => handleDeletePuesto(p.id)} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg">
-                          <Icon name="delete" size={16} />
+                        <button onClick={() => handleDeletePuesto(p.id)} className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
+                          <Icon name="block" size={16} />
                         </button>
                       )}
                     </div>
@@ -654,12 +838,12 @@ export default function ConfiguracionTiposClient({
                       <button onClick={() => {
                         setEspecialidadForm({ id: e.id, especialidad: e.especialidad, descripcion: e.descripcion, estado: e.estado });
                         setIsEspecialidadModalOpen(true);
-                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg">
+                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
                         <Icon name="edit_note" size={16} />
                       </button>
                       {e.estado && (
-                        <button onClick={() => handleDeleteEspecialidad(e.id)} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg">
-                          <Icon name="delete" size={16} />
+                        <button onClick={() => handleDeleteEspecialidad(e.id)} className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
+                          <Icon name="block" size={16} />
                         </button>
                       )}
                     </div>
