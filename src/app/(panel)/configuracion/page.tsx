@@ -1,6 +1,12 @@
 import { Header } from "@/components/layout/Header";
 import { createClient } from "@/lib/supabase/server";
-import { getPerfilProfesionalAction, getHorariosAction, getHorariosSedeAction } from "./actions";
+import {
+  getPerfilProfesionalAction,
+  getHorariosAction,
+  getHorariosSedeAction,
+  getSedeAdminAction,
+  getAllSedesAction
+} from "./actions";
 import { ConfiguracionView } from "./components/ConfiguracionView";
 
 export default async function ConfiguracionPage() {
@@ -22,6 +28,30 @@ export default async function ConfiguracionPage() {
         <Header title="Configuración" />
         <div className="flex-1 overflow-y-auto">
           <ConfiguracionView perfil={perfil} rol={rol} horariosSede={horariosSede} />
+        </div>
+      </>
+    );
+  }
+
+  if (rol === "admin") {
+    const sede = await getSedeAdminAction();
+    return (
+      <>
+        <Header title="Configuración de la Sede" />
+        <div className="flex-1 overflow-y-auto">
+          <ConfiguracionView perfil={perfil} rol={rol} sede={sede} />
+        </div>
+      </>
+    );
+  }
+
+  if (rol === "superadmin") {
+    const sedes = await getAllSedesAction();
+    return (
+      <>
+        <Header title="Configuración Global de Sedes" />
+        <div className="flex-1 overflow-y-auto">
+          <ConfiguracionView perfil={perfil} rol={rol} sedes={sedes} />
         </div>
       </>
     );

@@ -21,12 +21,12 @@ interface PendingConfirm extends ConfirmOptions {
   resolve: (ok: boolean) => void;
 }
 
-const ConfirmContext = createContext<((opts: ConfirmOptions) => Promise<boolean>) | null>(null);
+const fallbackConfirm = async () => false;
+const ConfirmContext = createContext<((opts: ConfirmOptions) => Promise<boolean>)>(fallbackConfirm);
 
 export function useConfirm() {
   const ctx = useContext(ConfirmContext);
-  if (!ctx) throw new Error("useConfirm debe usarse dentro de <ConfirmProvider>");
-  return ctx;
+  return ctx || fallbackConfirm;
 }
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {

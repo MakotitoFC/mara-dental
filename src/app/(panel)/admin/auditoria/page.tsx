@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { getAuditoriaLogsAction } from "../admin.actions";
+import { createClient } from "@/lib/supabase/client";
 
 const TABLAS = [
   "usuarios", "personal", "pacientes", "contacto", "horarios_medico", "citas",
@@ -56,6 +57,25 @@ export default function AdminAuditoriaPage() {
 
   useEffect(() => {
     loadLogs();
+  }, [loadLogs]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("auditoria_realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "logs_auditoria" },
+        (payload) => {
+          // Recargar logs cuando haya una nueva entrada (ej. en pacientes u otra tabla auditada)
+          loadLogs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [loadLogs]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {

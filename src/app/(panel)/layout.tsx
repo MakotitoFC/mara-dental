@@ -30,10 +30,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const email = realUser.email ?? "";
     try {
       const [userRes, personalRes, tiposRes] = await Promise.all([
-        supabase.from("usuarios").select(`rol_id, rol (rol), sede (nombre_clinica)`).eq("id",userId).single(),
+        supabase.from("usuarios").select(`activo, rol_id, rol (rol), sede (nombre_clinica)`).eq("id",userId).single(),
         supabase.from("personal").select("nombre, apellido, especialidad (especialidad)").eq("usuario_id",userId).single(),
         supabase.from("tipo_consulta").select("id, tipo_consulta, color").order("tipo_consulta", { ascending: true })
       ]);
+
+      if (userRes.data && userRes.data.activo === false) {
+        await supabase.auth.signOut();
+        redirect('/login?error=desactivado');
+      }
       
       if (tiposRes.data) tiposConsulta = tiposRes.data as TipoConsulta[];
 

@@ -25,7 +25,7 @@ const NAV_BOTTOM = [{ href: "/configuracion", icon: "settings", label: "Configur
 
 const ROLE_HREFS: Record<string, string[]> = {
   superadmin: ["/admin/dashboard", "/admin/auditoria", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
-  admin:     ["/admin/dashboard", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/dashboard", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
+  admin:     ["/admin/dashboard", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
   doctor:    ["/dashboard", "/agenda", "/pacientes", "/plantillas"],
   asistente: ["/dashboard", "/agenda", "/pagos"],
   contador:  ["/dashboard"],
@@ -70,7 +70,7 @@ export function Sidebar() {
     <motion.aside
       animate={{ width: collapsed ? 68 : 224 }}
       transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-      className="hidden md:flex flex-col shrink-0 bg-white dark:bg-slate-900 h-screen sticky top-0 border-r border-slate-200 dark:border-slate-800 overflow-hidden"
+      className="hidden md:flex flex-col shrink-0 bg-white dark:bg-slate-900 h-screen sticky top-0 border-r border-slate-200 dark:border-slate-800 overflow-hidden print:hidden"
     >
       {/* Logo + toggle */}
       <div

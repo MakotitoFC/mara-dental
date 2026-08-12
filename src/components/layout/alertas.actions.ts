@@ -203,8 +203,6 @@ export async function getAlertasAction(): Promise<AlertasData> {
     (pacientesRes.data || []).map((p: any) => [String(p.id), `${p.nombre ?? ""} ${p.apellido ?? ""}`.trim()])
   );
 
-  console.log("MESSAGES RES DATA:", messagesRes.data, "ERROR:", messagesRes.error);
-
   const mensajesMap: Record<string, AlertaMensaje> = {};
   (messagesRes.data || []).forEach((m: any) => {
     if (!mensajesMap[m.paciente_id]) {
@@ -222,8 +220,6 @@ export async function getAlertasAction(): Promise<AlertasData> {
     ...m,
     id: `msg-${m.pacienteId}-${m.cantidad}`
   }));
-
-  console.log("MAPPED MESSAGES:", mensajesNoLeidos);
 
   return { citasProximas, cumpleanos, alergias, tratamientosPendientes: tratamientosPendientes.slice(0, 8), mensajesNoLeidos };
 }
