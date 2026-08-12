@@ -3,8 +3,105 @@
 import { createClient } from "@/lib/supabase/server";
 import { v4 as uuidv4 } from "uuid";
 import { revalidatePath } from "next/cache";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+export async function checkChatPermissions(pacienteId: string): Promise<{ allowed: boolean; isDoctor: boolean; isAdmin: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { allowed: false, isDoctor: false, isAdmin: false, error: "Usuario no autenticado" };
+  }
+
+  // 1. Obtener rol del usuario actual
+  const { data: userData } = await supabase
+    .from("usuarios")
+    .select("rol_id, rol ( rol )")
+    .eq("id", user.id)
+    .single();
+
+  const rolName = ((userData?.rol as any)?.rol || "").toLowerCase();
+  const isAdmin = rolName === "admin" || rolName === "superadmin" || userData?.rol_id === 2 || userData?.rol_id === 3;
+  const isDoctor = rolName === "doctor" || userData?.rol_id === 1;
+
+  // Admins y Superadmins tienen permiso global para supervisar chats
+  if (isAdmin) {
+    return { allowed: true, isDoctor: false, isAdmin: true };
+  }
+
+  if (isDoctor) {
+    // a) ¿Es el creador del paciente?
+    const { data: p } = await supabase
+      .from("pacientes")
+      .select("id, creado_por")
+      .eq("id", pacienteId)
+      .single();
+
+    if (p && String(p.creado_por) === String(user.id)) {
+      return { allowed: true, isDoctor: true, isAdmin: false };
+    }
+
+    // b) ¿Tiene citas registradas con este paciente?
+    const { data: citas } = await supabase
+      .from("citas")
+      .select("id")
+      .eq("paciente_id", pacienteId)
+      .eq("doctor_id", user.id)
+      .limit(1);
+
+    if (citas && citas.length > 0) {
+      return { allowed: true, isDoctor: true, isAdmin: false };
+    }
+
+    // c) ¿Tiene consultas registradas con este paciente?
+    const { data: hc } = await supabase
+      .from("historia_clinica")
+      .select("id")
+      .eq("paciente_id", pacienteId)
+      .maybeSingle();
+
+    if (hc) {
+      const { data: notas } = await supabase
+        .from("nota_clinica")
+        .select("id")
+        .eq("historia_clinica_id", hc.id);
+
+      const notaIds = (notas || []).map((n) => n.id);
+      if (notaIds.length > 0) {
+        const { data: consultas } = await supabase
+          .from("consultas")
+          .select("id")
+          .in("nota_clinica_id", notaIds)
+          .eq("doctor_id", user.id)
+          .limit(1);
+
+        if (consultas && consultas.length > 0) {
+          return { allowed: true, isDoctor: true, isAdmin: false };
+        }
+      }
+    }
+  }
+
+  return {
+    allowed: false,
+    isDoctor,
+    isAdmin: false,
+    error: "No tienes permiso para acceder al chat de este paciente. Solo el médico tratante o administradores pueden acceder."
+  };
+}
 
 export async function getChatInfoAction(pacienteId: string, page: number = 0, limit: number = 20) {
+  const perm = await checkChatPermissions(pacienteId);
+  if (!perm.allowed) {
+    return {
+      allowed: false,
+      error: perm.error || "No tienes permiso para acceder a este chat",
+      paciente: null,
+      messages: [],
+    };
+  }
+
   const supabase = await createClient();
 
   // Marcar mensajes como leídos si estamos cargando la primera página
@@ -44,10 +141,10 @@ export async function getChatInfoAction(pacienteId: string, page: number = 0, li
     console.error("Error fetching messages:", msgError);
   }
 
-  // Invertir para que los más antiguos queden arriba
   const sortedMessages = (messages || []).reverse();
 
   return {
+    allowed: true,
     paciente,
     messages: sortedMessages.map((m: any) => ({
       ...m,
@@ -59,6 +156,11 @@ export async function getChatInfoAction(pacienteId: string, page: number = 0, li
 }
 
 export async function generateChatLinkAction(pacienteId: string) {
+  const perm = await checkChatPermissions(pacienteId);
+  if (!perm.allowed) {
+    return { error: perm.error || "No tienes permiso para generar código de enlace para este paciente" };
+  }
+
   const supabase = await createClient();
   const code = uuidv4();
 
@@ -77,6 +179,11 @@ export async function generateChatLinkAction(pacienteId: string) {
 }
 
 export async function sendMessageAction(pacienteId: string, text?: string, fileUrl?: string, fileName?: string, fileType?: string, fileSize?: number, presignedUrl?: string) {
+  const perm = await checkChatPermissions(pacienteId);
+  if (!perm.allowed) {
+    return { error: perm.error || "No tienes permiso para enviar mensajes a este paciente" };
+  }
+
   const supabase = await createClient();
 
   // 1. Get paciente info for telegram_chat_id
@@ -98,7 +205,6 @@ export async function sendMessageAction(pacienteId: string, text?: string, fileU
   try {
     // 2. Send to Telegram
     if (fileUrl && presignedUrl) {
-      // It's a file
       const endpoint = fileType?.startsWith("image/") ? "sendPhoto" : "sendDocument";
       const payload: any = {
         chat_id: paciente.telegram_chat_id,
@@ -121,7 +227,6 @@ export async function sendMessageAction(pacienteId: string, text?: string, fileU
       if (!data.ok) throw new Error(data.description || "Error sending file to Telegram");
       telegramMessageId = data.result.message_id;
     } else if (text) {
-      // It's just text
       const res = await fetch(`${telegramApi}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -156,7 +261,7 @@ export async function sendMessageAction(pacienteId: string, text?: string, fileU
       file_type: fileType || null,
       file_name: fileName || null,
       file_size: fileSize || null,
-      is_read: false, // The patient hasn't read it yet
+      is_read: false,
       sent_at: new Date().toISOString()
     })
     .select(`
@@ -184,15 +289,17 @@ export async function sendMessageAction(pacienteId: string, text?: string, fileU
   return { success: true, message: newMessage };
 }
 
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-
 export async function uploadChatAttachmentAction(formData: FormData) {
-  const supabase = await createClient();
-  const file = formData.get("file") as File;
   const pacienteId = formData.get("pacienteId") as string;
-  
-  if (!file || !pacienteId) return { error: "Faltan datos" };
+  if (!pacienteId) return { error: "Faltan datos" };
+
+  const perm = await checkChatPermissions(pacienteId);
+  if (!perm.allowed) {
+    return { error: perm.error || "No tienes permiso para subir archivos en este chat" };
+  }
+
+  const file = formData.get("file") as File;
+  if (!file) return { error: "Falta el archivo" };
 
   const r2Client = new S3Client({
     region: "auto",
@@ -219,7 +326,6 @@ export async function uploadChatAttachmentAction(formData: FormData) {
 
     await r2Client.send(command);
     
-    // Generate a presigned URL valid for 1 hour for Telegram to download
     const getCommand = new GetObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
       Key: objectKey,
