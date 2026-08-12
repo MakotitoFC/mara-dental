@@ -69,22 +69,32 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
     }
   }, []);
 
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [deniedMessage, setDeniedMessage] = useState("");
+
   const fetchData = async (pageNum: number = 0) => {
     if (pageNum === 0) setLoading(true);
     const data = await getChatInfoAction(pacienteId, pageNum, 20);
     if (data) {
+      if (data.allowed === false) {
+        setAccessDenied(true);
+        setDeniedMessage(data.error || "No tienes permiso para acceder al chat de este paciente.");
+        if (pageNum === 0) setLoading(false);
+        return;
+      }
+      setAccessDenied(false);
       if (pageNum === 0) {
         setPaciente(data.paciente);
-        setMessages(data.messages);
+        setMessages(data.messages || []);
         setTimeout(scrollToBottom, 100);
       } else {
         setMessages(prev => {
           const existingIds = new Set(prev.map(m => m.id));
-          const newMessages = data.messages.filter((m: any) => !existingIds.has(m.id));
+          const newMessages = (data.messages || []).filter((m: any) => !existingIds.has(m.id));
           return [...newMessages, ...prev];
         });
       }
-      setHasMore(data.messages.length === 20);
+      setHasMore(data.messages?.length === 20);
     }
     if (pageNum === 0) setLoading(false);
   };
@@ -193,6 +203,22 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
     return (
       <div className="flex justify-center py-20">
         <div className="w-8 h-8 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-10 flex flex-col items-center justify-center text-center my-4">
+        <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mb-4">
+          <Icon name="lock" size={32} />
+        </div>
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">
+          Acceso Restringido al Chat
+        </h2>
+        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-[13.5px] leading-relaxed">
+          {deniedMessage || "Solo el médico tratante de este paciente o los administradores pueden acceder a esta conversación."}
+        </p>
       </div>
     );
   }

@@ -95,47 +95,102 @@ export async function getAlertasAction(): Promise<AlertasData> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return EMPTY;
 
+  // 1. Obtener rol del usuario actual
+  const { data: usuarioData } = await supabase
+    .from("usuarios")
+    .select("rol_id, rol ( rol )")
+    .eq("id", user.id)
+    .single();
+
+  const rolName = ((usuarioData?.rol as any)?.rol || "").toLowerCase();
+  const isDoctor = rolName === "doctor" || usuarioData?.rol_id === 1;
+
   const now = new Date();
   const hoyStr = now.toISOString().split("T")[0];
   const en48h = new Date(now.getTime() + 48 * 3600 * 1000);
   const limiteStr = en48h.toISOString().split("T")[0];
   const hace90dias = new Date(now.getTime() - 90 * 86400000).toISOString();
 
-  const [citasRes, pacientesRes, consultasRes, messagesRes] = await Promise.all([
-    supabase
-      .from("citas")
-      .select("id, fecha, hora_inicio, tipo_consulta, estado, paciente_id, pacientes ( id, nombre, apellido, alergias )")
-      .eq("doctor_id", user.id)
-      .gte("fecha", hoyStr)
-      .lte("fecha", limiteStr)
-      .neq("estado", "cancelada")
-      .order("fecha", { ascending: true })
-      .order("hora_inicio", { ascending: true }),
+  // 2. Si es Doctor, obtener los IDs de pacientes que atiende este doctor
+  let docPacienteIdsSet: Set<string> = new Set();
+  if (isDoctor) {
+    const [citasDoc, consultasDoc, pacientesDoc] = await Promise.all([
+      supabase.from("citas").select("paciente_id").eq("doctor_id", user.id),
+      supabase.from("consultas").select("nota_clinica_id").eq("doctor_id", user.id),
+      supabase.from("pacientes").select("id").eq("creado_por", user.id),
+    ]);
+
+    (citasDoc.data || []).forEach((c: any) => { if (c.paciente_id) docPacienteIdsSet.add(String(c.paciente_id)); });
+    (pacientesDoc.data || []).forEach((p: any) => { if (p.id) docPacienteIdsSet.add(String(p.id)); });
+
+    const notaIds = (consultasDoc.data || []).map((c: any) => c.nota_clinica_id).filter(Boolean);
+    if (notaIds.length > 0) {
+      const { data: notas } = await supabase
+        .from("nota_clinica")
+        .select("historia_clinica ( paciente_id )")
+        .in("id", notaIds);
+      (notas || []).forEach((n: any) => {
+        const pid = (n.historia_clinica as any)?.paciente_id;
+        if (pid) docPacienteIdsSet.add(String(pid));
+      });
+    }
+  }
+
+  const docPacienteIds = Array.from(docPacienteIdsSet);
+
+  let citasQuery = supabase
+    .from("citas")
+    .select("id, fecha, hora_inicio, tipo_consulta, estado, paciente_id, pacientes ( id, nombre, apellido, alergias )")
+    .gte("fecha", hoyStr)
+    .lte("fecha", limiteStr)
+    .neq("estado", "cancelada")
+    .order("fecha", { ascending: true })
+    .order("hora_inicio", { ascending: true });
+
+  if (isDoctor) {
+    citasQuery = citasQuery.eq("doctor_id", user.id);
+  }
+
+  let consultasQuery = supabase
+    .from("consultas")
+    .select(`
+      id,
+      cita_id,
+      citas ( pacientes ( id, nombre, apellido ) ),
+      diagnostico!diagnostico_consulta_origen_id_fkey (
+        id, "esTratado",
+        tratamiento ( id, plan_tratamiento ( id, fase, estado ) )
+      )
+    `)
+    .gte("fecha_consulta", hace90dias)
+    .order("fecha_consulta", { ascending: false })
+    .limit(40);
+
+  if (isDoctor) {
+    consultasQuery = consultasQuery.eq("doctor_id", user.id);
+  }
+
+  let unreadMessages: any[] = [];
+  if (isDoctor && docPacienteIds.length > 0) {
+    const { data: msgData } = await supabase
+      .from("messages")
+      .select("paciente_id")
+      .eq("direction", "inbound")
+      .eq("is_read", false)
+      .in("paciente_id", docPacienteIds);
+    unreadMessages = msgData || [];
+  }
+
+  const [citasRes, pacientesRes, consultasRes] = await Promise.all([
+    citasQuery,
     supabase
       .from("pacientes")
       .select("id, nombre, apellido, fecha_nacimiento")
       .eq("activo", true),
-    supabase
-      .from("consultas")
-      .select(`
-        id,
-        cita_id,
-        citas ( pacientes ( id, nombre, apellido ) ),
-        diagnostico!diagnostico_consulta_origen_id_fkey (
-          id, "esTratado",
-          tratamiento ( id, plan_tratamiento ( id, fase, estado ) )
-        )
-      `)
-      .eq("doctor_id", user.id)
-      .gte("fecha_consulta", hace90dias)
-      .order("fecha_consulta", { ascending: false })
-      .limit(40),
-    supabase
-      .from("messages")
-      .select("paciente_id")
-      .eq("direction", "inbound")
-      .eq("is_read", false),
+    consultasQuery,
   ]);
+
+  const messagesRes = { data: unreadMessages };
 
   const citasProximas: AlertaCitaProxima[] = (citasRes.data || [])
     .filter((c: any) => {

@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { useToast } from "@/components/ui/Toast";
 import { getCatalogoAction, toggleTratamientoActivoAction, saveTratamientoAction } from "../admin.actions";
 
 export default function CatalogoTratamientosPage() {
+  const toast = useToast();
   const [catalogo, setCatalogo] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ id: 0, nombre: "", descripcion: "", precio: 0, moneda: "PEN", activo: true });
@@ -14,9 +17,14 @@ export default function CatalogoTratamientosPage() {
 
   async function loadData() {
     setLoading(true);
-    const data = await getCatalogoAction();
-    setCatalogo(data);
-    setLoading(false);
+    try {
+      const data = await getCatalogoAction();
+      setCatalogo(data);
+    } catch (err) {
+      toast.error("Error al cargar el catálogo de tratamientos");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -24,11 +32,17 @@ export default function CatalogoTratamientosPage() {
   }, []);
 
   async function toggleActivo(id: number, currentStatus: boolean) {
-    const res = await toggleTratamientoActivoAction(id, !currentStatus);
-    if (res.success) {
-      setCatalogo(c => c.map(t => t.id === id ? { ...t, activo: !currentStatus } : t));
-    } else {
-      alert("Error al actualizar: " + res.error);
+    const nextStatus = !currentStatus;
+    try {
+      const res = await toggleTratamientoActivoAction(id, nextStatus);
+      if (res.success) {
+        setCatalogo(c => c.map(t => t.id === id ? { ...t, activo: nextStatus } : t));
+        toast.success(nextStatus ? "Tratamiento activado correctamente" : "Tratamiento desactivado correctamente");
+      } else {
+        toast.error(res.error || "Error al cambiar el estado del tratamiento");
+      }
+    } catch (err: any) {
+      toast.error("Error al cambiar el estado del tratamiento");
     }
   }
 
@@ -53,12 +67,21 @@ export default function CatalogoTratamientosPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const res = await saveTratamientoAction(formData.id ? formData : { ...formData, id: undefined });
-    if (res.success) {
-      setIsModalOpen(false);
-      loadData();
-    } else {
-      alert("Error al guardar: " + res.error);
+    setIsSubmitting(true);
+    const isEditing = Boolean(formData.id);
+    try {
+      const res = await saveTratamientoAction(formData.id ? formData : { ...formData, id: undefined });
+      if (res.success) {
+        setIsModalOpen(false);
+        toast.success(isEditing ? "Tratamiento actualizado en el catálogo" : "Tratamiento creado exitosamente en el catálogo");
+        loadData();
+      } else {
+        toast.error(res.error || "Error al guardar el tratamiento");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error al procesar la solicitud");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -187,8 +210,8 @@ export default function CatalogoTratamientosPage() {
               <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-800">
                 Cancelar
               </button>
-              <button type="submit" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors">
-                <Icon name="save" size={16} /> Guardar
+              <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors">
+                <Icon name="save" size={16} /> {isSubmitting ? "Guardando..." : "Guardar"}
               </button>
             </div>
           </form>
