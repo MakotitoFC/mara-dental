@@ -36,7 +36,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
             return [...prev, payload.new];
           });
           
-          setPaciente((prev) => prev && !prev.telegram_chat_id ? { ...prev, telegram_chat_id: "linked" } : prev);
+          setPaciente((prev: any) => prev && !prev.telegram_chat_id ? { ...prev, telegram_chat_id: "linked" } : prev);
           
           setTimeout(scrollToBottom, 100);
 
@@ -50,7 +50,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
         { event: "UPDATE", schema: "public", table: "pacientes" },
         (payload) => {
           if (payload.new.id === pacienteId) {
-            setPaciente((prev) => ({ ...prev, ...payload.new }));
+            setPaciente((prev: any) => ({ ...prev, ...payload.new }));
           }
         }
       )
