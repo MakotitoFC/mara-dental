@@ -175,6 +175,41 @@ function buildReportHtml(opts: {
   return wrapDocument(`${header}${body}${buildLetterheadFooter({ clinica: opts.clinica, pacienteNombre: opts.pacienteNombre, docCode })}`, 900);
 }
 
+/** Overlay de "gira tu dispositivo" — solo mobile, mientras se edita (fullscreen)
+ * en vertical. Fondo negro traslúcido (no opaco) + ícono de teléfono animado
+ * rotando entre vertical/horizontal, enmarcado por dos flechas curvas. Se
+ * puede descartar tocando la pantalla (por si el usuario no quiere girarla). */
+function RotateDevicePrompt({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-110 flex flex-col items-center justify-center gap-6 bg-black/60"
+      onClick={onDismiss}
+    >
+      <div className="relative w-30 h-30 flex items-center justify-center">
+        <svg viewBox="0 0 120 120" className="absolute inset-0 w-full h-full" fill="none">
+          <path d="M 60 6 A 54 54 0 0 1 111 45" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
+          <polygon points="111,45 102,36 118,32" fill="white" opacity="0.85" />
+          <path d="M 60 114 A 54 54 0 0 1 9 75" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
+          <polygon points="9,75 18,84 2,88" fill="white" opacity="0.85" />
+        </svg>
+        <motion.div
+          className="w-11 h-19 rounded-[10px] border-[3px] border-white flex items-start justify-center pt-1.5"
+          animate={{ rotate: [0, 90, 90, 0] }}
+          transition={{ duration: 2.4, repeat: Infinity, times: [0, 0.45, 0.85, 1], ease: "easeInOut" }}
+        >
+          <span className="w-3 h-0.5 rounded-full bg-white/90" />
+        </motion.div>
+      </div>
+      <div className="flex flex-col items-center gap-1.5 px-10">
+        <p className="text-white text-[13px] font-semibold text-center leading-relaxed">
+          Gira tu dispositivo para editar la imagen
+        </p>
+        <p className="text-white/60 text-[11px] text-center">Toca la pantalla para continuar sin girar</p>
+      </div>
+    </div>
+  );
+}
+
 function ToolButton({ icon, label, active, onClick, disabled }: {
   icon: string; label: string; active?: boolean; onClick?: () => void; disabled?: boolean;
 }) {
@@ -261,6 +296,48 @@ export function VisorModal({
   const [fullscreen, setFullscreen] = useState(false);
   const hideMobileTools = isMobile && !fullscreen;
   const [zoom, setZoom] = useState(1);
+
+  // Al editar en mobile (fullscreen) conviene el apaisado — se pide girar el
+  // celular en vez de forzar los controles a caber en un ancho angosto.
+  const [isPortrait, setIsPortrait] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(orientation: portrait)");
+    setIsPortrait(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsPortrait(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  // El usuario puede descartar el aviso tocando la pantalla si no quiere
+  // girar el celular — se reactiva si sale y vuelve a entrar en modo edición,
+  // o si rota a horizontal y vuelve a vertical más tarde.
+  const [rotateDismissed, setRotateDismissed] = useState(false);
+  useEffect(() => { if (!fullscreen || !isPortrait) setRotateDismissed(false); }, [fullscreen, isPortrait]);
+  const showRotatePrompt = isMobile && fullscreen && isPortrait && !rotateDismissed;
+
+  // Tope de tamaño de la imagen medido en píxeles reales del viewport (no un
+  // % ni un vh fijo) — así la imagen usa TODO el espacio disponible en cada
+  // breakpoint/orientación sin depender de una estimación (antes era
+  // max-h-[85vh], que podía quedar corto o largo según el layout real).
+  const [viewportSize, setViewportSize] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setViewportSize({ w: width, h: height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // El overlay de trazos/flechas debe re-alinearse cuando la imagen cambia de
+  // tamaño (antes solo se ajustaba una vez, al cargar la imagen).
+  useEffect(() => {
+    if (!viewportSize) return;
+    const id = requestAnimationFrame(() => handleResizeCanvas());
+    return () => cancelAnimationFrame(id);
+  }, [viewportSize]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const ZOOM_MIN = 1;
   const ZOOM_MAX = 3;
   const zoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, +(z + 0.5).toFixed(2)));
@@ -870,10 +947,14 @@ export function VisorModal({
           </div>
         )}
 
-        {/* VIEW PORT */}
+        {/* VIEW PORT — el fondo de este contenedor solo debe notarse para archivos
+            que no son imagen (PDF, etc.); para imágenes usa el mismo fondo que el
+            resto del modal, así el "letterbox" que deja object-contain al no
+            deformar la imagen (cuando su proporción no coincide con el marco) no
+            se ve como una franja de color distinto — se mezcla con el modal. */}
         <div
           ref={viewportRef}
-          className={`relative flex bg-stone-50 dark:bg-slate-900/50 ${fullscreen ? "flex-1 min-h-0" : "min-h-45 h-[60vh] md:h-auto md:flex-1"} ${zoom > 1 ? "overflow-auto items-start justify-start" : "overflow-hidden items-center justify-center"}`}
+          className={`relative flex ${isImage ? "bg-white dark:bg-slate-800" : "bg-stone-50 dark:bg-slate-900/50"} ${fullscreen ? "flex-1 min-h-0" : "min-h-45 h-[60vh] md:h-auto md:flex-1"} ${zoom > 1 ? "overflow-auto items-start justify-start" : "overflow-hidden items-center justify-center"}`}
           style={{
             cursor: mode === "pin" || mode === "text" ? "crosshair" : mode === "pan" ? "grab" : mode === "view" && isImage && !fullscreen ? "zoom-in" : "default",
           }}
@@ -908,9 +989,13 @@ export function VisorModal({
                 src={imgUrl}
                 alt={a.nombre_archivo}
                 crossOrigin="anonymous"
-                className={`max-w-full object-contain select-none pointer-events-none ${fullscreen ? "max-h-full" : "max-h-[85vh]"}`}
+                className="object-contain select-none pointer-events-none"
                 draggable={false}
-                style={{ WebkitUserDrag: "none" } as React.CSSProperties}
+                style={{
+                  WebkitUserDrag: "none",
+                  maxWidth: viewportSize ? viewportSize.w : "100%",
+                  maxHeight: viewportSize ? viewportSize.h : (fullscreen ? "100%" : "85vh"),
+                } as React.CSSProperties}
                 onLoad={handleResizeCanvas}
               />
 
@@ -1419,6 +1504,8 @@ export function VisorModal({
         </div>
         )}
       </motion.div>
+
+      {showRotatePrompt && <RotateDevicePrompt onDismiss={() => setRotateDismissed(true)} />}
 
       {/* Modal de confirmación de eliminación de anotación */}
       {annotationToDelete && (

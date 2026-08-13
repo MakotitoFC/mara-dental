@@ -88,6 +88,7 @@ export function RecomendacionesSection({
     setRecomendaciones(prev => prev.filter(r => r.id !== itemToDelete));
     setItemToDelete(null);
     toast.success("Recomendación eliminada");
+    onSaved?.();
   }
 
   return (

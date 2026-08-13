@@ -8,7 +8,7 @@ import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 
 /**
  * Chrome compartido por los modales del sistema: bottom sheet en mobile
- * (desliza desde abajo, handle de arrastre, cierre al tocar fuera) y modal
+ * (desliza desde abajo, handle decorativo, cierre al tocar fuera) y modal
  * centrado en desktop, ambos con el mismo fondo desenfocado. El padre debe
  * envolver el uso condicional en <AnimatePresence> para que las animaciones
  * de salida se reproduzcan.

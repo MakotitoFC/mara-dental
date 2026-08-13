@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { AnimatePresence, motion, useDragControls } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { DiagnosticoSkeleton } from "@/components/ui/ConsultaSkeletons";
 import { DiagnosticoForm } from "../consulta/DiagnosticoForm";
@@ -17,10 +16,7 @@ import {
   getRecetasAction,
 } from "../../consulta.actions";
 import { useScrollFade } from "@/lib/hooks/useScrollFade";
-import { useIsMobile } from "@/lib/hooks/useIsMobile";
-import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
-import { fadeIn, slideUp } from "@/lib/animations";
 
 function Notice({ text }: { text: string }) {
   return (
@@ -36,238 +32,53 @@ const fmtFecha = (iso: string) => {
   catch { return iso; }
 };
 
-/** Tarjeta de un diagnóstico en el aside del historial — dot + badge de tipo, título, fecha/doctor y conteos. */
-function DiagnosticoAsideCard({ d, isActual, isSelected, tratCount, recCount, onClick }: {
-  d: any; isActual: boolean; isSelected: boolean; tratCount: number; recCount: number; onClick: () => void;
+/** Alto fijo de fila — 8 filas visibles antes de scrollear (ver LIST_MAX_H),
+ * y el mismo alto se usa como tope del panel de detalle para que ambos
+ * paneles del layout maestro-detalle midan exactamente lo mismo (mismos
+ * valores que PresupuestoTab, que usa este mismo patrón). */
+const ROW_H = 60;
+const LIST_MAX_H = ROW_H * 8;
+
+/** Fila compacta del historial — fecha + tipo (presuntivo/definitivo) + si
+ * tiene tratamiento/recetas. El seleccionado (por defecto, el más reciente)
+ * se resalta en verde, el mismo color que ya usa el badge "Definitivo". */
+function DiagnosticoHistorialRow({ d, active, tratCount, recCount, onClick }: {
+  d: any; active: boolean; tratCount: number; recCount: number; onClick: () => void;
 }) {
   const cfg = d.es_definitivo
-    ? { label: "Definitivo", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500", border: "border-emerald-300 dark:border-emerald-700" }
-    : { label: "Presuntivo", text: "text-amber-700 dark:text-amber-400", dot: "bg-amber-500", border: "border-amber-300 dark:border-amber-700" };
+    ? { dot: "bg-emerald-500", badge: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800", label: "Definitivo" }
+    : { dot: "bg-amber-500", badge: "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800", label: "Presuntivo" };
 
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-3.5 rounded-2xl border transition-colors ${
-        isSelected
-          ? "bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
-          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-cyan-300 dark:hover:border-cyan-700"
+      style={{ height: ROW_H }}
+      className={`w-full text-left flex items-center gap-3 px-3 border-l-2 transition-colors border-0 ${
+        active
+          ? "bg-emerald-50 dark:bg-emerald-900/20 border-l-emerald-500"
+          : "border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-700/50"
       }`}
     >
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className={`flex items-center gap-1.5 border rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cfg.border}`}>
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-          <span className={cfg.text}>{cfg.label}</span>
-        </span>
-        {isActual && (
-          <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-bold uppercase tracking-wide shrink-0">
-            Actual
-          </span>
-        )}
-      </div>
-      <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 mb-1">{d.diagnostico_texto}</p>
-      <p className="text-[10.5px] text-slate-400 dark:text-slate-500 mb-2 truncate">
-        {fmtFecha(d.fecha_deteccion)}{d.doctor_nombre ? ` · Dr. ${d.doctor_nombre}` : ""}
-      </p>
-      <div className="flex items-center gap-3 text-[10.5px] text-slate-500 dark:text-slate-400">
-        <span className="flex items-center gap-1"><Icon name="space_dashboard" size={12} /> {tratCount} tratamiento{tratCount !== 1 ? "s" : ""}</span>
-        <span className="flex items-center gap-1"><Icon name="heart" size={12} /> {recCount} receta{recCount !== 1 ? "s" : ""}</span>
-      </div>
-    </button>
-  );
-}
-
-/** Variante compacta de DiagnosticoAsideCard para la franja horizontal (breakpoints < lg). */
-function DiagnosticoAsideCardCompact({ d, isActual, isSelected, onClick }: {
-  d: any; isActual: boolean; isSelected: boolean; onClick: () => void;
-}) {
-  const cfg = d.es_definitivo
-    ? { label: "Definitivo", text: "text-emerald-700 dark:text-emerald-400", dot: "bg-emerald-500", border: "border-emerald-300 dark:border-emerald-700" }
-    : { label: "Presuntivo", text: "text-amber-700 dark:text-amber-400", dot: "bg-amber-500", border: "border-amber-300 dark:border-amber-700" };
-
-  return (
-    <button
-      onClick={onClick}
-      className={`shrink-0 w-48 text-left p-2.5 rounded-xl border transition-colors ${
-        isSelected
-          ? "bg-emerald-50/60 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
-          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-cyan-300 dark:hover:border-cyan-700"
-      }`}
-    >
-      <div className="flex items-center justify-between gap-1.5 mb-1">
-        <span className={`flex items-center gap-1 border rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide shrink-0 ${cfg.border}`}>
-          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-          <span className={cfg.text}>{cfg.label}</span>
-        </span>
-        {isActual && (
-          <span className="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[8.5px] font-bold uppercase tracking-wide shrink-0">
-            Actual
-          </span>
-        )}
-      </div>
-      <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-100 truncate mb-0.5">{d.diagnostico_texto}</p>
-      <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{fmtFecha(d.fecha_deteccion)}</p>
-    </button>
-  );
-}
-
-/** Mobile — modal por debajo con el detalle del registro de historial, organizado
- * como carrusel horizontal (Diagnóstico / Tratamiento / Recomendaciones / Receta).
- * Flecha hacia abajo centrada arriba para salir; puntos de paginación abajo. */
-function DiagnosticoCarouselModal({ seleccionado, detalleSel, pacienteId, paciente, onClose, onSaved, onNavigateTab }: {
-  seleccionado: any;
-  detalleSel: { tratamientos: any[]; recomendaciones: any[]; recetas: any[] } | null;
-  pacienteId: string;
-  paciente: any;
-  onClose: () => void;
-  onSaved: () => void;
-  onNavigateTab?: (tab: string) => void;
-}) {
-  useBodyScrollLock();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [page, setPage] = useState(0);
-  const dragControls = useDragControls();
-
-  const pages = [
-    { key: "diagnostico", label: "Diagnóstico" },
-    { key: "tratamiento", label: "Tratamiento" },
-    { key: "recomendaciones", label: "Recomendaciones" },
-    { key: "receta", label: "Receta" },
-  ] as const;
-
-  function goTo(i: number) {
-    const el = scrollRef.current;
-    if (!el) return;
-    const clamped = Math.max(0, Math.min(pages.length - 1, i));
-    el.scrollTo({ left: clamped * el.clientWidth, behavior: "smooth" });
-  }
-
-  function handleScroll() {
-    const el = scrollRef.current;
-    if (!el || el.clientWidth === 0) return;
-    setPage(Math.round(el.scrollLeft / el.clientWidth));
-  }
-
-  return createPortal(
-    <div className="fixed inset-0 z-[70]">
-      <motion.div variants={fadeIn} initial="hidden" animate="visible" exit="exit"
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={onClose} />
-
-      <motion.div variants={slideUp} initial="hidden" animate="visible" exit="exit"
-        drag="y"
-        dragControls={dragControls}
-        dragListener={false}
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 0.6 }}
-        onDragEnd={(_e, info) => { if (info.offset.y > 110 || info.velocity.y > 600) onClose(); }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="absolute inset-x-0 bottom-0 top-10 bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
-        {/* Salir — flecha hacia abajo centrada, arriba del todo; mantener pulsado arrastra el modal */}
-        <div
-          onPointerDown={(e) => dragControls.start(e)}
-          className="shrink-0 flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none"
-        >
-          <button onClick={onClose} aria-label="Cerrar" className="w-10 h-7 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
-            <Icon name="expand_more" size={20} />
-          </button>
-        </div>
-        <div className="shrink-0 px-4 pb-2 flex items-center justify-between gap-2">
-          <h2 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">{pages[page].label}</h2>
-          <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">{page + 1} / {pages.length}</span>
-        </div>
-
-        {/* Carrusel horizontal */}
-        <div className="flex-1 min-h-0 flex overflow-hidden">
-          <div
-            ref={scrollRef}
-            onScroll={handleScroll}
-            className="flex-1 min-w-0 flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
-          >
-            {pages.map((p) => (
-              <div key={p.key} className="w-full h-full shrink-0 snap-center overflow-hidden px-4 pb-4">
-                {p.key === "diagnostico" && (
-                  <div className="h-full overflow-y-auto no-scrollbar">
-                    <DiagnosticoCard
-                      diagnostico={seleccionado}
-                      consultaId={String(seleccionado.consulta_id)}
-                      pacienteId={pacienteId}
-                      onSaved={onSaved}
-                      onNavigateTab={onNavigateTab}
-                    />
-                  </div>
-                )}
-                {p.key === "tratamiento" && (
-                  !detalleSel ? (
-                    <div className="h-full flex items-center justify-center"><div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" /></div>
-                  ) : seleccionado.es_tratado ? (
-                    <TratamientoSection
-                      key={`trat-${seleccionado.id}`}
-                      diagnosticoId={String(seleccionado.id)}
-                      consultaId={String(seleccionado.consulta_id)}
-                      pacienteId={pacienteId}
-                      initial={detalleSel.tratamientos}
-                      onItemsChange={onSaved}
-                      scrollBody
-                    />
-                  ) : (
-                    <div className="h-full overflow-y-auto no-scrollbar"><Notice text="Este diagnóstico no requiere tratamiento en la clínica." /></div>
-                  )
-                )}
-                {p.key === "recomendaciones" && (
-                  !detalleSel ? (
-                    <div className="h-full flex items-center justify-center"><div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" /></div>
-                  ) : (
-                    <RecomendacionesSection
-                      key={`recom-${seleccionado.id}`}
-                      consultaId={String(seleccionado.consulta_id)}
-                      pacienteId={pacienteId}
-                      initial={detalleSel.recomendaciones}
-                      onSaved={onSaved}
-                      scrollBody
-                    />
-                  )
-                )}
-                {p.key === "receta" && (
-                  !detalleSel ? (
-                    <div className="h-full flex items-center justify-center"><div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" /></div>
-                  ) : (
-                    <RecetaSection
-                      key={`receta-${seleccionado.id}`}
-                      diagnosticoId={String(seleccionado.id)}
-                      pacienteId={pacienteId}
-                      initial={detalleSel.recetas}
-                      pacienteNombre={paciente.nombre_completo}
-                      telefono={paciente.telefono ?? ""}
-                      dni={paciente.dni ?? ""}
-                      pacienteFechaNacimiento={paciente.fecha_nacimiento}
-                      alergias={paciente.alergias}
-                      doctorNombre={seleccionado.doctor_nombre ?? "Doctor"}
-                      diagnosticoTexto={seleccionado.diagnostico_texto ?? ""}
-                      onSaved={onSaved}
-                      scrollBody
-                    />
-                  )
-                )}
-              </div>
-            ))}
+      <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100">{fmtFecha(d.fecha_deteccion)}</p>
+        {(tratCount > 0 || recCount > 0) && (
+          <div className="flex items-center gap-2.5 mt-0.5">
+            {tratCount > 0 && (
+              <span className="flex items-center gap-1 text-[10.5px] text-slate-400 dark:text-slate-500">
+                <Icon name="account_tree" size={11} /> Tratamiento
+              </span>
+            )}
+            {recCount > 0 && (
+              <span className="flex items-center gap-1 text-[10.5px] text-slate-400 dark:text-slate-500">
+                <Icon name="medication" size={11} /> Recetas
+              </span>
+            )}
           </div>
-        </div>
-
-        {/* Puntos — indicador de página, horizontal abajo; tocar navega directo */}
-        <div className="shrink-0 flex justify-center items-center gap-2 py-3 border-t border-slate-100 dark:border-slate-700">
-          {pages.map((p, i) => (
-            <button
-              key={p.key}
-              onClick={() => goTo(i)}
-              aria-label={p.label}
-              className={`rounded-full transition-all ${i === page ? "h-2.5 w-6 bg-cyan-600" : "h-2.5 w-2.5 bg-slate-300 dark:bg-slate-500 hover:bg-slate-400 dark:hover:bg-slate-400"}`}
-            />
-          ))}
-        </div>
-      </motion.div>
-    </div>,
-    document.body
+        )}
+      </div>
+      <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold border shrink-0 ${cfg.badge}`}>{cfg.label}</span>
+    </button>
   );
 }
 
@@ -282,28 +93,27 @@ const WIZARD_STEPS = [
 
 /** Franja fija (no scrollea) — ver DiagnosticoTab: se pasa sticky desde afuera. */
 function ConsultaStepper({ step, done, onStepClick }: { step: number; done: boolean[]; onStepClick: (i: number) => void }) {
+  // Mismo patrón visual que el stepper de "Nuevo paciente" (NuevoPacienteModal):
+  // círculos a flex-1 (ocupan todo el ancho disponible, no un grupo centrado
+  // y compacto), completados = relleno cian + check, activo = solo borde
+  // cian con su número, pendientes = borde gris pálido con su número.
   return (
-    <div className="flex items-start px-1 py-2">
+    <div className="flex items-center px-1 py-2">
       {WIZARD_STEPS.map((s, i) => (
         <div key={s.key} className="flex items-center flex-1 last:flex-none">
-          <button onClick={() => onStepClick(i)} className="flex flex-col items-center gap-1 shrink-0 w-10 sm:w-16">
-            <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors ${
-              i === step
-                ? "border-cyan-600 text-cyan-600 bg-cyan-50 dark:bg-cyan-900/30"
-                : done[i]
-                  ? "border-cyan-600 bg-cyan-600 text-white"
+          <button onClick={() => onStepClick(i)} className="shrink-0">
+            <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-[12px] font-bold transition-colors duration-300 ease-out ${
+              done[i]
+                ? "bg-cyan-600 border-cyan-600 text-white"
+                : i === step
+                  ? "border-cyan-600 text-cyan-600"
                   : "border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600"
             }`}>
-              <Icon name={done[i] && i !== step ? "check" : s.icon} size={14} />
+              {done[i] ? <Icon name="check" size={13} /> : i === step ? i + 1 : "–"}
             </div>
-            <span className={`hidden sm:block text-[9px] font-bold uppercase tracking-wide text-center leading-tight ${
-              i === step ? "text-cyan-700 dark:text-cyan-400" : done[i] ? "text-slate-600 dark:text-slate-300" : "text-slate-300 dark:text-slate-600"
-            }`}>
-              {s.label}
-            </span>
           </button>
           {i < WIZARD_STEPS.length - 1 && (
-            <div className={`flex-1 h-px mx-1 mt-4 ${done[i + 1] ? "bg-cyan-400 dark:bg-cyan-600" : "bg-slate-200 dark:bg-slate-700"}`} />
+            <div className={`flex-1 h-0.5 mx-1.5 transition-colors duration-300 ease-out ${done[i + 1] ? "bg-cyan-600" : "bg-slate-200 dark:bg-slate-700"}`} />
           )}
         </div>
       ))}
@@ -343,46 +153,21 @@ function ResumenRegistrado({ done, detalles }: { done: boolean[]; detalles: stri
   );
 }
 
-function WizardFooter({ step, canGoNext, onBack, onNext }: { step: number; canGoNext: boolean; onBack: () => void; onNext: () => void }) {
-  const isLast = step === WIZARD_STEPS.length - 1;
-  return (
-    <div className="flex items-center justify-between pt-4 mt-2 border-t border-slate-100 dark:border-slate-700">
-      <button
-        onClick={onBack}
-        disabled={step === 0}
-        className="flex items-center gap-0.5 text-[11.5px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-0 disabled:pointer-events-none transition-colors"
-      >
-        <Icon name="chevron_left" size={14} /> Anterior
-      </button>
-      <button
-        onClick={onNext}
-        disabled={!canGoNext && !isLast}
-        className="flex items-center gap-1 px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-lg text-[11.5px] font-semibold transition-colors"
-      >
-        {isLast ? (<><Icon name="check" size={13} /> Finalizar</>) : (<>Continuar <Icon name="chevron_right" size={14} /></>)}
-      </button>
-    </div>
-  );
-}
-
-export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, onFinalizarConsulta, onNavigateTab }: {
+export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, onFinalizarConsulta }: {
   paciente: any;
   consultaId?: string | null;
   data: any;
   loading: boolean;
   refetch: () => void;
   onFinalizarConsulta?: () => void;
-  onNavigateTab?: (tab: string) => void;
 }) {
   const pacienteId = String(paciente.id);
   const [planItems, setPlanItems] = useState<{ estado: string }[] | null>(null);
   const [step, setStep] = useState(0);
   const [showFinalizar, setShowFinalizar] = useState(false);
   const [confirmado, setConfirmado] = useState(false);
-  const asideScroll = useScrollFade<HTMLDivElement>();
-  const detalleScroll = useScrollFade<HTMLDivElement>();
-  const isMobile = useIsMobile();
-  const [showMobileModal, setShowMobileModal] = useState(false);
+  const listScroll = useScrollFade<HTMLDivElement>();
+  const detailScroll = useScrollFade<HTMLDivElement>();
 
   // El diagnóstico recién creado solo existe en `data` después de que `refetch`
   // (async) termine — avanzar de paso ahí mismo (antes de esperarlo) dejaba el
@@ -407,15 +192,33 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
     try {
       const list = await getDiagnosticosPacienteAction(String(pacienteId));
       const safeList = list || [];
-      setHistorialPaciente(safeList);
 
+      // `historialPaciente`/`detalleMap`/`selectedId` se actualizan juntos al
+      // final — si `historialPaciente` se marcaba antes de tener el detalle
+      // listo, había un render intermedio con la lista ya poblada pero
+      // `selectedId` todavía apuntando a nada, y por un instante se mostraba
+      // el aviso de "sin diagnósticos" en vez del registro actual (el más
+      // reciente, que debe verse seleccionado por defecto).
       if (safeList.length > 0) {
+        const entries = await Promise.all(
+          safeList.map(async (d: any) => {
+            const [tratamientos, recomendaciones, recetas] = await Promise.all([
+              getTratamientosAction(String(d.id)),
+              getRecomendacionesConsultaAction(String(d.consulta_id)),
+              getRecetasAction(String(d.id)),
+            ]);
+            return [String(d.id), { tratamientos, recomendaciones, recetas }] as const;
+          })
+        );
+        setHistorialPaciente(safeList);
+        setDetalleMap(Object.fromEntries(entries));
         setSelectedId((prev) =>
           prev && safeList.some((d: any) => String(d.id) === prev)
             ? prev
             : String(safeList[0].id)
         );
       } else {
+        setHistorialPaciente(safeList);
         setDetalleMap({});
         setSelectedId(null);
       }
@@ -428,32 +231,6 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
   }, [pacienteId]);
 
   useEffect(() => {
-    if (!selectedId || !historialPaciente) return;
-    if (detalleMap[selectedId]) return; // Ya se cargó el detalle
-
-    const d = historialPaciente.find((d: any) => String(d.id) === selectedId);
-    if (!d) return;
-
-    const fetchDetalle = async () => {
-      try {
-        const [tratamientos, recomendaciones, recetas] = await Promise.all([
-          getTratamientosAction(String(d.id)),
-          getRecomendacionesConsultaAction(String(d.consulta_id)),
-          getRecetasAction(String(d.id)),
-        ]);
-        setDetalleMap((prev) => ({
-          ...prev,
-          [selectedId]: { tratamientos, recomendaciones, recetas },
-        }));
-      } catch (error) {
-        console.error("Error al cargar el detalle del diagnóstico:", error);
-      }
-    };
-
-    fetchDetalle();
-  }, [selectedId, historialPaciente, detalleMap]);
-
-  useEffect(() => {
     fetchHistorialPaciente();
   }, [fetchHistorialPaciente]);
 
@@ -464,142 +241,101 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
     const detalleSel = seleccionado ? detalleMap[String(seleccionado.id)] : null;
 
     return (
-    <>
-      <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
-        {historialPaciente.length === 0 ? (
-          <>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 py-10 text-center text-slate-400 dark:text-slate-500">
-              <Icon name="assignment" size={28} className="opacity-30 mx-auto mb-2" />
-              <p className="text-[12px]">Sin diagnósticos registrados aún</p>
-            </div>
-          </>
-        ) : (
-          <div className="flex flex-col lg:flex-row gap-4 items-start lg:flex-1 lg:min-h-0">
-            {/* Aviso fijo + aside con su propio scroll independiente oculto — solo desktop ancho (lg+) */}
-            <div className="hidden lg:flex flex-col gap-3 w-100 shrink-0 lg:h-full lg:min-h-0">
-              <div ref={asideScroll.ref} style={asideScroll.style} className="flex flex-col gap-2.5 flex-1 min-h-0 overflow-y-auto no-scrollbar pr-1">
-                {historialPaciente.map((d, i) => (
-                  <DiagnosticoAsideCard
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-4 items-start">
+        {/* ── Detalle — diagnóstico seleccionado del historial (mismo patrón que Presupuesto).
+            Scroll propio y acotado, igual que el panel de Historial de al lado — no depende
+            de que la vista completa scrollee para alcanzar el resto del contenido. ── */}
+        <div className="flex flex-col gap-2 min-w-0">
+          <h2 className="text-[15px] font-bold text-slate-800 dark:text-slate-100">Diagnóstico</h2>
+
+          <div ref={detailScroll.ref} style={{ ...detailScroll.style, maxHeight: LIST_MAX_H }} className="overflow-y-auto no-scrollbar flex flex-col gap-4 pr-1 pb-4">
+            {seleccionado ? (
+              <>
+                <DiagnosticoCard
+                  diagnostico={seleccionado}
+                  consultaId={String(seleccionado.consulta_id)}
+                  pacienteId={String(pacienteId)}
+                  onSaved={fetchHistorialPaciente}
+                />
+                {detalleSel ? (
+                  <>
+                    {seleccionado.es_tratado ? (
+                      <TratamientoSection
+                        key={`trat-${seleccionado.id}`}
+                        diagnosticoId={String(seleccionado.id)}
+                        consultaId={String(seleccionado.consulta_id)}
+                        pacienteId={String(pacienteId)}
+                        initial={detalleSel.tratamientos}
+                        onItemsChange={() => fetchHistorialPaciente()}
+                      />
+                    ) : (
+                      <Notice text="Este diagnóstico no requiere tratamiento en la clínica." />
+                    )}
+                    <RecomendacionesSection
+                      key={`recom-${seleccionado.id}`}
+                      consultaId={String(seleccionado.consulta_id)}
+                      pacienteId={String(pacienteId)}
+                      initial={detalleSel.recomendaciones}
+                      onSaved={fetchHistorialPaciente}
+                    />
+                    <RecetaSection
+                      key={`receta-${seleccionado.id}`}
+                      diagnosticoId={String(seleccionado.id)}
+                      pacienteId={String(pacienteId)}
+                      initial={detalleSel.recetas}
+                      pacienteNombre={paciente.nombre_completo}
+                      telefono={paciente.telefono ?? ""}
+                      dni={paciente.dni ?? ""}
+                      pacienteFechaNacimiento={paciente.fecha_nacimiento}
+                      alergias={paciente.alergias}
+                      doctorNombre={seleccionado.doctor_nombre ?? "Doctor"}
+                      diagnosticoTexto={seleccionado.diagnostico_texto ?? ""}
+                      onSaved={fetchHistorialPaciente}
+                    />
+                  </>
+                ) : (
+                  <div className="py-6 flex justify-center">
+                    <div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3">
+                <Icon name="info" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Este paciente no tiene diagnósticos registrados.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Historial — todos los diagnósticos del paciente, scroll propio. ── */}
+        <div className="flex flex-col gap-2 min-w-0">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Historial</h2>
+            <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[10.5px] font-bold flex items-center justify-center">
+              {historialPaciente.length}
+            </span>
+          </div>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            {historialPaciente.length === 0 ? (
+              <p className="text-[12px] text-slate-400 dark:text-slate-500 text-center py-8">Sin diagnósticos</p>
+            ) : (
+              <div ref={listScroll.ref} style={{ ...listScroll.style, maxHeight: LIST_MAX_H }} className="overflow-y-auto no-scrollbar divide-y divide-slate-100 dark:divide-slate-700">
+                {historialPaciente.map((d) => (
+                  <DiagnosticoHistorialRow
                     key={d.id}
                     d={d}
-                    isActual={i === 0}
-                    isSelected={String(d.id) === selectedId}
+                    active={String(d.id) === selectedId}
                     tratCount={detalleMap[String(d.id)]?.tratamientos.length ?? 0}
                     recCount={detalleMap[String(d.id)]?.recetas.length ?? 0}
                     onClick={() => setSelectedId(String(d.id))}
                   />
                 ))}
               </div>
-            </div>
-
-            {/* Mobile (< md): historial en lista vertical — el detalle se ve en un modal aparte */}
-            <div className="md:hidden flex flex-col gap-3 w-full">
-              {historialPaciente.map((d, i) => (
-                <DiagnosticoAsideCard
-                  key={d.id}
-                  d={d}
-                  isActual={i === 0}
-                  isSelected={false}
-                  tratCount={detalleMap[String(d.id)]?.tratamientos.length ?? 0}
-                  recCount={detalleMap[String(d.id)]?.recetas.length ?? 0}
-                  onClick={() => { setSelectedId(String(d.id)); setShowMobileModal(true); }}
-                />
-              ))}
-            </div>
-
-            {/* Columna derecha (md+): en angosto (md-lg) incluye la franja horizontal + aviso arriba; en lg+ solo el detalle */}
-            <div className="hidden md:flex flex-col gap-4 flex-1 min-w-0 w-full lg:h-full lg:min-h-0">
-              {/* Franja horizontal compacta del historial — solo entre md y lg */}
-              <div className="lg:hidden shrink-0 flex flex-col gap-3">
-                <div className="bg-white dark:bg-slate-800 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-3 border-y border-slate-100 dark:border-slate-700">
-                  <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                    {historialPaciente.map((d, i) => (
-                      <DiagnosticoAsideCardCompact
-                        key={d.id}
-                        d={d}
-                        isActual={i === 0}
-                        isSelected={String(d.id) === selectedId}
-                        onClick={() => setSelectedId(String(d.id))}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Panel de detalle del diagnóstico seleccionado — su propio scroll independiente oculto en lg+ */}
-              <div ref={detalleScroll.ref} style={detalleScroll.style} className="flex flex-col gap-4 flex-1 min-w-0 lg:min-h-0 lg:overflow-y-auto no-scrollbar lg:pr-1">
-                {seleccionado && (
-                <>
-                  <DiagnosticoCard
-                    diagnostico={seleccionado}
-                    consultaId={String(seleccionado.consulta_id)}
-                    pacienteId={String(pacienteId)}
-                    onSaved={fetchHistorialPaciente}
-                    onNavigateTab={onNavigateTab}
-                  />
-                  {detalleSel ? (
-                    <>
-                      {seleccionado.es_tratado ? (
-                        <TratamientoSection
-                          key={`trat-${seleccionado.id}`}
-                          diagnosticoId={String(seleccionado.id)}
-                          consultaId={String(seleccionado.consulta_id)}
-                          pacienteId={String(pacienteId)}
-                          initial={detalleSel.tratamientos}
-                          onItemsChange={() => fetchHistorialPaciente()}
-                        />
-                      ) : (
-                        <Notice text="Este diagnóstico no requiere tratamiento en la clínica." />
-                      )}
-                      <RecomendacionesSection
-                        key={`recom-${seleccionado.id}`}
-                        consultaId={String(seleccionado.consulta_id)}
-                        pacienteId={String(pacienteId)}
-                        initial={detalleSel.recomendaciones}
-                        onSaved={fetchHistorialPaciente}
-                      />
-                      <RecetaSection
-                        key={`receta-${seleccionado.id}`}
-                        diagnosticoId={String(seleccionado.id)}
-                        pacienteId={String(pacienteId)}
-                        initial={detalleSel.recetas}
-                        pacienteNombre={paciente.nombre_completo}
-                        telefono={paciente.telefono ?? ""}
-                        dni={paciente.dni ?? ""}
-                        pacienteFechaNacimiento={paciente.fecha_nacimiento}
-                        alergias={paciente.alergias}
-                        doctorNombre={seleccionado.doctor_nombre ?? "Doctor"}
-                        diagnosticoTexto={seleccionado.diagnostico_texto ?? ""}
-                        onSaved={fetchHistorialPaciente}
-                      />
-                    </>
-                  ) : (
-                    <div className="py-6 flex justify-center">
-                      <div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" />
-                    </div>
-                  )}
-                </>
-              )}
-              </div>
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
-
-      <AnimatePresence>
-        {isMobile && showMobileModal && seleccionado && (
-          <DiagnosticoCarouselModal
-            seleccionado={seleccionado}
-            detalleSel={detalleSel}
-            pacienteId={pacienteId}
-            paciente={paciente}
-            onClose={() => setShowMobileModal(false)}
-            onSaved={fetchHistorialPaciente}
-            onNavigateTab={onNavigateTab}
-          />
-        )}
-      </AnimatePresence>
-    </>
     );
   }
 
@@ -647,22 +383,53 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
 
   return (
     <>
-    <div className="flex flex-col gap-4">
-      {/* Wizard — el stepper queda fijo (sticky); solo el contenido del paso
-          debajo se desplaza con el scroll de la página. El resumen registrado
-          ya no vive aquí: se muestra en el modal de confirmación al Finalizar. */}
-      <div className="flex flex-col gap-4 min-w-0">
-        <div className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-900 -mx-3 px-3 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6">
-          <ConsultaStepper step={step} done={done} onStepClick={goStep} />
+    <div className="h-full flex flex-col gap-4 min-w-0">
+      {/* Wizard — el stepper queda fijo, fuera del scroll interno del paso (ver
+          contenedor de HistoriaView: "diagnosticos" no scrollea a ese nivel,
+          solo lo hace el contenido de abajo). Antes usaba position:sticky
+          DENTRO de un contenedor que sí scrolleaba — funcionaba casi siempre,
+          pero en mobile el compositor puede atrasarse un frame durante scroll
+          rápido y dejar ver el contenido de abajo un instante. Sacarlo del
+          scroll de raíz lo evita de plano. El resumen registrado ya no vive
+          aquí: se muestra en el modal de confirmación al Finalizar. */}
+      <div className="shrink-0 bg-slate-50 dark:bg-slate-900 -mx-3 px-3 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6 pb-2">
+        <ConsultaStepper step={step} done={done} onStepClick={goStep} />
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col gap-4">
+        {/* Título del paso + navegación — fuera de cualquier card (cada
+            componente de paso, DiagnosticoForm/TratamientoSection/etc., ya
+            trae su propia tarjeta con su propio ícono/subtítulo, así que
+            envolverlos en OTRA tarjeta acá arriba solo duplicaba el borde).
+            Anterior/Continuar pasan de texto en un footer a solo íconos acá
+            arriba, al lado del título. */}
+        <div className="flex items-start justify-between gap-3 px-1">
+          <div className="min-w-0">
+            <p className="text-[10.5px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-widest mb-1">Paso {step + 1} de {WIZARD_STEPS.length}</p>
+            <h3 className="text-[17px] font-bold text-slate-900 dark:text-slate-100">{WIZARD_STEPS[step].titulo}</h3>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => goStep(step - 1)}
+              disabled={step === 0}
+              aria-label="Paso anterior"
+              className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-0 disabled:pointer-events-none transition-colors"
+            >
+              <Icon name="chevron_left" size={18} />
+            </button>
+            <button
+              onClick={() => { if (step < WIZARD_STEPS.length - 1) goStep(step + 1); else setShowFinalizar(true); }}
+              aria-label={step === WIZARD_STEPS.length - 1 ? "Finalizar consulta" : "Siguiente paso"}
+              className="w-9 h-9 rounded-full bg-cyan-600 hover:bg-cyan-700 flex items-center justify-center text-white transition-colors"
+            >
+              <Icon name={step === WIZARD_STEPS.length - 1 ? "check" : "chevron_right"} size={18} />
+            </button>
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 sm:p-6">
-          <p className="text-[10.5px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-widest mb-1">Paso {step + 1} de {WIZARD_STEPS.length}</p>
-          <h3 className="text-[17px] font-bold text-slate-900 dark:text-slate-100 mb-4 pb-4 border-b border-slate-100 dark:border-slate-700">{WIZARD_STEPS[step].titulo}</h3>
-
-          {step === 0 && (
+        {step === 0 && (
             actual ? (
-              <DiagnosticoCard diagnostico={actual} consultaId={String(consultaId)} pacienteId={String(pacienteId)} onSaved={refetch} onNavigateTab={onNavigateTab} />
+              <DiagnosticoCard diagnostico={actual} consultaId={String(consultaId)} pacienteId={String(pacienteId)} onSaved={refetch} />
             ) : (
               <DiagnosticoForm consultaId={String(consultaId)} pacienteId={String(pacienteId)} onSaved={() => { justCreatedDiagRef.current = true; refetch(); }} />
             )
@@ -733,15 +500,6 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
             )
           )}
 
-          {step > 0 && (
-            <WizardFooter
-              step={step}
-              canGoNext={true}
-              onBack={() => goStep(step - 1)}
-              onNext={() => { if (step < WIZARD_STEPS.length - 1) goStep(step + 1); else setShowFinalizar(true); }}
-            />
-          )}
-        </div>
       </div>
     </div>
 

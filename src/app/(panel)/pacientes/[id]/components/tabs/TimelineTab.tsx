@@ -250,6 +250,18 @@ export function TimelineTab({
         {isMobileModalOpen && selectedId && (
           <ResponsiveSheet onClose={() => setIsMobileModalOpen(false)}>
             <div className="relative min-h-75 overflow-y-auto no-scrollbar bg-white dark:bg-slate-800">
+              {/* ResponsiveSheet solo dibuja su botón "X" si le pasás title/header —
+                  este modal no usa ninguno de los dos (ConsultaDetail ya trae su
+                  propio encabezado), así que sin esto quedaba sin ninguna forma
+                  visible de cerrarlo en tablet/desktop (el modal centrado no
+                  siempre deja ver el backdrop clickeable alrededor). */}
+              <button
+                onClick={() => setIsMobileModalOpen(false)}
+                aria-label="Cerrar"
+                className="absolute top-2 right-2 z-20 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 shadow-sm transition-colors"
+              >
+                <Icon name="close" size={16} />
+              </button>
               {loadingDetalle && (
                 <div className="absolute inset-0 z-10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm flex items-center justify-center">
                   <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
