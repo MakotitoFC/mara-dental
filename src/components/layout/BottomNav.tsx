@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
+import { GuardedLink } from "./GuardedLink";
 
 type NavItem = { href: string; icon: string; label: string };
 
@@ -18,24 +18,24 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { href: "/dashboard", icon: "home", label: "Dashboard" },
     { href: "/agenda", icon: "calendar_month", label: "Calendario" },
     { href: "/pacientes", icon: "person", label: "Pacientes" },
-    { href: "/configuracion", icon: "settings", label: "Más" },
+    { href: "/configuracion", icon: "settings", label: "Config." },
   ],
   doctor: [
     { href: "/dashboard", icon: "home", label: "Dashboard" },
     { href: "/agenda", icon: "calendar_month", label: "Calendario" },
     { href: "/pacientes", icon: "person", label: "Pacientes" },
-    { href: "/configuracion", icon: "settings", label: "Más" },
+    { href: "/configuracion", icon: "settings", label: "Config." },
   ],
   asistente: [
     { href: "/dashboard", icon: "home", label: "Dashboard" },
     { href: "/agenda", icon: "calendar_month", label: "Calendario" },
     { href: "/pacientes", icon: "person", label: "Pacientes" },
     { href: "/pagos", icon: "payments", label: "Pagos" },
-    { href: "/configuracion", icon: "settings", label: "Más" },
+    { href: "/configuracion", icon: "settings", label: "Config." },
   ],
   contador: [
     { href: "/dashboard", icon: "home", label: "Dashboard" },
-    { href: "/configuracion", icon: "settings", label: "Más" },
+    { href: "/configuracion", icon: "settings", label: "Config." },
   ],
 };
 
@@ -57,7 +57,7 @@ export function BottomNav() {
         {navItems.map((item) => {
           const active = isActive(item.href);
           return (
-            <Link
+            <GuardedLink
               key={item.href}
               href={item.href}
               aria-current={active ? "page" : undefined}
@@ -76,7 +76,7 @@ export function BottomNav() {
               <span className={`text-[10px] font-medium ${active ? "text-cyan-600 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500"}`}>
                 {item.label}
               </span>
-            </Link>
+            </GuardedLink>
           );
         })}
       </div>

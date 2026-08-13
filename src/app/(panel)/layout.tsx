@@ -11,6 +11,11 @@ function getInitials(name:string){
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
+/** Solo el primer nombre y el primer apellido — nombre/apellido en BD pueden traer varias palabras (ej. "Juan Carlos", "Pérez García"). */
+function primeraPalabra(s?: string | null): string {
+  return (s ?? "").trim().split(/\s+/)[0] ?? "";
+}
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient(); // instanciar cliente
   let currentUser: AuthUser | null = null;

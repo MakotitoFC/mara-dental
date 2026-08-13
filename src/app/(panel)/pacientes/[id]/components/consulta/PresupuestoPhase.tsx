@@ -182,8 +182,10 @@ function buildPresupuestoHtml(opts: {
   return wrapDocument(`${header}${body}${buildLetterheadFooter({ clinica: opts.clinica, pacienteNombre: opts.pacienteNombre, docCode })}`, 850);
 }
 
-export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto, mediosPago, onSaved, onNavigateTab, fillHeight }: {
+export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto, mediosPago, onSaved, onCancel, onNavigateTab, fillHeight }: {
   consultaId: string; pacienteId: string; paciente: any; mediosPago: { id: number; nombre: string }[]; onSaved?: () => void;
+  /** Solo aplica cuando presupuesto es null (creación) — permite volver a la selección anterior. */
+  onCancel?: () => void;
   presupuesto: PresupuestoData | null;
   onNavigateTab?: (tab: string) => void;
   /** Cuando true, la tarjeta llena el alto disponible del padre (h-full) en vez
@@ -193,7 +195,7 @@ export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto
   if (presupuesto) {
     return <PresupuestoExistente pacienteId={pacienteId} paciente={paciente} presupuesto={presupuesto} mediosPago={mediosPago} onSaved={onSaved} onNavigateTab={onNavigateTab} fillHeight={fillHeight} />;
   }
-  return <PresupuestoBuilder consultaId={consultaId} pacienteId={pacienteId} onSaved={onSaved} />;
+  return <PresupuestoBuilder consultaId={consultaId} pacienteId={pacienteId} onSaved={onSaved} onCancel={onCancel} />;
 }
 
 function PresupuestoSelectCombobox({
@@ -496,10 +498,10 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
   const totalNeto = presupuesto.total_bruto - presupuesto.descuento_monto;
   const pagosValidos = presupuesto.pagos.filter(p => p.estado !== "anulado");
 
-  const estadoCfg: Record<string, { bg: string; text: string; label: string }> = {
-    pendiente: { bg: "bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800", text: "text-amber-700 dark:text-amber-400", label: "Pendiente" },
-    aprobado:  { bg: "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800", text: "text-emerald-700 dark:text-emerald-400", label: "Aprobado" },
-    cancelado: { bg: "bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600", text: "text-slate-500 dark:text-slate-400", label: "Cancelado" },
+  const estadoCfg: Record<string, { bg: string; text: string; label: string; dot: string }> = {
+    pendiente: { bg: "bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800", text: "text-amber-700 dark:text-amber-400", label: "Pendiente", dot: "bg-amber-400" },
+    aprobado:  { bg: "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800", text: "text-emerald-700 dark:text-emerald-400", label: "Aprobado", dot: "bg-emerald-500" },
+    cancelado: { bg: "bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600", text: "text-slate-500 dark:text-slate-400", label: "Cancelado", dot: "bg-slate-300 dark:bg-slate-600" },
   };
   const cfg = estadoCfg[presupuesto.estado] ?? estadoCfg.pendiente;
 
@@ -562,30 +564,22 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
   return (
     <motion.div variants={fadeIn} initial="hidden" animate="visible" className={`flex flex-col gap-4 ${fillHeight ? "h-full min-h-0" : ""}`}>
       {/* Card presupuesto */}
-      <div className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 md:p-6 flex flex-col gap-4 min-h-0 ${fillHeight ? "h-full" : "max-h-[70vh] sm:max-h-[560px]"}`}>
+      {/* max-h-[480px] = 8 filas × 60px, mismo tope que el panel de Historial de al lado (PresupuestoTab). */}
+      <div className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 md:p-6 flex flex-col gap-4 min-h-0 ${fillHeight ? "h-full" : "max-h-[480px]"}`}>
         <div className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
-              <Icon name="receipt_long" size={18} />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Presupuesto</h2>
-              {(presupuesto.fecha_emision || presupuesto.doctor_nombre) && (
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5 flex-wrap">
-                  {presupuesto.fecha_emision && (
-                    <span className="flex items-center gap-1"><Icon name="calendar_today" size={11} /> {fmtFechaCorta(presupuesto.fecha_emision)}</span>
-                  )}
-                  {presupuesto.doctor_nombre && (
-                    <span className="flex items-center gap-1"><Icon name="person" size={11} /> Dr. {presupuesto.doctor_nombre}</span>
-                  )}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+            {presupuesto.fecha_emision && (
+              <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">{fmtFechaCorta(presupuesto.fecha_emision)}</span>
+            )}
             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${cfg.bg} ${cfg.text}`}>
               {cfg.label}
             </span>
+            {presupuesto.doctor_nombre && (
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1"><Icon name="person" size={11} /> Dr. {presupuesto.doctor_nombre}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
             {presupuesto.estado === "pendiente" && (
               <button onClick={() => setIsEditing(true)} title="Editar Presupuesto"
                 className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">

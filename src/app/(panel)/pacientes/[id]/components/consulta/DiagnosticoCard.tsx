@@ -18,7 +18,7 @@ const CATEGORIAS = [
   { value: "otros", label: "Otros" },
 ];
 
-interface Archivo { id: number; nombre_archivo: string; url: string; tipo_archivo: string; categoria: string; anotaciones?: any[]; displayUrl?: string; }
+interface Archivo { id: number | string; nombre_archivo: string; url: string; tipo_archivo: string; categoria: string; anotaciones?: any[]; displayUrl?: string; }
 interface CIE10 { id: number; codigo: string; descripcion: string; }
 
 interface Props {
@@ -55,7 +55,7 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [fileToDelete, setFileToDelete] = useState<{id: number, url: string, name: string} | null>(null);
+  const [fileToDelete, setFileToDelete] = useState<{id: number | string, url: string, name: string} | null>(null);
   const [deleting, setDeleting] = useState(false);
   const toast = useToast();
 
@@ -186,7 +186,6 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
               archivo={visor}
               todos={diagnostico.archivos}
               onClose={() => setVisor(null)}
-              onDelete={confirmDelete}
               onNavigateTab={onNavigateTab}
               onNav={setVisor}
             />
