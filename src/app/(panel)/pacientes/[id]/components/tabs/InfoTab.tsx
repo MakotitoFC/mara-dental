@@ -2,10 +2,7 @@
 
 import { Icon } from "@/components/ui/Icon";
 import { calcEdad } from "@/lib/date-utils";
-import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { StatTile, Card, Row, TagGroup, TagGroupPlain } from "../../../components/PatientInfoPrimitives";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function has(v: unknown): v is string {
   return v !== null && v !== undefined && v !== "";
@@ -22,11 +19,6 @@ function fmtDMY(iso?: string): string | null {
   }
 }
 
-// ─── Tab principal ────────────────────────────────────────────────────────────
-// Layout en bloques de 2-3 columnas en desktop (1 columna en móvil), organizado
-// por prioridad para un vistazo rápido del médico: resumen+contacto arriba,
-// antecedentes médicos en 3 bloques al centro, actividad/notas recientes abajo.
-
 export function InfoTab({
   paciente: p,
   historial,
@@ -38,33 +30,25 @@ export function InfoTab({
   datosCasos?: any;
   onNavigateTab?: (tab: string) => void;
 }) {
-  const { getVars } = useTipoConsultaVars();
-  const nombreCompleto = [p.nombre, p.apellido].filter(Boolean).join(" ") || "—";
   const edad = p.fecha_nacimiento ? calcEdad(p.fecha_nacimiento) : null;
   const nacimiento = fmtDMY(p.fecha_nacimiento);
   const ant = p.antecedentes_estructurados || { cronicas: [], medicacion_habitual: [], quirurgicos: [] };
   const alergias: string[] = Array.isArray(p.alergias) ? p.alergias : [];
-
-  const tieneContacto = has(p.telefono) || has(p.email) || has(p.direccion) || has(p.domicilio);
   const recientes = (datosCasos?.casos ?? []).slice(0, 3);
 
-  const extra: [string, string, string][] = [
-    has(p.ocupacion) && ["work", "Ocupación", p.ocupacion],
-    has(p.estado_civil) && ["heart", "Estado civil", p.estado_civil],
-    has(p.grado_instruccion) && ["school", "Grado de instrucción", p.grado_instruccion],
-    has(p.lugar_nacimiento) && ["location_on", "Lugar de nacimiento", p.lugar_nacimiento],
-    has(p.lugar_procedencia) && ["pin_drop", "Procedencia", p.lugar_procedencia],
-    has(p.religion) && ["church", "Religión", p.religion],
-    has(p.raza) && ["person", "Raza", p.raza],
-  ].filter(Boolean) as [string, string, string][];
+  const datosDemograficos: [string, string, string | undefined][] = [
+    ["work", "Ocupación", p.ocupacion],
+    ["favorite", "Estado civil", p.estado_civil],
+    ["school", "Grado de instrucción", p.grado_instruccion],
+    ["location_on", "Lugar de nacimiento", p.lugar_nacimiento],
+    ["pin_drop", "Procedencia", p.lugar_procedencia],
+    ["church", "Religión", p.religion],
+    ["person", "Raza", p.raza],
+  ];
 
   return (
-    // Dos columnas independientes (no grid de filas iguales): cada una apila sus
-    // tarjetas por su propio contenido, así una tarjeta corta no se estira para
-    // igualar a una alta y no quedan espacios vacíos dentro de las tarjetas.
-    // Columna izquierda = bloques grandes (resumen, notas). Columna derecha =
-    // bloques medianos de tamaño similar entre sí (contacto, antecedentes...).
     <div className="flex flex-col lg:flex-row gap-4 items-start">
+      {/* Columna Izquierda: Resumen, Datos Personales y Notas */}
       <div className="flex flex-col gap-4 w-full lg:flex-1">
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
           <h3 className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-3">Resumen del paciente</h3>
@@ -76,13 +60,11 @@ export function InfoTab({
           </div>
         </div>
 
-        {extra.length > 0 && (
-          <Card title="Datos Adicionales">
-            {extra.map(([icon, label, value]) => (
-              <Row key={label} icon={icon} label={label} value={value} />
-            ))}
-          </Card>
-        )}
+        <Card title="Información Personal y Demográfica">
+          {datosDemograficos.map(([icon, label, value]) => (
+            <Row key={label} icon={icon} label={label} value={has(value) ? value : "—"} />
+          ))}
+        </Card>
 
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
           <div className="flex items-center justify-between mb-2">
@@ -90,7 +72,7 @@ export function InfoTab({
             {recientes.length > 0 && (
               <button
                 onClick={() => onNavigateTab?.("timeline")}
-                className="text-[11.5px] font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300"
+                className="text-[11.5px] font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 cursor-pointer"
               >
                 Ver todo →
               </button>
@@ -98,7 +80,7 @@ export function InfoTab({
           </div>
           {recientes.length === 0 ? (
             <p className="text-[12.5px] text-slate-400 dark:text-slate-500 py-2">
-              Aún no hay notas clínicas registradas. Se agregan al iniciar una consulta desde el Calendario.
+              Aún no hay notas clínicas registradas. Se agregan al iniciar una consulta.
             </p>
           ) : (
             <div className="flex flex-col gap-3">
@@ -128,15 +110,13 @@ export function InfoTab({
         </div>
       </div>
 
+      {/* Columna Derecha: Contacto, Alergias, Medicación y Antecedentes */}
       <div className="flex flex-col gap-4 w-full lg:flex-1 lg:min-w-0 lg:max-w-md">
         <Card title="Contacto">
-          {has(p.telefono) && <Row icon="phone" label="Teléfono" value={p.telefono} />}
-          {has(p.email) && <Row icon="email" label="Email" value={p.email} />}
-          {has(p.direccion) && <Row icon="location_on" label="Dirección" value={p.direccion} />}
-          {has(p.domicilio) && <Row icon="location_on" label="Domicilio" value={p.domicilio} />}
-          {!tieneContacto && (
-            <p className="text-[12.5px] text-slate-400 dark:text-slate-500 py-2">Sin datos de contacto registrados.</p>
-          )}
+          <Row icon="phone" label="Teléfono" value={has(p.telefono) ? p.telefono : "—"} />
+          <Row icon="email" label="Email" value={has(p.email) ? p.email : "—"} />
+          <Row icon="location_on" label="Dirección" value={has(p.direccion) ? p.direccion : "—"} />
+          <Row icon="home" label="Domicilio" value={has(p.domicilio) ? p.domicilio : "—"} />
         </Card>
 
         <div className={`rounded-2xl border p-4 sm:p-5 ${alergias.length > 0 ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"}`}>
@@ -164,14 +144,8 @@ export function InfoTab({
         <Card title="Antecedentes clínicos">
           <TagGroup label="Enfermedades crónicas" items={ant.cronicas} color="cyan" />
           <TagGroup label="Antecedentes quirúrgicos" items={ant.quirurgicos} color="amber" />
-          {has(p.enfermedad_actual) && (
-            <div className="pt-2.5 mt-1 border-t border-slate-100 dark:border-slate-700">
-              <p className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">
-                Enfermedad actual / restricciones
-              </p>
-              <p className="text-[12.5px] text-slate-700 dark:text-slate-300 leading-relaxed">{p.enfermedad_actual}</p>
-            </div>
-          )}
+          <TagGroup label="Enfermedad actual" items={Array.isArray(p.enfermedad_actual) ? p.enfermedad_actual : []} color="blue" />
+          <TagGroup label="Restricciones clínicas" items={Array.isArray(p.restricciones_clinicas) ? p.restricciones_clinicas : []} color="rose" />
         </Card>
       </div>
     </div>
