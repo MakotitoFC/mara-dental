@@ -3,9 +3,14 @@ import type { Variants } from "framer-motion";
 /** Easing estándar del design system — suave, nunca bounce/elastic. */
 export const EASE = [0.4, 0, 0.2, 1] as const;
 
+// Sin `y`: framer-motion aplica `transform` en el elemento animado incluso en
+// reposo (y:0), y un transform en cualquier ancestro rompe `position: sticky`
+// de los descendientes (ver DashboardShell.tsx, que envuelve cada página en
+// esta variante — el Header sticky de la app dejaba de pegarse al hacer
+// scroll por esto). Opacidad sola evita el problema sin perder la animación.
 export const fadeIn: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: EASE } },
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.3, ease: EASE } },
   exit: { opacity: 0, transition: { duration: 0.2, ease: EASE } },
 };
 

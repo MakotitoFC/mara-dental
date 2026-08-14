@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getPlantillasAction } from "./plantillas.actions";
 import PlantillasClient from "./PlantillasClient";
 import { redirect } from "next/navigation";
+import { Header } from "@/components/layout/Header";
 
 export default async function PlantillasPage() {
   const supabase = await createClient();
@@ -27,10 +28,9 @@ export default async function PlantillasPage() {
   const plantillas = await getPlantillasAction();
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 flex justify-center">
-      <div className="w-full max-w-7xl mx-auto">
-        <PlantillasClient plantillas={plantillas} userRole={userRole} />
-      </div>
-    </div>
+    <>
+      <Header title="Plantillas" />
+      <PlantillasClient plantillas={plantillas} userRole={userRole} />
+    </>
   );
 }

@@ -218,7 +218,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
                 value={tituloCaso}
                 onChange={(e) => setTituloCaso(e.target.value)}
                 placeholder="Título del Caso Clínico (Opcional, Ej: Tratamiento Ortodoncia)"
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[13px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all placeholder:text-slate-400"
+                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[16px] sm:text-[13px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all placeholder:text-slate-400"
               />
             </div>
           </div>
@@ -298,7 +298,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
               value={fechaConsulta}
               onChange={e => setFechaConsulta(e.target.value)}
               disabled
-              className="w-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 rounded-xl px-3 py-2.5 text-[14px] outline-none cursor-not-allowed"
+              className="w-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none cursor-not-allowed"
             />
           </div>
           {isLockedByCita && (
@@ -320,7 +320,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
               value={motivo}
               onChange={e => setMotivo(e.target.value)}
               placeholder={selectedCasoId === "nuevo" ? "Ej: Tratamiento de ortodoncia, Dolor en molar inferior..." : "Motivo de revisión de hoy..."}
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
             />
           </div>
 
@@ -331,7 +331,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
               value={observaciones}
               onChange={e => setObservaciones(e.target.value)}
               placeholder="Notas de evolución, diagnóstico diferencial, comentarios..."
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
             />
           </div>
         </div>
@@ -429,13 +429,13 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
                   value={c.clave}
                   onChange={e => update(i, { clave: e.target.value })}
                   placeholder="Signo / hallazgo"
-                  className="sm:w-44 shrink-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+                  className="sm:w-44 shrink-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
                 />
                 <input
                   value={c.valor}
                   onChange={e => update(i, { valor: e.target.value })}
                   placeholder="Valor / descripción"
-                  className="flex-1 min-w-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[14px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+                  className="flex-1 min-w-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
                 />
                 <button type="button" onClick={() => remove(i)}
                   className="w-10 h-10 shrink-0 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors self-end sm:self-auto">

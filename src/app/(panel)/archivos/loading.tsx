@@ -1,14 +1,11 @@
 import { Header } from "@/components/layout/Header";
-
-function Skeleton({ className }: { className?: string }) {
-  return <div className={`bg-slate-200 rounded-lg animate-pulse ${className ?? ""}`} />;
-}
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export default function LoadingArchivos() {
   return (
     <>
       <Header title="Archivos Clínicos" />
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6 flex flex-col gap-4">
 
         {/* Filtros + búsqueda */}
         <div className="flex flex-col sm:flex-row gap-3">

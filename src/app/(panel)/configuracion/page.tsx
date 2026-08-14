@@ -26,7 +26,7 @@ export default async function ConfiguracionPage() {
     return (
       <>
         <Header title="Configuración" />
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
           <ConfiguracionView perfil={perfil} rol={rol} horariosSede={horariosSede} />
         </div>
       </>
@@ -38,7 +38,7 @@ export default async function ConfiguracionPage() {
     return (
       <>
         <Header title="Configuración de la Sede" />
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
           <ConfiguracionView perfil={perfil} rol={rol} sede={sede} />
         </div>
       </>
@@ -50,7 +50,7 @@ export default async function ConfiguracionPage() {
     return (
       <>
         <Header title="Configuración Global de Sedes" />
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
           <ConfiguracionView perfil={perfil} rol={rol} sedes={sedes} />
         </div>
       </>
@@ -62,7 +62,7 @@ export default async function ConfiguracionPage() {
   return (
     <>
       <Header title="Configuración" />
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto no-scrollbar">
         <ConfiguracionView perfil={perfil} rol={rol} horarios={horarios} />
       </div>
     </>

@@ -7,7 +7,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { registrarPagoAction } from "../../pacientes/[id]/consulta.actions";
 import { enviarVoucherPagoAction, type PresupuestoPendiente } from "../actions";
 import { buildVoucherTexto, buildVoucherHtml } from "../voucherText";
-import { printHtml, downloadHtmlAsSinglePagePdf, type ClinicaInfo } from "@/lib/reportExport";
+import { printHtml, downloadHtmlAsPaginatedPdf, type ClinicaInfo } from "@/lib/reportExport";
 
 type MedioPago = { id: number; nombre: string };
 
@@ -109,7 +109,7 @@ export function RegistrarPagoSheet({
         moneda: presupuesto.moneda,
       });
       if (mode === "print") await printHtml(html, `Comprobante de pago #${presupuesto.id}`);
-      else await downloadHtmlAsSinglePagePdf(html, `comprobante_${presupuesto.id}.pdf`);
+      else await downloadHtmlAsPaginatedPdf(html, `comprobante_${presupuesto.id}.pdf`, 800);
     } catch (err) {
       console.error("Error exportando comprobante:", err);
     } finally {

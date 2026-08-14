@@ -159,8 +159,8 @@ export function DashboardAsistenteView({ data }: { data: DashboardAsistenteData 
     <motion.div variants={staggerContainer(0.08)} initial="hidden" animate="visible" className="p-4 sm:p-6 flex flex-col gap-5 sm:gap-7">
       {/* Encabezado */}
       <motion.div variants={staggerItem} className="flex flex-col gap-1">
-        <p className="text-[15px] sm:text-[17px] font-semibold text-slate-900 dark:text-slate-100">Resumen operativo</p>
-        <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Para hoy{fechaLarga ? `, ${fechaLarga}` : ""}</p>
+        <p className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Resumen operativo</p>
+        <p className="text-[12px] text-slate-400 dark:text-slate-500">Para hoy{fechaLarga ? `, ${fechaLarga}` : ""}</p>
       </motion.div>
 
       {/* KPIs */}
@@ -193,60 +193,95 @@ export function DashboardAsistenteView({ data }: { data: DashboardAsistenteData 
               <p className="text-[12px]">Sin citas registradas hoy</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-700">
-                    <th className="px-4 sm:px-5 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Hora</th>
-                    <th className="px-3 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Paciente</th>
-                    <th className="px-3 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Doctor</th>
-                    <th className="px-3 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Tipo</th>
-                    <th className="px-3 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Estado</th>
-                    <th className="px-4 sm:px-5 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide text-right">Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {citasHoy.map((c) => {
-                    const tipoVars = getVars(c.tipo_consulta_id);
-                    const estado = c.estado as EstadoCita;
-                    const estVars = estadoCitaVars(estado);
-                    return (
-                      <tr key={c.id} className="border-b border-slate-50 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                        <td className="px-4 sm:px-5 py-3 align-top whitespace-nowrap">
-                          <span className="text-[12.5px] font-bold text-slate-800 dark:text-slate-100">{c.hora_inicio}</span>
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <p className="text-[12.5px] font-medium text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{c.paciente_nombre}</p>
-                        </td>
-                        <td className="px-3 py-3 align-top">
-                          <p className="text-[12px] text-slate-500 dark:text-slate-400 truncate max-w-[130px]">{c.doctor_nombre}</p>
-                        </td>
-                        <td className="px-3 py-3 align-top whitespace-nowrap">
-                          <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full" style={{ background: tipoVars.bg, color: tipoVars.text }}>
+            <>
+              {/* Tablet/Desktop — tabla */}
+              <div className="hidden md:block overflow-x-auto no-scrollbar">
+                <table className="w-full text-left border-collapse" style={{ minWidth: 640 }}>
+                  <thead className="bg-slate-50 dark:bg-slate-900/40">
+                    <tr className="border-b border-slate-100 dark:border-slate-700">
+                      <th className="px-4 sm:px-5 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Hora</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Paciente</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Doctor</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Tipo</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Estado</th>
+                      <th className="px-4 sm:px-5 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {citasHoy.map((c) => {
+                      const tipoVars = getVars(c.tipo_consulta_id);
+                      const estado = c.estado as EstadoCita;
+                      const estVars = estadoCitaVars(estado);
+                      return (
+                        <tr key={c.id} className="border-b border-slate-50 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                          <td className="px-4 sm:px-5 py-3 align-top whitespace-nowrap">
+                            <span className="text-[12.5px] font-bold text-slate-800 dark:text-slate-100">{c.hora_inicio}</span>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <p className="text-[12.5px] font-medium text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{c.paciente_nombre}</p>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <p className="text-[12px] text-slate-500 dark:text-slate-400 truncate max-w-[130px]">{c.doctor_nombre}</p>
+                          </td>
+                          <td className="px-3 py-3 align-top whitespace-nowrap">
+                            <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full" style={{ background: tipoVars.bg, color: tipoVars.text }}>
+                              {tipoVars.label}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 align-top whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-full" style={{ background: estVars.bg, color: estVars.text }}>
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: estVars.solid }} />
+                              {ESTADO_CITA_LABEL[estado]}
+                            </span>
+                          </td>
+                          <td className="px-4 sm:px-5 py-3 align-top text-right">
+                            <Link
+                              href={`/pacientes/${c.paciente_id}`}
+                              title="Ver ficha del paciente"
+                              className="inline-flex w-9 h-9 rounded-lg items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors"
+                            >
+                              <Icon name="description" size={15} />
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile — tarjetas */}
+              <div className="md:hidden flex flex-col divide-y divide-slate-100 dark:divide-slate-700">
+                {citasHoy.map((c) => {
+                  const tipoVars = getVars(c.tipo_consulta_id);
+                  const estado = c.estado as EstadoCita;
+                  const estVars = estadoCitaVars(estado);
+                  return (
+                    <Link
+                      key={c.id}
+                      href={`/pacientes/${c.paciente_id}`}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                    >
+                      <span className="text-[12.5px] font-bold text-slate-800 dark:text-slate-100 shrink-0 w-11 text-center">{c.hora_inicio}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12.5px] font-medium text-slate-800 dark:text-slate-100 truncate">{c.paciente_nombre}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{c.doctor_nombre}</p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: tipoVars.bg, color: tipoVars.text }}>
                             {tipoVars.label}
                           </span>
-                        </td>
-                        <td className="px-3 py-3 align-top whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-full" style={{ background: estVars.bg, color: estVars.text }}>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: estVars.bg, color: estVars.text }}>
                             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: estVars.solid }} />
                             {ESTADO_CITA_LABEL[estado]}
                           </span>
-                        </td>
-                        <td className="px-4 sm:px-5 py-3 align-top text-right">
-                          <Link
-                            href={`/pacientes/${c.paciente_id}`}
-                            title="Ver ficha del paciente"
-                            className="inline-flex w-8 h-8 rounded-lg items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors"
-                          >
-                            <Icon name="description" size={15} />
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      </div>
+                      <Icon name="chevron_right" size={16} className="text-slate-300 dark:text-slate-600 shrink-0" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
           )}
         </motion.div>
 

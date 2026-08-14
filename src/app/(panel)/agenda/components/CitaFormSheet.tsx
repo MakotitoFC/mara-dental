@@ -178,6 +178,7 @@ export function CitaFormSheet({
     <ResponsiveSheet
       onClose={onClose}
       title={title}
+      snapPoints={[0.7, 1]}
       footer={
         <div className="flex flex-col gap-2">
           {error && (
@@ -328,7 +329,7 @@ export function CitaFormSheet({
                   </div>
                 )}
                 {patients.length > 0 && (
-                  <div className="absolute z-10 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg mt-1 shadow-lg max-h-40 overflow-y-auto">
+                  <div className="absolute z-10 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg mt-1 shadow-lg max-h-40 overflow-y-auto no-scrollbar">
                     {patients.map(p => (
                       <button
                         key={p.id}

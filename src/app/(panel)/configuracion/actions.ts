@@ -29,10 +29,13 @@ export interface PerfilProfesional {
   firma_url: string | null;
 }
 
+export type Turno = "mañana" | "tarde" | "noche";
+
 export interface HorarioRango {
   id: number;
   hora_inicio: string;
   hora_fin: string;
+  turno: Turno;
 }
 
 export interface SedeData {
@@ -347,7 +350,7 @@ export async function getHorariosAction(): Promise<Record<number, HorarioRango[]
 
   const { data, error } = await supabase
     .from("horarios_medico")
-    .select("id, medico_id, dia_semana, hora_inicio, hora_fin")
+    .select("id, medico_id, dia_semana, hora_inicio, hora_fin, turno")
     .in("medico_id", candidates)
     .order("dia_semana", { ascending: true })
     .order("hora_inicio", { ascending: true });
@@ -364,12 +367,13 @@ export async function getHorariosAction(): Promise<Record<number, HorarioRango[]
       id: row.id,
       hora_inicio: (row.hora_inicio as string).slice(0, 5),
       hora_fin: (row.hora_fin as string).slice(0, 5),
+      turno: row.turno as Turno,
     });
   }
   return base;
 }
 
-export async function saveHorarioDiaAction(diaSemana: number, rangos: { hora_inicio: string; hora_fin: string }[]) {
+export async function saveHorarioDiaAction(diaSemana: number, rangos: { hora_inicio: string; hora_fin: string; turno: Turno }[]) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
@@ -389,7 +393,7 @@ export async function saveHorarioDiaAction(diaSemana: number, rangos: { hora_ini
 
   if (rangos.length > 0) {
     const { error: insertError } = await supabase.from("horarios_medico").insert(
-      rangos.map((r) => ({ medico_id: medicoId, dia_semana: diaSemana, hora_inicio: r.hora_inicio, hora_fin: r.hora_fin }))
+      rangos.map((r) => ({ medico_id: medicoId, dia_semana: diaSemana, hora_inicio: r.hora_inicio, hora_fin: r.hora_fin, turno: r.turno }))
     );
     if (insertError) {
       console.error("Error guardando horario:", insertError);
@@ -434,7 +438,7 @@ export async function getHorariosSedeAction(): Promise<DoctorHorarioSede[]> {
   const adminClient = getAdminClient();
   const { data: horarios, error } = await adminClient
     .from("horarios_medico")
-    .select("id, medico_id, dia_semana, hora_inicio, hora_fin")
+    .select("id, medico_id, dia_semana, hora_inicio, hora_fin, turno")
     .in("medico_id", doctorIds)
     .order("dia_semana", { ascending: true })
     .order("hora_inicio", { ascending: true });
@@ -453,6 +457,7 @@ export async function getHorariosSedeAction(): Promise<DoctorHorarioSede[]> {
           id: row.id,
           hora_inicio: (row.hora_inicio as string).slice(0, 5),
           hora_fin: (row.hora_fin as string).slice(0, 5),
+          turno: row.turno as Turno,
         });
       }
       return {
@@ -470,7 +475,7 @@ export async function getHorariosSedeAction(): Promise<DoctorHorarioSede[]> {
  * ID del médico llega del cliente, así que antes de escribir se valida que
  * pertenezca a la MISMA sede resuelta server-side para quien llama — nunca
  * se confía en el sede_id del médico objetivo sin esa verificación. */
-export async function saveHorarioMedicoDiaAction(medicoUsuarioId: string, diaSemana: number, rangos: { hora_inicio: string; hora_fin: string }[]) {
+export async function saveHorarioMedicoDiaAction(medicoUsuarioId: string, diaSemana: number, rangos: { hora_inicio: string; hora_fin: string; turno: Turno }[]) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
@@ -497,7 +502,7 @@ export async function saveHorarioMedicoDiaAction(medicoUsuarioId: string, diaSem
 
   if (rangos.length > 0) {
     const { error: insertError } = await adminClient.from("horarios_medico").insert(
-      rangos.map((r) => ({ medico_id: medicoUsuarioId, dia_semana: diaSemana, hora_inicio: r.hora_inicio, hora_fin: r.hora_fin }))
+      rangos.map((r) => ({ medico_id: medicoUsuarioId, dia_semana: diaSemana, hora_inicio: r.hora_inicio, hora_fin: r.hora_fin, turno: r.turno }))
     );
     if (insertError) {
       console.error("[saveHorarioMedicoDiaAction] Error guardando horario:", insertError);

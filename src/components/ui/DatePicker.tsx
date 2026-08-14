@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "./Icon";
 
@@ -10,6 +10,11 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 const MESES_CORTO = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+// Alto/ancho estimado del panel (peor caso: grilla de días, 6 filas) — se
+// usan para decidir de qué lado abrir cuando no cabe del lado por defecto.
+const PANEL_HEIGHT_ESTIMATE = 320;
+const PANEL_WIDTH = 264;
 
 function toISODate(d: Date) {
   const y = d.getFullYear();
@@ -25,9 +30,25 @@ function parseISODate(s?: string) {
   return new Date(y, m - 1, d);
 }
 
-/** Selector de fecha con diseño propio (el <input type="date"> nativo no se puede estilizar). */
+/** "YYYY-MM" (sin día) — usado por el modo mes-solamente. */
+function parseYearMonth(s?: string) {
+  if (!s) return null;
+  const [y, m] = s.split("-").map(Number);
+  if (!y || !m) return null;
+  return new Date(y, m - 1, 1);
+}
+function toYearMonth(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+/** Selector de fecha con diseño propio (el <input type="date"> nativo no se
+ * puede estilizar). `mode="month"` lo convierte en selector de solo
+ * mes+año — abre directo en la grilla de meses (sin vista de días) y
+ * `value`/`onChange` usan formato "YYYY-MM". */
 export function DatePicker({
-  value, onChange, placeholder = "Seleccionar fecha…", className = "", min, max,
+  value, onChange, placeholder = "Seleccionar fecha…", className = "", min, max, mode = "day",
 }: {
   value?: string;
   onChange: (v: string) => void;
@@ -35,22 +56,40 @@ export function DatePicker({
   className?: string;
   min?: string;
   max?: string;
+  mode?: "day" | "month";
 }) {
-  const selected = parseISODate(value);
+  const selected = mode === "month" ? parseYearMonth(value) : parseISODate(value);
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<"days" | "months" | "years">("days");
+  const [openUpward, setOpenUpward] = useState(false);
+  const [openLeft, setOpenLeft] = useState(false);
+  const [view, setView] = useState<"days" | "months" | "years">(mode === "month" ? "months" : "days");
   const [viewDate, setViewDate] = useState(() => selected ?? new Date());
   const [yearBlockStart, setYearBlockStart] = useState(() => (selected ?? new Date()).getFullYear() - 5);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       const base = selected ?? new Date();
       setViewDate(base);
-      setView("days");
+      setView(mode === "month" ? "months" : "days");
       setYearBlockStart(base.getFullYear() - 5);
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleToggle() {
+    if (!open && rootRef.current) {
+      const rect = rootRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      setOpenUpward(spaceBelow < PANEL_HEIGHT_ESTIMATE && spaceAbove > spaceBelow);
+
+      const spaceRight = window.innerWidth - rect.left;
+      const spaceLeft = rect.right;
+      setOpenLeft(spaceRight < PANEL_WIDTH && spaceLeft > spaceRight);
+    }
+    setOpen((o) => !o);
+  }
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -59,6 +98,21 @@ export function DatePicker({
     if (open) document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
+
+  // handleToggle solo estima el lado con el ancho fijo de PANEL_WIDTH contra
+  // el viewport — dentro de un modal centrado eso no basta (el trigger puede
+  // tener "espacio de viewport" de sobra a la derecha aunque el panel real,
+  // una vez pintado, se corte contra el borde real de la ventana). Se mide el
+  // panel ya renderizado y se corrige antes del primer paint si aún así no
+  // entra completo.
+  useLayoutEffect(() => {
+    if (!open || !panelRef.current) return;
+    const r = panelRef.current.getBoundingClientRect();
+    if (r.right > window.innerWidth && r.left >= 0) setOpenLeft(true);
+    else if (r.left < 0 && r.right <= window.innerWidth) setOpenLeft(false);
+    if (r.bottom > window.innerHeight && r.top >= 0) setOpenUpward(true);
+    else if (r.top < 0 && r.bottom <= window.innerHeight) setOpenUpward(false);
+  }, [open, openLeft, openUpward, view]);
 
   const minDate = parseISODate(min);
   const maxDate = parseISODate(max);
@@ -84,6 +138,7 @@ export function DatePicker({
 
   function fmtDisplay(d: Date | null) {
     if (!d) return null;
+    if (mode === "month") return d.toLocaleDateString("es-PE", { month: "long", year: "numeric" });
     return d.toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
   }
 
@@ -91,8 +146,8 @@ export function DatePicker({
     <div ref={rootRef} className={`relative ${className}`}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[13px] text-left bg-white dark:bg-slate-800 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+        onClick={handleToggle}
+        className="w-full h-9 sm:h-10 flex items-center justify-between gap-2 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-[12px] sm:text-[13px] text-left bg-white dark:bg-slate-800 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
       >
         <span className={`flex items-center gap-1.5 truncate ${selected ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>
           <Icon name="calendar_today" size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
@@ -101,10 +156,11 @@ export function DatePicker({
       </button>
       {open && (
         <motion.div
-          initial={{ opacity: 0, y: -4 }}
+          ref={panelRef}
+          initial={{ opacity: 0, y: openUpward ? 4 : -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
-          className="absolute left-0 top-[calc(100%+4px)] z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-3 w-[264px]"
+          className={`absolute ${openLeft ? "right-0" : "left-0"} ${openUpward ? "bottom-[calc(100%+4px)]" : "top-[calc(100%+4px)]"} z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-3 w-[264px]`}
         >
           <div className="flex items-center justify-between mb-2">
             <button
@@ -200,7 +256,15 @@ export function DatePicker({
                   <button
                     key={m}
                     type="button"
-                    onClick={() => { setViewDate(new Date(year, i, 1)); setView("days"); }}
+                    onClick={() => {
+                      if (mode === "month") {
+                        onChange(toYearMonth(new Date(year, i, 1)));
+                        setOpen(false);
+                      } else {
+                        setViewDate(new Date(year, i, 1));
+                        setView("days");
+                      }
+                    }}
                     className={`h-9 rounded-lg text-[12px] font-medium transition-colors ${
                       isSelected ? "bg-cyan-600 text-white font-semibold" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                     }`}

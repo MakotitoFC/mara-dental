@@ -10,7 +10,7 @@ import { getConsultaDetalleTimelineAction } from "../../consulta.actions";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
-import { useScrollFade } from "@/lib/hooks/useScrollFade";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { EditarConsultaModal } from "../EditarConsultaModal";
 
 const ESTADO_CASO_OPTIONS = [
@@ -61,8 +61,7 @@ export function TimelineTab({
   const [savingHC, setSavingHC] = useState(false);
   const [estadoOverrides, setEstadoOverrides] = useState<Record<string, string>>({});
   const toast = useToast();
-  const casosScroll = useScrollFade<HTMLDivElement>();
-  const detalleScroll = useScrollFade<HTMLDivElement>();
+  const isMobile = useIsMobile();
 
   // Seleccionar la consulta. Usamos el historial plano solo para tener una base rápida si es necesario.
   const [selectedId, setSelectedId] = useState<string | null>(historial?.[0]?.id ?? null);
@@ -106,52 +105,60 @@ export function TimelineTab({
     else toast.success("Estado del caso actualizado correctamente");
   }
 
+  const accionBoton = !hc ? (
+    <button
+      onClick={handleCrearHC}
+      disabled={savingHC}
+      className="shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-800 disabled:opacity-50 rounded-xl text-[12px] sm:text-[13px] font-bold transition-colors"
+    >
+      {savingHC ? "Creando..." : "Crear Historia Clínica"}
+    </button>
+  ) : onStartConsulta ? (
+    <button
+      onClick={onStartConsulta}
+      title="Nuevo Caso / Consulta"
+      className="shrink-0 flex items-center gap-1.5 px-3 lg:px-4 py-2 sm:py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] sm:text-[13px] font-semibold transition-colors shadow-sm"
+    >
+      <Icon name="add" size={16} />
+      <span className="hidden lg:inline">Nuevo Caso / Consulta</span>
+    </button>
+  ) : null;
+
   return (
     <div className="flex flex-col lg:h-full lg:min-h-0">
       {/* Cabecera fija — Historia Clínica Universal + Casos Clínicos, pegada al nav de
-          tabs sin franja que las separe, sin ser un contenedor aparte. */}
+          tabs sin franja que las separe, sin ser un contenedor aparte. Mismo patrón en
+          todos los breakpoints: Historia Clínica Universal arriba (sin botón), Casos
+          Clínicos + el botón de acción abajo, separados por una línea sutil, ambos
+          sobre el fondo blanco del header (antes en desktop el botón vivía junto a
+          Historia Clínica y "Casos Clínicos" quedaba suelto más abajo sin fondo). */}
       <div className="shrink-0 sticky top-0 z-20 px-3 sm:px-4 md:px-6 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
-        <div className="py-3 sm:py-4 flex items-center justify-between gap-3">
+        <div className="py-3 sm:py-4">
           <div className="min-w-0">
-            <h3 className="text-[13px] font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 sm:gap-2">
-              <Icon name="folder_shared" size={16} className="text-cyan-600 dark:text-cyan-400 shrink-0" />
+            <h3 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 sm:gap-2 text-[14.5px] sm:text-[17px]">
+              <Icon name="folder_shared" size={isMobile ? 18 : 20} className="text-cyan-600 dark:text-cyan-400 shrink-0" />
               <span className="truncate">Historia Clínica Universal</span>
             </h3>
             {hc ? (
-              <p className="text-[11px] sm:text-[13px] text-slate-500 dark:text-slate-400 mt-1 truncate">
+              <p className="text-[11px] sm:text-[13px] md:text-[14px] text-slate-500 dark:text-slate-400 mt-1 truncate">
                 Código: <strong className="text-slate-700 dark:text-slate-300">{hc.codigo_historia}</strong>
                 <br />
                 Creada: {fmtFull(hc.fecha_creacion)}
               </p>
             ) : (
-              <p className="text-[11px] sm:text-[13px] text-amber-600 dark:text-amber-500 mt-1 flex items-center gap-1">
+              <p className="text-[11px] sm:text-[13px] md:text-[14px] text-amber-600 dark:text-amber-500 mt-1 flex items-center gap-1">
                 <Icon name="warning" size={14} className="shrink-0" /> El paciente aún no tiene Historia Clínica generada.
               </p>
             )}
           </div>
-          {!hc ? (
-            <button
-              onClick={handleCrearHC}
-              disabled={savingHC}
-              className="shrink-0 px-3 sm:px-4 py-2 sm:py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-800 disabled:opacity-50 rounded-xl text-[12px] sm:text-[13px] font-bold transition-colors"
-            >
-              {savingHC ? "Creando..." : "Crear Historia Clínica"}
-            </button>
-          ) : onStartConsulta && (
-            <button
-              onClick={onStartConsulta}
-              className="shrink-0 flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] sm:text-[13px] font-semibold transition-colors shadow-sm"
-            >
-              <Icon name="add" size={16} />
-              <span className="sm:hidden">Nuevo</span>
-              <span className="hidden sm:inline">Nuevo Caso / Consulta</span>
-            </button>
-          )}
+        </div>
+        <div className="flex items-center justify-between gap-3 py-3 border-t border-slate-100 dark:border-slate-700">
+          <h3 className="text-[14.5px] sm:text-[17px] font-bold text-slate-800 dark:text-slate-200">Casos Clínicos</h3>
+          {accionBoton}
         </div>
       </div>
 
       <div className="flex flex-col gap-6 px-3 sm:px-4 md:px-6 pt-6 pb-2 md:pb-10 lg:pb-12 lg:flex-1 lg:min-h-0">
-      <h3 className="shrink-0 text-[13px] font-bold text-slate-800 dark:text-slate-200">Casos Clínicos (Notas)</h3>
       {casos.length === 0 ? (
         <div className="shrink-0 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 py-16 px-6 flex flex-col items-center text-center gap-3">
           <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center">
@@ -165,7 +172,7 @@ export function TimelineTab({
       ) : (
         <div className="flex gap-4 items-start lg:flex-1 lg:min-h-0">
           {/* Columna Izquierda: Casos — scroll propio oculto */}
-          <div ref={casosScroll.ref} style={casosScroll.style} className="flex-1 min-w-0 lg:max-w-200 flex flex-col gap-3 lg:h-full lg:min-h-0 lg:overflow-y-auto no-scrollbar lg:pr-1">
+          <div className="flex-1 min-w-0 lg:max-w-200 flex flex-col gap-3 lg:h-full lg:min-h-0 lg:overflow-y-auto no-scrollbar lg:pr-1">
             {casos.map((caso: any) => (
               <div key={caso.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-3">
                 <div className="flex justify-between items-start mb-2">
@@ -216,7 +223,7 @@ export function TimelineTab({
 
           {/* Columna derecha — panel de detalle, tamaño fijo con su propio scroll
               independiente (no sticky: no se mueve con el scroll de la izquierda). */}
-          <div ref={detalleScroll.ref} style={detalleScroll.style} className="hidden lg:block w-90 shrink-0 lg:h-full lg:min-h-0 lg:overflow-y-auto no-scrollbar">
+          <div className="hidden lg:block w-90 shrink-0 lg:h-full lg:min-h-0 lg:overflow-y-auto no-scrollbar">
             {selectedId && (
               <AnimatePresence mode="wait">
                 <motion.div
@@ -250,18 +257,6 @@ export function TimelineTab({
         {isMobileModalOpen && selectedId && (
           <ResponsiveSheet onClose={() => setIsMobileModalOpen(false)}>
             <div className="relative min-h-75 overflow-y-auto no-scrollbar bg-white dark:bg-slate-800">
-              {/* ResponsiveSheet solo dibuja su botón "X" si le pasás title/header —
-                  este modal no usa ninguno de los dos (ConsultaDetail ya trae su
-                  propio encabezado), así que sin esto quedaba sin ninguna forma
-                  visible de cerrarlo en tablet/desktop (el modal centrado no
-                  siempre deja ver el backdrop clickeable alrededor). */}
-              <button
-                onClick={() => setIsMobileModalOpen(false)}
-                aria-label="Cerrar"
-                className="absolute top-2 right-2 z-20 w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 shadow-sm transition-colors"
-              >
-                <Icon name="close" size={16} />
-              </button>
               {loadingDetalle && (
                 <div className="absolute inset-0 z-10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm flex items-center justify-center">
                   <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
@@ -271,7 +266,7 @@ export function TimelineTab({
                 <ConsultaDetail consulta={detalleActivo} onNavigateTab={(tab) => {
                   setIsMobileModalOpen(false);
                   if (onNavigateTab) onNavigateTab(tab);
-                }} onEdit={() => setIsEditingConsulta(true)} />
+                }} onEdit={() => setIsEditingConsulta(true)} onClose={() => setIsMobileModalOpen(false)} />
               ) : (
                 <div className="p-8 text-center text-slate-400">Cargando detalles...</div>
               )}
@@ -362,7 +357,7 @@ function TimelineNode({
 
 // ─── Detalle de consulta (compartido entre panel fijo y acordeón mobile) ──────
 
-function ConsultaDetail({ consulta: c, onNavigateTab, onEdit }: { consulta: any; onNavigateTab?: (tab: TabNav) => void; onEdit?: () => void }) {
+function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consulta: any; onNavigateTab?: (tab: TabNav) => void; onEdit?: () => void; onClose?: () => void }) {
   const { getVars } = useTipoConsultaVars();
   const vars = getVars(c.motivo_id);
 
@@ -375,25 +370,44 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit }: { consulta: any;
 
   return (
     <div className="p-4 flex flex-col gap-3">
-      <div className="pb-3 border-b border-slate-100 dark:border-slate-700 relative">
-        <span
-          className="inline-block px-2 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wide mb-1.5"
-          style={{ background: vars.bg, color: vars.text }}
-        >
-          {vars.label}
-        </span>
-        
-        {isSameDay && onEdit && (
-          <button 
-            onClick={onEdit}
-            className="absolute top-0 right-0 w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-amber-50 dark:bg-slate-800 dark:hover:bg-amber-900/30 text-slate-400 hover:text-amber-600 transition-colors"
-            title="Editar consulta"
+      <div className="pb-3 border-b border-slate-100 dark:border-slate-700">
+        {/* Insignia y botones en la misma fila flex — así nunca se pisan
+            entre sí sin importar el ancho de pantalla, a diferencia de
+            posicionarlos con `absolute` y offsets en px calculados a mano
+            entre dos componentes distintos (lo que se rompía en mobile/tablet). */}
+        <div className="flex items-start justify-between gap-2 mb-1.5">
+          <span
+            className="inline-block px-2 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wide"
+            style={{ background: vars.bg, color: vars.text }}
           >
-            <Icon name="edit" size={15} />
-          </button>
-        )}
+            {vars.label}
+          </span>
 
-        <p className="text-[14.5px] font-bold text-slate-900 dark:text-slate-100 leading-snug pr-8">{c.motivo || "Consulta sin motivo"}</p>
+          {((isSameDay && onEdit) || onClose) && (
+            <div className="flex items-center gap-2 shrink-0">
+              {isSameDay && onEdit && (
+                <button
+                  onClick={onEdit}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-amber-50 dark:bg-slate-800 dark:hover:bg-amber-900/30 text-slate-400 hover:text-amber-600 transition-colors"
+                  title="Editar consulta"
+                >
+                  <Icon name="edit" size={15} />
+                </button>
+              )}
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  aria-label="Cerrar"
+                  className="w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 shadow-sm transition-colors"
+                >
+                  <Icon name="close" size={16} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <p className="text-[14.5px] font-bold text-slate-900 dark:text-slate-100 leading-snug">{c.motivo || "Consulta sin motivo"}</p>
         <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-0.5">{fmtFull(c.fecha)}{c.doctor ? ` · ${c.doctor}` : ""}</p>
       </div>
 

@@ -144,7 +144,7 @@ function DoctorFiltroSelector({ doctores, value, onChange }: { doctores: DoctorL
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
-          className="absolute left-0 md:left-auto md:right-0 top-10 z-30 min-w-[220px] max-h-72 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
+          className="absolute left-0 md:left-auto md:right-0 top-10 z-30 min-w-[220px] max-h-72 overflow-y-auto no-scrollbar bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
         >
           <button
             onMouseDown={() => onChange("todos")}
@@ -258,7 +258,7 @@ function EspecialidadFiltroSelector({ especialidades, value, onChange }: { espec
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
-          className="absolute left-0 md:left-auto md:right-0 top-10 z-30 min-w-[190px] max-h-64 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
+          className="absolute left-0 md:left-auto md:right-0 top-10 z-30 min-w-[190px] max-h-64 overflow-y-auto no-scrollbar bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
         >
           <button
             onMouseDown={() => onChange("todas")}
@@ -358,11 +358,20 @@ export function CalendarToolbar({
         <div className="flex items-center gap-2 flex-wrap">
           <ViewSelector view={view} onViewChange={onViewChange} />
           <TipoFiltroSelector value={tipoFiltro} onChange={onTipoFiltroChange} />
-          {/* En Semana el panel lateral de la grilla de tiempo ya trae su propio
-              checklist de médicos — se ocultan estos selectores ahí para no
-              duplicar el mismo control en dos lugares. */}
-          {isAsistente && view !== "week" && doctores && onDoctorFiltroChange && (
-            <DoctorFiltroSelector doctores={doctores} value={doctorFiltro ?? "todos"} onChange={onDoctorFiltroChange} />
+          {/* En Semana el panel lateral de la grilla de tiempo (MultiDoctorWeekTimeGrid)
+              ya trae su propio checklist de médicos, así que en desktop este
+              selector se oculta para no duplicar el control — pero ese panel
+              lateral es `hidden md:flex`, así que en mobile no había ninguna
+              forma de filtrar por médico en Semana. Ahí se muestra igual,
+              pero solo en mobile (`md:hidden`). */}
+          {isAsistente && doctores && onDoctorFiltroChange && (
+            view !== "week" ? (
+              <DoctorFiltroSelector doctores={doctores} value={doctorFiltro ?? "todos"} onChange={onDoctorFiltroChange} />
+            ) : (
+              <div className="md:hidden">
+                <DoctorFiltroSelector doctores={doctores} value={doctorFiltro ?? "todos"} onChange={onDoctorFiltroChange} />
+              </div>
+            )
           )}
           {isAsistente && view !== "week" && onEspecialidadFiltroChange && (
             <EspecialidadFiltroSelector especialidades={especialidades} value={especialidadFiltro ?? "todas"} onChange={onEspecialidadFiltroChange} />

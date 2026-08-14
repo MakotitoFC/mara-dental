@@ -8,6 +8,15 @@ export function esc(s?: string | number | null): string {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** Acorta un identificador real (UUID o numérico) a una referencia legible
+ * para mostrar en el membrete — nunca se inventa un correlativo, solo se
+ * recorta el id real (los primeros 8 caracteres de un UUID ya lo identifican
+ * de forma práctica, igual que un hash corto de git). */
+export function shortCode(id: string | number): string {
+  const s = String(id);
+  return s.length > 8 ? s.slice(0, 8).toUpperCase() : s;
+}
+
 export function fmtGenerado(): string {
   return new Date().toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
@@ -71,8 +80,8 @@ export function buildLetterheadHeader(opts: {
   `;
 }
 
-/** Pie compartido — datos de contacto de la sede a la izquierda con el sello
- * "Documento Confidencial", paciente + código del documento a la derecha. */
+/** Pie compartido — datos de contacto de la sede a la izquierda, paciente +
+ * código del documento a la derecha. */
 export function buildLetterheadFooter(opts: { clinica: ClinicaInfo | null; pacienteNombre?: string | null; docCode?: string | null }): string {
   const clinica = opts.clinica;
   const left = [clinica?.nombre_clinica, clinica?.direccion].filter(Boolean).join(" · ");
@@ -83,10 +92,6 @@ export function buildLetterheadFooter(opts: { clinica: ClinicaInfo | null; pacie
     <div style="padding:14px 28px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
       <div>
         ${left ? `<div style="font-size:9.5px;font-weight:700;color:#64748b;">${esc(left)}</div>` : ""}
-        <div style="font-size:9px;color:#0e7490;display:flex;align-items:center;gap:4px;margin-top:2px;">
-          <span style="width:5px;height:5px;border-radius:50%;background:#0e7490;display:inline-block;"></span>
-          Documento Confidencial
-        </div>
       </div>
       <div style="text-align:right;">
         ${rightTop ? `<div style="font-size:9.5px;font-weight:700;color:#64748b;">${esc(rightTop)}</div>` : ""}
@@ -96,17 +101,30 @@ export function buildLetterheadFooter(opts: { clinica: ClinicaInfo | null; pacie
   `;
 }
 
-/** Bloque de firma del profesional — imagen de firma digital si existe, si no
- * una línea en blanco; nombre siempre (si hay); especialidad y N° de
- * colegiatura solo si el dato real está disponible. */
+/** Trazo genérico de firma — se usa como reemplazo visual mientras el
+ * profesional no tiene una firma digital real subida en Configuración, para
+ * que el documento no salga con un espacio en blanco encima del nombre. */
+const GENERIC_SIGNATURE_SVG = `
+  <svg width="130" height="42" viewBox="0 0 130 42" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 0 6px auto;">
+    <path d="M4 30c8-20 15-20 19-6 3 10 6 10 10-3 4-13 8-13 12 3 3 11 6 11 10-4 3-12 7-12 11 0 3 9 6 9 10-3 3-12 7-12 11 0 2 6 5 6 8-1"
+      stroke="#0e7490" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" />
+    <path d="M4 34q10 5 20 2" stroke="#0e7490" stroke-width="1.1" fill="none" stroke-linecap="round" opacity="0.5" />
+  </svg>
+`;
+
+/** Bloque de firma del profesional — imagen de firma digital si existe; si no,
+ * un trazo genérico (no un espacio en blanco) mientras no suba la real desde
+ * Configuración; nombre siempre (si hay); especialidad y N° de colegiatura
+ * solo si el dato real está disponible. */
 export function buildSignatureBlock(f: FirmanteInfo): string {
   if (!f.nombre) return "";
   return `
     <div style="text-align:right;">
       ${f.firmaUrl
         ? `<img src="${f.firmaUrl}" style="height:40px;object-fit:contain;margin:0 0 6px auto;display:block;" crossorigin="anonymous" />`
-        : `<div style="height:1px;width:150px;background:#cbd5e1;margin:0 0 6px auto;"></div>`
+        : GENERIC_SIGNATURE_SVG
       }
+      <div style="height:1px;width:150px;background:#cbd5e1;margin:0 0 6px auto;"></div>
       <div style="font-size:12px;font-weight:800;color:#0f172a;">Dr. ${esc(f.nombre)}</div>
       ${f.especialidad ? `<div style="font-size:10.5px;color:#0e7490;font-weight:600;">${esc(f.especialidad)}</div>` : ""}
       ${f.numColegiatura ? `<div style="font-size:9.5px;color:#94a3b8;">C.O.P. ${esc(f.numColegiatura)}</div>` : ""}
@@ -163,35 +181,52 @@ export async function exportHtmlAsCanvas(html: string): Promise<HTMLCanvasElemen
   );
 }
 
-/** PDF de una sola imagen completa — ideal para documentos cortos que caben en una página (ej. un presupuesto). */
-export async function downloadHtmlAsSinglePagePdf(html: string, filename: string) {
+/** PDF en A4 con margen y numeración de página en el pie — usado por los 4
+ * documentos exportables (Receta, Presupuesto, Archivo Clínico, Historia
+ * Clínica). Renderiza todo el documento a un único canvas alto y lo recorta
+ * en páginas A4 con margen (nunca ocupa el 100% de la hoja) — se evita
+ * `pdf.html()` con `autoPaging:"text"`, que con CSS moderno (flex/grid) puede
+ * producir un PDF en blanco sin lanzar ningún error. Funciona igual de bien
+ * para un documento de una sola página que para uno largo: si el contenido
+ * cabe en una página, genera una sola. */
+export async function downloadHtmlAsPaginatedPdf(html: string, filename: string, widthPx = 900) {
   const canvas = await withOffscreenContainer(html, (container) =>
     html2canvas(container, { scale: 2, useCORS: true, backgroundColor: "#ffffff" }),
   );
-  const imgData = canvas.toDataURL("image/jpeg", 0.95);
-  const pdf = new jsPDF({ orientation: canvas.width >= canvas.height ? "landscape" : "portrait", unit: "px", format: [canvas.width, canvas.height] });
-  pdf.addImage(imgData, "JPEG", 0, 0, canvas.width, canvas.height);
-  pdf.save(filename);
-}
 
-/** PDF paginado automáticamente en A4 — para documentos largos (ej. el expediente completo). */
-export async function downloadHtmlAsPaginatedPdf(html: string, filename: string, widthPx = 900) {
-  await withOffscreenContainer(html, (container) => {
-    const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
-    return new Promise<void>((resolve, reject) => {
-      pdf.html(container, {
-        margin: [24, 24, 24, 24],
-        autoPaging: "text",
-        width: pdf.internal.pageSize.getWidth() - 48,
-        windowWidth: widthPx,
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-        callback: (doc) => {
-          doc.save(filename);
-          resolve();
-        },
-      }).catch(reject);
-    });
-  });
+  const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: "a4" });
+  const margin = 24;
+  const footerSpace = 18;
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const pageWidth = pageW - margin * 2;
+  const pageHeight = pageH - margin * 2 - footerSpace;
+  const pxPerPage = Math.floor((pageHeight * canvas.width) / pageWidth);
+  const totalPages = Math.max(1, Math.ceil(canvas.height / pxPerPage));
+
+  let renderedPx = 0;
+  let pageIndex = 0;
+  while (renderedPx < canvas.height) {
+    const sliceHeight = Math.min(pxPerPage, canvas.height - renderedPx);
+    const slice = document.createElement("canvas");
+    slice.width = canvas.width;
+    slice.height = sliceHeight;
+    slice.getContext("2d")!.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+
+    if (pageIndex > 0) pdf.addPage();
+    pdf.addImage(slice.toDataURL("image/jpeg", 0.95), "JPEG", margin, margin, pageWidth, (sliceHeight * pageWidth) / canvas.width);
+
+    if (totalPages > 1) {
+      pdf.setFontSize(8);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text(`Página ${pageIndex + 1} de ${totalPages}`, pageW / 2, pageH - 10, { align: "center" });
+    }
+
+    renderedPx += sliceHeight;
+    pageIndex += 1;
+  }
+
+  pdf.save(filename);
 }
 
 export async function printHtml(html: string, title: string) {

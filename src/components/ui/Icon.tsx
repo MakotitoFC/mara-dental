@@ -27,7 +27,7 @@ import {
   Eraser, Type, MoveUpRight,
   Send, FolderHeart, History, Network, Copy, CheckCheck, Hand,
   Landmark, Calculator, BadgeDollarSign, TrendingUp, UserCheck, Database,
-  Play
+  Play, AlignCenter, MoreHorizontal, Award
 } from "lucide-react";
 
 interface IconProps {
@@ -35,6 +35,7 @@ interface IconProps {
   size?: number;
   className?: string;
   style?: CSSProperties;
+  strokeWidth?: number;
 }
 
 // lucide-react no trae un ícono de diente dedicado — SVG propio, mismo estilo
@@ -127,6 +128,7 @@ const ICONS: Record<string, LucideIcon> = {
   radio_button_checked: RadioTower,
   pause_circle:         PauseCircle,
   badge:                BadgeCheck,
+  military_tech:        Award,
 
   // Tiempo
   schedule:             Clock,
@@ -220,6 +222,8 @@ const ICONS: Record<string, LucideIcon> = {
   database:             Database,
   play_arrow:           Play,
   play:                 Play,
+  filter_lines:         AlignCenter,
+  more_horiz:           MoreHorizontal,
 };
 
 // Iconos con SVG propio (no vienen de lucide-react) — mismo contrato de props.
@@ -227,7 +231,7 @@ const CUSTOM_ICONS: Record<string, (props: LucideProps) => React.JSX.Element> = 
   tooth: ToothIcon,
 };
 
-export function Icon({ name, size = 20, className = "", style }: IconProps) {
+export function Icon({ name, size = 20, className = "", style, strokeWidth = 1.75 }: IconProps) {
   const LucideIcon = ICONS[name] ?? CUSTOM_ICONS[name];
 
   if (!LucideIcon) {
@@ -237,5 +241,5 @@ export function Icon({ name, size = 20, className = "", style }: IconProps) {
     return <span className={className} style={{ width: size, height: size, display: "inline-block", ...style }} />;
   }
 
-  return <LucideIcon size={size} className={className} style={style} strokeWidth={1.75} />;
+  return <LucideIcon size={size} className={className} style={style} strokeWidth={strokeWidth} />;
 }

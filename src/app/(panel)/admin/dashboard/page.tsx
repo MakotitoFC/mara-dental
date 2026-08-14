@@ -2,6 +2,7 @@ import { fetchDashboardData, fetchSelectOptions } from "./actions";
 import DashboardCharts from "./DashboardCharts";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { Header } from "@/components/layout/Header";
 
 export const dynamic = "force-dynamic";
 
@@ -55,13 +56,16 @@ export default async function AdminDashboardPage({
   ]);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <DashboardCharts
-        data={data}
-        options={options}
-        userRole={userRole}
-        userSedeId={userSedeId}
-      />
-    </div>
+    <>
+      <Header title="Dashboard Directivo" />
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+        <DashboardCharts
+          data={data}
+          options={options}
+          userRole={userRole}
+          userSedeId={userSedeId}
+        />
+      </div>
+    </>
   );
 }

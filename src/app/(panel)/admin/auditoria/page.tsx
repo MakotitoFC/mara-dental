@@ -1,19 +1,23 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { Select } from "@/components/ui/Select";
+import { DatePicker } from "@/components/ui/DatePicker";
+import { Header } from "@/components/layout/Header";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { getAuditoriaLogsAction } from "../admin.actions";
 import { createClient } from "@/lib/supabase/client";
 
 const TABLAS = [
   "usuarios", "personal", "pacientes", "contacto", "horarios_medico", "citas",
-  "historia_clinica", "nota_clinica", "tratamiento", "plan_tratamiento", 
-  "tratamiento_catalogo_planeado", "tipo_consulta", "consultas", "diagnostico", 
-  "cie10", "procedimiento_efectuado", "odontograma", "odontograma_diente", 
-  "condicion", "recetas", "medicamentos", "receta_medicamento", "tipo_archivo", 
-  "archivos_clinicos", "catalogo_tratamientos", "presupuestos", "detalle_presupuesto", 
-  "medio_pago", "cuotas", "caja_turno", "medio_pago_caja_monto", "categoria_movimiento", 
-  "proveedores", "tipo_moneda", "cliente_pago", "movimiento_caja", "recomendacion", 
+  "historia_clinica", "nota_clinica", "tratamiento", "plan_tratamiento",
+  "tratamiento_catalogo_planeado", "tipo_consulta", "consultas", "diagnostico",
+  "cie10", "procedimiento_efectuado", "odontograma", "odontograma_diente",
+  "condicion", "recetas", "medicamentos", "receta_medicamento", "tipo_archivo",
+  "archivos_clinicos", "catalogo_tratamientos", "presupuestos", "detalle_presupuesto",
+  "medio_pago", "cuotas", "caja_turno", "medio_pago_caja_monto", "categoria_movimiento",
+  "proveedores", "tipo_moneda", "cliente_pago", "movimiento_caja", "recomendacion",
   "consentimientos", "sesiones", "messages", "plantilla"
 ].sort();
 
@@ -26,20 +30,9 @@ export default function AdminAuditoriaPage() {
   const [filterTabla, setFilterTabla] = useState("");
   const [filterUsuario, setFilterUsuario] = useState("");
   const [filterFecha, setFilterFecha] = useState(new Date().toISOString().split("T")[0]);
-  
-  const [page, setPage] = useState(1);
-  const [isTablaDropdownOpen, setIsTablaDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsTablaDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const [page, setPage] = useState(1);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
@@ -84,106 +77,161 @@ export default function AdminAuditoriaPage() {
     loadLogs();
   };
 
-  const totalPages = Math.ceil(totalCount / 20) || 1;
+  // Botón "Limpiar filtros" — resetea todo a su estado por defecto; el
+  // propio cambio de estado dispara loadLogs vía el useEffect existente.
+  const handleClearFilters = () => {
+    setFilterAccion("");
+    setFilterTabla("");
+    setFilterUsuario("");
+    setFilterFecha(new Date().toISOString().split("T")[0]);
+    setPage(1);
+  };
+
+  const totalPages = Math.ceil(totalCount / 5) || 1;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto w-full flex flex-col gap-6 relative">
-      <div className="mb-2">
-        <h1 className="text-2xl font-bold text-slate-800">Auditoría y Control Operacional</h1>
-        <p className="text-sm text-slate-500">Monitorea los logs de seguridad y la actividad del sistema.</p>
+    <>
+      <Header title="Auditoría" />
+      {/* Mismo esqueleto que ConfiguracionTiposClient.tsx: <header> fijo
+          (bg-white, solo border-b, sin rounded ni sombra) con título y
+          filtros — nada de esto scrollea. La tabla vive en su propia card
+          dentro de <main>, que sí scrollea. */}
+      <div className="flex flex-col flex-1 min-h-0 bg-slate-50">
+      <header className="shrink-0 flex flex-col gap-4 px-4 sm:px-6 py-4 sm:py-6 bg-white border-b border-slate-200">
+      {/* En mobile solo el título — ícono y descripción se ocultan. */}
+      <div className="flex items-center gap-3">
+        <div className="hidden sm:flex w-10 h-10 rounded-xl bg-cyan-50 items-center justify-center text-cyan-600 shrink-0">
+          <Icon name="admin_panel_settings" size={24} />
+        </div>
+        <div>
+          <h1 className="text-[15px] md:text-base font-bold text-slate-800">Auditoría y Control Operacional</h1>
+          <p className="hidden sm:block text-[13px] md:text-sm text-slate-500">Monitorea los logs de seguridad y la actividad del sistema.</p>
+        </div>
       </div>
 
-      <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-3 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <div className="relative">
-          <Icon name="search" size={16} className="absolute left-3 top-3 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Usuario..."
-            value={filterUsuario}
-            onChange={(e) => setFilterUsuario(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500 outline-none"
-          />
-        </div>
-        
-        <div className="relative">
-          <Icon name="history" size={16} className="absolute left-3 top-3 text-slate-400" />
-          <select
-            value={filterAccion}
-            onChange={(e) => setFilterAccion(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500 outline-none appearance-none cursor-pointer"
-          >
-            <option value="">Todas las Acciones</option>
-            <option value="INSERT">INSERT</option>
-            <option value="UPDATE">UPDATE</option>
-            <option value="DELETE">DELETE</option>
-          </select>
-          <Icon name="expand_more" size={16} className="absolute right-3 top-3 text-slate-400 pointer-events-none" />
-        </div>
-
-        {/* Custom Select for Tablas with max height (approx 5 items) */}
-        <div className="relative" ref={dropdownRef}>
-          <Icon name="database" size={16} className="absolute left-3 top-3 text-slate-400" />
-          <div 
-            onClick={() => setIsTablaDropdownOpen(!isTablaDropdownOpen)}
-            className="w-full pl-9 pr-8 py-2 border border-slate-200 rounded-lg text-sm bg-white cursor-pointer select-none whitespace-nowrap overflow-hidden text-ellipsis"
-          >
-            {filterTabla || "Todas las Tablas"}
+      <form onSubmit={handleSearchSubmit} className="flex flex-col gap-3">
+        {/* Fila siempre visible: búsqueda + ícono filtro (colapsa/expande
+            Acciones/Tablas/Fecha en <lg) + ícono limpiar. En lg+ los 3
+            selects y "Filtrar" ya están siempre visibles debajo, así que el
+            ícono de filtro no hace falta ahí. */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Icon name="search" size={16} className="absolute left-3 top-3 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Usuario..."
+              value={filterUsuario}
+              onChange={(e) => setFilterUsuario(e.target.value)}
+              className="w-full h-9 sm:h-10 pl-9 pr-3 py-1.5 sm:py-2 border border-slate-200 rounded-lg text-[13px] md:text-sm focus:ring-2 focus:ring-cyan-500 outline-none"
+            />
           </div>
-          <Icon name="expand_more" size={16} className="absolute right-3 top-3 text-slate-400 pointer-events-none" />
-          
-          {isTablaDropdownOpen && (
-            <div className="absolute z-50 top-full left-0 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-y-auto max-h-[170px]">
-              <div 
-                onClick={() => { setFilterTabla(""); setIsTablaDropdownOpen(false); }}
-                className="px-3 py-2 text-sm hover:bg-slate-100 cursor-pointer"
-              >
-                Todas las Tablas
-              </div>
-              {TABLAS.map(t => (
-                <div 
-                  key={t}
-                  onClick={() => { setFilterTabla(t); setIsTablaDropdownOpen(false); }}
-                  className="px-3 py-2 text-sm hover:bg-slate-100 cursor-pointer"
-                >
-                  {t}
-                </div>
-              ))}
-            </div>
-          )}
+
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            title="Acciones, Tablas y Fecha"
+            className={`lg:hidden relative shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center transition-colors ${
+              filtersOpen ? "bg-cyan-50 border-cyan-300 text-cyan-600" : "border-slate-200 text-slate-500 bg-white hover:bg-slate-50"
+            }`}
+          >
+            <Icon name="filter_lines" size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleClearFilters}
+            title="Limpiar filtros"
+            className="shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 flex items-center justify-center transition-colors"
+          >
+            <Icon name="eraser" size={18} />
+          </button>
         </div>
 
-        <div className="relative">
-          <Icon name="calendar_month" size={16} className="absolute left-3 top-3 text-slate-400" />
-          <input
-            type="date"
-            value={filterFecha}
-            onChange={(e) => setFilterFecha(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500 outline-none"
+        {/* Acciones / Tablas / Fecha + Filtrar — siempre visibles en lg+;
+            colapsados detrás del ícono de arriba en tablet/mobile. */}
+        <div className={`grid-cols-1 sm:grid-cols-3 gap-3 ${filtersOpen ? "grid" : "hidden"} lg:grid lg:grid-cols-4`}>
+          <Select
+            value={filterAccion}
+            onChange={setFilterAccion}
+            placeholder="Todas las Acciones"
+            options={[
+              { value: "INSERT", label: "INSERT" },
+              { value: "UPDATE", label: "UPDATE" },
+              { value: "DELETE", label: "DELETE" },
+            ]}
           />
+
+          <Select
+            value={filterTabla}
+            onChange={setFilterTabla}
+            placeholder="Todas las Tablas"
+            options={TABLAS.map((t) => ({ value: t, label: t }))}
+          />
+
+          <DatePicker value={filterFecha} onChange={setFilterFecha} />
+
+          <button
+            type="submit"
+            className="h-9 sm:h-10 px-3 sm:px-4 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white font-semibold text-[13px] md:text-sm flex items-center justify-center gap-2 shadow-sm transition-colors"
+          >
+            <Icon name="filter_lines" size={16} />
+            Filtrar
+          </button>
         </div>
-
-        <button type="submit" className="bg-cyan-600 hover:bg-cyan-700 text-white px-5 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap shadow-sm">
-          Filtrar
-        </button>
       </form>
+      </header>
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col min-h-[400px] relative">
+      {/* Sin padding ni card propia: el <main> continúa el mismo fondo
+          blanco del <header>, así se ven como un solo bloque. */}
+      <main className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden relative">
         {loading && (
-           <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center gap-2 text-slate-400">
-             <div className="w-8 h-8 border-2 border-t-cyan-500 rounded-full animate-spin" />
-             <p className="text-sm font-medium">Cargando datos...</p>
+           <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-10 flex flex-col gap-px pt-2 px-2">
+             {Array.from({ length: 8 }).map((_, i) => (
+               <div key={i} className="flex items-center gap-4 px-3 py-3">
+                 <Skeleton className="h-2.5 w-24" />
+                 <Skeleton className="h-2.5 w-28" />
+                 <Skeleton className="h-4 w-16 rounded" />
+                 <Skeleton className="h-2.5 w-20" />
+                 <Skeleton className="h-2.5 w-10 ml-auto" />
+               </div>
+             ))}
            </div>
         )}
-        
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b border-slate-100">
+
+        {totalCount > 0 && (
+          <div className="shrink-0 flex items-center justify-between gap-2 px-4 sm:px-6 py-3 border-b border-slate-100">
+            <span className="text-[10px] md:text-[11px] text-slate-500">
+              <span className="font-semibold text-slate-700">{(page - 1) * 5 + 1}–{Math.min(page * 5, totalCount)}</span> de <span className="font-semibold text-slate-700">{totalCount}</span> registros
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+                className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <Icon name="chevron_left" size={16} />
+              </button>
+              <span className="text-[12px] md:text-[13px] font-semibold text-slate-700">{page}/{totalPages}</span>
+              <button
+                disabled={page === totalPages}
+                onClick={() => setPage(p => p + 1)}
+                className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <Icon name="chevron_right" size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="hidden md:flex flex-col flex-1 min-h-0 overflow-auto no-scrollbar">
+          <table className="w-full text-left text-[13px] md:text-sm" style={{ minWidth: 640 }}>
+            <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-100">
               <tr>
-                <th className="px-5 py-3 font-semibold text-slate-500">Fecha y Hora</th>
-                <th className="px-5 py-3 font-semibold text-slate-500">Usuario</th>
-                <th className="px-5 py-3 font-semibold text-slate-500">Acción</th>
-                <th className="px-5 py-3 font-semibold text-slate-500">Tabla</th>
-                <th className="px-5 py-3 font-semibold text-slate-500">Registro ID</th>
+                <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-slate-500">Fecha y Hora</th>
+                <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-slate-500">Usuario</th>
+                <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-slate-500">Acción</th>
+                <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-slate-500">Tabla</th>
+                <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-slate-500">Registro ID</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -191,12 +239,12 @@ export default function AdminAuditoriaPage() {
                 logs.map((log) => {
                   const personalUser = log.usuarios?.personal?.[0] || log.usuarios?.personal;
                   const userName = personalUser ? `${personalUser.nombre} ${personalUser.apellido}` : log.usuario_id;
-                  
+
                   return (
                     <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-3 text-slate-500 whitespace-nowrap text-xs">
+                      <td className="px-5 py-3 text-slate-500 whitespace-nowrap text-[10px] md:text-[11px]">
                         {new Date(log.fecha).toLocaleString("es-ES", {
-                          day: "2-digit", month: "2-digit", year: "numeric", 
+                          day: "2-digit", month: "2-digit", year: "numeric",
                           hour: "2-digit", minute: "2-digit"
                         })}
                       </td>
@@ -204,7 +252,7 @@ export default function AdminAuditoriaPage() {
                         {userName}
                       </td>
                       <td className="px-5 py-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold ${
+                        <span className={`inline-flex px-2 py-0.5 rounded text-[10px] md:text-[11px] font-bold ${
                           log.accion === 'INSERT' ? 'bg-emerald-100 text-emerald-700' :
                           log.accion === 'UPDATE' ? 'bg-amber-100 text-amber-700' :
                           log.accion === 'DELETE' ? 'bg-red-100 text-red-700' :
@@ -216,7 +264,7 @@ export default function AdminAuditoriaPage() {
                       <td className="px-5 py-3 text-slate-600 font-medium">
                         {log.tabla_afectada}
                       </td>
-                      <td className="px-5 py-3 text-xs text-slate-400 font-mono">
+                      <td className="px-5 py-3 text-[10px] md:text-[11px] text-slate-400 font-mono">
                         {log.registro_id}
                       </td>
                     </tr>
@@ -233,31 +281,45 @@ export default function AdminAuditoriaPage() {
           </table>
         </div>
 
-        {/* Paginación */}
-        {totalPages > 1 && (
-          <div className="bg-slate-50 border-t border-slate-100 px-5 py-3 flex items-center justify-between">
-            <span className="text-sm text-slate-500">
-              Mostrando página <span className="font-semibold">{page}</span> de <span className="font-semibold">{totalPages}</span> ({totalCount} registros)
-            </span>
-            <div className="flex gap-2">
-              <button 
-                disabled={page === 1}
-                onClick={() => setPage(p => p - 1)}
-                className="px-3 py-1.5 text-sm bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-              >
-                Anterior
-              </button>
-              <button 
-                disabled={page === totalPages}
-                onClick={() => setPage(p => p + 1)}
-                className="px-3 py-1.5 text-sm bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-              >
-                Siguiente
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Mobile/Tablet — tarjetas. pb extra para despejar el BottomNav
+            (fixed, se dibuja encima del contenido). */}
+        <div className="md:hidden flex-1 min-h-0 overflow-y-auto no-scrollbar divide-y divide-slate-100">
+          {logs.length === 0 ? (
+            <p className="text-center text-[13px] md:text-sm text-slate-400 py-12">No se encontraron registros para esta fecha y filtros.</p>
+          ) : (
+            logs.map((log) => {
+              const personalUser = log.usuarios?.personal?.[0] || log.usuarios?.personal;
+              const userName = personalUser ? `${personalUser.nombre} ${personalUser.apellido}` : log.usuario_id;
+              return (
+                <div key={log.id} className="p-4 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`inline-flex px-2 py-0.5 rounded text-[10px] md:text-[11px] font-bold ${
+                      log.accion === 'INSERT' ? 'bg-emerald-100 text-emerald-700' :
+                      log.accion === 'UPDATE' ? 'bg-amber-100 text-amber-700' :
+                      log.accion === 'DELETE' ? 'bg-red-100 text-red-700' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>
+                      {log.accion}
+                    </span>
+                    <span className="text-[10px] md:text-[11px] text-slate-400 whitespace-nowrap">
+                      {new Date(log.fecha).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Tabla</span>
+                    <p className="text-[13px] md:text-sm font-medium text-slate-700">{log.tabla_afectada}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[10px] md:text-[11px] text-slate-500">
+                    <span className="truncate">Usuario: {userName}</span>
+                    <span className="font-mono text-slate-400 shrink-0">ID: {log.registro_id}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </main>
       </div>
-    </div>
+    </>
   );
 }

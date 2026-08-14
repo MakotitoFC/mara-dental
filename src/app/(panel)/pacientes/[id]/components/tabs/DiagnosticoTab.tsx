@@ -15,8 +15,15 @@ import {
   getRecomendacionesConsultaAction,
   getRecetasAction,
 } from "../../consulta.actions";
-import { useScrollFade } from "@/lib/hooks/useScrollFade";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { DatePicker } from "@/components/ui/DatePicker";
+import { Select } from "@/components/ui/Select";
+
+const TIPO_OPTIONS = [
+  { value: "definitivo", label: "Definitivo" },
+  { value: "presuntivo", label: "Presuntivo" },
+];
 
 function Notice({ text }: { text: string }) {
   return (
@@ -40,8 +47,8 @@ const ROW_H = 60;
 const LIST_MAX_H = ROW_H * 8;
 
 /** Fila compacta del historial — fecha + tipo (presuntivo/definitivo) + si
- * tiene tratamiento/recetas. El seleccionado (por defecto, el más reciente)
- * se resalta en verde, el mismo color que ya usa el badge "Definitivo". */
+ * tiene tratamiento/recetas. El seleccionado se resalta en gris neutro (no
+ * con el color del badge, para no confundirlo con el estado del registro). */
 function DiagnosticoHistorialRow({ d, active, tratCount, recCount, onClick }: {
   d: any; active: boolean; tratCount: number; recCount: number; onClick: () => void;
 }) {
@@ -55,7 +62,7 @@ function DiagnosticoHistorialRow({ d, active, tratCount, recCount, onClick }: {
       style={{ height: ROW_H }}
       className={`w-full text-left flex items-center gap-3 px-3 border-l-2 transition-colors border-0 ${
         active
-          ? "bg-emerald-50 dark:bg-emerald-900/20 border-l-emerald-500"
+          ? "bg-slate-100 dark:bg-slate-700/60 border-l-slate-400 dark:border-l-slate-500"
           : "border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-700/50"
       }`}
     >
@@ -166,8 +173,23 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
   const [step, setStep] = useState(0);
   const [showFinalizar, setShowFinalizar] = useState(false);
   const [confirmado, setConfirmado] = useState(false);
-  const listScroll = useScrollFade<HTMLDivElement>();
-  const detailScroll = useScrollFade<HTMLDivElement>();
+  // Tablet Y mobile (<lg) usan el patrón de tabla headerless + modal de
+  // detalle (estilo admin); solo desktop (lg+) mantiene la grilla
+  // maestro-detalle de dos columnas.
+  const isCompact = useIsMobile(1024);
+  const [showDetalleModal, setShowDetalleModal] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterFecha, setFilterFecha] = useState("");
+  const [filterTipo, setFilterTipo] = useState("");
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
+    }
+    if (filterOpen) document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [filterOpen]);
 
   // El diagnóstico recién creado solo existe en `data` después de que `refetch`
   // (async) termine — avanzar de paso ahí mismo (antes de esperarlo) dejaba el
@@ -239,103 +261,198 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
 
     const seleccionado = historialPaciente.find((d) => String(d.id) === selectedId) ?? null;
     const detalleSel = seleccionado ? detalleMap[String(seleccionado.id)] : null;
+    const historialFiltrado = historialPaciente.filter((d) => {
+      if (filterFecha && (d.fecha_deteccion ?? "").slice(0, 10) !== filterFecha) return false;
+      if (filterTipo === "definitivo" && !d.es_definitivo) return false;
+      if (filterTipo === "presuntivo" && d.es_definitivo) return false;
+      return true;
+    });
+    const hasFilter = !!filterFecha || !!filterTipo;
 
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-4 items-start">
-        {/* ── Detalle — diagnóstico seleccionado del historial (mismo patrón que Presupuesto).
-            Scroll propio y acotado, igual que el panel de Historial de al lado — no depende
-            de que la vista completa scrollee para alcanzar el resto del contenido. ── */}
-        <div className="flex flex-col gap-2 min-w-0">
-          <h2 className="text-[15px] font-bold text-slate-800 dark:text-slate-100">Diagnóstico</h2>
-
-          <div ref={detailScroll.ref} style={{ ...detailScroll.style, maxHeight: LIST_MAX_H }} className="overflow-y-auto no-scrollbar flex flex-col gap-4 pr-1 pb-4">
-            {seleccionado ? (
-              <>
-                <DiagnosticoCard
-                  diagnostico={seleccionado}
-                  consultaId={String(seleccionado.consulta_id)}
-                  pacienteId={String(pacienteId)}
-                  onSaved={fetchHistorialPaciente}
-                />
-                {detalleSel ? (
-                  <>
-                    {seleccionado.es_tratado ? (
-                      <TratamientoSection
-                        key={`trat-${seleccionado.id}`}
-                        diagnosticoId={String(seleccionado.id)}
-                        consultaId={String(seleccionado.consulta_id)}
-                        pacienteId={String(pacienteId)}
-                        initial={detalleSel.tratamientos}
-                        onItemsChange={() => fetchHistorialPaciente()}
-                      />
-                    ) : (
-                      <Notice text="Este diagnóstico no requiere tratamiento en la clínica." />
-                    )}
-                    <RecomendacionesSection
-                      key={`recom-${seleccionado.id}`}
-                      consultaId={String(seleccionado.consulta_id)}
-                      pacienteId={String(pacienteId)}
-                      initial={detalleSel.recomendaciones}
-                      onSaved={fetchHistorialPaciente}
-                    />
-                    <RecetaSection
-                      key={`receta-${seleccionado.id}`}
-                      diagnosticoId={String(seleccionado.id)}
-                      pacienteId={String(pacienteId)}
-                      initial={detalleSel.recetas}
-                      pacienteNombre={paciente.nombre_completo}
-                      telefono={paciente.telefono ?? ""}
-                      dni={paciente.dni ?? ""}
-                      pacienteFechaNacimiento={paciente.fecha_nacimiento}
-                      alergias={paciente.alergias}
-                      doctorNombre={seleccionado.doctor_nombre ?? "Doctor"}
-                      diagnosticoTexto={seleccionado.diagnostico_texto ?? ""}
-                      onSaved={fetchHistorialPaciente}
-                    />
-                  </>
-                ) : (
-                  <div className="py-6 flex justify-center">
-                    <div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" />
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3">
-                <Icon name="info" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
-                <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Este paciente no tiene diagnósticos registrados.</p>
-              </div>
-            )}
+    // ── Cabecera — misma en TODOS los breakpoints (antes desktop tenía una
+    // versión aparte, sin fondo blanco ni descripción, flotando sobre el
+    // fondo gris de la página). Sticky, pegada al navbar de tabs, mismo
+    // fondo blanco y sin espacio entre ambos (el separador gris queda abajo,
+    // entre este bloque y el contenido scrolleable). El ícono de filtro
+    // despliega los selectores de fecha y tipo EN LA MISMA FILA, a la
+    // derecha (no como una fila nueva debajo) — angostos, sin ocupar todo
+    // el ancho.
+    const header = (
+      <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-4 mb-3 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[15px] font-bold text-slate-800 dark:text-slate-100">Diagnóstico</h2>
+            <p className="text-[12px] text-slate-400 dark:text-slate-500 mt-0.5 leading-snug">Registro clínico del diagnóstico activo del paciente</p>
           </div>
-        </div>
-
-        {/* ── Historial — todos los diagnósticos del paciente, scroll propio. ── */}
-        <div className="flex flex-col gap-2 min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Historial</h2>
-            <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[10.5px] font-bold flex items-center justify-center">
-              {historialPaciente.length}
-            </span>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-            {historialPaciente.length === 0 ? (
-              <p className="text-[12px] text-slate-400 dark:text-slate-500 text-center py-8">Sin diagnósticos</p>
-            ) : (
-              <div ref={listScroll.ref} style={{ ...listScroll.style, maxHeight: LIST_MAX_H }} className="overflow-y-auto no-scrollbar divide-y divide-slate-100 dark:divide-slate-700">
-                {historialPaciente.map((d) => (
-                  <DiagnosticoHistorialRow
-                    key={d.id}
-                    d={d}
-                    active={String(d.id) === selectedId}
-                    tratCount={detalleMap[String(d.id)]?.tratamientos.length ?? 0}
-                    recCount={detalleMap[String(d.id)]?.recetas.length ?? 0}
-                    onClick={() => setSelectedId(String(d.id))}
-                  />
-                ))}
-              </div>
-            )}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* El panel de filtros se despliega en un dropdown anclado debajo
+                del ícono (no inline a su lado): así nunca compite por espacio
+                con el título/descripción, ni en mobile ni en tablet. */}
+            <div ref={filterRef} className="relative">
+              <button
+                onClick={() => setFilterOpen((o) => !o)}
+                title="Filtrar"
+                className={`shrink-0 w-9 h-9 rounded-lg border flex items-center justify-center transition-colors ${
+                  filterOpen || hasFilter ? "bg-cyan-50 dark:bg-cyan-900/30 border-cyan-300 dark:border-cyan-700 text-cyan-600 dark:text-cyan-400" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
+                }`}
+              >
+                <Icon name="filter_lines" size={18} />
+              </button>
+              {filterOpen && (
+                <div className="absolute top-[calc(100%+8px)] right-0 z-30 flex flex-col gap-2 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg w-[200px]">
+                  <Select value={filterTipo} onChange={setFilterTipo} placeholder="Tipo" options={TIPO_OPTIONS} />
+                  <DatePicker value={filterFecha} onChange={setFilterFecha} placeholder="Fecha…" />
+                  {hasFilter && (
+                    <button
+                      onClick={() => { setFilterFecha(""); setFilterTipo(""); }}
+                      className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-slate-200 dark:border-slate-700 text-[12px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <Icon name="close" size={14} /> Quitar filtros
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
+    );
+
+    const detalleContent = (
+      <div className="flex flex-col gap-2 min-w-0">
+        <div style={isCompact ? undefined : { maxHeight: LIST_MAX_H }} className="overflow-y-auto no-scrollbar flex flex-col gap-4 pr-1 pb-4">
+          {seleccionado ? (
+            <>
+              <DiagnosticoCard
+                diagnostico={seleccionado}
+                consultaId={String(seleccionado.consulta_id)}
+                pacienteId={String(pacienteId)}
+                onSaved={fetchHistorialPaciente}
+              />
+              {detalleSel ? (
+                <>
+                  {seleccionado.es_tratado ? (
+                    <TratamientoSection
+                      key={`trat-${seleccionado.id}`}
+                      diagnosticoId={String(seleccionado.id)}
+                      consultaId={String(seleccionado.consulta_id)}
+                      pacienteId={String(pacienteId)}
+                      initial={detalleSel.tratamientos}
+                      onItemsChange={() => fetchHistorialPaciente()}
+                    />
+                  ) : (
+                    <Notice text="Este diagnóstico no requiere tratamiento en la clínica." />
+                  )}
+                  <RecomendacionesSection
+                    key={`recom-${seleccionado.id}`}
+                    consultaId={String(seleccionado.consulta_id)}
+                    pacienteId={String(pacienteId)}
+                    initial={detalleSel.recomendaciones}
+                    onSaved={fetchHistorialPaciente}
+                  />
+                  <RecetaSection
+                    key={`receta-${seleccionado.id}`}
+                    diagnosticoId={String(seleccionado.id)}
+                    pacienteId={String(pacienteId)}
+                    initial={detalleSel.recetas}
+                    pacienteNombre={paciente.nombre_completo}
+                    telefono={paciente.telefono ?? ""}
+                    dni={paciente.dni ?? ""}
+                    pacienteFechaNacimiento={paciente.fecha_nacimiento}
+                    alergias={paciente.alergias}
+                    doctorNombre={seleccionado.doctor_nombre ?? "Doctor"}
+                    diagnosticoTexto={seleccionado.diagnostico_texto ?? ""}
+                    onSaved={fetchHistorialPaciente}
+                  />
+                </>
+              ) : (
+                <div className="py-6 flex justify-center">
+                  <div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" />
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3">
+              <Icon name="info" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
+              <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Este paciente no tiene diagnósticos registrados.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+
+    // Tablet/mobile (<lg): la pestaña muestra por defecto la tabla headerless
+    // de registros (estilo admin) — clic en una fila abre el detalle completo
+    // en un modal, en vez de mostrarlo expandido de entrada. Desktop (lg+)
+    // no cambia: sigue con la grilla maestro-detalle de dos columnas.
+    if (isCompact) {
+      return (
+        <>
+          {header}
+          <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-700">
+            {historialFiltrado.length === 0 ? (
+              <p className="text-[12px] text-slate-400 dark:text-slate-500 text-center py-8">
+                {filterFecha ? "Sin diagnósticos en esta fecha." : "Este paciente no tiene diagnósticos registrados."}
+              </p>
+            ) : (
+              historialFiltrado.map((d) => (
+                <DiagnosticoHistorialRow
+                  key={d.id}
+                  d={d}
+                  active={String(d.id) === selectedId}
+                  tratCount={detalleMap[String(d.id)]?.tratamientos.length ?? 0}
+                  recCount={detalleMap[String(d.id)]?.recetas.length ?? 0}
+                  onClick={() => { setSelectedId(String(d.id)); setShowDetalleModal(true); }}
+                />
+              ))
+            )}
+          </div>
+          <AnimatePresence>
+            {showDetalleModal && (
+              <ResponsiveSheet onClose={() => setShowDetalleModal(false)} title="Diagnóstico">
+                {detalleContent}
+              </ResponsiveSheet>
+            )}
+          </AnimatePresence>
+        </>
+      );
+    }
+
+    return (
+      <>
+        {header}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 items-start">
+          {detalleContent}
+          <div className="flex flex-col gap-2 min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Historial</h2>
+              <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[10.5px] font-bold flex items-center justify-center">
+                {historialPaciente.length}
+              </span>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+              {historialFiltrado.length === 0 ? (
+                <p className="text-[12px] text-slate-400 dark:text-slate-500 text-center py-8">
+                  {hasFilter ? "Sin diagnósticos con este filtro." : "Sin diagnósticos"}
+                </p>
+              ) : (
+                <div style={{ maxHeight: LIST_MAX_H }} className="overflow-y-auto no-scrollbar divide-y divide-slate-100 dark:divide-slate-700">
+                  {historialFiltrado.map((d) => (
+                    <DiagnosticoHistorialRow
+                      key={d.id}
+                      d={d}
+                      active={String(d.id) === selectedId}
+                      tratCount={detalleMap[String(d.id)]?.tratamientos.length ?? 0}
+                      recCount={detalleMap[String(d.id)]?.recetas.length ?? 0}
+                      onClick={() => setSelectedId(String(d.id))}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -429,7 +546,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
 
         {step === 0 && (
             actual ? (
-              <DiagnosticoCard diagnostico={actual} consultaId={String(consultaId)} pacienteId={String(pacienteId)} onSaved={refetch} />
+              <DiagnosticoCard diagnostico={actual} consultaId={String(consultaId)} activeConsultaId={consultaId} pacienteId={String(pacienteId)} onSaved={refetch} />
             ) : (
               <DiagnosticoForm consultaId={String(consultaId)} pacienteId={String(pacienteId)} onSaved={() => { justCreatedDiagRef.current = true; refetch(); }} />
             )

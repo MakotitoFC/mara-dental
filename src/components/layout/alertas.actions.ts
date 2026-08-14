@@ -157,7 +157,7 @@ export async function getAlertasAction(): Promise<AlertasData> {
       id,
       cita_id,
       citas ( pacientes ( id, nombre, apellido ) ),
-      diagnostico!diagnostico_consulta_origen_id_fkey (
+      diagnostico!consulta_origen_id (
         id, "esTratado",
         tratamiento ( id, plan_tratamiento ( id, fase, estado ) )
       )

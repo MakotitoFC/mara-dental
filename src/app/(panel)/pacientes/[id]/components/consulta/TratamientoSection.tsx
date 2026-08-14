@@ -117,7 +117,7 @@ function TratamientoSelectCombobox({
       {open && (
         <div
           onMouseDown={(e) => e.preventDefault()}
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-42 overflow-y-auto py-1"
+          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-42 overflow-y-auto no-scrollbar py-1"
         >
           {loading ? (
             <div className="px-3 py-4 text-center text-[12px] text-slate-400 flex items-center justify-center gap-2">

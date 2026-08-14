@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
 import { GuardedLink } from "./GuardedLink";
@@ -24,8 +24,8 @@ const NAV_MAIN = [
 const NAV_BOTTOM = [{ href: "/configuracion", icon: "settings", label: "Configuración" }];
 
 const ROLE_HREFS: Record<string, string[]> = {
-  superadmin: ["/admin/dashboard", "/admin/auditoria", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
-  admin:     ["/admin/dashboard", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/agenda", "/pacientes", "/plantillas"],
+  superadmin: ["/admin/dashboard", "/admin/auditoria", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/plantillas"],
+  admin:     ["/admin/dashboard", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/plantillas"],
   doctor:    ["/dashboard", "/agenda", "/pacientes", "/plantillas"],
   asistente: ["/dashboard", "/agenda", "/pagos"],
   contador:  ["/dashboard"],
@@ -37,7 +37,6 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const [doctorGroupOpen, setDoctorGroupOpen] = useState(false);
 
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
@@ -56,15 +55,7 @@ export function Sidebar() {
   const userRole = user?.rol ?? "";
   const allowedHrefs = ROLE_HREFS[userRole] ?? NAV_MAIN.map((n) => n.href);
   const visibleNav = NAV_MAIN.filter((n) => allowedHrefs.includes(n.href));
-  const isAdminRole = userRole === "admin" || userRole === "superadmin";
-
-  // Agrupamos Calendario y Pacientes si es admin/superadmin
-  const mainItems = visibleNav.filter(n => 
-    !isAdminRole || (n.href !== "/agenda" && n.href !== "/pacientes")
-  );
-  const doctorItems = visibleNav.filter(n => 
-    isAdminRole && (n.href === "/agenda" || n.href === "/pacientes")
-  );
+  const mainItems = visibleNav;
 
   return (
     <motion.aside
@@ -110,7 +101,7 @@ export function Sidebar() {
       </div>
 
       {/* Navegación principal */}
-      <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden">
+      <nav className="flex-1 py-3 overflow-y-auto no-scrollbar overflow-x-hidden">
         {mainItems.map((item) => {
           const active = isActive(item.href);
           return (
@@ -133,61 +124,6 @@ export function Sidebar() {
             </GuardedLink>
           );
         })}
-
-        {/* Sección de Doctor para admins/superadmins */}
-        {isAdminRole && doctorItems.length > 0 && (
-          <div className="mt-2">
-            {!collapsed ? (
-              <button
-                onClick={() => setDoctorGroupOpen(!doctorGroupOpen)}
-                className="w-full flex items-center justify-between px-4 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-              >
-                <span className="text-xs font-semibold uppercase tracking-wider">Doctor</span>
-                <Icon name={doctorGroupOpen ? "expand_less" : "expand_more"} size={16} />
-              </button>
-            ) : (
-              <div className="flex justify-center w-full px-4 py-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Doc</span>
-              </div>
-            )}
-            
-            <AnimatePresence initial={false}>
-              {(doctorGroupOpen || collapsed) && (
-                <motion.div
-                  initial={collapsed ? false : { height: 0, opacity: 0 }}
-                  animate={collapsed ? { height: "auto", opacity: 1 } : { height: "auto", opacity: 1 }}
-                  exit={collapsed ? undefined : { height: 0, opacity: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className={`${!collapsed ? "pl-2" : ""}`}>
-                    {doctorItems.map((item) => {
-                      const active = isActive(item.href);
-                      return (
-                        <GuardedLink
-                          key={item.href}
-                          href={item.href}
-                          title={collapsed ? item.label : undefined}
-                          className={`flex items-center gap-3 mx-2 px-2.5 py-2.5 rounded-lg transition-colors mb-0.5 group ${collapsed ? "justify-center" : ""} ${
-                            active
-                              ? "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400"
-                              : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
-                          }`}
-                        >
-                          <Icon
-                            name={item.icon}
-                            size={20}
-                            className={`shrink-0 ${active ? "text-cyan-700 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
-                          />
-                          {!collapsed && <span className="text-[13px] font-medium truncate">{item.label}</span>}
-                        </GuardedLink>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
       </nav>
 
       {/* Pie: configuración + usuario */}
@@ -219,12 +155,12 @@ export function Sidebar() {
           href="#"
           onClick={(e) => { e.preventDefault(); logout(); }}
           title={collapsed ? "Cerrar sesión" : undefined}
-          className={`flex items-center gap-3 mx-2 px-2.5 py-2.5 rounded-lg mb-0.5 group ring-1 ring-inset ring-red-200 dark:ring-red-900/50 text-red-500 dark:text-red-400 ${collapsed ? "justify-center" : ""}`}
+          className={`flex items-center gap-3 mx-2 px-2.5 py-2.5 rounded-lg mb-0.5 group transition-colors text-slate-500 dark:text-slate-400 ${collapsed ? "justify-center" : ""}`}
         >
           <Icon
             name="logout"
             size={20}
-            className="shrink-0 text-red-500 dark:text-red-400"
+            className="shrink-0 text-slate-400 dark:text-slate-500 transition-colors group-hover:text-red-500 dark:group-hover:text-red-400 group-active:text-red-500 dark:group-active:text-red-400"
           />
           {!collapsed && <span className="text-[13px] font-medium truncate">Cerrar sesión</span>}
         </a>

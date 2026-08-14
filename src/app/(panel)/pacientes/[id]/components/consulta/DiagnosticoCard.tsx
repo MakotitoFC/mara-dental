@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
@@ -9,6 +8,7 @@ import { fadeIn } from "@/lib/animations";
 import { searchCIE10Action, updateDiagnosticoAction, deleteArchivoClinicoAction } from "../../consulta.actions";
 import { VisorModal } from "./VisorModal";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 const CATEGORIAS = [
   { value: "Rx panoramica", label: "Rx panorámica" },
@@ -34,9 +34,13 @@ interface Props {
   pacienteId: string;
   onSaved?: () => void;
   onNavigateTab?: (tab: string) => void;
+  /** Distinto de `consultaId` (que solo identifica de qué consulta viene el
+   * diagnóstico) — esto indica si HAY una consulta activa AHORA, para que el
+   * visor de archivos gane el arrastre peek/full solo en ese caso. */
+  activeConsultaId?: string | null;
 }
 
-export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, onNavigateTab }: Props) {
+export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, onNavigateTab, activeConsultaId }: Props) {
   const [editing, setEditing] = useState(false);
   const [visor, setVisor] = useState<Archivo | null>(null);
 
@@ -55,9 +59,9 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [fileToDelete, setFileToDelete] = useState<{id: number | string, url: string, name: string} | null>(null);
   const [deleting, setDeleting] = useState(false);
   const toast = useToast();
+  const confirm = useConfirm();
 
   async function handleCieSearch(q: string) {
     setQuery(q);
@@ -105,14 +109,19 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
     toast.success("Diagnóstico actualizado correctamente");
   }
 
-  async function confirmDelete() {
-    if (!fileToDelete) return;
+  async function handleDeleteFile(file: { id: number | string; url: string; name: string }) {
+    const ok = await confirm({
+      title: "¿Eliminar archivo?",
+      message: `Estás a punto de eliminar permanentemente "${file.name}" y todas sus anotaciones. Esta acción no se puede deshacer.`,
+      confirmLabel: "Sí, eliminar",
+    });
+    if (!ok) return;
     setDeleting(true);
-    const res = await deleteArchivoClinicoAction(String(fileToDelete.id), fileToDelete.url, String(pacienteId));
+    const res = await deleteArchivoClinicoAction(String(file.id), file.url, String(pacienteId));
     setDeleting(false);
-    if (res?.error) { setError(res.error); toast.error(res.error); }
-    setFileToDelete(null);
-    if (!res?.error) { onSaved?.(); toast.success("Archivo eliminado"); }
+    if (res?.error) { setError(res.error); toast.error(res.error); return; }
+    onSaved?.();
+    toast.success("Archivo eliminado");
   }
 
   /* ── Vista ── */
@@ -185,6 +194,7 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
             <VisorModal
               archivo={visor}
               todos={diagnostico.archivos}
+              consultaId={activeConsultaId}
               onClose={() => setVisor(null)}
               onNavigateTab={onNavigateTab}
               onNav={setVisor}
@@ -266,7 +276,7 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
                 {searching && <div className="absolute right-3 top-2.5 w-4 h-4 rounded-full border-2 border-cyan-200 dark:border-cyan-800 border-t-cyan-600 animate-spin" />}
               </div>
               {cieList.length > 0 && (
-                <div className="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-48 overflow-y-auto z-10">
+                <div className="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-48 overflow-y-auto no-scrollbar z-10">
                   {cieList.map(c => (
                     <button key={c.id} onClick={() => { setSelectedCie(c); setQuery(""); setCieList([]); }}
                       className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-50 dark:border-slate-700 last:border-0 flex gap-2 items-center">
@@ -298,7 +308,7 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
                 <Icon name={a.nombre_archivo.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? "image" : "description"} size={15} className="text-slate-500 dark:text-slate-400 shrink-0" />
                 <span className="text-[12px] text-slate-700 dark:text-slate-300 flex-1 truncate">{a.nombre_archivo}</span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 px-2 border-r border-slate-200 dark:border-slate-700">{a.categoria}</span>
-                <button onClick={() => setFileToDelete({ id: a.id, url: a.url, name: a.nombre_archivo })} className="text-red-400 dark:text-red-500 hover:text-red-600 dark:hover:text-red-400 border-0 px-2">
+                <button onClick={() => handleDeleteFile({ id: a.id, url: a.url, name: a.nombre_archivo })} className="text-red-400 dark:text-red-500 hover:text-red-600 dark:hover:text-red-400 border-0 px-2">
                   <Icon name="delete" size={14} />
                 </button>
               </div>
@@ -373,33 +383,6 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
           </button>
         </div>
       </div>
-
-      {/* Modal de Confirmación de Borrado */}
-      {fileToDelete && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-5 max-w-sm w-full border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-red-500 dark:text-red-400 mb-3">
-              <Icon name="warning" size={24} />
-            </div>
-            <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 mb-1">¿Eliminar archivo?</h3>
-            <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-4 px-2">
-              Estás a punto de eliminar permanentemente <strong className="text-slate-700 dark:text-slate-300">{fileToDelete.name}</strong> y todas sus anotaciones. Esta acción no se puede deshacer.
-            </p>
-            <div className="flex gap-3 w-full">
-              <button onClick={() => setFileToDelete(null)} disabled={deleting}
-                className="flex-1 py-2 rounded-xl text-[13px] font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                Cancelar
-              </button>
-              <button onClick={confirmDelete} disabled={deleting}
-                className="flex-1 flex justify-center items-center gap-1.5 py-2 rounded-xl text-[13px] font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-colors">
-                {deleting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Icon name="delete" size={14} />}
-                {deleting ? "Borrando..." : "Sí, eliminar"}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
     </motion.div>
   );
