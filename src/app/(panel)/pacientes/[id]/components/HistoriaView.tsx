@@ -54,7 +54,7 @@ function initials(nombre: string) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function HistoriaView({
-  paciente: p,
+  paciente: initialPaciente,
   citas = [],
   historial,
   datosCasos,
@@ -71,6 +71,14 @@ export function HistoriaView({
   const confirm = useConfirm();
   const toast = useToast();
   const { setActiveConsultaExit } = useActiveConsultaGuard();
+
+  const [pacienteData, setPacienteData] = useState(initialPaciente);
+
+  useEffect(() => {
+    setPacienteData(initialPaciente);
+  }, [initialPaciente]);
+
+  const p = pacienteData;
 
   const [tab, setTab] = useState<TabKey>("info");
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -320,7 +328,11 @@ export function HistoriaView({
         <EditarPacienteModal
           paciente={p}
           onClose={() => setShowEditModal(false)}
-          onSaved={() => router.refresh()}
+          onSaved={(updatedData) => {
+            setPacienteData((prev: any) => ({ ...prev, ...updatedData }));
+            router.refresh();
+            setShowEditModal(false);
+          }}
         />
       )}
 

@@ -171,7 +171,8 @@ export async function getDetallePacienteAction(pacienteId: string) {
     grado_instruccion: toStr(paciente.grado_instruccion),
     estado_civil:      toStr(paciente.estado_civil),
     religion:          toStr(paciente.religion),
-    enfermedad_actual: toStr(paciente.enfermedad_actual),
+    enfermedad_actual: toStringArray(paciente.enfermedad_actual),
+    restricciones_clinicas: toStringArray(paciente.restricciones_clinicas),
     grupo_sanguineo:   toStr(paciente.grupo_sanguineo),
     alergias:          alergiasArr,
     antecedentes:      antArr,
@@ -206,7 +207,8 @@ export async function updatePacienteAction(pacienteId: string, data: {
   grupo_sanguineo?: string;
   estado_civil?: string;
   grado_instruccion?: string;
-  enfermedad_actual?: string;
+  enfermedad_actual?: string[];
+  restricciones_clinicas?: string[];
   alergias?: string[];
   antecedentes?: { cronicas: string[]; medicacion_habitual: string[]; quirurgicos: string[] };
 }) {
@@ -217,28 +219,29 @@ export async function updatePacienteAction(pacienteId: string, data: {
     return { error: "La fecha de nacimiento no puede ser mayor a la fecha actual." };
   }
 
-  const { error } = await supabase.from("pacientes").update({
-    nombre:            data.nombre.trim(),
-    apellido:          data.apellido.trim(),
-    dni:               data.dni.trim(),
-    fecha_nacimiento:  data.fecha_nacimiento,
-    telefono:          data.telefono.trim(),
-    email:             data.email             || null,
-    sexo:              data.sexo              || null,
-    lugar_nacimiento:  data.lugar_nacimiento  || null,
-    raza:              data.raza              || null,
-    direccion:         data.direccion         || null,
-    domicilio:         data.domicilio         || null,
-    lugar_procedencia: data.lugar_procedencia || null,
-    ocupacion:         data.ocupacion         || null,
-    religion:          data.religion          || null,
-    grupo_sanguineo:   data.grupo_sanguineo   || null,
-    estado_civil:      data.estado_civil      || null,
-    grado_instruccion: data.grado_instruccion || null,
-    enfermedad_actual: data.enfermedad_actual || null,
-    alergias:          data.alergias          || [],
-    antecedentes:      data.antecedentes      || { cronicas: [], medicacion_habitual: [], quirurgicos: [] },
-  }).eq("id", pacienteId);
+  const { data: updatedRows, error } = await supabase.from("pacientes").update({
+    nombre:                 data.nombre.trim(),
+    apellido:               data.apellido.trim(),
+    dni:                    data.dni.trim(),
+    fecha_nacimiento:       data.fecha_nacimiento,
+    telefono:               data.telefono.trim(),
+    email:                  data.email                  || null,
+    sexo:                   data.sexo                   || null,
+    lugar_nacimiento:       data.lugar_nacimiento       || null,
+    raza:                   data.raza                   || null,
+    direccion:              data.direccion              || null,
+    domicilio:              data.domicilio              || null,
+    lugar_procedencia:      data.lugar_procedencia      || null,
+    ocupacion:              data.ocupacion              || null,
+    religion:               data.religion               || null,
+    grupo_sanguineo:        data.grupo_sanguineo        || null,
+    estado_civil:           data.estado_civil           || null,
+    grado_instruccion:      data.grado_instruccion      || null,
+    enfermedad_actual:      data.enfermedad_actual      || [],
+    restricciones_clinicas: data.restricciones_clinicas || [],
+    alergias:               data.alergias               || [],
+    antecedentes:           data.antecedentes           || { cronicas: [], medicacion_habitual: [], quirurgicos: [] },
+  }).eq("id", pacienteId).select("id");
 
   if (error) {
     console.error("Error actualizando paciente:", error);
@@ -246,6 +249,10 @@ export async function updatePacienteAction(pacienteId: string, data: {
       return { error: "Ya existe otro paciente registrado con ese DNI." };
     }
     return { error: "Ocurrió un error al guardar los cambios." };
+  }
+
+  if (!updatedRows || updatedRows.length === 0) {
+    return { error: "No tienes permiso para actualizar los datos de este paciente (RLS) o el paciente no existe." };
   }
 
   revalidatePath(`/pacientes/${pacienteId}`);
