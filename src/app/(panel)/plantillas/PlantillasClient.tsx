@@ -158,9 +158,8 @@ export default function PlantillasClient({ plantillas, userRole }: PlantillasCli
     }
   };
 
-  // Campos del formulario de subida — compartidos entre la versión inline
-  // del sidebar (desktop, lg+) y el modal (tablet/mobile, <lg). `formId`
-  // evita colisión de ids si ambos llegaran a montarse a la vez.
+  // Campos del formulario de subida, usados dentro del modal que abre el
+  // botón "Subir" (mismo en desktop, tablet y mobile).
   function renderUploadFormFields(formId: string) {
     return (
       <form id={formId} onSubmit={handleUpload} className="flex flex-col gap-4">
@@ -294,13 +293,12 @@ export default function PlantillasClient({ plantillas, userRole }: PlantillasCli
             </p>
           </div>
         </div>
-        {/* En tablet/mobile (<lg) el formulario vive en un modal en vez de
-            inline en el sidebar — este botón lo abre. En desktop (lg+) no
-            hace falta: el formulario ya está siempre visible al costado. */}
+        {/* El formulario de subida vive siempre en un modal — este botón lo
+            abre, visible en desktop, tablet y mobile por igual. */}
         {canUploadDelete && (
           <button
             onClick={() => setIsUploadModalOpen(true)}
-            className="lg:hidden shrink-0 flex items-center justify-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 text-white h-9 sm:h-10 px-3 sm:px-4 rounded-lg text-[13px] md:text-sm font-medium shadow-sm transition-colors"
+            className="shrink-0 flex items-center justify-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 text-white h-9 sm:h-10 px-3 sm:px-4 rounded-lg text-[13px] md:text-sm font-medium shadow-sm transition-colors"
           >
             <Icon name="cloud_upload" size={18} />
             <span>Subir</span>
@@ -333,9 +331,8 @@ export default function PlantillasClient({ plantillas, userRole }: PlantillasCli
       </header>
 
       <main className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 sm:p-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* LISTA DE ARCHIVOS */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 ${canUploadDelete ? 'xl:grid-cols-3' : 'xl:grid-cols-4'} gap-4 ${canUploadDelete ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredPlantillas.length === 0 ? (
             <div className="col-span-full py-12 flex flex-col items-center justify-center text-slate-400 bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-300">
               <Icon name="folder_open" size={48} className="mb-2 opacity-50" />
@@ -402,19 +399,6 @@ export default function PlantillasClient({ plantillas, userRole }: PlantillasCli
             })
           )}
         </div>
-
-        {/* FORMULARIO UPLOAD inline — solo desktop (lg+) y solo admin/superadmin.
-            En tablet/mobile se abre como modal (ver botón "Subir" del header). */}
-        {canUploadDelete && (
-          <div className="hidden lg:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm sticky top-24">
-            <h2 className="text-[13px] md:text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-4">
-              <Icon name="upload_file" size={20} className="text-cyan-600" />
-              Subir Nueva Plantilla
-            </h2>
-            {renderUploadFormFields("upload-plantilla-form")}
-          </div>
-        )}
-      </div>
       </main>
 
       <AnimatePresence>
