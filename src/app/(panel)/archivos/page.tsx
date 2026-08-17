@@ -6,7 +6,7 @@ export default async function ArchivosPage() {
   return (
     <>
       <Header title="Archivos Clínicos" />
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto no-scrollbar">
         <ArchivosView />
       </div>
     </>

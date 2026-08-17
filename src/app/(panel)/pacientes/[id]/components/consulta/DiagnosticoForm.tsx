@@ -136,15 +136,22 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
 
   return (
     <motion.div variants={fadeIn} initial="hidden" animate="visible" className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col">
-      {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-          <Icon name="biotech" size={18} />
+      {/* Header — Guardar vive acá arriba, no en un footer al fondo del card. */}
+      <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+            <Icon name="biotech" size={18} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Definir diagnóstico</h2>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">Adjunta imágenes o tomografías para sustentar si es definitivo</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Definir diagnóstico</h2>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">Adjunta imágenes o tomografías para sustentar si es definitivo</p>
-        </div>
+        <button onClick={handleGuardar} disabled={!canSave}
+          className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-semibold transition-colors">
+          <Icon name="save" size={16} />
+          {loading ? "Guardando…" : "Guardar"}
+        </button>
       </div>
 
       {/* Body: formulario */}
@@ -210,7 +217,7 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
                   {searchingCie && <div className="absolute right-3 top-2.5 w-4 h-4 rounded-full border-2 border-cyan-200 dark:border-cyan-800 border-t-cyan-600 animate-spin" />}
                 </div>
                 {cieList.length > 0 && (
-                  <div className="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-48 overflow-y-auto z-10">
+                  <div className="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-48 overflow-y-auto no-scrollbar z-10">
                     {cieList.map(c => (
                       <button key={c.id} onClick={() => { setSelectedCie(c); setQuery(""); setCieList([]); }}
                         className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-50 dark:border-slate-700 last:border-0 flex gap-2 items-center">
@@ -321,15 +328,6 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
           </div>
         </div>
       )}
-
-      {/* Footer */}
-      <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-end rounded-b-2xl">
-        <button onClick={handleGuardar} disabled={!canSave}
-          className="flex items-center gap-1.5 px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-semibold transition-colors">
-          <Icon name="save" size={16} />
-          {loading ? "Guardando…" : "Guardar diagnóstico"}
-        </button>
-      </div>
 
       {/* Lightbox para imágenes (pre-guardado) */}
       {lightbox && (

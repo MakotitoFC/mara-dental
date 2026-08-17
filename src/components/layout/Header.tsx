@@ -233,8 +233,6 @@ function AlertasButton() {
 export function Header({ title, breadcrumbs, actions }: HeaderProps) {
   const { user, logout } = useAuth();
 
-  const backHref = breadcrumbs && breadcrumbs.length >= 2 ? (breadcrumbs[breadcrumbs.length - 2].href ?? "/") : "/";
-
   return (
     <motion.header
       initial={{ opacity: 0, y: -8 }}
@@ -249,14 +247,10 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
 
         {breadcrumbs && (
           <>
+            {/* Sin botón "volver" mobile acá: la página de detalle de
+                paciente (única que usa breadcrumbs) ya tiene el suyo propio
+                en su sub-header — tener los dos apilados era redundante. */}
             <Icon name="chevron_right" size={16} className="text-slate-300 dark:text-slate-600 shrink-0 hidden sm:block" />
-            <GuardedLink
-              href={backHref}
-              aria-label="Volver"
-              className="sm:hidden w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
-            >
-              <Icon name="chevron_left" size={18} />
-            </GuardedLink>
 
             <nav className="hidden sm:flex items-center min-w-0">
               {breadcrumbs.map((crumb, i) => {
@@ -297,7 +291,7 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
 
         <button
           onClick={logout}
-          className="md:hidden w-8 h-8 rounded-lg bg-transparent border border-red-200 dark:border-red-800 flex items-center justify-center text-red-400 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+          className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 active:text-red-500 dark:active:text-red-400 transition-colors"
           title="Cerrar sesión"
         >
           <Icon name="logout" size={17} />

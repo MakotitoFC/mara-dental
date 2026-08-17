@@ -25,7 +25,6 @@ import { DiagnosticoTab } from "./tabs/DiagnosticoTab";
 import { ArchivosTab } from "./tabs/ArchivosTab";
 import { PresupuestoTab } from "./tabs/PresupuestoTab";
 import { ChatTab } from "./tabs/ChatTab";
-import { useScrollFade } from "@/lib/hooks/useScrollFade";
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -83,7 +82,6 @@ export function HistoriaView({
 
   const [tab, setTab] = useState<TabKey>("info");
   const [direction, setDirection] = useState<1 | -1>(1);
-  const contenidoScroll = useScrollFade<HTMLDivElement>();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDescargarModal, setShowDescargarModal] = useState(false);
@@ -299,6 +297,19 @@ export function HistoriaView({
 
   const diagnostico = consultaData?.diagnostico ?? null;
 
+  // "dental"/"timeline"/"chat" manejan su propio padding interno (encabezados
+  // fijos, layouts a medida) y por eso no llevan nada acá. "diagnosticos" y
+  // "presupuestos" ahora tienen su propio header sticky (blanco, con
+  // título+descripción) pegado al tab bar en TODOS los breakpoints —
+  // pt-0 siempre, para que ese header quede junto al tab bar sin franja
+  // gris encima (el propio header ya trae su padding interno).
+  const contentPadding =
+    tab === "chat" || tab === "timeline" || tab === "dental"
+      ? ""
+      : tab === "diagnosticos" || tab === "presupuestos"
+      ? "px-3 sm:px-4 md:px-6 pt-0 pb-2 md:pb-10 lg:pb-12"
+      : "p-3 sm:p-4 md:p-6 pb-2 md:pb-10 lg:pb-12";
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-50/40 dark:bg-slate-900/40">
 
@@ -367,7 +378,7 @@ export function HistoriaView({
 
           <button
             onClick={() => setShowEditModal(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-[11.5px] font-semibold transition-colors border border-slate-200 dark:border-slate-600"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 text-[11.5px] font-semibold transition-colors border border-slate-300 dark:border-slate-600"
           >
             <Icon name="edit" size={13} />Editar
           </button>
@@ -488,9 +499,7 @@ export function HistoriaView({
           propia que scrollee, así que necesita el scroll de acá para que todo sea
           alcanzable (antes quedaba con overflow-hidden y el detalle quedaba inalcanzable). ── */}
       <div
-        ref={tab !== "chat" && !diagnosticoWizardActivo ? contenidoScroll.ref : undefined}
-        style={tab !== "chat" && !diagnosticoWizardActivo ? contenidoScroll.style : undefined}
-        className={`flex-1 min-h-0 overflow-x-hidden no-scrollbar ${diagnosticoWizardActivo ? "overflow-hidden" : "overflow-y-auto"} ${tab === "chat" || tab === "timeline" || tab === "dental" ? "" : "p-3 sm:p-4 md:p-6 pb-2 md:pb-10 lg:pb-12"}`}
+        className={`flex-1 min-h-0 overflow-x-hidden no-scrollbar ${diagnosticoWizardActivo ? "overflow-hidden" : "overflow-y-auto"} ${contentPadding}`}
       >
         <AnimatePresence mode="wait">
           <motion.div

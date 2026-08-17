@@ -5,7 +5,7 @@ export default function LoadingPacientes() {
   return (
     <>
       <Header title="Pacientes" />
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-3 max-w-180">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-5 flex flex-col gap-3 max-w-180">
 
         {/* Barra de búsqueda + botón */}
         <div className="flex items-center gap-3">

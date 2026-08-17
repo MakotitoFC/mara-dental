@@ -294,7 +294,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
       </div>
 
       <div
-        className="flex-1 min-h-0 overflow-y-auto p-5 flex flex-col gap-4 bg-slate-50/50 dark:bg-slate-900/20"
+        className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-5 flex flex-col gap-4 bg-slate-50/50 dark:bg-slate-900/20"
         onScroll={handleScroll}
       >
         {messages.length === 0 ? (

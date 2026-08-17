@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
 import { saveRecomendacionAction, editRecomendacionAction, deleteRecomendacionAction } from "../../consulta.actions";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface Recomendacion {
   id: number;
@@ -35,6 +35,7 @@ export function RecomendacionesSection({
   const [editContenido, setEditContenido] = useState("");
 
   const toast = useToast();
+  const confirm = useConfirm();
 
   function startEdit(item: Recomendacion) {
     setEditingId(item.id);
@@ -80,13 +81,14 @@ export function RecomendacionesSection({
     }
   }
 
-  // Confirm Modal State
-  const [itemToDelete, setItemToDelete] = useState<number | null>(null);
-  async function confirmDelete() {
-    if (!itemToDelete) return;
-    await deleteRecomendacionAction(String(itemToDelete), String(pacienteId));
-    setRecomendaciones(prev => prev.filter(r => r.id !== itemToDelete));
-    setItemToDelete(null);
+  async function handleDelete(itemId: number) {
+    const ok = await confirm({
+      title: "¿Eliminar recomendación?",
+      message: "Esta acción no se puede deshacer.",
+    });
+    if (!ok) return;
+    await deleteRecomendacionAction(String(itemId), String(pacienteId));
+    setRecomendaciones(prev => prev.filter(r => r.id !== itemId));
     toast.success("Recomendación eliminada");
     onSaved?.();
   }
@@ -176,7 +178,7 @@ export function RecomendacionesSection({
                         className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-400 dark:text-orange-500 hover:text-orange-600 dark:hover:text-orange-400 border-0 transition-colors">
                         <Icon name="edit" size={14} />
                       </button>
-                      <button onClick={() => setItemToDelete(item.id)}
+                      <button onClick={() => handleDelete(item.id)}
                         className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-950/40 text-slate-400 dark:text-slate-500 hover:text-red-500 border-0 transition-colors">
                         <Icon name="delete" size={14} />
                       </button>
@@ -190,19 +192,6 @@ export function RecomendacionesSection({
         </div>
       </div>
 
-      {itemToDelete && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-5 max-w-sm w-full text-center">
-            <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 mb-2">¿Eliminar recomendación?</h3>
-            <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-5">Esta acción no se puede deshacer.</p>
-            <div className="flex gap-2">
-              <button onClick={() => setItemToDelete(null)} className="flex-1 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-[12px] font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800">Cancelar</button>
-              <button onClick={confirmDelete} className="flex-1 py-2 bg-red-500 text-white rounded-xl text-[12px] font-bold border-0">Sí, eliminar</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </motion.div>
   );
 }

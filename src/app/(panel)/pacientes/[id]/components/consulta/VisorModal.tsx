@@ -3,16 +3,17 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, slideUp } from "@/lib/animations";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
+import { useSnapDrag } from "@/lib/hooks/useSnapDrag";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 import { updateAnotacionesAction, getSedeInfoAction } from "../../consulta.actions";
 import {
-  buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, sectionLabel, wrapDocument, fmtGenerado as fmtGeneradoShared,
-  type ClinicaInfo,
+  buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, sectionLabel, wrapDocument, fmtGenerado as fmtGeneradoShared, shortCode,
+  downloadHtmlAsPaginatedPdf, type ClinicaInfo,
 } from "@/lib/reportExport";
 
 interface Archivo {
@@ -109,7 +110,7 @@ function buildReportHtml(opts: {
   const row = (label: string, value?: string | null) =>
     value ? `<div style="margin-bottom:12px;"><div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">${esc(label)}</div><div style="font-size:12.5px;color:#1e293b;font-weight:600;">${esc(value)}</div></div>` : "";
 
-  const docCode = `Archivo #${opts.archivoId}`;
+  const docCode = `Archivo #${shortCode(opts.archivoId)}`;
   const header = buildLetterheadHeader({
     clinica: opts.clinica,
     docLabel: "Archivo Clínico",
@@ -146,7 +147,7 @@ function buildReportHtml(opts: {
         ${row("ID Paciente", opts.pacienteId != null ? String(opts.pacienteId) : undefined)}
         ${row("Archivo", opts.nombreArchivo)}
         ${row("Categoría", opts.categoria)}
-        ${row("Tipo", opts.tipoArchivo === "image" ? "Imagen" : "PDF")}
+        ${row("Tipo", opts.tipoArchivo)}
         ${row("Fecha", opts.fechaSubida)}
         ${opts.doctorNombre ? `
           <div style="margin-top:6px;padding-top:14px;border-top:1px solid #e2e8f0;">
@@ -232,6 +233,7 @@ export function VisorModal({
   archivo: initialArchivo,
   todos,
   paciente,
+  consultaId,
   onClose,
   onNav,
   onNavigateTab,
@@ -239,6 +241,8 @@ export function VisorModal({
   archivo: Archivo;
   todos: Archivo[];
   paciente?: { id: number | string; nombre_completo?: string; nombre?: string; apellido?: string } | null;
+  /** Con consulta activa (mobile), el handle gana arrastre peek(70%)/full(100%). */
+  consultaId?: string | null;
   onClose: () => void;
   onNav: (a: Archivo) => void;
   onNavigateTab?: (t: string) => void;
@@ -272,7 +276,6 @@ export function VisorModal({
   const [textValue, setTextValue] = useState("");
 
   const [hoveredAnn, setHoveredAnn] = useState<string | null>(null);
-  const [annotationToDelete, setAnnotationToDelete] = useState<string | null>(null);
 
   // Draw / Arrow
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -293,9 +296,37 @@ export function VisorModal({
 
   useBodyScrollLock();
   const isMobile = useIsMobile();
+  // El modal en sí (bottom sheet vs. diálogo centrado, y el handle de
+  // arrastre) trata tablet igual que mobile — antes cambiaba a diálogo
+  // centrado desde `md` (768px), dejando el handle sin función real en
+  // tablet. `isMobile` (768px) se mantiene para lo que sí debe distinguir
+  // mobile real de tablet (aviso de girar el dispositivo, etc.).
+  const isCompactViewer = useIsMobile(1024);
+  const confirm = useConfirm();
   const [fullscreen, setFullscreen] = useState(false);
   const hideMobileTools = isMobile && !fullscreen;
   const [zoom, setZoom] = useState(1);
+
+  // Con consulta activa, el handle se puede arrastrar entre peek(70%) y
+  // full(100%) en vez de solo tocar para entrar/salir de pantalla completa.
+  // Reutiliza los dos mismos layouts ya existentes de `fullscreen` (no un
+  // alto continuo nuevo) — el arrastre solo decide cuál de los dos mostrar.
+  // Sin consulta activa (o en fullscreen) no hay snap points, pero el handle
+  // sigue siendo arrastrable gracias a `onClose` como tercer argumento:
+  // useSnapDrag entra en su modo "sin snap" (solo arrastrar hacia abajo para
+  // cerrar, con `y` seguido en vivo) en vez de quedar inerte — antes no se
+  // pasaba `onClose` acá, así que fuera de una consulta activa el handle no
+  // respondía al gesto en ningún tamaño de pantalla.
+  const dragEnabled = isCompactViewer && !!consultaId;
+  const drag = useSnapDrag(dragEnabled ? [0.7, 1] : [], fullscreen ? 1 : 0, onClose);
+  useEffect(() => {
+    if (dragEnabled) setFullscreen(drag.snapIndex === 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag.snapIndex, dragEnabled]);
+  useEffect(() => {
+    if (dragEnabled) drag.setSnapIndex(fullscreen ? 1 : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullscreen, dragEnabled]);
 
   // Al editar en mobile (fullscreen) conviene el apaisado — se pide girar el
   // celular en vez de forzar los controles a caber en un ancho angosto.
@@ -468,14 +499,14 @@ export function VisorModal({
     setTextValue("");
   }
 
-  function deleteAnnotation(id: string) {
-    setAnnotationToDelete(id);
-  }
-
-  function confirmDeleteAnnotation() {
-    if (!annotationToDelete) return;
-    handleUpdateDB(anotacionesRef.current.filter((x) => x.id !== annotationToDelete));
-    setAnnotationToDelete(null);
+  async function deleteAnnotation(id: string) {
+    const ok = await confirm({
+      title: "¿Borrar anotación?",
+      message: "Esta acción eliminará el elemento seleccionado de forma permanente.",
+      confirmLabel: "Sí, borrar",
+    });
+    if (!ok) return;
+    handleUpdateDB(anotacionesRef.current.filter((x) => x.id !== id));
   }
 
   function handleUndo() {
@@ -817,13 +848,15 @@ export function VisorModal({
     return canvas;
   }
 
+  const pacienteSlug = (paciente?.nombre_completo || (paciente?.nombre ? `${paciente.nombre} ${paciente.apellido ?? ""}`.trim() : "paciente")).replace(/\s+/g, "_");
+
   async function handleDownloadReportImage() {
     setExportingReport("png");
     try {
       const canvas = await renderReportCanvas();
       const link = document.createElement("a");
       link.href = canvas.toDataURL("image/png");
-      link.download = a.nombre_archivo.replace(/\.[^.]+$/, "") + "_reporte.png";
+      link.download = `archivo_${pacienteSlug}_${a.nombre_archivo.replace(/\.[^.]+$/, "")}_reporte.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -840,7 +873,7 @@ export function VisorModal({
       const canvas = await renderReportCanvas();
       canvas.toBlob((blob) => {
         if (!blob) return;
-        const file = new File([blob], a.nombre_archivo.replace(/\.[^.]+$/, "") + "_reporte.png", { type: "image/png" });
+        const file = new File([blob], `archivo_${pacienteSlug}_${a.nombre_archivo.replace(/\.[^.]+$/, "")}_reporte.png`, { type: "image/png" });
         (window as any).__pendingTelegramFile = file;
         
         if (onNavigateTab) {
@@ -858,11 +891,8 @@ export function VisorModal({
   async function handleDownloadPdf() {
     setExportingReport("pdf");
     try {
-      const canvas = await renderReportCanvas();
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      const pdf = new jsPDF({ orientation: canvas.width >= canvas.height ? "landscape" : "portrait", unit: "px", format: [canvas.width, canvas.height] });
-      pdf.addImage(imgData, "JPEG", 0, 0, canvas.width, canvas.height);
-      pdf.save(a.nombre_archivo.replace(/\.[^.]+$/, "") + "_reporte.pdf");
+      const html = await buildReportHtmlForCurrent();
+      await downloadHtmlAsPaginatedPdf(html, `archivo_${pacienteSlug}_${a.nombre_archivo.replace(/\.[^.]+$/, "")}_reporte.pdf`, 900);
     } catch (e) {
       console.error("Error convirtiendo a PDF:", e);
     } finally {
@@ -917,7 +947,7 @@ export function VisorModal({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-100 md:flex md:items-center md:justify-center md:p-6">
+    <div className="fixed inset-0 z-100 lg:flex lg:items-center lg:justify-center lg:p-6">
       <motion.div
         variants={fadeIn}
         initial="hidden"
@@ -936,14 +966,22 @@ export function VisorModal({
         className={
           fullscreen
             ? "fixed inset-0 w-full h-full max-h-none rounded-none bg-white dark:bg-slate-800 overflow-hidden flex flex-col shadow-2xl"
-            : "fixed inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl md:relative md:max-h-[min(92vh,calc(100dvh-96px))] md:max-w-280 md:rounded-2xl bg-white dark:bg-slate-800 overflow-hidden flex flex-col md:flex-row shadow-2xl"
+            : "fixed inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl lg:relative lg:max-h-[min(92vh,calc(100dvh-96px))] lg:max-w-280 lg:rounded-2xl bg-white dark:bg-slate-800 overflow-hidden flex flex-col lg:flex-row shadow-2xl"
         }
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        style={{ paddingBottom: "env(safe-area-inset-bottom)", y: drag.y }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle siempre arrastrable (no solo decorativo) cuando el modal no
+            está en pantalla completa — con consulta activa alterna entre
+            peek(70%)/full(100%); sin ella, arrastrarlo hacia abajo cierra el
+            modal (ver `onClose` pasado a useSnapDrag arriba). */}
         {!fullscreen && (
-          <div className="md:hidden flex justify-center pt-2.5 pb-1 shrink-0 absolute top-0 inset-x-0 z-10">
-            <span className="w-10 h-1.5 rounded-full bg-white/40" />
+          <div
+            className="lg:hidden flex justify-center pt-2 pb-1 shrink-0 absolute top-0 inset-x-0 z-20 touch-none select-none"
+            style={{ touchAction: "none" }}
+            {...drag.handleDragProps}
+          >
+            <Icon name="expand_more" size={20} strokeWidth={3.5} className="text-white/70" />
           </div>
         )}
 
@@ -954,7 +992,7 @@ export function VisorModal({
             se ve como una franja de color distinto — se mezcla con el modal. */}
         <div
           ref={viewportRef}
-          className={`relative flex ${isImage ? "bg-white dark:bg-slate-800" : "bg-stone-50 dark:bg-slate-900/50"} ${fullscreen ? "flex-1 min-h-0" : "min-h-45 h-[60vh] md:h-auto md:flex-1"} ${zoom > 1 ? "overflow-auto items-start justify-start" : "overflow-hidden items-center justify-center"}`}
+          className={`relative flex ${isImage ? "bg-white dark:bg-slate-800" : "bg-stone-50 dark:bg-slate-900/50"} ${fullscreen ? "flex-1 min-h-0" : "min-h-45 h-[60vh] lg:h-auto lg:flex-1"} ${zoom > 1 ? "overflow-auto items-start justify-start" : "overflow-hidden items-center justify-center"}`}
           style={{
             cursor: mode === "pin" || mode === "text" ? "crosshair" : mode === "pan" ? "grab" : mode === "view" && isImage && !fullscreen ? "zoom-in" : "default",
           }}
@@ -1314,7 +1352,7 @@ export function VisorModal({
 
         {/* CONTROLES */}
         {!fullscreen && (
-        <div className="w-full md:w-85 md:shrink-0 flex flex-col border-t border-slate-100 dark:border-slate-700 md:border-t-0 md:border-l overflow-hidden flex-1 md:flex-none">
+        <div className="w-full lg:w-85 lg:shrink-0 flex flex-col border-t border-slate-100 dark:border-slate-700 lg:border-t-0 lg:border-l overflow-hidden flex-1 lg:flex-none">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700 gap-2">
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 uppercase bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
               {a.tipo_archivo}
@@ -1506,32 +1544,6 @@ export function VisorModal({
       </motion.div>
 
       {showRotatePrompt && <RotateDevicePrompt onDismiss={() => setRotateDismissed(true)} />}
-
-      {/* Modal de confirmación de eliminación de anotación */}
-      {annotationToDelete && (
-        <div className="fixed inset-0 z-110 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]" onClick={(e) => e.stopPropagation()}>
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-5 max-w-xs w-full border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-            <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-red-500 dark:text-red-400 mb-3">
-              <Icon name="warning" size={24} />
-            </div>
-            <h3 className="text-[15px] font-bold text-slate-800 dark:text-slate-100 mb-1">¿Borrar anotación?</h3>
-            <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-5">
-              Esta acción eliminará el elemento seleccionado de forma permanente.
-            </p>
-            <div className="flex gap-2 w-full">
-              <button onClick={() => setAnnotationToDelete(null)}
-                className="flex-1 py-2 rounded-xl text-[12px] font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                Cancelar
-              </button>
-              <button onClick={confirmDeleteAnnotation}
-                className="flex-1 py-2 rounded-xl text-[12px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors">
-                Sí, borrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>,
     document.body
   );

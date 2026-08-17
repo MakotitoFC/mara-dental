@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
+import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { 
   getArchivosPacienteAction, 
@@ -48,11 +49,14 @@ function isImagen(a: Archivo) {
 function EditarArchivoModal({
   archivo,
   pacienteId,
+  consultaId,
   onClose,
   onSaved,
 }: {
   archivo: Archivo;
   pacienteId: string;
+  /** Con consulta activa, el sheet gana el arrastre peek(70%)/full(100%). */
+  consultaId?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -103,71 +107,12 @@ function EditarArchivoModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-150 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 8 }}
-        transition={{ duration: 0.18 }}
-        className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-5 max-w-md w-full border border-slate-100 dark:border-slate-700 flex flex-col gap-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
-              <Icon name="edit" size={18} />
-            </div>
-            <h3 className="text-[14px] font-bold text-slate-800 dark:text-slate-100">Editar Archivo Clínico</h3>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-            <Icon name="close" size={18} />
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Nombre del archivo*</label>
-            <input
-              type="text"
-              value={nombreArchivo}
-              onChange={(e) => setNombreArchivo(e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
-              placeholder="Nombre del archivo..."
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Tipo de archivo*</label>
-            {loadingTipos ? (
-              <div className="h-9 w-full bg-slate-100 dark:bg-slate-700 rounded-xl animate-pulse" />
-            ) : (
-              <Select
-                value={tipoArchivoId}
-                onChange={(v) => setTipoArchivoId(v)}
-                options={tipos.map((t: any) => ({
-                  value: String(t.id),
-                  label: t.tipo_archivo || t.Tipo_archivo || "Sin nombre",
-                }))}
-              />
-            )}
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Descripción (Opcional)</label>
-            <input
-              type="text"
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
-              placeholder="Descripción del archivo..."
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+    <ResponsiveSheet
+      onClose={onClose}
+      title="Editar Archivo Clínico"
+      snapPoints={consultaId ? [0.7, 1] : undefined}
+      footer={
+        <div className="flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
@@ -184,8 +129,48 @@ function EditarArchivoModal({
             <Icon name="check" size={14} /> {saving ? "Guardando..." : "Guardar cambios"}
           </button>
         </div>
-      </motion.div>
-    </div>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Nombre del archivo*</label>
+          <input
+            type="text"
+            value={nombreArchivo}
+            onChange={(e) => setNombreArchivo(e.target.value)}
+            className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+            placeholder="Nombre del archivo..."
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Tipo de archivo*</label>
+          {loadingTipos ? (
+            <div className="h-9 w-full bg-slate-100 dark:bg-slate-700 rounded-xl animate-pulse" />
+          ) : (
+            <Select
+              value={tipoArchivoId}
+              onChange={(v) => setTipoArchivoId(v)}
+              options={tipos.map((t: any) => ({
+                value: String(t.id),
+                label: t.tipo_archivo || t.Tipo_archivo || "Sin nombre",
+              }))}
+            />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Descripción (Opcional)</label>
+          <input
+            type="text"
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+            placeholder="Descripción del archivo..."
+          />
+        </div>
+      </div>
+    </ResponsiveSheet>
   );
 }
 
@@ -352,12 +337,13 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
 
       <AnimatePresence>
         {visor && (
-          <VisorModal 
-            archivo={visor as any} 
-            todos={archivos as any[]} 
-            paciente={paciente} 
-            onClose={() => setVisor(null)} 
-            onNav={(a) => setVisor(a as Archivo)} 
+          <VisorModal
+            archivo={visor as any}
+            todos={archivos as any[]}
+            paciente={paciente}
+            consultaId={consultaId}
+            onClose={() => setVisor(null)}
+            onNav={(a) => setVisor(a as Archivo)}
             onNavigateTab={onNavigateTab}
           />
         )}
@@ -368,6 +354,7 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
           <EditarArchivoModal
             archivo={editingArchivo}
             pacienteId={pacienteId}
+            consultaId={consultaId}
             onClose={() => setEditingArchivo(null)}
             onSaved={fetchArchivos}
           />

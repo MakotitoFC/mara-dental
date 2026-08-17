@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
-import { useScrollFade } from "@/lib/hooks/useScrollFade";
 import {
   searchCatalogoAction,
   getCatalogoTratamientosAction,
@@ -15,8 +14,8 @@ import {
   getSedeInfoAction,
 } from "../../consulta.actions";
 import {
-  esc, fmtGenerado, buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, sectionLabel, wrapDocument,
-  printHtml, downloadHtmlAsSinglePagePdf, exportHtmlAsCanvas, type ClinicaInfo,
+  esc, fmtGenerado, buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, sectionLabel, wrapDocument, shortCode,
+  printHtml, downloadHtmlAsPaginatedPdf, exportHtmlAsCanvas, type ClinicaInfo,
 } from "@/lib/reportExport";
 
 type Linea = { catalogo_id: number; nombre: string; cantidad: number; precio_unitario: number; moneda: string };
@@ -60,7 +59,7 @@ function buildPresupuestoHtml(opts: {
   const { presupuesto, totalNeto, moneda, pagosValidos } = opts;
   const pagado = pagosValidos.reduce((acc, p) => acc + p.monto, 0);
   const saldo = totalNeto - pagado;
-  const docCode = `Presupuesto #${presupuesto.id}`;
+  const docCode = `Presupuesto #${shortCode(presupuesto.id)}`;
 
   const header = buildLetterheadHeader({
     clinica: opts.clinica,
@@ -261,7 +260,7 @@ function PresupuestoSelectCombobox({
       {open && (
         <div
           onMouseDown={(e) => e.preventDefault()}
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-[168px] overflow-y-auto py-1"
+          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-[168px] overflow-y-auto no-scrollbar py-1"
         >
           {loading ? (
             <div className="px-3 py-4 text-center text-[12px] text-slate-400 flex items-center justify-center gap-2">
@@ -482,7 +481,6 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
   onNavigateTab?: (tab: string) => void;
   fillHeight?: boolean;
 }) {
-  const itemsScroll = useScrollFade<HTMLDivElement>();
   const [busy, setBusy] = useState(false);
   const [showPago, setShowPago] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -525,8 +523,9 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
     setExportando(mode);
     try {
       const html = buildPresupuestoHtml({ clinica: sede, pacienteNombre: paciente?.nombre_completo, pacienteDni: paciente?.dni, presupuesto, totalNeto, moneda, pagosValidos });
-      if (mode === "print") await printHtml(html, `Presupuesto #${presupuesto.id}`);
-      else if (mode === "pdf") await downloadHtmlAsSinglePagePdf(html, `presupuesto_${presupuesto.id}.pdf`);
+      const pacienteSlug = (paciente?.nombre_completo || "paciente").replace(/\s+/g, "_");
+      if (mode === "print") await printHtml(html, `Presupuesto · ${paciente?.nombre_completo || ""}`);
+      else if (mode === "pdf") await downloadHtmlAsPaginatedPdf(html, `presupuesto_${pacienteSlug}_${shortCode(presupuesto.id)}.pdf`, 850);
       else if (mode === "telegram") {
         const canvas = await exportHtmlAsCanvas(html);
         canvas.toBlob((blob) => {
@@ -534,7 +533,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
             alert("No se pudo generar la imagen del presupuesto");
             return;
           }
-          const file = new File([blob], `presupuesto_${presupuesto.id}.png`, { type: "image/png" });
+          const file = new File([blob], `presupuesto_${pacienteSlug}.png`, { type: "image/png" });
           (window as any).__pendingTelegramFile = file;
           if (onNavigateTab) {
             onNavigateTab("chat");
@@ -601,9 +600,12 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
           </div>
         </div>
 
-        {/* Detalle de ítems — su propio scroll independiente; Total y acciones quedan fijos debajo */}
-        <div ref={itemsScroll.ref} style={itemsScroll.style} className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-          <div className="overflow-x-auto -mx-1">
+        {/* Detalle de ítems — su propio scroll independiente; Total y acciones quedan fijos debajo.
+            Tabla con encabezado solo desde md (tablet ancho/desktop); en mobile y tablet angosto,
+            mismo patrón de tarjetas sin encabezado de tabla que usan las vistas de admin
+            (Personal/Catálogo/Auditoría) — cada campo con su label arriba del valor. */}
+        <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+          <div className="hidden md:block overflow-x-auto -mx-1">
             <table className="w-full text-left border-collapse min-w-[420px]">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-700">
@@ -627,6 +629,32 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
+            {presupuesto.items.map(it => (
+              <div key={it.id} className="py-3 flex flex-col gap-2">
+                <div>
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Tratamiento</span>
+                  <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100">{it.nombre}</p>
+                  {it.descripcion && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{it.descripcion}</p>}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Cant.</span>
+                    <span className="text-[13px] text-slate-600 dark:text-slate-300">{it.cantidad}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">P. Unit.</span>
+                    <span className="text-[13px] text-slate-600 dark:text-slate-300 whitespace-nowrap">{money(it.precio_unitario, it.moneda)}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Subtotal</span>
+                    <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">{money(it.subtotal, it.moneda)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

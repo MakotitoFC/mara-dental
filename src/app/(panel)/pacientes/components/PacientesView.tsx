@@ -5,6 +5,7 @@ import { GuardedLink } from "@/components/layout/GuardedLink";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { calcEdad, fmtFecha } from "@/lib/date-utils";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import type { EstadoPaciente } from "@/types/paciente";
@@ -55,12 +56,12 @@ function isBirthdayToday(fechaNacimiento: string): boolean {
 
 function SkeletonCard() {
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex items-center gap-3 animate-pulse">
-      <div className="w-11 h-11 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex items-center gap-3">
+      <Skeleton className="w-11 h-11 rounded-full shrink-0" />
       <div className="flex-1 flex flex-col gap-2">
-        <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-2/5" />
-        <div className="h-2.5 bg-slate-100 dark:bg-slate-700/60 rounded w-3/5" />
-        <div className="h-2.5 bg-slate-100 dark:bg-slate-700/60 rounded w-1/3" />
+        <Skeleton className="h-3.5 w-2/5" />
+        <Skeleton className="h-2.5 w-3/5" />
+        <Skeleton className="h-2.5 w-1/3" />
       </div>
     </div>
   );

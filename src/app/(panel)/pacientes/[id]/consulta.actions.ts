@@ -20,6 +20,37 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 // ── Helpers internos ────────────────────────────────────────────────────────
 
+/** Algunos registros antiguos guardan `url`/`url_firma_digital` como la URL
+ * completa del endpoint crudo de R2 (`https://<account>.r2.cloudflarestorage.com/<key>`)
+ * en vez del object key — esa URL nunca es accesible directamente desde el
+ * navegador (R2 no es público sin firmar), así que hay que extraer el key
+ * real y volver a firmarlo igual que si fuera un key "limpio". */
+function extractR2Key(url: string): string {
+  const marker = ".r2.cloudflarestorage.com/";
+  const idx = url.indexOf(marker);
+  return idx === -1 ? url : url.slice(idx + marker.length);
+}
+
+/** Firma un object key de R2 (ej. `firmas/...`) para que la imagen de firma
+ * digital del profesional sea accesible desde el navegador — `url_firma_digital`
+ * se guarda como key, no como URL, así que sin esto la firma nunca carga. */
+export async function signFirmaUrl(supabase: SupabaseClient, key?: string | null): Promise<string | null> {
+  if (!key) return null;
+  if (key.startsWith("http") && !key.includes(".r2.cloudflarestorage.com/")) return key;
+  const objectKey = key.startsWith("http") ? extractR2Key(key) : key;
+  try {
+    const command = new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: objectKey });
+    return await getSignedUrl(r2Client, command, { expiresIn: 60 * 60 });
+  } catch {
+    try {
+      const { data } = await supabase.storage.from("archivos_clinicos").createSignedUrl(objectKey, 60 * 60);
+      return data?.signedUrl || null;
+    } catch {
+      return null;
+    }
+  }
+}
+
 /** Resuelve el id de `tipo_moneda` para una moneda dada, creándola si la
  * tabla todavía no tiene esa fila (catálogo trivial, sin riesgo en auto-crear). */
 async function resolveTipoMonedaId(supabase: SupabaseClient, moneda: string): Promise<number | null> {
@@ -1176,7 +1207,7 @@ export async function getPresupuestoActivoAction(pacienteId: string) {
     doctor_nombre: doctor ? `${doctor.nombre} ${doctor.apellido}` : null,
     doctor_especialidad: doctorEspecialidad?.especialidad ?? null,
     doctor_num_colegiatura: doctor?.num_colegiatura ?? null,
-    doctor_firma_url: doctor?.url_firma_digital ?? null,
+    doctor_firma_url: await signFirmaUrl(supabase, doctor?.url_firma_digital),
     total_bruto: Number(presupuesto.total_bruto),
     descuento_porcentaje: Number(presupuesto.descuento_porcentaje) || 0,
     descuento_monto: Number(presupuesto.descuento_monto) || 0,
@@ -1222,7 +1253,7 @@ export async function getPresupuestosPacienteAction(pacienteId: string) {
     console.error("Error getPresupuestosPacienteAction:", error);
   }
 
-  return (data || []).map((presupuesto: any) => {
+  return Promise.all((data || []).map(async (presupuesto: any) => {
     const doctor = (presupuesto.usuarios as any)?.personal;
     const doctorEspecialidad = Array.isArray(doctor?.especialidad) ? doctor.especialidad[0] : doctor?.especialidad;
     return {
@@ -1231,7 +1262,7 @@ export async function getPresupuestosPacienteAction(pacienteId: string) {
       doctor_nombre: doctor ? `${doctor.nombre} ${doctor.apellido}` : null,
       doctor_especialidad: doctorEspecialidad?.especialidad ?? null,
       doctor_num_colegiatura: doctor?.num_colegiatura ?? null,
-      doctor_firma_url: doctor?.url_firma_digital ?? null,
+      doctor_firma_url: await signFirmaUrl(supabase, doctor?.url_firma_digital),
       total_bruto: Number(presupuesto.total_bruto),
       descuento_porcentaje: Number(presupuesto.descuento_porcentaje) || 0,
       descuento_monto: Number(presupuesto.descuento_monto) || 0,
@@ -1253,7 +1284,7 @@ export async function getPresupuestosPacienteAction(pacienteId: string) {
         medio_pago_nombre: p.medio_pago?.nombre ?? "—", referencia: p.referencia, estado: p.estado, observaciones: p.observacion,
       })),
     };
-  });
+  }));
 }
 
 export async function crearPresupuestoAction(data: {
@@ -1505,32 +1536,36 @@ export async function anularPagoAction(pagoId: string, pacienteId: string) {
 // posibles (diagnostico_id o consulta_id, ambos nullable), cada uno resuelto
 // hasta historia_clinica.paciente_id. Se combinan y deduplican por id.
 
-async function firmarUrls(supabase: SupabaseClient, archivos: any[]) {
+export async function firmarUrls(supabase: SupabaseClient, archivos: any[]) {
   return Promise.all(
     archivos.map(async (a: any) => {
       let tipo_str = "desconocido";
       if (a.tipo_archivo && typeof a.tipo_archivo === "object") tipo_str = a.tipo_archivo.tipo_archivo || a.tipo_archivo.Tipo_archivo;
       else if (typeof a.tipo_archivo === "string") tipo_str = a.tipo_archivo;
 
-      if (a.url && !a.url.startsWith("http")) {
+      const personal = a.personal ? { ...a.personal, url_firma_digital: await signFirmaUrl(supabase, a.personal.url_firma_digital) } : a.personal;
+
+      const needsSigning = a.url && (!a.url.startsWith("http") || a.url.includes(".r2.cloudflarestorage.com/"));
+      if (needsSigning) {
+        const objectKey = a.url.startsWith("http") ? extractR2Key(a.url) : a.url;
         try {
           // Firma local instantánea en R2 (sin latencia de red)
           const command = new GetObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
-            Key: a.url,
+            Key: objectKey,
           });
           const signedUrl = await getSignedUrl(r2Client, command, { expiresIn: 60 * 60 });
-          return { ...a, tipo_archivo: tipo_str, displayUrl: signedUrl };
+          return { ...a, personal, tipo_archivo: tipo_str, displayUrl: signedUrl };
         } catch (r2Error) {
           try {
-            const { data } = await supabase.storage.from("archivos_clinicos").createSignedUrl(a.url, 60 * 60);
-            return { ...a, tipo_archivo: tipo_str, displayUrl: data?.signedUrl || a.url };
+            const { data } = await supabase.storage.from("archivos_clinicos").createSignedUrl(objectKey, 60 * 60);
+            return { ...a, personal, tipo_archivo: tipo_str, displayUrl: data?.signedUrl || a.url };
           } catch (e) {
-            return { ...a, tipo_archivo: tipo_str, displayUrl: a.url };
+            return { ...a, personal, tipo_archivo: tipo_str, displayUrl: a.url };
           }
         }
       }
-      return { ...a, tipo_archivo: tipo_str, displayUrl: a.url };
+      return { ...a, personal, tipo_archivo: tipo_str, displayUrl: a.url };
     }),
   );
 }
@@ -1578,7 +1613,7 @@ export async function getArchivosPacienteAction(pacienteId: string) {
   const { data: archivos, error } = await supabase
     .from("archivos_clinicos")
     .select(`id, nombre_archivo, url, tipo_archivo_id, categoria, descripcion, fecha_subida, tam_bytes, anotaciones, consulta_id, plan_tratamiento_id, diagnostico_id, tipo_archivo (id, tipo_archivo),
-      usuarios!subido_por ( personal ( nombre, apellido, url_firma_digital, especialidad ( especialidad ) ) )`)
+      usuarios!subido_por ( personal ( nombre, apellido, url_firma_digital, num_colegiatura, especialidad ( especialidad ) ) )`)
     .or(filterParts.join(","))
     .order("fecha_subida", { ascending: false });
 

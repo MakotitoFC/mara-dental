@@ -10,8 +10,8 @@ import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 import { calcEdad } from "@/lib/date-utils";
 import {
-  esc, buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, wrapDocument, fmtGenerado,
-  downloadHtmlAsSinglePagePdf, printHtml, type ClinicaInfo,
+  esc, buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, wrapDocument, fmtGenerado, shortCode,
+  downloadHtmlAsPaginatedPdf, printHtml, type ClinicaInfo,
 } from "@/lib/reportExport";
 import {
   saveRecetaAction,
@@ -22,6 +22,7 @@ import {
 } from "../../consulta.actions";
 import { getPerfilProfesionalAction, type PerfilProfesional } from "../../../../configuracion/actions";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 
 interface Medicamento {
   id: number;
@@ -81,10 +82,11 @@ export function RecetaSection(props: SectionProps) {
 
   useEffect(() => {
     getSedeInfoAction().then(setSede).catch(() => {});
-    // getPerfilProfesionalAction().then(setFirmante).catch(() => {});
+    getPerfilProfesionalAction().then(setFirmante).catch(() => {});
   }, []);
 
   const toast = useToast();
+  const confirm = useConfirm();
 
   async function handleToggleEstado(r: Receta) {
     const newEst = r.estado === "activa" ? "cancelada" : "activa";
@@ -96,12 +98,15 @@ export function RecetaSection(props: SectionProps) {
 
   const filas = recetas.flatMap((r) => r.receta_medicamento.map((m) => ({ medicamento: m, receta: r })));
 
-  const [medToDelete, setMedToDelete] = useState<number | null>(null);
-  async function confirmDeleteMed() {
-    if (!medToDelete) return;
-    await deleteMedicamentoAction(String(medToDelete), String(pacienteId));
-    setRecetas(p => p.map(r => ({ ...r, receta_medicamento: r.receta_medicamento.filter(m => m.id !== medToDelete) })));
-    setMedToDelete(null);
+  async function handleDeleteMed(medId: number) {
+    const ok = await confirm({
+      title: "¿Quitar medicamento?",
+      message: "El medicamento será removido de esta receta médica.",
+      confirmLabel: "Sí, quitar",
+    });
+    if (!ok) return;
+    await deleteMedicamentoAction(String(medId), String(pacienteId));
+    setRecetas(p => p.map(r => ({ ...r, receta_medicamento: r.receta_medicamento.filter(m => m.id !== medId) })));
     toast.success("Medicamento eliminado");
     onSaved?.();
   }
@@ -141,6 +146,7 @@ export function RecetaSection(props: SectionProps) {
                 dni, edad, alergias,
                 doctorEspecialidad: firmante?.especialidad, doctorNumColegiatura: firmante?.num_colegiatura, doctorFirmaUrl: firmante?.firma_url,
                 clinica: sede,
+                recetaId: r.id,
               };
               return (
                 <motion.div key={m.id} variants={staggerItem}>
@@ -153,7 +159,7 @@ export function RecetaSection(props: SectionProps) {
                     onPrint={() => handlePrint(docData)}
                     onSend={() => window.open(buildTelegramLink(docData), "_blank")}
                     onToggleEstado={() => handleToggleEstado(r)}
-                    onDeleteMed={() => setMedToDelete(m.id)}
+                    onDeleteMed={() => handleDeleteMed(m.id)}
                     showManage
                   />
                 </motion.div>
@@ -186,18 +192,6 @@ export function RecetaSection(props: SectionProps) {
         )}
       </AnimatePresence>
 
-      {/* Confirmaciones */}
-      <AnimatePresence>
-        {medToDelete && (
-          <ConfirmDialog
-            titulo="¿Quitar medicamento?"
-            texto="El medicamento será removido de esta receta médica."
-            onCancel={() => setMedToDelete(null)}
-            onConfirm={confirmDeleteMed}
-            confirmLabel="Sí, quitar"
-          />
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 }
@@ -341,7 +335,7 @@ export function RecetaDetailModal({ data, dni, onClose }: { data: DocData; dni?:
 }
 
 function buildRecetaHtml(opts: DocData): string {
-  const docCode = `Receta médica`;
+  const docCode = opts.recetaId != null ? `Receta #${shortCode(opts.recetaId)}` : "Receta médica";
   const header = buildLetterheadHeader({
     clinica: opts.clinica ?? null,
     docLabel: "Receta Médica Odontológica",
@@ -413,7 +407,7 @@ function buildRecetaHtml(opts: DocData): string {
 
 export async function handleDownloadPdf(d: DocData, sede: ClinicaInfo | null) {
   const html = buildRecetaHtml({ ...d, clinica: d.clinica ?? sede });
-  await downloadHtmlAsSinglePagePdf(html, `receta_${d.pacienteNombre.replace(/\s+/g, "_")}_${d.fecha}.pdf`);
+  await downloadHtmlAsPaginatedPdf(html, `receta_${d.pacienteNombre.replace(/\s+/g, "_")}_${d.fecha}.pdf`, 800);
 }
 
 // ─── Modal "Nueva receta electrónica" (dos paneles + vista previa) ─────────────
@@ -514,7 +508,7 @@ function RecetaModal({
         {/* Body */}
         <div className="flex flex-col flex-1 overflow-hidden md:flex-row">
           {/* Formulario */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 md:border-r md:border-slate-100 dark:md:border-slate-700">
+          <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-5 flex flex-col gap-4 md:border-r md:border-slate-100 dark:md:border-slate-700">
             <Field label="Diagnóstico / motivo">
               <input value={motivo} onChange={e => setMotivo(e.target.value)}
                 placeholder="Ej: Gingivitis crónica, infección post-extracción…"
@@ -547,7 +541,7 @@ function RecetaModal({
                           className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white dark:bg-slate-900 dark:text-slate-100" />
                       </Field>
                       {activeIdx === i && searchResults.length > 0 && (
-                        <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-10 max-h-44 overflow-y-auto">
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-10 max-h-44 overflow-y-auto no-scrollbar">
                           {searchResults.map(r => (
                             <button key={r.id} onClick={() => elegirMed(i, r)}
                               className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-50 dark:border-slate-700 last:border-0">
@@ -581,7 +575,7 @@ function RecetaModal({
           </div>
 
           {/* Vista previa */}
-          <div className="hidden md:block w-75 shrink-0 overflow-y-auto p-5 bg-slate-50 dark:bg-slate-900/50">
+          <div className="hidden md:block w-75 shrink-0 overflow-y-auto no-scrollbar p-5 bg-slate-50 dark:bg-slate-900/50">
             <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3">Vista previa</p>
             <RecetaPreview pacienteNombre={pacienteNombre} dni={dni} fecha={today} doctorNombre={doctorNombre} diagnostico={motivo} medicamentos={validMeds} />
           </div>
@@ -689,29 +683,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ConfirmDialog({ titulo, texto, onCancel, onConfirm, confirmLabel = "Sí, eliminar" }: {
-  titulo: string; texto: string; onCancel: () => void; onConfirm: () => void; confirmLabel?: string;
-}) {
-  return createPortal(
-    <motion.div variants={fadeIn} initial="hidden" animate="visible" exit="exit" className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]">
-      <motion.div variants={scaleIn} initial="hidden" animate="visible" exit="exit" className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-5 max-w-sm w-full text-center">
-        <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 mb-2">{titulo}</h3>
-        <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-5">{texto}</p>
-        <div className="flex gap-2">
-          <button onClick={onCancel} className="flex-1 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-[12px] font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800">Cancelar</button>
-          <button onClick={onConfirm} className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[12px] font-bold transition-colors">{confirmLabel}</button>
-        </div>
-      </motion.div>
-    </motion.div>,
-    document.body
-  );
-}
-
 export type DocData = {
   pacienteNombre: string; doctorNombre: string; fecha: string; diagnostico: string; medicamentos: PreviewMed[];
   dni?: string; edad?: number | null; alergias?: string[];
   doctorEspecialidad?: string | null; doctorNumColegiatura?: string | null; doctorFirmaUrl?: string | null;
   clinica?: ClinicaInfo | null;
+  recetaId?: number;
 };
 
 function buildTelegramText(d: DocData): string {

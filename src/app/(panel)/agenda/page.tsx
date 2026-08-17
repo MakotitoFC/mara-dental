@@ -1,5 +1,6 @@
 import { Header } from "@/components/layout/Header";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { AgendaView } from "./components/AgendaView";
 import { getCitasRealesAction, getCitasSedeAction, getDoctoresSedeAction } from "./actions";
 
@@ -7,13 +8,15 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   const resolvedSearchParams = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   let rol = "";
   if (user) {
     const { data: usr } = await supabase.from("usuarios").select("rol ( rol )").eq("id", user.id).single();
     rol = (usr?.rol as any)?.rol ?? "";
   }
-  
+
+  if (rol === "admin" || rol === "superadmin") redirect("/admin/dashboard");
+
   const isAsistente = rol === "asistente";
 
   const preTratamientoId = typeof resolvedSearchParams.tratamiento_id === 'string' ? resolvedSearchParams.tratamiento_id : undefined;

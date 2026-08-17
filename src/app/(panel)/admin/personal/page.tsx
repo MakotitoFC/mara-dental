@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getPersonalAction, getFiltrosPersonalAction, getAllSedesAction } from "./personal.actions";
 import PersonalClient from "./PersonalClient";
 import { redirect } from "next/navigation";
+import { Header } from "@/components/layout/Header";
 
 export default async function PersonalPage({
   searchParams,
@@ -42,7 +43,7 @@ export default async function PersonalPage({
 
   const { data, count, totalPages } = await getPersonalAction({
     page,
-    limit: 20,
+    limit: 5,
     search,
     especialidadId,
     puestoId,
@@ -58,19 +59,8 @@ export default async function PersonalPage({
   }
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto p-4 md:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Personal</h1>
-          <p className="text-slate-500 mt-1">
-            Administra el personal de la sede
-          </p>
-        </div>
-        {/* We will let PersonalClient handle the "Nuevo" button by moving it to the top of its tree, 
-            so it renders below this header but outside the filters. Or we can just render the client 
-            component and it handles its layout. */}
-      </div>
-
+    <>
+      <Header title="Personal" />
       <PersonalClient
         initialData={data}
         initialCount={count}
@@ -83,6 +73,6 @@ export default async function PersonalPage({
         userRole={userRole}
         userSedeId={profile.sede_id}
       />
-    </div>
+    </>
   );
 }

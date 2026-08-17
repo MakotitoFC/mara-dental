@@ -76,7 +76,7 @@ export async function getAuditoriaLogsAction({
     }
   }
 
-  const limit = 20;
+  const limit = 5;
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 

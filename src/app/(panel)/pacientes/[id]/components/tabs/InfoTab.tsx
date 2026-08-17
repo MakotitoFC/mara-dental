@@ -119,17 +119,17 @@ export function InfoTab({
           <Row icon="home" label="Domicilio" value={has(p.domicilio) ? p.domicilio : "—"} />
         </Card>
 
-        <div className={`rounded-2xl border p-4 sm:p-5 ${alergias.length > 0 ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800" : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"}`}>
+        <div className={`rounded-2xl border-2 p-4 sm:p-5 bg-white dark:bg-slate-800 ${alergias.length > 0 ? "border-red-500 dark:border-red-500" : "border-slate-200 dark:border-slate-700"}`}>
           <div className="flex items-center gap-2 mb-2">
-            <Icon name="warning_amber" size={16} className={alergias.length > 0 ? "text-rose-500 dark:text-rose-400" : "text-slate-300 dark:text-slate-600"} />
-            <h3 className={`text-[13px] font-bold ${alergias.length > 0 ? "text-rose-800 dark:text-rose-300" : "text-slate-900 dark:text-slate-100"}`}>Alergias</h3>
+            <Icon name="warning_amber" size={16} className={alergias.length > 0 ? "text-red-500" : "text-slate-300 dark:text-slate-600"} />
+            <h3 className={`text-[13px] font-bold ${alergias.length > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"}`}>Alergias</h3>
           </div>
           {alergias.length === 0 ? (
             <p className="text-[12.5px] text-slate-400 dark:text-slate-500">Ninguna registrada</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {alergias.map((a) => (
-                <span key={a} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                <span key={a} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-bold bg-red-600 text-white">
                   {a}
                 </span>
               ))}
