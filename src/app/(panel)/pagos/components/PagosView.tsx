@@ -5,6 +5,9 @@ import { AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import type { PagosDashboardSede, PresupuestoPendiente } from "../actions";
 import { RegistrarPagoSheet } from "./RegistrarPagoSheet";
+import { CerrarCajaSheet } from "./CerrarCajaSheet";
+import { CuotasSheet } from "./CuotasSheet";
+import { MovimientoLibreSheet } from "./MovimientoLibreSheet";
 import type { ClinicaInfo } from "@/lib/reportExport";
 
 // Mismo patrón de avatar determinístico por id que ya usa PacientesView.tsx.
@@ -38,19 +41,29 @@ function simbolo(moneda: string) {
   return moneda === "PEN" ? "S/" : moneda;
 }
 
-export function PagosView({ initialDashboard, mediosPago, sede }: {
+export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, categoriasEgreso, tiposMoneda, sede, cajaAbiertaId }: {
   initialDashboard: PagosDashboardSede;
   mediosPago: { id: number; nombre: string }[];
+  categoriasIngreso: { id: number; nombre: string }[];
+  categoriasEgreso: { id: number; nombre: string }[];
+  tiposMoneda: { id: number; moneda: string }[];
   sede: ClinicaInfo | null;
+  cajaAbiertaId: string;
 }) {
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [query, setQuery] = useState("");
   const [activo, setActivo] = useState<PresupuestoPendiente | null>(null);
+  const [activoCuotas, setActivoCuotas] = useState<PresupuestoPendiente | null>(null);
+  const [showCerrarCaja, setShowCerrarCaja] = useState(false);
+  const [showMovimientoLibre, setShowMovimientoLibre] = useState(false);
 
   const pendientesFiltrados = useMemo(() => {
-    if (!query.trim()) return dashboard.pendientes;
+    if (!query.trim()) return [];
     const q = query.trim().toLowerCase();
-    return dashboard.pendientes.filter((p) => p.paciente_nombre.toLowerCase().includes(q));
+    return dashboard.pendientes.filter((p) => 
+      p.paciente_nombre.toLowerCase().includes(q) || 
+      (p.paciente_documento && p.paciente_documento.toLowerCase().includes(q))
+    );
   }, [dashboard.pendientes, query]);
 
   function handlePagoRegistrado(presupuestoId: string, nuevoSaldo: number, montoPagado: number, medioNombre: string) {
@@ -88,14 +101,31 @@ export function PagosView({ initialDashboard, mediosPago, sede }: {
           <h1 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Panel de Pagos</h1>
           <p className="text-[12px] text-slate-400 dark:text-slate-500 mt-0.5">Gestiona cobros, genera comprobantes y revisa las transacciones recientes.</p>
         </div>
-        <div className="relative sm:w-64">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar paciente…"
-            className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[13px] pr-9 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
-          />
-          <Icon name="search" size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <button
+            onClick={() => setShowMovimientoLibre(true)}
+            className="flex items-center justify-center h-[38px] px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-[13px] font-semibold transition-colors shrink-0 gap-1.5"
+            title="Registrar Ingreso/Egreso"
+          >
+            <Icon name="swap_vert" size={18} />
+            <span className="hidden sm:inline">Movimiento Libre</span>
+          </button>
+          <div className="relative flex-1 sm:w-64">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar paciente…"
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[13px] pr-9 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+            />
+            <Icon name="search" size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+          </div>
+          <button
+            onClick={() => setShowCerrarCaja(true)}
+            className="flex items-center justify-center h-[38px] px-3 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 rounded-xl text-[13px] font-semibold transition-colors shrink-0"
+            title="Cerrar turno de caja"
+          >
+            <Icon name="logout" size={18} />
+          </button>
         </div>
       </div>
 
@@ -117,8 +147,8 @@ export function PagosView({ initialDashboard, mediosPago, sede }: {
 
             {pendientesFiltrados.length === 0 ? (
               <div className="py-12 text-center text-slate-400 dark:text-slate-500">
-                <Icon name="payments" size={30} className="opacity-30 mx-auto mb-2" />
-                <p className="text-[12.5px]">{dashboard.pendientes.length === 0 ? "Sin pagos pendientes" : "Sin resultados para tu búsqueda"}</p>
+                <Icon name="search" size={30} className="opacity-30 mx-auto mb-2" />
+                <p className="text-[12.5px]">{!query.trim() ? "Busca un paciente por nombre o DNI" : "Sin resultados para tu búsqueda"}</p>
               </div>
             ) : (
               <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-700">
@@ -140,13 +170,22 @@ export function PagosView({ initialDashboard, mediosPago, sede }: {
                         <span className="text-[15px] font-bold text-slate-900 dark:text-slate-100">
                           {simbolo(p.moneda)} {p.saldo.toFixed(2)}
                         </span>
-                        <button
-                          onClick={() => setActivo(p)}
-                          className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[11.5px] font-semibold transition-colors"
-                        >
-                          <Icon name="description" size={13} />
-                          Registrar pago
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setActivoCuotas(p)}
+                            className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors"
+                            title="Gestionar cuotas"
+                          >
+                            <Icon name="splitscreen" size={16} />
+                          </button>
+                          <button
+                            onClick={() => setActivo(p)}
+                            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[11.5px] font-semibold transition-colors"
+                          >
+                            <Icon name="description" size={13} />
+                            Registrar pago
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -231,9 +270,42 @@ export function PagosView({ initialDashboard, mediosPago, sede }: {
             key="registrar-pago"
             presupuesto={activo}
             mediosPago={mediosPago}
+            categoriasIngreso={categoriasIngreso}
+            tiposMoneda={tiposMoneda}
             sede={sede}
+            cajaAbiertaId={cajaAbiertaId}
             onClose={() => setActivo(null)}
             onSaved={handlePagoRegistrado}
+          />
+        )}
+        {showCerrarCaja && (
+          <CerrarCajaSheet
+            key="cerrar-caja"
+            cajaId={cajaAbiertaId}
+            mediosPago={mediosPago}
+            onClose={() => setShowCerrarCaja(false)}
+          />
+        )}
+        {showMovimientoLibre && (
+          <MovimientoLibreSheet
+            key="movimiento-libre"
+            cajaId={cajaAbiertaId}
+            categoriasIngreso={categoriasIngreso}
+            categoriasEgreso={categoriasEgreso}
+            mediosPago={mediosPago}
+            tiposMoneda={tiposMoneda}
+            onClose={() => setShowMovimientoLibre(false)}
+          />
+        )}
+        {activoCuotas && (
+          <CuotasSheet
+            key="cuotas-sheet"
+            presupuesto={activoCuotas}
+            onClose={() => setActivoCuotas(null)}
+            onRefresh={() => {
+              // Usually we rely on realtime, but for now we can close the sheet or refresh the window
+              window.location.reload();
+            }}
           />
         )}
       </AnimatePresence>

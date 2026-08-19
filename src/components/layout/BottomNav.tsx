@@ -42,7 +42,16 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { href: "/configuracion", icon: "settings", label: "Config." },
   ],
   contador: [
-    { href: "/dashboard", icon: "home", label: "Dashboard" },
+    { href: "/contador-dashboard", icon: "monitoring", label: "Dashboard" },
+    { href: "/caja", icon: "wallet", label: "Caja" },
+    { href: "/comprobantes", icon: "receipt_long", label: "Comprobantes" },
+    { href: "/cuentas-por-cobrar", icon: "request_quote", label: "Cuentas x Cobrar" },
+    { href: "/presupuestos", icon: "assignment", label: "Presupuestos" },
+    { href: "/proveedores", icon: "store", label: "Proveedores" },
+    { href: "/categorias", icon: "category", label: "Categorías" },
+    { href: "/tipo-cambio", icon: "currency_exchange", label: "Tipo Cambio" },
+    { href: "/clientes-pago", icon: "groups", label: "Clientes Pago" },
+    { href: "/reportes", icon: "download", label: "Reportes" },
     { href: "/configuracion", icon: "settings", label: "Config." },
   ],
 };

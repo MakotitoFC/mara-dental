@@ -77,18 +77,7 @@ async function resolveCajaTurnoAbierto(supabase: SupabaseClient, usuarioId: stri
     .order("fecha_apertura", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (abierto) return abierto.id;
-
-  const { data: nuevo, error } = await supabase
-    .from("caja_turno")
-    .insert({ sede_id: sedeId, usuario_id: usuarioId, fecha_apertura: new Date().toISOString() })
-    .select("id")
-    .single();
-  if (error) {
-    console.error("[resolveCajaTurnoAbierto] No se pudo abrir un turno de caja:", error);
-    return null;
-  }
-  return nuevo.id;
+  return abierto?.id || null;
 }
 
 /** consultas → nota_clinica_id (ya viene directo en la fila de consultas). */
@@ -1486,7 +1475,22 @@ export async function deletePresupuestoAction(presupuestoId: string, pacienteId:
 }
 
 export async function registrarPagoAction(data: {
-  presupuesto_id: string; monto: number; medio_pago_id: string | null; referencia?: string; observaciones?: string; paciente_id: string;
+  presupuesto_id: string; 
+  monto: number; 
+  medio_pago_id: string | null; 
+  referencia?: string; 
+  observaciones?: string; 
+  paciente_id: string;
+  cuota_id?: string;
+  cliente_pago?: {
+    nombres: string;
+    apellidos: string;
+    tipo_documento: string;
+    numero_documento: string;
+  };
+  categoria_id?: string | null;
+  tipo_moneda_id?: string | null;
+  tipo_comprobante?: string; // 'boleta' | 'factura' | 'ticket_interno'
 }) {
   const supabase = await createClient();
   if (!data.monto || data.monto <= 0) return { error: "El monto debe ser mayor a 0" };
@@ -1497,13 +1501,66 @@ export async function registrarPagoAction(data: {
   const { data: usr } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
   if (!usr?.sede_id) return { error: "No se pudo resolver la sede del usuario" };
 
-  const tipoMonedaId = await resolveTipoMonedaId(supabase, "PEN");
-  if (!tipoMonedaId) return { error: "No se pudo resolver el tipo de moneda" };
+  // Use passed tipo_moneda_id if available, otherwise resolve PEN
+  let tipoMonedaId = data.tipo_moneda_id ? Number(data.tipo_moneda_id) : null;
+  if (!tipoMonedaId) {
+    tipoMonedaId = await resolveTipoMonedaId(supabase, "PEN");
+    if (!tipoMonedaId) return { error: "No se pudo resolver el tipo de moneda" };
+  }
 
   const cajaTurnoId = await resolveCajaTurnoAbierto(supabase, user.id, usr.sede_id);
-  if (!cajaTurnoId) return { error: "No se pudo abrir un turno de caja" };
+  if (!cajaTurnoId) return { error: "No tiene un turno de caja abierto. Inicie caja primero." };
 
-  const { error } = await supabase.from("movimiento_caja").insert({
+  let clientePId = null;
+  if (data.cliente_pago) {
+    const { data: clienteRes, error: cliErr } = await supabase.from("cliente_pago").insert({
+      nombre: data.cliente_pago.nombres,
+      apellidos: data.cliente_pago.apellidos,
+      dni: data.cliente_pago.tipo_documento === "DNI" ? data.cliente_pago.numero_documento : null,
+      pasaporte: data.cliente_pago.tipo_documento === "Pasaporte" ? data.cliente_pago.numero_documento : null,
+      carnet_extranjeria: data.cliente_pago.tipo_documento === "CE" ? data.cliente_pago.numero_documento : null,
+    }).select("id").single();
+    if (cliErr) {
+      console.error("Error creando cliente_pago:", cliErr);
+      return { error: "No se pudo registrar el cliente tercero" };
+    }
+    clientePId = clienteRes.id;
+  }
+
+  let comprobanteId = null;
+
+  if (data.tipo_comprobante) {
+    // Determine IGV rules based on service type. For now assuming exonerated for dental.
+    const montoExonerado = data.monto;
+    const { data: comprobante, error: compError } = await supabase.from("comprobante_pago").insert({
+      sede_id: usr.sede_id,
+      tipo_comprobante: data.tipo_comprobante,
+      paciente_id: data.paciente_id,
+      cliente_id: clientePId,
+      presupuesto_id: data.presupuesto_id,
+      moneda: "PEN", // simplify, or get from tipo_moneda
+      tipo_cambio_aplicado: null,
+      monto_exonerado: montoExonerado,
+      monto_total: data.monto,
+      emitido_por: user.id,
+      estado: "emitido"
+    }).select("id").single();
+
+    if (compError) {
+      console.error("Error creando comprobante:", compError);
+      return { error: "Error al emitir el comprobante" };
+    }
+    comprobanteId = comprobante.id;
+  }
+
+  // Use passed categoria_id or resolve default 'I'
+  let categoriaId = data.categoria_id ? Number(data.categoria_id) : null;
+  if (!categoriaId) {
+    const { data: categoria } = await supabase.from("categoria_movimiento").select("id").eq("tipo", "I").limit(1).maybeSingle();
+    categoriaId = categoria?.id || null;
+  }
+
+  const { data: mov, error } = await supabase.from("movimiento_caja").insert({
     caja_turno_id: cajaTurnoId,
     presupuesto_id: data.presupuesto_id,
     monto: data.monto,
@@ -1512,15 +1569,30 @@ export async function registrarPagoAction(data: {
     referencia: data.referencia || null,
     observacion: data.observaciones || null,
     usuario_id: user.id,
-    estado: "confirmado",
-  });
+    cliente_id: clientePId,
+    estado: "pendiente",
+    comprobante_pago_id: comprobanteId,
+    categoria_id: categoriaId
+  }).select("id").single();
 
   if (error) {
     console.error("registrarPagoAction error:", error);
     return { error: "No se pudo registrar el pago" };
   }
+
+  if (comprobanteId) {
+    await supabase.from("comprobante_pago").update({ movimiento_caja_id: mov.id }).eq("id", comprobanteId);
+  }
+
+  if (data.cuota_id) {
+    await supabase.from("cuotas").update({ 
+      estado: "pagado", 
+      movimiento_caja_id: mov.id 
+    }).eq("id", data.cuota_id);
+  }
+
   revalidatePath(`/pacientes/${data.paciente_id}`);
-  return { success: true };
+  return { success: true, movimiento_id: mov.id };
 }
 
 export async function anularPagoAction(pagoId: string, pacienteId: string) {

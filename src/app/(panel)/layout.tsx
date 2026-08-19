@@ -30,7 +30,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const email = realUser.email ?? "";
     try {
       const [userRes, personalRes, tiposRes] = await Promise.all([
-        supabase.from("usuarios").select(`activo, rol_id, rol (rol), sede (nombre_clinica)`).eq("id",userId).single(),
+        supabase.from("usuarios").select(`activo, rol_id, sede_id, rol (rol), sede (nombre_clinica)`).eq("id",userId).single(),
         supabase.from("personal").select("nombre, apellido, especialidad (especialidad)").eq("usuario_id",userId).single(),
         supabase.from("tipo_consulta").select("id, tipo_consulta, color").order("tipo_consulta", { ascending: true })
       ]);
@@ -45,6 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       const roleName = (userRes.data?.rol as any)?.rol || "Sin rol";
       const sedeNombre = (userRes.data?.sede as any)?.nombre_clinica as string | undefined;
       const especialidadNombre = (personalRes.data?.especialidad as any)?.especialidad as string | undefined;
+      const sede_id = userRes.data?.sede_id as number | undefined;
       const rawName = personalRes.data ? `${personalRes.data.nombre} ${personalRes.data.apellido}` : email.split("@")[0];
       // "Dr." solo aplica al rol médico — personal también tiene fila para
       // otros roles (ej. asistente), así que anteponerlo sin chequear el rol
@@ -58,6 +59,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         initials: getInitials(rawName),
         especialidad: especialidadNombre,
         sede: sedeNombre,
+        sede_id,
       };
     } catch (error) {
       console.error("Error cargando perfil en el servidor:", error);

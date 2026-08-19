@@ -144,9 +144,18 @@ export function DashboardAsistenteView({ data }: { data: DashboardAsistenteData 
   const [birthdayOpen, setBirthdayOpen] = useState(false);
   const { getVars } = useTipoConsultaVars();
 
-  const fechaLarga = data.fechaHoy
-    ? new Date(data.fechaHoy + "T12:00:00").toLocaleDateString("es-PE", { day: "numeric", month: "long" })
-    : "";
+  const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  
+  let fechaLarga = "";
+  if (data.fechaHoy) {
+    const parts = data.fechaHoy.split("-");
+    if (parts.length === 3) {
+      const year = parts[0];
+      const month = parseInt(parts[1], 10);
+      const day = parseInt(parts[2], 10);
+      fechaLarga = `${day} de ${MESES[month - 1]}`;
+    }
+  }
 
   const STATS = [
     { label: "Citas hoy", value: statsCitasHoy, icon: "calendar_month", color: "text-cyan-600", bg: "bg-cyan-50" },

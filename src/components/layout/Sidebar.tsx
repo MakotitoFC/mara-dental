@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
 import { GuardedLink } from "./GuardedLink";
+import { createClient } from "@/lib/supabase/client";
 
 const NAV_MAIN = [
   { href: "/dashboard",       icon: "home",             label: "Dashboard" },
@@ -18,17 +19,41 @@ const NAV_MAIN = [
   { href: "/pacientes",       icon: "person",          label: "Pacientes" },
   { href: "/plantillas",      icon: "article",         label: "Plantillas" },
   { href: "/admin/auditoria", icon: "admin_panel_settings", label: "Auditoría" },
+  { href: "/admin/validaciones", icon: "verified",     label: "Validaciones" },
   { href: "/pagos",           icon: "payments",        label: "Pagos" },
+  
+  // Contador
+  { href: "/contador-dashboard",  icon: "monitoring",          label: "Dashboard" },
+  { href: "/caja",                icon: "wallet",              label: "Caja" },
+  { href: "/comprobantes",        icon: "receipt_long",        label: "Comprobantes" },
+  { href: "/cuentas-por-cobrar",  icon: "request_quote",       label: "Ctas. x Cobrar" },
+  { href: "/presupuestos",        icon: "assignment",          label: "Presupuestos" },
+  { href: "/proveedores",         icon: "store",               label: "Proveedores" },
+  { href: "/categorias",          icon: "category",            label: "Categorías" },
+  { href: "/tipo-cambio",         icon: "currency_exchange",   label: "Tipo Cambio" },
+  { href: "/clientes-pago",       icon: "groups",              label: "Clientes Pago" },
+  { href: "/reportes",            icon: "download",            label: "Reportes" },
 ];
 
 const NAV_BOTTOM = [{ href: "/configuracion", icon: "settings", label: "Configuración" }];
 
 const ROLE_HREFS: Record<string, string[]> = {
-  superadmin: ["/admin/dashboard", "/admin/auditoria", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/plantillas"],
-  admin:     ["/admin/dashboard", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/plantillas"],
+  superadmin: ["/admin/dashboard", "/admin/auditoria", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/plantillas", "/admin/validaciones"],
+  admin:     ["/admin/dashboard", "/admin/auditoria", "/admin/reportes", "/admin/catalogo", "/admin/configuracion-tipos", "/admin/personal", "/plantillas", "/admin/validaciones"],
   doctor:    ["/dashboard", "/agenda", "/pacientes", "/plantillas"],
   asistente: ["/dashboard", "/agenda", "/pagos"],
-  contador:  ["/dashboard"],
+  contador:  [
+    "/contador-dashboard",
+    "/caja",
+    "/comprobantes",
+    "/cuentas-por-cobrar",
+    "/presupuestos",
+    "/proveedores",
+    "/categorias",
+    "/tipo-cambio",
+    "/clientes-pago",
+    "/reportes"
+  ],
 };
 
 const COLLAPSE_KEY = "maradental:sidebar-collapsed";
@@ -37,10 +62,50 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [validacionesCount, setValidacionesCount] = useState(0);
 
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
   }, []);
+
+  useEffect(() => {
+    if (!user || (user.rol !== "admin" && user.rol !== "superadmin") || !user.sede_id) return;
+    const supabase = createClient();
+
+    // Fetch inicial
+    supabase.from("solicitud_validacion")
+      .select("*", { count: "exact", head: true })
+      .eq("sede_id", user.sede_id)
+      .eq("estado", "pendiente")
+      .then(({ count }) => {
+        if (count !== null) setValidacionesCount(count);
+      });
+
+    // Subscripción en tiempo real
+    const channel = supabase.channel("validaciones_sidebar")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "solicitud_validacion",
+        filter: `sede_id=eq.${user.sede_id}`
+      }, (payload) => {
+        // Simple re-fetch para no complicar la lógica
+        supabase.from("solicitud_validacion")
+          .select("*", { count: "exact", head: true })
+          .eq("sede_id", user.sede_id!)
+          .eq("estado", "pendiente")
+          .then(({ count }) => {
+            if (count !== null) setValidacionesCount(count);
+          });
+      })
+      .subscribe((status) => {
+        console.log("[Sidebar] Realtime status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   function toggle() {
     setCollapsed((prev) => {
@@ -115,12 +180,28 @@ export function Sidebar() {
                   : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
               }`}
             >
-              <Icon
-                name={item.icon}
-                size={20}
-                className={`shrink-0 ${active ? "text-cyan-700 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
-              />
-              {!collapsed && <span className="text-[13px] font-medium truncate">{item.label}</span>}
+              <div className="relative shrink-0">
+                <Icon
+                  name={item.icon}
+                  size={20}
+                  className={`${active ? "text-cyan-700 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`}
+                />
+                {item.href === "/admin/validaciones" && validacionesCount > 0 && (
+                  <span className={`absolute -top-1 -right-1 flex items-center justify-center bg-red-500 text-white font-bold rounded-full text-[9px] ${collapsed ? 'w-4 h-4' : 'w-4 h-4'}`}>
+                    {validacionesCount}
+                  </span>
+                )}
+              </div>
+              {!collapsed && (
+                <div className="flex-1 flex items-center justify-between min-w-0">
+                  <span className="text-[13px] font-medium truncate">{item.label}</span>
+                  {item.href === "/admin/validaciones" && validacionesCount > 0 && (
+                    <span className="shrink-0 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                      {validacionesCount}
+                    </span>
+                  )}
+                </div>
+              )}
             </GuardedLink>
           );
         })}

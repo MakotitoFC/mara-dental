@@ -12,19 +12,34 @@ import { printHtml, downloadHtmlAsPaginatedPdf, type ClinicaInfo } from "@/lib/r
 type MedioPago = { id: number; nombre: string };
 
 export function RegistrarPagoSheet({
-  presupuesto, mediosPago, sede, onClose, onSaved,
+  presupuesto, mediosPago, categoriasIngreso, tiposMoneda, sede, cajaAbiertaId, onClose, onSaved,
 }: {
   presupuesto: PresupuestoPendiente;
   mediosPago: MedioPago[];
+  categoriasIngreso: { id: number; nombre: string }[];
+  tiposMoneda: { id: number; moneda: string }[];
   sede: ClinicaInfo | null;
+  cajaAbiertaId: string;
   onClose: () => void;
   onSaved: (presupuestoId: string, nuevoSaldo: number, montoPagado: number, medioNombre: string) => void;
 }) {
   const sedeNombre = sede?.nombre_clinica ?? "MaraDental";
-  const [monto, setMonto] = useState(presupuesto.saldo > 0 ? presupuesto.saldo.toFixed(2) : "");
+  const cuotasPendientes = presupuesto.cuotas?.filter(c => c.estado === "pendiente") || [];
+  const [monto, setMonto] = useState(cuotasPendientes.length > 0 ? cuotasPendientes[0].monto.toFixed(2) : (presupuesto.saldo > 0 ? presupuesto.saldo.toFixed(2) : ""));
   const [medioId, setMedioId] = useState<string>(mediosPago[0] ? String(mediosPago[0].id) : "");
+  const [categoriaId, setCategoriaId] = useState<string>(categoriasIngreso[0] ? String(categoriasIngreso[0].id) : "");
+  const [monedaId, setMonedaId] = useState<string>(tiposMoneda.find(m => m.moneda === presupuesto.moneda) ? String(tiposMoneda.find(m => m.moneda === presupuesto.moneda)?.id) : "1");
   const [referencia, setReferencia] = useState("");
   const [observaciones, setObservaciones] = useState("");
+  const [cuotaSeleccionada, setCuotaSeleccionada] = useState<string>(cuotasPendientes.length > 0 ? cuotasPendientes[0].id : "");
+  const [tipoComprobante, setTipoComprobante] = useState<"boleta" | "factura" | "ticket_interno">("boleta");
+  
+  const [quienPaga, setQuienPaga] = useState<"paciente" | "tercero">("paciente");
+  const [terceroDocTipo, setTerceroDocTipo] = useState<string>("DNI");
+  const [terceroDocNum, setTerceroDocNum] = useState<string>("");
+  const [terceroNombres, setTerceroNombres] = useState<string>("");
+  const [terceroApellidos, setTerceroApellidos] = useState<string>("");
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -59,13 +74,28 @@ export function RegistrarPagoSheet({
     setSaving(true);
     setError("");
 
+    if (quienPaga === "tercero" && (!terceroNombres || !terceroApellidos || !terceroDocNum)) {
+      setError("Complete los datos del tercero que realiza el pago");
+      return;
+    }
+
     const res = await registrarPagoAction({
       presupuesto_id: presupuesto.id,
       monto: m,
       medio_pago_id: medioId || null,
+      categoria_id: categoriaId || null,
+      tipo_moneda_id: monedaId || null,
       referencia: referencia || undefined,
       observaciones: observaciones || undefined,
       paciente_id: presupuesto.paciente_id,
+      cuota_id: cuotaSeleccionada || undefined,
+      tipo_comprobante: tipoComprobante,
+      cliente_pago: quienPaga === "tercero" ? {
+        nombres: terceroNombres,
+        apellidos: terceroApellidos,
+        tipo_documento: terceroDocTipo,
+        numero_documento: terceroDocNum
+      } : undefined
     });
     if (res?.error) { setSaving(false); setError(res.error); return; }
     setSaving(false);
@@ -164,10 +194,30 @@ export function RegistrarPagoSheet({
               <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 truncate">{presupuesto.paciente_nombre}</p>
               <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Saldo pendiente</p>
             </div>
-            <span className="text-[15px] font-bold text-amber-600 dark:text-amber-400 shrink-0">
-              {presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda} {presupuesto.saldo.toFixed(2)}
-            </span>
+            <div className="flex flex-col items-end">
+              <span className="text-[15px] font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                {presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda} {presupuesto.saldo.toFixed(2)}
+              </span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute:"2-digit" })}
+              </span>
+            </div>
           </div>
+
+          {cuotasPendientes.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Cuota a Pagar</label>
+              <Select
+                value={cuotaSeleccionada}
+                onChange={(val) => {
+                  setCuotaSeleccionada(val);
+                  const c = cuotasPendientes.find(x => x.id === val);
+                  if (c) setMonto(c.monto.toFixed(2));
+                }}
+                options={cuotasPendientes.map(c => ({ value: c.id, label: `Cuota ${c.numero_cuota} - ${presupuesto.moneda} ${c.monto.toFixed(2)} (Vence: ${c.fecha_vencimiento})` }))}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
@@ -176,6 +226,7 @@ export function RegistrarPagoSheet({
                 type="number" step="0.01" min="0"
                 value={monto}
                 onChange={e => setMonto(e.target.value)}
+                readOnly={cuotaSeleccionada !== ""}
                 className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
               />
             </div>
@@ -188,6 +239,81 @@ export function RegistrarPagoSheet({
                 placeholder="Seleccionar…"
               />
             </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Moneda</label>
+              <Select
+                value={monedaId}
+                onChange={setMonedaId}
+                options={tiposMoneda.map(m => ({ value: String(m.id), label: m.moneda }))}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Comprobante</label>
+              <Select
+                value={tipoComprobante}
+                onChange={(val) => setTipoComprobante(val as any)}
+                options={[
+                  { value: "boleta", label: "Boleta" },
+                  { value: "factura", label: "Factura" },
+                  { value: "ticket_interno", label: "Ticket Interno" }
+                ]}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Categoría</label>
+              <Select
+                value={categoriaId}
+                onChange={setCategoriaId}
+                options={categoriasIngreso.map(c => ({ value: String(c.id), label: c.nombre }))}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+            <label className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wide mb-1">¿Quién realiza el pago?</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-[12.5px] text-slate-700 dark:text-slate-300 cursor-pointer">
+                <input type="radio" name="quienPaga" checked={quienPaga === "paciente"} onChange={() => setQuienPaga("paciente")} className="w-4 h-4 text-cyan-600 focus:ring-cyan-500 border-gray-300" />
+                Mismo paciente
+              </label>
+              <label className="flex items-center gap-2 text-[12.5px] text-slate-700 dark:text-slate-300 cursor-pointer">
+                <input type="radio" name="quienPaga" checked={quienPaga === "tercero"} onChange={() => setQuienPaga("tercero")} className="w-4 h-4 text-cyan-600 focus:ring-cyan-500 border-gray-300" />
+                Otra persona
+              </label>
+            </div>
+            {quienPaga === "tercero" && (
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <div className="col-span-2 grid grid-cols-3 gap-3">
+                  <Select
+                    value={terceroDocTipo}
+                    onChange={setTerceroDocTipo}
+                    options={[
+                      { value: "DNI", label: "DNI" },
+                      { value: "CE", label: "CE" },
+                      { value: "Pasaporte", label: "Pasaporte" },
+                    ]}
+                  />
+                  <input
+                    placeholder="Nro. Documento"
+                    value={terceroDocNum}
+                    onChange={e => setTerceroDocNum(e.target.value)}
+                    className="col-span-2 border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+                  />
+                </div>
+                <input
+                  placeholder="Nombres"
+                  value={terceroNombres}
+                  onChange={e => setTerceroNombres(e.target.value)}
+                  className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+                />
+                <input
+                  placeholder="Apellidos"
+                  value={terceroApellidos}
+                  onChange={e => setTerceroApellidos(e.target.value)}
+                  className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

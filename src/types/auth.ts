@@ -5,4 +5,5 @@ export interface AuthUser {
   initials: string;
   especialidad?: string;
   sede?: string;
+  sede_id?: number;
 }

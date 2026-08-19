@@ -27,7 +27,12 @@ import {
   Eraser, Type, MoveUpRight,
   Send, FolderHeart, History, Network, Copy, CheckCheck, Hand,
   Landmark, Calculator, BadgeDollarSign, TrendingUp, UserCheck, Database,
-  Play, AlignCenter, MoreHorizontal, Award
+  Play, AlignCenter, MoreHorizontal, Award,
+  Store, ArrowRightLeft, Wallet, Receipt,
+  Hourglass, RefreshCw, TrendingDown, WalletCards, Timer,
+  ArrowUpDown, MinusCircle, Loader2, SplitSquareVertical,
+  Maximize,
+  ListFilter
 } from "lucide-react";
 
 interface IconProps {
@@ -54,6 +59,7 @@ function ToothIcon({ size = 24, strokeWidth = 1.75, className, style, ...props }
 
 const ICONS: Record<string, LucideIcon> = {
   // Navegación
+  filter_alt:           ListFilter,
   space_dashboard:      LayoutDashboard,
   home:                 Home,
   calendar_month:       CalendarDays,
@@ -203,6 +209,8 @@ const ICONS: Record<string, LucideIcon> = {
   // Consulta clínica (diagnóstico / presupuesto)
   pending:              Clock,
   verified:             BadgeCheck,
+  favorite:             Heart,
+  fullscreen:           Maximize,
   receipt_long:         FileText,
   undo:                 RotateCcw,
   block:                XCircle,
@@ -224,6 +232,21 @@ const ICONS: Record<string, LucideIcon> = {
   play:                 Play,
   filter_lines:         AlignCenter,
   more_horiz:           MoreHorizontal,
+  store:                Store,
+  currency_exchange:    ArrowRightLeft,
+  wallet:               Wallet,
+  request_quote:        Receipt,
+  hourglass_empty:      Hourglass,
+  refresh:              RefreshCw,
+  trending_up:          TrendingUp,
+  trending_down:        TrendingDown,
+  account_balance_wallet: WalletCards,
+  pending_actions:      Timer,
+  swap_vert:            ArrowUpDown,
+  add_circle_outline:   PlusCircle,
+  remove_circle_outline: MinusCircle,
+  progress_activity:    Loader2,
+  splitscreen:          SplitSquareVertical,
 };
 
 // Iconos con SVG propio (no vienen de lucide-react) — mismo contrato de props.

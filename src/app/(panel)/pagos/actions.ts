@@ -3,10 +3,19 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 
+export interface CuotaPendiente {
+  id: string;
+  numero_cuota: number;
+  monto: number;
+  fecha_vencimiento: string;
+  estado: string;
+}
+
 export interface PresupuestoPendiente {
   id: string;
   paciente_id: string;
   paciente_nombre: string;
+  paciente_documento: string | null;
   telegram_chat_id: string | null;
   fecha_emision: string;
   tratamiento: string;
@@ -14,6 +23,7 @@ export interface PresupuestoPendiente {
   pagado: number;
   saldo: number;
   moneda: string;
+  cuotas: CuotaPendiente[];
 }
 
 export interface PagoHistorial {
@@ -65,12 +75,12 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
 
   const { data: pacientesSede, error: pacError } = await supabase
     .from("pacientes")
-    .select("id, nombre, apellido, telegram_chat_id")
+    .select("id, nombre, apellido, dni, telegram_chat_id")
     .eq("sede_id", usr.sede_id)
     .eq("activo", true);
 
   if (pacError) {
-    console.error("[getPagosDashboardSedeAction] Error obteniendo pacientes de la sede:", pacError);
+    console.error("[getPagosDashboardSedeAction] Error obteniendo pacientes de la sede:", pacError.message);
     return conDiagnostico("Error consultando pacientes de la sede");
   }
 
@@ -78,6 +88,7 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
   if (pacienteIds.length === 0) return conDiagnostico(`Sede ${usr.sede_id} sin pacientes activos`);
 
   const pacienteNombreById = new Map((pacientesSede || []).map((p: any) => [String(p.id), `${p.nombre ?? ""} ${p.apellido ?? ""}`.trim()]));
+  const pacienteDocumentoById = new Map((pacientesSede || []).map((p: any) => [String(p.id), p.dni ?? null]));
   const pacienteChatById = new Map((pacientesSede || []).map((p: any) => [String(p.id), p.telegram_chat_id ?? null]));
 
   // "presupuestos" (y "detalle_presupuesto") están bloqueadas por RLS para el
@@ -93,13 +104,14 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
     .select(`
       id, fecha_emision, total_bruto, descuento_monto, estado, paciente_id,
       detalle_presupuesto ( id, catalogo_tratamientos ( nombre, moneda ) ),
-      movimiento_caja ( id, monto, estado, fecha, medio_pago_id, medio_pago ( nombre ) )
+      movimiento_caja ( id, monto, estado, fecha, medio_pago_id, medio_pago ( nombre ) ),
+      cuotas ( id, numero_cuota, monto, fecha_vencimiento, estado )
     `)
     .in("paciente_id", pacienteIds)
     .order("fecha_emision", { ascending: false });
 
   if (error) {
-    console.error("[getPagosDashboardSedeAction] Error obteniendo presupuestos de la sede:", error);
+    console.error("[getPagosDashboardSedeAction] Error obteniendo presupuestos de la sede:", error.message);
     return conDiagnostico("Error consultando presupuestos de la sede");
   }
 
@@ -134,6 +146,7 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
           id: String(p.id),
           paciente_id: pacienteId,
           paciente_nombre: pacienteNombreById.get(pacienteId) || "Paciente",
+          paciente_documento: pacienteDocumentoById.get(pacienteId) ?? null,
           telegram_chat_id: pacienteChatById.get(pacienteId) ?? null,
           fecha_emision: p.fecha_emision,
           tratamiento: nombresTratamiento.slice(0, 2).join(" + ") || "Tratamiento",
@@ -141,6 +154,7 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
           pagado,
           saldo,
           moneda: primeraMoneda,
+          cuotas: (p.cuotas || []).sort((a: any, b: any) => a.numero_cuota - b.numero_cuota),
         });
       }
     }
