@@ -99,19 +99,24 @@ export async function solicitarValidacionAction(referenciaId: string, tipoAccion
 
   if (existente) return { error: "Ya existe una solicitud pendiente para esta acción." };
 
-  const { error } = await supabase.from("solicitud_validacion").insert({
+  const { data: newRow, error } = await supabase.from("solicitud_validacion").insert({
     sede_id: usr.sede_id,
     solicitante_id: user.id,
     tipo_accion: tipoAccion,
     referencia_id: referenciaId,
-  });
+  }).select("id, fecha_solicitud").single();
 
   if (error) {
     console.error("Error creando solicitud:", error.message);
     return { error: "Error al crear la solicitud" };
   }
 
-  // Fallback: Disparamos un evento de broadcast en caso de que Postgres Changes falle
+  // Obtenemos el nombre para el broadcast
+  const { data: per } = await supabase.from("personal").select("nombre, apellido").eq("usuario_id", user.id).maybeSingle();
+  const nombre = per?.nombre || "Usuario";
+  const apellido = per?.apellido || "Desconocido";
+
+  // Fallback: Disparamos un evento de broadcast
   try {
     const adminClient = await getAdminClient();
     const channel = adminClient.channel("validaciones_view");
@@ -121,13 +126,15 @@ export async function solicitarValidacionAction(referenciaId: string, tipoAccion
           type: "broadcast",
           event: "NEW_VALIDACION",
           payload: {
+            id: newRow.id,
             sede_id: usr.sede_id,
             solicitante_id: user.id,
             tipo_accion: tipoAccion,
             referencia_id: referenciaId,
             estado: "pendiente",
-            fecha_solicitud: new Date().toISOString(),
-            id: crypto.randomUUID() 
+            fecha_solicitud: newRow.fecha_solicitud,
+            solicitante_nombre: nombre,
+            solicitante_apellido: apellido
           }
         });
         setTimeout(() => adminClient.removeChannel(channel), 1000);

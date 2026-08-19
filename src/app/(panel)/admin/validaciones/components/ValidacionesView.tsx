@@ -42,8 +42,8 @@ export function ValidacionesView({ validaciones, sedeId }: { validaciones: any[]
 
     function handleNewPayload(payload: any) {
       if (payload.eventType === "INSERT") {
-        let nombre = "Cargando...";
-        let apellido = "";
+        let nombre = payload.new.solicitante_nombre || "Usuario";
+        let apellido = payload.new.solicitante_apellido || "Desconocido";
 
         setLocalValidaciones(prev => {
           if (prev.some(v => v.id === payload.new.id)) {
