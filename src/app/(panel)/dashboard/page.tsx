@@ -55,8 +55,12 @@ export default async function DashboardPage() {
     rol = (usr?.rol as any)?.rol ?? "";
   }
 
-  if (rol === "admin" || rol === "superadmin") {
+  if (rol === "admin" || rol === "superadmin" || rol === "administrador") {
     redirect("/admin/dashboard");
+  }
+
+  if (rol === "contador") {
+    redirect("/contador-dashboard");
   }
 
   return (

@@ -229,18 +229,40 @@ export async function responderValidacionAction(id: string, accion: "aprobar" | 
         .maybeSingle();
 
       if (cajaAbierta && totalDevolver > 0) {
-        await supabaseAdmin.from("movimiento_caja").insert({
-          caja_turno_id: cajaAbierta.id,
-          fecha: fechaAnulacion,
-          monto: -Math.abs(totalDevolver),
-          tipo_moneda_id: pagosConfirmados[0]?.tipo_moneda_id || 1,
-          categoria_id: catDev?.id || null,
-          medio_pago_id: pagosConfirmados[0]?.medio_pago_id || 1,
-          observacion: `Devolución por anulación de Presupuesto #${presupuestoId.slice(0, 8).toUpperCase()}. Motivo: ${motivoAnulacion}`,
-          presupuesto_id: presupuestoId,
-          usuario_id: user.id,
-          estado: "confirmado",
-        });
+        // Agrupar los pagos confirmados por medio de pago para devolver con exactitud en cada medio correspondiente
+        const pagosPorMedio = new Map<number, { total: number; monedaId: number }>();
+        if (pagosConfirmados.length > 0) {
+          pagosConfirmados.forEach((pg: any) => {
+            const mId = pg.medio_pago_id || 1;
+            const current = pagosPorMedio.get(mId) || { total: 0, monedaId: pg.tipo_moneda_id || 1 };
+            current.total += Math.abs(Number(pg.monto));
+            pagosPorMedio.set(mId, current);
+          });
+        } else {
+          pagosPorMedio.set(1, { total: totalDevolver, monedaId: 1 });
+        }
+
+        const devolucionRecords: any[] = [];
+        for (const [mId, info] of pagosPorMedio.entries()) {
+          if (info.total > 0) {
+            devolucionRecords.push({
+              caja_turno_id: cajaAbierta.id,
+              fecha: fechaAnulacion,
+              monto: -Math.abs(info.total),
+              tipo_moneda_id: info.monedaId,
+              categoria_id: catDev?.id || null,
+              medio_pago_id: mId,
+              observacion: `Devolución por anulación de Presupuesto #${presupuestoId.slice(0, 8).toUpperCase()}. Motivo: ${motivoAnulacion}`,
+              presupuesto_id: presupuestoId,
+              usuario_id: user.id,
+              estado: "confirmado",
+            });
+          }
+        }
+
+        if (devolucionRecords.length > 0) {
+          await supabaseAdmin.from("movimiento_caja").insert(devolucionRecords);
+        }
       }
 
       // 4. Cambiar estado del presupuesto a 'rechazado'

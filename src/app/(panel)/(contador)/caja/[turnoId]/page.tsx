@@ -53,9 +53,26 @@ export default function MovimientosCajaPage() {
   }
 
   const movs = data?.movimientos || [];
-  const ingresos = movs.filter(m => m.categoria?.tipo === 'I').reduce((acc, curr) => acc + Number(curr.monto), 0);
-  const egresos = movs.filter(m => m.categoria?.tipo === 'E').reduce((acc, curr) => acc + Number(curr.monto), 0);
-  const balance = ingresos - egresos;
+  
+  let ingresos = 0;
+  let egresos = 0;
+  let devoluciones = 0;
+
+  movs.forEach((m: any) => {
+    if (m.estado === "anulado") return;
+    const rawMonto = Number(m.monto);
+    const montoAbs = Math.abs(rawMonto);
+
+    if (m.es_devolucion) {
+      devoluciones += montoAbs;
+    } else if (m.categoria?.tipo === 'I' && rawMonto > 0) {
+      ingresos += montoAbs;
+    } else if (m.categoria?.tipo === 'E' || rawMonto < 0) {
+      egresos += montoAbs;
+    }
+  });
+
+  const balance = ingresos - egresos - devoluciones;
 
   return (
     <>
@@ -85,18 +102,24 @@ export default function MovimientosCajaPage() {
             </div>
           </div>
           
-          <div className="grid grid-cols-3 gap-3 md:gap-4 mt-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 mt-2">
             <div className="bg-emerald-50 rounded-xl p-3 md:p-4 border border-emerald-100 flex flex-col items-start justify-center">
-              <span className="text-[11px] md:text-[12px] font-bold text-emerald-600 uppercase">Ingresos</span>
-              <span className="text-[16px] md:text-xl font-mono font-bold text-emerald-700 mt-0.5">S/ {ingresos.toFixed(2)}</span>
+              <span className="text-[10px] md:text-[11px] font-bold text-emerald-600 uppercase">Ingresos</span>
+              <span className="text-[15px] md:text-lg font-mono font-bold text-emerald-700 mt-0.5">S/ {ingresos.toFixed(2)}</span>
             </div>
             <div className="bg-rose-50 rounded-xl p-3 md:p-4 border border-rose-100 flex flex-col items-start justify-center">
-              <span className="text-[11px] md:text-[12px] font-bold text-rose-600 uppercase">Egresos</span>
-              <span className="text-[16px] md:text-xl font-mono font-bold text-rose-700 mt-0.5">S/ {egresos.toFixed(2)}</span>
+              <span className="text-[10px] md:text-[11px] font-bold text-rose-600 uppercase">Egresos</span>
+              <span className="text-[15px] md:text-lg font-mono font-bold text-rose-700 mt-0.5">S/ {egresos.toFixed(2)}</span>
+            </div>
+            <div className="bg-amber-50 rounded-xl p-3 md:p-4 border border-amber-100 flex flex-col items-start justify-center">
+              <span className="text-[10px] md:text-[11px] font-bold text-amber-600 uppercase">Devoluciones</span>
+              <span className="text-[15px] md:text-lg font-mono font-bold text-amber-700 mt-0.5">S/ {devoluciones.toFixed(2)}</span>
             </div>
             <div className="bg-slate-50 rounded-xl p-3 md:p-4 border border-slate-200 flex flex-col items-start justify-center">
-              <span className="text-[11px] md:text-[12px] font-bold text-slate-600 uppercase">Balance Total</span>
-              <span className="text-[16px] md:text-xl font-mono font-bold text-slate-800 mt-0.5">S/ {balance.toFixed(2)}</span>
+              <span className="text-[10px] md:text-[11px] font-bold text-slate-600 uppercase">Balance Total</span>
+              <span className={`text-[15px] md:text-lg font-mono font-bold mt-0.5 ${balance >= 0 ? "text-slate-800" : "text-rose-600"}`}>
+                S/ {balance.toFixed(2)}
+              </span>
             </div>
           </div>
         </header>
@@ -108,7 +131,7 @@ export default function MovimientosCajaPage() {
                 <tr>
                   <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500">Fecha</th>
                   <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500">Categoría</th>
-                  <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500">Detalle</th>
+                  <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500">Detalle / Paciente</th>
                   <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500">Medio de Pago</th>
                   <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-right">Monto</th>
                   <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-center">Conciliado</th>
@@ -129,41 +152,68 @@ export default function MovimientosCajaPage() {
                 ) : movs.length === 0 ? (
                   <tr><td colSpan={6} className="text-center py-10 text-slate-400">No hay movimientos en este turno.</td></tr>
                 ) : (
-                  movs.map(m => (
-                    <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-4 text-slate-600">
-                        {format(new Date(m.fecha), "dd/MM/yyyy HH:mm")}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${m.categoria?.tipo === 'I' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                          <span className="font-bold text-slate-700">{m.categoria?.nombre || 'Sin Categoría'}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="text-slate-700 font-medium">{m.observacion || '-'}</div>
-                        {m.referencia && <div className="text-[11px] text-slate-500 font-mono mt-0.5">Ref: {m.referencia}</div>}
-                      </td>
-                      <td className="px-5 py-4 text-slate-600 font-medium">
-                        {m.medio_pago?.nombre || 'Efectivo'}
-                      </td>
-                      <td className={`px-5 py-4 text-right font-mono font-bold ${m.categoria?.tipo === 'I' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {m.categoria?.tipo === 'I' ? '+' : '-'} {m.moneda?.moneda === 'USD' ? '$' : 'S/'} {Number(m.monto).toFixed(2)}
-                      </td>
-                      <td className="px-5 py-4 text-center">
-                        <button 
-                          onClick={() => handleToggleConciliado(m)}
-                          className={`w-6 h-6 mx-auto rounded flex items-center justify-center transition-colors ${
-                            m.conciliado 
-                              ? 'bg-cyan-100 text-cyan-600 border border-cyan-200' 
-                              : 'bg-white border-2 border-slate-200 text-transparent hover:border-cyan-300'
-                          }`}
-                        >
-                          <Icon name="check" size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  movs.map((m: any) => {
+                    const isAnulado = m.estado === "anulado";
+                    const isDevolucion = m.es_devolucion;
+                    const isIngreso = !isDevolucion && (m.categoria?.tipo === 'I' || Number(m.monto) > 0);
+
+                    return (
+                      <tr key={m.id} className={`hover:bg-slate-50 transition-colors ${isAnulado ? "opacity-45 bg-slate-50/50" : ""}`}>
+                        <td className="px-5 py-4 text-slate-600">
+                          {format(new Date(m.fecha), "dd/MM/yyyy HH:mm")}
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${
+                              isDevolucion ? 'bg-amber-500' : (isIngreso ? 'bg-emerald-500' : 'bg-rose-500')
+                            }`} />
+                            <span className="font-bold text-slate-700">{m.categoria?.nombre || (isDevolucion ? 'Devolución' : 'Sin Categoría')}</span>
+                            {isAnulado && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-100 text-rose-700">ANULADO</span>
+                            )}
+                            {isDevolucion && !isAnulado && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-100 text-amber-800">DEVOLUCIÓN</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className={`font-medium ${isAnulado ? "line-through text-slate-400" : "text-slate-700"}`}>{m.observacion || '-'}</div>
+                          {m.paciente_nombre && (
+                            <div className="text-[11px] text-cyan-700 font-semibold mt-0.5 flex items-center gap-1">
+                              <Icon name="person" size={12} /> {m.paciente_nombre}
+                            </div>
+                          )}
+                          {m.referencia && <div className="text-[11px] text-slate-400 font-mono mt-0.5">Ref: {m.referencia}</div>}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600 font-medium">
+                          {m.medio_pago?.nombre || 'Efectivo'}
+                        </td>
+                        <td className={`px-5 py-4 text-right font-mono font-bold ${
+                          isAnulado
+                            ? "text-slate-400 line-through"
+                            : isDevolucion
+                            ? "text-amber-600"
+                            : isIngreso
+                            ? "text-emerald-600"
+                            : "text-rose-600"
+                        }`}>
+                          {isIngreso ? '+' : '-'} {m.moneda?.moneda === 'USD' ? '$' : 'S/'} {Math.abs(Number(m.monto)).toFixed(2)}
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <button 
+                            onClick={() => handleToggleConciliado(m)}
+                            className={`w-6 h-6 mx-auto rounded flex items-center justify-center transition-colors ${
+                              m.conciliado 
+                                ? 'bg-cyan-100 text-cyan-600 border border-cyan-200' 
+                                : 'bg-white border-2 border-slate-200 text-transparent hover:border-cyan-300'
+                            }`}
+                          >
+                            <Icon name="check" size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

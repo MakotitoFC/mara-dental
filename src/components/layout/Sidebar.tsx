@@ -26,12 +26,10 @@ const NAV_MAIN = [
   { href: "/contador-dashboard",  icon: "monitoring",          label: "Dashboard" },
   { href: "/caja",                icon: "wallet",              label: "Caja" },
   { href: "/comprobantes",        icon: "receipt_long",        label: "Comprobantes" },
-  { href: "/cuentas-por-cobrar",  icon: "request_quote",       label: "Ctas. x Cobrar" },
-  { href: "/presupuestos",        icon: "assignment",          label: "Presupuestos" },
+  { href: "/presupuestos",        icon: "assignment",          label: "Presupuestos y Cobranzas" },
   { href: "/proveedores",         icon: "store",               label: "Proveedores" },
   { href: "/categorias",          icon: "category",            label: "Categorías" },
   { href: "/tipo-cambio",         icon: "currency_exchange",   label: "Tipo Cambio" },
-  { href: "/clientes-pago",       icon: "groups",              label: "Clientes Pago" },
   { href: "/reportes",            icon: "download",            label: "Reportes" },
 ];
 
@@ -46,12 +44,10 @@ const ROLE_HREFS: Record<string, string[]> = {
     "/contador-dashboard",
     "/caja",
     "/comprobantes",
-    "/cuentas-por-cobrar",
     "/presupuestos",
     "/proveedores",
     "/categorias",
     "/tipo-cambio",
-    "/clientes-pago",
     "/reportes"
   ],
 };

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
 export async function checkCajaAbiertaAction() {
@@ -117,8 +118,10 @@ export async function getDetalleCierreCajaAction(cajaId: string): Promise<Detall
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
+  const adminClient = getAdminClient();
+
   // 1. Obtener caja_turno
-  const { data: caja, error: cajaErr } = await supabase
+  const { data: caja, error: cajaErr } = await adminClient
     .from("caja_turno")
     .select(`
       id, fecha_apertura, fecha_cierre, sede_id, usuario_id,
@@ -133,7 +136,7 @@ export async function getDetalleCierreCajaAction(cajaId: string): Promise<Detall
   }
 
   // 2. Obtener nombre del usuario (personal)
-  const { data: per } = await supabase
+  const { data: per } = await adminClient
     .from("personal")
     .select("nombre, apellido")
     .eq("usuario_id", caja.usuario_id)
@@ -142,11 +145,11 @@ export async function getDetalleCierreCajaAction(cajaId: string): Promise<Detall
   const sedeNombre = (caja.sede as any)?.nombre_clinica || "Sede MaraDental";
 
   // 3. Obtener todos los medios de pago disponibles
-  const { data: mediosPago } = await supabase.from("medio_pago").select("id, nombre").order("id");
+  const { data: mediosPago } = await adminClient.from("medio_pago").select("id, nombre").order("id");
   const listaMedios = mediosPago || [];
 
   // 4. Obtener montos de apertura
-  const { data: iniciales } = await supabase
+  const { data: iniciales } = await adminClient
     .from("medio_pago_caja_monto")
     .select("medio_pago_id, monto")
     .eq("caja_turno_id", cajaId)
@@ -155,12 +158,15 @@ export async function getDetalleCierreCajaAction(cajaId: string): Promise<Detall
   const mapaApertura = new Map<number, number>();
   (iniciales || []).forEach((i) => mapaApertura.set(i.medio_pago_id, Number(i.monto)));
 
-  // 5. Obtener todos los movimientos del turno
-  const { data: movimientosRaw } = await supabase
+  // 5. Obtener todos los movimientos del turno usando adminClient para saltar RLS
+  const { data: movimientosRaw } = await adminClient
     .from("movimiento_caja")
     .select(`
       id, fecha, monto, referencia, observacion, estado, conciliado, fecha_conciliacion,
       medio_pago_id,
+      presupuesto_id,
+      cliente_id,
+      proveedor_id,
       medio_pago ( id, nombre ),
       categoria_movimiento:categoria_id ( id, nombre, tipo ),
       cliente_pago:cliente_id ( id, nombre, apellidos ),
@@ -174,6 +180,22 @@ export async function getDetalleCierreCajaAction(cajaId: string): Promise<Detall
     .order("fecha", { ascending: false });
 
   const movimientosList = movimientosRaw || [];
+
+  // Respaldo para nombres de pacientes por presupuesto_id
+  const presIds = Array.from(new Set(movimientosList.map((m: any) => m.presupuesto_id).filter(Boolean)));
+  const pacienteMap = new Map<string, string>();
+  if (presIds.length > 0) {
+    const { data: presList } = await adminClient
+      .from("presupuestos")
+      .select("id, pacientes ( nombre, apellido )")
+      .in("id", presIds);
+    (presList || []).forEach((p: any) => {
+      const pac = Array.isArray(p.pacientes) ? p.pacientes[0] : p.pacientes;
+      if (pac?.nombre || pac?.apellido) {
+        pacienteMap.set(String(p.id), `${pac.nombre ?? ""} ${pac.apellido ?? ""}`.trim());
+      }
+    });
+  }
 
   // 6. Procesar items individuales
   const items: MovimientoCierreItem[] = [];
@@ -201,10 +223,14 @@ export async function getDetalleCierreCajaAction(cajaId: string): Promise<Detall
 
     // Identificar paciente o proveedor
     let entidad = "General";
-    if (m.presupuestos) {
+    if (m.presupuesto_id && pacienteMap.has(String(m.presupuesto_id))) {
+      entidad = pacienteMap.get(String(m.presupuesto_id))!;
+    } else if (m.presupuestos) {
       const pres = Array.isArray(m.presupuestos) ? m.presupuestos[0] : m.presupuestos;
       const pac = pres ? (Array.isArray(pres.pacientes) ? pres.pacientes[0] : pres.pacientes) : null;
-      if (pac) entidad = `${pac.nombre ?? ""} ${pac.apellido ?? ""}`.trim();
+      if (pac?.nombre || pac?.apellido) {
+        entidad = `${pac.nombre ?? ""} ${pac.apellido ?? ""}`.trim();
+      }
     } else if (m.cliente_pago) {
       const cli = Array.isArray(m.cliente_pago) ? m.cliente_pago[0] : m.cliente_pago;
       if (cli) entidad = `${cli.nombre ?? ""} ${cli.apellidos ?? ""}`.trim();
@@ -254,7 +280,7 @@ export async function getDetalleCierreCajaAction(cajaId: string): Promise<Detall
     const egresos = mapaEgresos.get(mp.id) || 0;
     const devoluciones = mapaDevoluciones.get(mp.id) || 0;
     const neto = ingresos - egresos;
-    const esperado = esEfectivo ? (apertura + neto) : neto;
+    const esperado = esEfectivo ? (apertura + neto) : Math.max(0, neto);
 
     return {
       medio_pago_id: mp.id,

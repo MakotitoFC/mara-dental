@@ -81,13 +81,14 @@ export default function CajaTurnosClient({ initialData }: { initialData: any[] }
                 <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-center">Estado</th>
                 <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-right">Ingresos</th>
                 <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-right">Egresos</th>
+                <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-right">Devoluciones</th>
                 <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-right">Balance</th>
                 <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {turnos.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-10 text-slate-400">No hay turnos de caja registrados.</td></tr>
+                <tr><td colSpan={9} className="text-center py-10 text-slate-400">No hay turnos de caja registrados.</td></tr>
               ) : (
                 paginatedData.map((t: any) => (
                   <tr key={t.id} className="hover:bg-slate-50 transition-colors">
@@ -104,16 +105,19 @@ export default function CajaTurnosClient({ initialData }: { initialData: any[] }
                       </span>
                     </td>
                     <td className="px-5 py-4 text-right text-emerald-600 font-mono font-bold">
-                      {Number(t.ingresos).toFixed(2)}
+                      S/ {Number(t.ingresos || 0).toFixed(2)}
                     </td>
                     <td className="px-5 py-4 text-right text-rose-600 font-mono font-bold">
-                      {Number(t.egresos).toFixed(2)}
+                      S/ {Number(t.egresos || 0).toFixed(2)}
                     </td>
-                    <td className="px-5 py-4 text-right font-mono font-bold text-slate-800">
-                      {Number(t.balance).toFixed(2)}
+                    <td className="px-5 py-4 text-right text-amber-600 font-mono font-bold">
+                      S/ {Number(t.devoluciones || 0).toFixed(2)}
+                    </td>
+                    <td className={`px-5 py-4 text-right font-mono font-bold ${Number(t.balance) >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
+                      S/ {Number(t.balance || 0).toFixed(2)}
                     </td>
                     <td className="px-5 py-4 text-right">
-                      <a href={`/caja/${t.id}`} className="w-8 h-8 rounded-lg text-cyan-600 hover:bg-cyan-50 inline-flex items-center justify-center transition-colors">
+                      <a href={`/caja/${t.id}`} className="w-8 h-8 rounded-lg text-cyan-600 hover:bg-cyan-50 inline-flex items-center justify-center transition-colors" title="Ver movimientos">
                         <Icon name="chevron_right" size={20} />
                       </a>
                     </td>
@@ -139,18 +143,22 @@ export default function CajaTurnosClient({ initialData }: { initialData: any[] }
                     {t.fecha_cierre ? 'CERRADA' : 'ABIERTA'}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 bg-slate-50 rounded-xl p-3 border border-slate-100">
-                  <div className="flex flex-col items-center">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Ingresos</span>
-                    <span className="text-[13px] font-mono font-bold text-emerald-600 mt-0.5">{Number(t.ingresos).toFixed(2)}</span>
+                <div className="grid grid-cols-4 gap-1.5 bg-slate-50 rounded-xl p-2.5 border border-slate-100 text-center">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">Ingresos</span>
+                    <span className="text-[11px] font-mono font-bold text-emerald-600">S/ {Number(t.ingresos || 0).toFixed(2)}</span>
                   </div>
-                  <div className="flex flex-col items-center border-l border-slate-200">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Egresos</span>
-                    <span className="text-[13px] font-mono font-bold text-rose-600 mt-0.5">{Number(t.egresos).toFixed(2)}</span>
+                  <div className="flex flex-col border-l border-slate-200">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">Egresos</span>
+                    <span className="text-[11px] font-mono font-bold text-rose-600">S/ {Number(t.egresos || 0).toFixed(2)}</span>
                   </div>
-                  <div className="flex flex-col items-center border-l border-slate-200">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Balance</span>
-                    <span className="text-[13px] font-mono font-bold text-slate-800 mt-0.5">{Number(t.balance).toFixed(2)}</span>
+                  <div className="flex flex-col border-l border-slate-200">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">Devoluc.</span>
+                    <span className="text-[11px] font-mono font-bold text-amber-600">S/ {Number(t.devoluciones || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col border-l border-slate-200">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">Balance</span>
+                    <span className="text-[11px] font-mono font-bold text-slate-800">S/ {Number(t.balance || 0).toFixed(2)}</span>
                   </div>
                 </div>
                 <a href={`/caja/${t.id}`} className="mt-1 w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-cyan-50 text-cyan-600 font-semibold text-[13px] hover:bg-cyan-100 transition-colors">

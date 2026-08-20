@@ -1,7 +1,5 @@
-import { getCuentasPorCobrarAction } from "../contador.actions";
-import CuentasPorCobrarClient from "./ClientView";
+import { redirect } from "next/navigation";
 
-export default async function CuentasPorCobrarPage() {
-  const data = await getCuentasPorCobrarAction();
-  return <CuentasPorCobrarClient initialData={data} />;
+export default function CuentasPorCobrarPage() {
+  redirect("/presupuestos?filtro=pendientes");
 }

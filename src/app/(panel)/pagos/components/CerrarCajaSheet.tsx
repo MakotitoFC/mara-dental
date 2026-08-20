@@ -135,8 +135,11 @@ export function CerrarCajaSheet({
   const movimientosFiltrados = (detalle?.movimientos || []).filter((m) => {
     if (filtroMedio === "todos") return true;
     if (filtroMedio === "devoluciones") return m.es_devolucion;
+    if (filtroMedio === "anulados") return m.estado === "anulado";
     return String(m.medio_pago_id) === filtroMedio;
   });
+
+  const conteoAnulados = (detalle?.movimientos || []).filter((m) => m.estado === "anulado").length;
 
   return (
     <ResponsiveSheet
@@ -420,6 +423,18 @@ export function CerrarCajaSheet({
                   >
                     Devoluciones
                   </button>
+                  {conteoAnulados > 0 && (
+                    <button
+                      onClick={() => setFiltroMedio("anulados")}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold shrink-0 transition-colors ${
+                        filtroMedio === "anulados"
+                          ? "bg-slate-600 text-white"
+                          : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                      }`}
+                    >
+                      Anulados ({conteoAnulados})
+                    </button>
+                  )}
                   {detalle.resumen_medios.map((r) => (
                     <button
                       key={r.medio_pago_id}
@@ -441,23 +456,37 @@ export function CerrarCajaSheet({
                     <p className="text-center py-8 text-[12px] text-slate-400">No hay movimientos en este filtro.</p>
                   ) : (
                     movimientosFiltrados.map((m) => {
+                      const isAnulado = m.estado === "anulado";
                       const isEgreso = m.tipo === "E";
 
                       return (
                         <div
                           key={m.id}
                           className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-colors ${
-                            m.conciliado
+                            isAnulado
+                              ? "bg-slate-50 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-700/50 opacity-80"
+                              : m.conciliado
                               ? "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                               : "bg-amber-50/40 dark:bg-amber-950/15 border-amber-200 dark:border-amber-800/40"
                           }`}
                         >
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-[12.5px] font-bold text-slate-900 dark:text-slate-100 truncate">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p
+                                className={`text-[12.5px] font-bold truncate ${
+                                  isAnulado
+                                    ? "text-slate-500 dark:text-slate-400"
+                                    : "text-slate-900 dark:text-slate-100"
+                                }`}
+                              >
                                 {m.paciente_o_entidad}
                               </p>
-                              {m.es_devolucion && (
+                              {isAnulado && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                                  Anulado
+                                </span>
+                              )}
+                              {m.es_devolucion && !isAnulado && (
                                 <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 uppercase">
                                   Devolución
                                 </span>
@@ -467,14 +496,18 @@ export function CerrarCajaSheet({
                               </span>
                             </div>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                              {m.descripcion}
+                              {m.descripcion} {isAnulado ? "· (Anulado - No suma al total)" : ""}
                             </p>
                           </div>
 
                           <div className="flex items-center gap-3 shrink-0">
                             <span
                               className={`text-[13px] font-bold ${
-                                isEgreso ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+                                isAnulado
+                                  ? "line-through text-slate-400 dark:text-slate-500 font-semibold"
+                                  : isEgreso
+                                  ? "text-rose-600 dark:text-rose-400"
+                                  : "text-emerald-600 dark:text-emerald-400"
                               }`}
                             >
                               {isEgreso ? "-" : "+"}S/ {m.monto.toFixed(2)}

@@ -101,6 +101,8 @@ export async function loginAction(formData: FormData){
 
     if (roleName === "administrador" || roleName === "admin" || roleName === "superadmin") {
         redirect("/admin/dashboard");
+    } else if (roleName === "contador") {
+        redirect("/contador-dashboard");
     } else {
         redirect("/dashboard");
     }

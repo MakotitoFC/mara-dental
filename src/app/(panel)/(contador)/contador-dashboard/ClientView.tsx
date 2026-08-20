@@ -57,36 +57,44 @@ export default function ContadorDashboardClient({ initialData }: { initialData: 
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col">
-              <span className="text-[11px] md:text-[13px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 mb-1 md:mb-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+            <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+              <span className="text-[11px] md:text-[12px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 mb-1 md:mb-2">
                 <Icon name="trending_up" size={16} className="text-emerald-500" /> Ingresos Mes
               </span>
-              <span className="text-xl md:text-3xl font-bold font-mono text-emerald-600">
+              <span className="text-lg md:text-2xl font-bold font-mono text-emerald-600 truncate">
                 S/ {data?.kpis.ingresosMes.toFixed(2)}
               </span>
             </div>
-            <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col">
-              <span className="text-[11px] md:text-[13px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 mb-1 md:mb-2">
+            <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+              <span className="text-[11px] md:text-[12px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 mb-1 md:mb-2">
                 <Icon name="trending_down" size={16} className="text-rose-500" /> Egresos Mes
               </span>
-              <span className="text-xl md:text-3xl font-bold font-mono text-rose-600">
+              <span className="text-lg md:text-2xl font-bold font-mono text-rose-600 truncate">
                 S/ {data?.kpis.egresosMes.toFixed(2)}
               </span>
             </div>
-            <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col">
-              <span className="text-[11px] md:text-[13px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 mb-1 md:mb-2">
+            <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+              <span className="text-[11px] md:text-[12px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 mb-1 md:mb-2">
+                <Icon name="assignment_return" size={16} className="text-amber-500" /> Devoluciones
+              </span>
+              <span className="text-lg md:text-2xl font-bold font-mono text-amber-600 truncate">
+                S/ {(data?.kpis.devolucionesMes ?? 0).toFixed(2)}
+              </span>
+            </div>
+            <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+              <span className="text-[11px] md:text-[12px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 mb-1 md:mb-2">
                 <Icon name="account_balance_wallet" size={16} className="text-cyan-500" /> Balance Mes
               </span>
-              <span className="text-xl md:text-3xl font-bold font-mono text-slate-800">
+              <span className={`text-lg md:text-2xl font-bold font-mono truncate ${data?.kpis.balanceMes >= 0 ? "text-slate-800" : "text-rose-600"}`}>
                 S/ {data?.kpis.balanceMes.toFixed(2)}
               </span>
             </div>
-            <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col">
-              <span className="text-[11px] md:text-[13px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 mb-1 md:mb-2">
-                <Icon name="pending_actions" size={16} className="text-amber-500" /> Por Cobrar
+            <div className="bg-white rounded-2xl p-4 md:p-5 border border-slate-200 shadow-sm flex flex-col justify-between col-span-2 sm:col-span-1">
+              <span className="text-[11px] md:text-[12px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5 mb-1 md:mb-2">
+                <Icon name="pending_actions" size={16} className="text-blue-500" /> Por Cobrar
               </span>
-              <span className="text-xl md:text-3xl font-bold font-mono text-amber-600">
+              <span className="text-lg md:text-2xl font-bold font-mono text-blue-600 truncate">
                 S/ {data?.kpis.totalPorCobrar.toFixed(2)}
               </span>
             </div>
@@ -107,6 +115,10 @@ export default function ContadorDashboardClient({ initialData }: { initialData: 
                         <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3}/>
                         <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
                       </linearGradient>
+                      <linearGradient id="colorDevoluciones" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                      </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
@@ -119,6 +131,7 @@ export default function ContadorDashboardClient({ initialData }: { initialData: 
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                     <Area type="monotone" dataKey="ingresos" name="Ingresos" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorIngresos)" />
                     <Area type="monotone" dataKey="egresos" name="Egresos" stroke="#f43f5e" strokeWidth={3} fillOpacity={1} fill="url(#colorEgresos)" />
+                    <Area type="monotone" dataKey="devoluciones" name="Devoluciones" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#colorDevoluciones)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -139,8 +152,9 @@ export default function ContadorDashboardClient({ initialData }: { initialData: 
                       labelStyle={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}
                     />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                    <Bar dataKey="ingresos" name="Ingresos" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                    <Bar dataKey="egresos" name="Egresos" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    <Bar dataKey="ingresos" name="Ingresos" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                    <Bar dataKey="egresos" name="Egresos" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                    <Bar dataKey="devoluciones" name="Devoluciones" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={30} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
