@@ -8,11 +8,12 @@ import type { PresupuestoPendiente } from "../actions";
 import { createClient } from "@/lib/supabase/client";
 
 export function CuotasSheet({
-  presupuesto, onClose, onRefresh
+  presupuesto, onClose, onRefresh, onCuotasActualizadas
 }: {
   presupuesto: PresupuestoPendiente;
   onClose: () => void;
   onRefresh: () => void;
+  onCuotasActualizadas?: (cuotas: any[]) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,9 +27,24 @@ export function CuotasSheet({
   const existingCuotas = presupuesto.cuotas || [];
   const hasCuotas = existingCuotas.length > 0;
 
-  // Realtime para escuchar validaciones
+  const [solicitudEstado, setSolicitudEstado] = useState<any>(null);
+  const [loadingEstado, setLoadingEstado] = useState(true);
+
+  // Realtime para escuchar validaciones y carga inicial
   useEffect(() => {
-    if (!hasCuotas) return;
+    if (!hasCuotas) {
+      setLoadingEstado(false);
+      return;
+    }
+
+    let isMounted = true;
+    getSolicitudValidacionAction(presupuesto.id, "eliminar_cuotas").then(s => {
+      if (isMounted) {
+        setSolicitudEstado(s);
+        setLoadingEstado(false);
+      }
+    });
+
     const supabase = createClient();
     const channel = supabase.channel(`validaciones_cuotas_${presupuesto.id}`)
       .on("postgres_changes", { 
@@ -38,21 +54,23 @@ export function CuotasSheet({
         filter: `referencia_id=eq.${presupuesto.id}`
       }, (payload) => {
         const estado = payload.new.estado;
-        if (estado === "aprobada") {
-          setInfo("¡El administrador aprobó la eliminación! Las cuotas han sido eliminadas.");
-          setError(null);
-          // Refrescar padre
-          onRefresh();
-        } else if (estado === "rechazada") {
-          setError(`El administrador rechazó la solicitud: "${payload.new.comentarios || 'Sin comentarios'}"`);
-          setInfo(null);
+        if (isMounted) {
+          setSolicitudEstado(payload.new);
+          if (estado === "aprobada") {
+            setInfo("¡El administrador aprobó la eliminación! Las cuotas han sido eliminadas.");
+            setError(null);
+            if (onCuotasActualizadas) {
+              onCuotasActualizadas([]);
+            }
+          } else if (estado === "rechazada") {
+            setInfo(null);
+          }
         }
       })
-      .subscribe((status) => {
-        console.log("[CuotasSheet] Realtime status:", status);
-      });
+      .subscribe();
 
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
     };
   }, [presupuesto.id, hasCuotas, onRefresh]);
@@ -93,7 +111,11 @@ export function CuotasSheet({
       if (res.error) setError(res.error);
       else {
         setInfo("Cuotas generadas correctamente.");
-        onRefresh();
+        if (onCuotasActualizadas) {
+          onCuotasActualizadas(cuotas);
+        }
+        // No llamamos onRefresh() para evitar el re-render de la página entera
+        // que causaba el error de Turbopack al interrumpir el stream.
       }
     } catch (e) {
       setError("Error generando cuotas");
@@ -106,25 +128,12 @@ export function CuotasSheet({
     setLoading(true);
     setError(null);
     try {
-      const solicitudValidacion = await getSolicitudValidacionAction(presupuesto.id, "eliminar_cuotas");
-      const estadoValidacion = solicitudValidacion?.estado;
-      
-      if (estadoValidacion === "pendiente") {
-        setError("La solicitud de eliminación aún está pendiente de aprobación por el administrador.");
-      } else if (estadoValidacion === "rechazada") {
-        const comentarios = solicitudValidacion?.comentarios || "Sin comentarios adicionales";
-        // Al solicitar de nuevo, crearemos una nueva solicitud
-        if (confirm(`El administrador rechazó su solicitud anterior por el siguiente motivo:\n\n"${comentarios}"\n\n¿Desea enviar una NUEVA solicitud de eliminación?`)) {
-          const res = await solicitarValidacionAction(presupuesto.id, "eliminar_cuotas");
-          if (res.error) setError(res.error);
-          else setInfo("Se ha enviado una nueva solicitud al administrador. Espere su aprobación.");
-        }
+      const res = await solicitarValidacionAction(presupuesto.id, "eliminar_cuotas");
+      if (res.error) {
+        setError(res.error);
       } else {
-        // Puede ser nulo (primera vez) o "aprobada" (de una solicitud muy antigua)
-        // En ambos casos, al ser cuotas nuevas, se debe pedir validación de nuevo.
-        const res = await solicitarValidacionAction(presupuesto.id, "eliminar_cuotas");
-        if (res.error) setError(res.error);
-        else setInfo("Se ha enviado la solicitud al administrador. Espere su aprobación para eliminar las cuotas.");
+        setInfo("Se ha enviado la solicitud al administrador. Espere su aprobación para eliminar las cuotas.");
+        setSolicitudEstado({ estado: "pendiente" }); // Optimistic
       }
     } catch (e) {
       setError("Error procesando la solicitud");
@@ -161,13 +170,39 @@ export function CuotasSheet({
           <div className="flex flex-col gap-3">
             <div className="flex justify-between items-center">
               <h3 className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Cuotas Generadas</h3>
-              <button onClick={handleEliminar} disabled={loading} className="text-red-500 hover:text-red-600 text-[12px] font-semibold flex items-center gap-1 disabled:opacity-50">
-                <Icon name="delete" size={14} /> Eliminar Cuotas
-              </button>
+              {!loadingEstado && solicitudEstado?.estado !== "pendiente" && (
+                <button onClick={handleEliminar} disabled={loading} className="text-red-500 hover:text-red-600 text-[12px] font-semibold flex items-center gap-1 disabled:opacity-50">
+                  <Icon name="delete" size={14} /> Eliminar Cuotas
+                </button>
+              )}
             </div>
+
+            {!loadingEstado && solicitudEstado?.estado === "pendiente" && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 rounded-xl text-[12px] font-medium flex items-center gap-2">
+                <Icon name="warning" size={16} /> Solicitud de eliminación pendiente de aprobación.
+              </div>
+            )}
+
+            {!loadingEstado && solicitudEstado?.estado === "rechazada" && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl text-[12px] font-medium flex flex-col gap-2">
+                <div className="flex items-start gap-2">
+                  <Icon name="warning" size={16} className="mt-0.5 shrink-0" />
+                  <span>El administrador rechazó su solicitud: <strong>{solicitudEstado.comentarios || "Sin comentarios"}</strong></span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <button onClick={handleEliminar} disabled={loading} className="px-3 py-1.5 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
+                    Volver a solicitar
+                  </button>
+                  <button onClick={() => setSolicitudEstado(null)} disabled={loading} className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 transition-colors">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
               {existingCuotas.map(c => (
-                <div key={c.id} className="flex justify-between items-center p-3 text-[12.5px]">
+                <div key={c.id || c.numero_cuota} className="flex justify-between items-center p-3 text-[12.5px]">
                   <div>
                     <p className="font-semibold text-slate-800 dark:text-slate-200">Cuota {c.numero_cuota}</p>
                     <p className="text-slate-500 dark:text-slate-400 text-[11px]">Vence: {c.fecha_vencimiento}</p>

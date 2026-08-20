@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, startTransition } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
-import { getAlertasAction, type AlertasData } from "./alertas.actions";
+import { getAlertasAction, markNotificacionLeidaAction, type AlertasData } from "./alertas.actions";
 import { createClient } from "@/lib/supabase/client";
 import { GuardedLink } from "./GuardedLink";
 
@@ -53,46 +53,54 @@ const fmtHoraCita = (fecha: string, hora: string) => {
 
 interface AlertRowDef { key: string; icon: string; iconColor: string; iconBg: string; title: string; subtitle: string; link?: string; }
 
+let globalAlertasCache: AlertasData | null = null;
+
 /** Alertas inteligentes: citas próximas (24-48h), cumpleaños de la semana, alergias con cita hoy, tratamientos pendientes. */
 function AlertasButton() {
   const [open, setOpen] = useState(false);
-  const [data, setData] = useState<AlertasData | null>(null);
+  const [data, setData] = useState<AlertasData | null>(globalAlertasCache);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setDismissed(readDismissed());
     
-    const fetchAlertas = () => getAlertasAction().then(setData).catch(() => setData({ citasProximas: [], cumpleanos: [], alergias: [], tratamientosPendientes: [], mensajesNoLeidos: [] }));
+    const fetchAlertas = () => fetch("/api/alertas", { cache: "no-store" }).then(res => res.json()).then(res => {
+      globalAlertasCache = res;
+      setData(res);
+    }).catch(() => setData({ citasProximas: [], cumpleanos: [], alergias: [], tratamientosPendientes: [], mensajesNoLeidos: [], notificacionesSistema: [] }));
     
+    // Fetch inicial
     fetchAlertas();
-
-    let timeoutId: NodeJS.Timeout;
-    const debouncedFetch = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        fetchAlertas();
-      }, 1000); // 1 second debounce
-    };
 
     const supabase = createClient();
     const channel = supabase
       .channel("header_alerts_messages")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "messages" },
-        () => {
-          debouncedFetch();
-        }
-      )
-      .subscribe();
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => fetchAlertas())
+      .on("postgres_changes", { event: "*", schema: "public", table: "notificaciones" }, (payload) => {
+        console.log("[Header] notificaciones postgres_changes:", payload);
+        fetchAlertas();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "solicitud_validacion" }, (payload) => {
+        console.log("[Header] solicitud_validacion postgres_changes:", payload);
+        fetchAlertas();
+      })
+      .on("broadcast", { event: "NEW_NOTIFICACION" }, (payload) => {
+        console.log("[Header] NEW_NOTIFICACION broadcast recibido:", payload);
+        fetchAlertas();
+      })
+      .subscribe((status) => {
+        console.log("[Header] Realtime status:", status);
+      });
 
     return () => {
-      clearTimeout(timeoutId);
       supabase.removeChannel(channel);
     };
   }, []);
 
   function dismiss(key: string) {
+    if (key.startsWith("notif:")) {
+      markNotificacionLeidaAction(key.replace("notif:", "")).catch(console.error);
+    }
     setDismissed((prev) => {
       const next = new Set(prev);
       next.add(key);
@@ -103,6 +111,12 @@ function AlertasButton() {
 
   const rows: AlertRowDef[] = [];
   if (data) {
+    for (const n of data.notificacionesSistema || []) {
+      rows.push({
+        key: `notif:${n.id}`, icon: "notifications_active", iconColor: "text-blue-600 dark:text-blue-400", iconBg: "bg-blue-50 dark:bg-blue-900/30",
+        title: n.titulo, subtitle: n.mensaje, link: n.link || undefined
+      });
+    }
     for (const m of data.mensajesNoLeidos || []) {
       rows.push({
         key: m.id, icon: "chat", iconColor: "text-green-600 dark:text-green-400", iconBg: "bg-green-50 dark:bg-green-900/30",
@@ -203,7 +217,16 @@ function AlertasButton() {
                   return (
                     <div key={r.key} className="flex group px-2 mx-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                       {r.link ? (
-                        <GuardedLink href={r.link} className="flex-1 flex items-start gap-3 py-2.5 min-w-0 pr-2">
+                        <GuardedLink 
+                          href={r.link} 
+                          onClick={(e) => {
+                            if (window.location.pathname === r.link) {
+                              e.preventDefault();
+                            }
+                            dismiss(r.key);
+                          }} 
+                          className="flex-1 flex items-start gap-3 py-2.5 min-w-0 pr-2"
+                        >
                           {content}
                         </GuardedLink>
                       ) : (

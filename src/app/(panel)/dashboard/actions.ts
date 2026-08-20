@@ -32,8 +32,10 @@ export interface DashboardData {
 }
 
 function calcularEdad(fechaNacimiento: string): number {
+  if (!fechaNacimiento) return 0;
   const hoy = new Date();
   const nacimiento = new Date(fechaNacimiento + "T00:00:00");
+  if (isNaN(nacimiento.getTime())) return 0;
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
   const m = hoy.getMonth() - nacimiento.getMonth();
   if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
@@ -51,6 +53,10 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
   const diaHoy = hoy.getDate();
   const inicioMesStr = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split("T")[0];
 
+  const mesHoyStr = String(mesHoy).padStart(2, "0");
+  const diaHoyStr = String(diaHoy).padStart(2, "0");
+  const suffixCumple = `-${mesHoyStr}-${diaHoyStr}`;
+
   const [citasRes, pacientesRes, recordatoriosRes, citasMesRes] = await Promise.all([
     supabase
       .from("citas")
@@ -61,7 +67,8 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
     supabase
       .from("pacientes")
       .select("id, nombre, apellido, fecha_nacimiento")
-      .eq("activo", true),
+      .eq("activo", true)
+      .like("fecha_nacimiento", `%${suffixCumple}`),
     supabase
       .from("recordatorios")
       .select("id, citas!inner(doctor_id)")
@@ -88,11 +95,6 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
   }));
 
   const cumpleañosHoy: CumpleañosHoy[] = (pacientesRes.data || [])
-    .filter((p: any) => {
-      if (!p.fecha_nacimiento) return false;
-      const [, mes, dia] = p.fecha_nacimiento.split("-").map(Number);
-      return mes === mesHoy && dia === diaHoy;
-    })
     .map((p: any) => ({
       id: String(p.id),
       nombre: `${p.nombre} ${p.apellido}`.trim(),
@@ -119,7 +121,10 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
 // (vía fetchDoctoresSede, ver agenda/actions.ts).
 
 function timeToMinLocal(t: string): number {
-  const [h, m] = t.split(":").map(Number);
+  if (!t) return 0;
+  const parts = t.split(":");
+  const h = Number(parts[0]) || 0;
+  const m = Number(parts[1]) || 0;
   return h * 60 + m;
 }
 
@@ -189,6 +194,10 @@ export async function getDashboardAsistenteDataAction(): Promise<DashboardAsiste
     };
   }
 
+  const mesHoyStr = String(ahora.getMonth() + 1).padStart(2, "0");
+  const diaHoyStr = String(ahora.getDate()).padStart(2, "0");
+  const suffixCumple = `-${mesHoyStr}-${diaHoyStr}`;
+
   const [citasRes, horariosRes, pacientesSedeRes] = await Promise.all([
     supabase
       .from("citas")
@@ -205,7 +214,8 @@ export async function getDashboardAsistenteDataAction(): Promise<DashboardAsiste
       .from("pacientes")
       .select("id, nombre, apellido, fecha_nacimiento, telegram_chat_id")
       .eq("sede_id", usr.sede_id)
-      .eq("activo", true),
+      .eq("activo", true)
+      .like("fecha_nacimiento", `%${suffixCumple}`),
   ]);
 
   const citasRaw = citasRes.data || [];
@@ -280,11 +290,6 @@ export async function getDashboardAsistenteDataAction(): Promise<DashboardAsiste
   const mesHoy = ahora.getMonth() + 1;
   const diaHoy = ahora.getDate();
   const cumpleañosHoy: CumpleañosHoyConTelegram[] = (pacientesSedeRes.data || [])
-    .filter((p: any) => {
-      if (!p.fecha_nacimiento) return false;
-      const [, mes, dia] = p.fecha_nacimiento.split("-").map(Number);
-      return mes === mesHoy && dia === diaHoy;
-    })
     .map((p: any) => ({
       id: String(p.id),
       nombre: `${p.nombre} ${p.apellido}`.trim(),

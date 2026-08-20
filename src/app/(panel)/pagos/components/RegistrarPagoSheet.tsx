@@ -24,14 +24,22 @@ export function RegistrarPagoSheet({
   onSaved: (presupuestoId: string, nuevoSaldo: number, montoPagado: number, medioNombre: string) => void;
 }) {
   const sedeNombre = sede?.nombre_clinica ?? "MaraDental";
-  const cuotasPendientes = presupuesto.cuotas?.filter(c => c.estado === "pendiente") || [];
-  const [monto, setMonto] = useState(cuotasPendientes.length > 0 ? cuotasPendientes[0].monto.toFixed(2) : (presupuesto.saldo > 0 ? presupuesto.saldo.toFixed(2) : ""));
+  
+  // Ordenar todas las cuotas correlativamente
+  const todasCuotas = [...(presupuesto.cuotas || [])].sort((a, b) => a.numero_cuota - b.numero_cuota);
+  const cuotasPendientes = todasCuotas.filter(c => c.estado !== "pagado" && !c.movimiento_caja_id);
+  const siguienteCuota = cuotasPendientes[0] || null;
+
+  const [cuotaSeleccionada, setCuotaSeleccionada] = useState<string>(siguienteCuota ? siguienteCuota.id : "");
+  const [monto, setMonto] = useState(
+    siguienteCuota ? siguienteCuota.monto.toFixed(2) : (presupuesto.saldo > 0 ? presupuesto.saldo.toFixed(2) : "")
+  );
+
   const [medioId, setMedioId] = useState<string>(mediosPago[0] ? String(mediosPago[0].id) : "");
   const [categoriaId, setCategoriaId] = useState<string>(categoriasIngreso[0] ? String(categoriasIngreso[0].id) : "");
   const [monedaId, setMonedaId] = useState<string>(tiposMoneda.find(m => m.moneda === presupuesto.moneda) ? String(tiposMoneda.find(m => m.moneda === presupuesto.moneda)?.id) : "1");
   const [referencia, setReferencia] = useState("");
   const [observaciones, setObservaciones] = useState("");
-  const [cuotaSeleccionada, setCuotaSeleccionada] = useState<string>(cuotasPendientes.length > 0 ? cuotasPendientes[0].id : "");
   const [tipoComprobante, setTipoComprobante] = useState<"boleta" | "factura" | "ticket_interno">("boleta");
   
   const [quienPaga, setQuienPaga] = useState<"paciente" | "tercero">("paciente");
@@ -52,6 +60,13 @@ export function RegistrarPagoSheet({
   const [pagoInfo, setPagoInfo] = useState<{ monto: number; medioNombre: string; referencia: string; observaciones: string; fecha: string; saldoRestante: number } | null>(null);
   const [exportando, setExportando] = useState<"print" | "pdf" | null>(null);
 
+  // Validación de orden estricto de cuotas
+  const cuotaActual = todasCuotas.find(c => c.id === cuotaSeleccionada);
+  const cuotaAnteriorImpaga = cuotaActual
+    ? todasCuotas.find(c => c.numero_cuota < cuotaActual.numero_cuota && c.estado !== "pagado" && !c.movimiento_caja_id)
+    : null;
+  const esCuotaInvalida = Boolean(cuotaAnteriorImpaga);
+
   async function intentarEnviarVoucher(texto: string) {
     if (!presupuesto.telegram_chat_id) {
       setVoucherEstado("sin_telegram");
@@ -69,6 +84,11 @@ export function RegistrarPagoSheet({
   }
 
   async function guardar() {
+    if (esCuotaInvalida) {
+      setError(`Debe pagar primero la Cuota ${cuotaAnteriorImpaga?.numero_cuota} antes de continuar.`);
+      return;
+    }
+
     const m = Number(monto);
     if (!m || m <= 0) { setError("Ingresa un monto válido"); return; }
     setSaving(true);
@@ -76,6 +96,7 @@ export function RegistrarPagoSheet({
 
     if (quienPaga === "tercero" && (!terceroNombres || !terceroApellidos || !terceroDocNum)) {
       setError("Complete los datos del tercero que realiza el pago");
+      setSaving(false);
       return;
     }
 
@@ -129,7 +150,11 @@ export function RegistrarPagoSheet({
       const html = buildVoucherHtml({
         clinica: sede,
         numeroComprobante: presupuesto.id,
+        tipoComprobante: tipoComprobante,
         pacienteNombre: presupuesto.paciente_nombre,
+        pagadorNombre: quienPaga === "tercero" ? `${terceroNombres} ${terceroApellidos}`.trim() : presupuesto.paciente_nombre,
+        pagadorDocumento: quienPaga === "tercero" ? terceroDocNum : (presupuesto.paciente_documento || null),
+        esTercero: quienPaga === "tercero",
         monto: pagoInfo.monto,
         medioPago: pagoInfo.medioNombre,
         referencia: pagoInfo.referencia || null,
@@ -137,6 +162,17 @@ export function RegistrarPagoSheet({
         fecha: pagoInfo.fecha,
         saldoRestante: pagoInfo.saldoRestante,
         moneda: presupuesto.moneda,
+        cuota: cuotaActual ? {
+          numero_cuota: cuotaActual.numero_cuota,
+          total_cuotas: todasCuotas.length,
+          monto: cuotaActual.monto,
+          fecha_vencimiento: cuotaActual.fecha_vencimiento,
+        } : null,
+        presupuesto: {
+          id: presupuesto.id,
+          total: presupuesto.total_neto,
+          tratamientos: presupuesto.tratamiento ? [{ nombre: presupuesto.tratamiento }] : [],
+        },
       });
       if (mode === "print") await printHtml(html, `Comprobante de pago #${presupuesto.id}`);
       else await downloadHtmlAsPaginatedPdf(html, `comprobante_${presupuesto.id}.pdf`, 800);
@@ -169,7 +205,7 @@ export function RegistrarPagoSheet({
               </button>
               <button
                 onClick={guardar}
-                disabled={saving}
+                disabled={saving || esCuotaInvalida}
                 className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[13px] font-semibold transition-colors"
               >
                 <Icon name="check_circle" size={15} />
@@ -211,11 +247,28 @@ export function RegistrarPagoSheet({
                 value={cuotaSeleccionada}
                 onChange={(val) => {
                   setCuotaSeleccionada(val);
-                  const c = cuotasPendientes.find(x => x.id === val);
+                  const c = todasCuotas.find(x => x.id === val);
                   if (c) setMonto(c.monto.toFixed(2));
                 }}
-                options={cuotasPendientes.map(c => ({ value: c.id, label: `Cuota ${c.numero_cuota} - ${presupuesto.moneda} ${c.monto.toFixed(2)} (Vence: ${c.fecha_vencimiento})` }))}
+                options={todasCuotas.map(c => {
+                  const isPagada = c.estado === "pagado" || Boolean(c.movimiento_caja_id);
+                  return {
+                    value: c.id,
+                    label: `Cuota ${c.numero_cuota} - ${presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda} ${Number(c.monto).toFixed(2)} (${isPagada ? "Ya pagada" : `Vence: ${c.fecha_vencimiento}`})`,
+                  };
+                })}
               />
+              
+              {/* Alerta de bloqueo secuencial si se intenta pagar una cuota posterior */}
+              {esCuotaInvalida && (
+                <div className="p-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-amber-800 dark:text-amber-300 text-[12px] flex items-start gap-2 mt-1">
+                  <Icon name="warning" size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <div>
+                    <strong className="block font-bold">Pago secuencial obligatorio:</strong>
+                    <span>Debe pagar primero la <strong>Cuota {cuotaAnteriorImpaga?.numero_cuota}</strong> antes de poder abonar la Cuota {cuotaActual?.numero_cuota}.</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -259,7 +312,7 @@ export function RegistrarPagoSheet({
                 ]}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 col-span-2">
               <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Categoría</label>
               <Select
                 value={categoriaId}
@@ -271,16 +324,33 @@ export function RegistrarPagoSheet({
 
           <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
             <label className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wide mb-1">¿Quién realiza el pago?</label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 text-[12.5px] text-slate-700 dark:text-slate-300 cursor-pointer">
-                <input type="radio" name="quienPaga" checked={quienPaga === "paciente"} onChange={() => setQuienPaga("paciente")} className="w-4 h-4 text-cyan-600 focus:ring-cyan-500 border-gray-300" />
+            
+            {/* Segmented Toggle estilizado sin pérdida de color activo */}
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-1">
+              <button
+                type="button"
+                onClick={() => setQuienPaga("paciente")}
+                className={`flex-1 py-1.5 text-[12.5px] font-semibold rounded-lg transition-all ${
+                  quienPaga === "paciente"
+                    ? "bg-white dark:bg-slate-700 text-cyan-700 dark:text-cyan-300 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
                 Mismo paciente
-              </label>
-              <label className="flex items-center gap-2 text-[12.5px] text-slate-700 dark:text-slate-300 cursor-pointer">
-                <input type="radio" name="quienPaga" checked={quienPaga === "tercero"} onChange={() => setQuienPaga("tercero")} className="w-4 h-4 text-cyan-600 focus:ring-cyan-500 border-gray-300" />
-                Otra persona
-              </label>
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuienPaga("tercero")}
+                className={`flex-1 py-1.5 text-[12.5px] font-semibold rounded-lg transition-all ${
+                  quienPaga === "tercero"
+                    ? "bg-white dark:bg-slate-700 text-cyan-700 dark:text-cyan-300 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                Otra persona (Tercero)
+              </button>
             </div>
+
             {quienPaga === "tercero" && (
               <div className="grid grid-cols-2 gap-3 mt-2">
                 <div className="col-span-2 grid grid-cols-3 gap-3">

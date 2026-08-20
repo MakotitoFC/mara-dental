@@ -69,73 +69,309 @@ export async function abrirCajaAction(montosIniciales: { medio_pago_id: number; 
   return { success: true, caja_id: caja.id };
 }
 
-export async function cerrarCajaAction(cajaId: string, montosCierre: { medio_pago_id: number; monto: number }[]) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "No autorizado" };
-
-  // 1. Cerrar caja
-  const { error: errCierre } = await supabase
-    .from("caja_turno")
-    .update({ fecha_cierre: new Date().toISOString() })
-    .eq("id", cajaId)
-    .eq("usuario_id", user.id);
-
-  if (errCierre) return { error: "No se pudo cerrar la caja" };
-
-  // 2. Insertar montos de cierre
-  if (montosCierre.length > 0) {
-    const records = montosCierre.map(m => ({
-      caja_turno_id: cajaId,
-      medio_pago_id: m.medio_pago_id,
-      monto: m.monto,
-      evento: "cierre"
-    }));
-    await supabase.from("medio_pago_caja_monto").insert(records);
-  }
-
-  // 3. Confirmar movimientos (conciliación automática por defecto)
-  await supabase
-    .from("movimiento_caja")
-    .update({ estado: "confirmado", conciliado: true, fecha_conciliacion: new Date().toISOString() })
-    .eq("caja_turno_id", cajaId)
-    .eq("estado", "pendiente");
-
-  revalidatePath("/pagos");
-  return { success: true };
+export interface MovimientoCierreItem {
+  id: string;
+  fecha: string;
+  monto: number;
+  tipo: "I" | "E";
+  medio_pago_id: number;
+  medio_pago_nombre: string;
+  categoria_nombre: string;
+  descripcion: string;
+  referencia: string | null;
+  paciente_o_entidad: string;
+  estado: string;
+  conciliado: boolean;
+  es_devolucion: boolean;
 }
 
-export async function getMontosEsperadosCajaAction(cajaId: string) {
+export interface ResumenMedioCierre {
+  medio_pago_id: number;
+  nombre: string;
+  apertura: number;
+  ingresos: number;
+  egresos: number;
+  devoluciones: number;
+  neto: number;
+  esperado: number;
+  es_efectivo: boolean;
+}
+
+export interface DetalleCierreCaja {
+  caja_id: string;
+  fecha_apertura: string;
+  sede_nombre: string;
+  usuario_nombre: string;
+  resumen_medios: ResumenMedioCierre[];
+  movimientos: MovimientoCierreItem[];
+  total_ingresos: number;
+  total_egresos: number;
+  total_esperado_efectivo: number;
+  apertura_efectivo: number;
+  total_movimientos: number;
+  total_conciliados: number;
+}
+
+export async function getDetalleCierreCajaAction(cajaId: string): Promise<DetalleCierreCaja | null> {
   const supabase = await createClient();
-  
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  // 1. Obtener caja_turno
+  const { data: caja, error: cajaErr } = await supabase
+    .from("caja_turno")
+    .select(`
+      id, fecha_apertura, fecha_cierre, sede_id, usuario_id,
+      sede ( nombre_clinica )
+    `)
+    .eq("id", cajaId)
+    .single();
+
+  if (cajaErr || !caja) {
+    console.error("Error obteniendo caja_turno:", cajaErr);
+    return null;
+  }
+
+  // 2. Obtener nombre del usuario (personal)
+  const { data: per } = await supabase
+    .from("personal")
+    .select("nombre, apellido")
+    .eq("usuario_id", caja.usuario_id)
+    .maybeSingle();
+  const usuarioNombre = per ? `${per.nombre} ${per.apellido}`.trim() : "Asistente";
+  const sedeNombre = (caja.sede as any)?.nombre_clinica || "Sede MaraDental";
+
+  // 3. Obtener todos los medios de pago disponibles
+  const { data: mediosPago } = await supabase.from("medio_pago").select("id, nombre").order("id");
+  const listaMedios = mediosPago || [];
+
+  // 4. Obtener montos de apertura
   const { data: iniciales } = await supabase
     .from("medio_pago_caja_monto")
     .select("medio_pago_id, monto")
     .eq("caja_turno_id", cajaId)
     .eq("evento", "apertura");
 
-  const { data: movimientos } = await supabase
+  const mapaApertura = new Map<number, number>();
+  (iniciales || []).forEach((i) => mapaApertura.set(i.medio_pago_id, Number(i.monto)));
+
+  // 5. Obtener todos los movimientos del turno
+  const { data: movimientosRaw } = await supabase
     .from("movimiento_caja")
-    .select("medio_pago_id, monto, categoria_movimiento ( tipo )")
+    .select(`
+      id, fecha, monto, referencia, observacion, estado, conciliado, fecha_conciliacion,
+      medio_pago_id,
+      medio_pago ( id, nombre ),
+      categoria_movimiento:categoria_id ( id, nombre, tipo ),
+      cliente_pago:cliente_id ( id, nombre, apellidos ),
+      proveedores:proveedor_id ( id, nombre ),
+      presupuestos:presupuesto_id (
+        id,
+        pacientes ( nombre, apellido )
+      )
+    `)
     .eq("caja_turno_id", cajaId)
-    .neq("estado", "anulado");
+    .order("fecha", { ascending: false });
 
-  const esperados = new Map<number, number>();
-  
-  if (iniciales) {
-    iniciales.forEach(i => esperados.set(i.medio_pago_id, Number(i.monto)));
-  }
+  const movimientosList = movimientosRaw || [];
 
-  if (movimientos) {
-    movimientos.forEach((m: any) => {
-      const isEgreso = m.categoria_movimiento?.tipo === "E" || Number(m.monto) < 0;
-      const amount = Math.abs(Number(m.monto));
-      const current = esperados.get(m.medio_pago_id) || 0;
-      esperados.set(m.medio_pago_id, isEgreso ? current - amount : current + amount);
+  // 6. Procesar items individuales
+  const items: MovimientoCierreItem[] = [];
+  let totalIngresos = 0;
+  let totalEgresos = 0;
+  let totalConciliados = 0;
+
+  // Mapas por medio de pago
+  const mapaIngresos = new Map<number, number>();
+  const mapaEgresos = new Map<number, number>();
+  const mapaDevoluciones = new Map<number, number>();
+
+  for (const m of movimientosList) {
+    const rawMonto = Number(m.monto);
+    const cat = Array.isArray(m.categoria_movimiento) ? m.categoria_movimiento[0] : m.categoria_movimiento;
+    const isEgreso = (cat?.tipo === "E") || rawMonto < 0;
+    const montoAbs = Math.abs(rawMonto);
+
+    const mp = Array.isArray(m.medio_pago) ? m.medio_pago[0] : m.medio_pago;
+    const medioId = m.medio_pago_id || mp?.id || 1;
+    const medioNombre = mp?.nombre || "Efectivo";
+
+    const catNombre = cat?.nombre || (isEgreso ? "Egreso" : "Ingreso");
+    const esDevolucion = catNombre.toLowerCase().includes("devoluci") || (m.observacion || "").toLowerCase().includes("devoluci");
+
+    // Identificar paciente o proveedor
+    let entidad = "General";
+    if (m.presupuestos) {
+      const pres = Array.isArray(m.presupuestos) ? m.presupuestos[0] : m.presupuestos;
+      const pac = pres ? (Array.isArray(pres.pacientes) ? pres.pacientes[0] : pres.pacientes) : null;
+      if (pac) entidad = `${pac.nombre ?? ""} ${pac.apellido ?? ""}`.trim();
+    } else if (m.cliente_pago) {
+      const cli = Array.isArray(m.cliente_pago) ? m.cliente_pago[0] : m.cliente_pago;
+      if (cli) entidad = `${cli.nombre ?? ""} ${cli.apellidos ?? ""}`.trim();
+    } else if (m.proveedores) {
+      const prov = Array.isArray(m.proveedores) ? m.proveedores[0] : m.proveedores;
+      if (prov) entidad = prov.nombre;
+    }
+
+    const isConciliado = Boolean(m.conciliado);
+    if (isConciliado) totalConciliados++;
+
+    if (m.estado !== "anulado") {
+      if (isEgreso) {
+        totalEgresos += montoAbs;
+        mapaEgresos.set(medioId, (mapaEgresos.get(medioId) || 0) + montoAbs);
+        if (esDevolucion) {
+          mapaDevoluciones.set(medioId, (mapaDevoluciones.get(medioId) || 0) + montoAbs);
+        }
+      } else {
+        totalIngresos += montoAbs;
+        mapaIngresos.set(medioId, (mapaIngresos.get(medioId) || 0) + montoAbs);
+      }
+    }
+
+    items.push({
+      id: m.id,
+      fecha: m.fecha,
+      monto: montoAbs,
+      tipo: isEgreso ? "E" : "I",
+      medio_pago_id: medioId,
+      medio_pago_nombre: medioNombre,
+      categoria_nombre: catNombre,
+      descripcion: m.observacion || (isEgreso ? "Egreso de caja" : "Cobro de tratamiento"),
+      referencia: m.referencia || null,
+      paciente_o_entidad: entidad,
+      estado: m.estado || "confirmado",
+      conciliado: isConciliado,
+      es_devolucion: esDevolucion,
     });
   }
 
-  return Array.from(esperados.entries()).map(([medio_pago_id, monto]) => ({ medio_pago_id, monto }));
+  // 7. Consolidar resumen por cada medio de pago
+  const resumenMedios: ResumenMedioCierre[] = listaMedios.map((mp) => {
+    const esEfectivo = mp.nombre.toLowerCase().includes("efectivo");
+    const apertura = mapaApertura.get(mp.id) || 0;
+    const ingresos = mapaIngresos.get(mp.id) || 0;
+    const egresos = mapaEgresos.get(mp.id) || 0;
+    const devoluciones = mapaDevoluciones.get(mp.id) || 0;
+    const neto = ingresos - egresos;
+    const esperado = esEfectivo ? (apertura + neto) : neto;
+
+    return {
+      medio_pago_id: mp.id,
+      nombre: mp.nombre,
+      apertura,
+      ingresos,
+      egresos,
+      devoluciones,
+      neto,
+      esperado,
+      es_efectivo: esEfectivo,
+    };
+  });
+
+  const efectivoObj = resumenMedios.find((r) => r.es_efectivo);
+  const aperturaEfectivo = efectivoObj ? efectivoObj.apertura : 0;
+  const totalEsperadoEfectivo = efectivoObj ? efectivoObj.esperado : 0;
+
+  return {
+    caja_id: cajaId,
+    fecha_apertura: caja.fecha_apertura,
+    sede_nombre: sedeNombre,
+    usuario_nombre: usuarioNombre,
+    resumen_medios: resumenMedios,
+    movimientos: items,
+    total_ingresos: totalIngresos,
+    total_egresos: totalEgresos,
+    total_esperado_efectivo: totalEsperadoEfectivo,
+    apertura_efectivo: aperturaEfectivo,
+    total_movimientos: items.length,
+    total_conciliados: totalConciliados,
+  };
+}
+
+export async function toggleConciliacionMovimientoAction(movimientoId: string, conciliado: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { error } = await supabase
+    .from("movimiento_caja")
+    .update({
+      conciliado: conciliado,
+      fecha_conciliacion: conciliado ? new Date().toISOString() : null,
+    })
+    .eq("id", movimientoId);
+
+  if (error) return { error: "Error actualizando estado de conciliación" };
+  return { success: true };
+}
+
+export async function conciliarTodosMovimientosAction(cajaId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { error } = await supabase
+    .from("movimiento_caja")
+    .update({
+      conciliado: true,
+      fecha_conciliacion: new Date().toISOString(),
+    })
+    .eq("caja_turno_id", cajaId);
+
+  if (error) return { error: "Error conciliando movimientos" };
+  return { success: true };
+}
+
+export async function cerrarCajaAction(
+  cajaId: string,
+  montosCierre: { medio_pago_id: number; monto: number }[],
+  observaciones?: string
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  // 1. Cerrar turno en caja_turno
+  const { error: errCierre } = await supabase
+    .from("caja_turno")
+    .update({ fecha_cierre: new Date().toISOString() })
+    .eq("id", cajaId);
+
+  if (errCierre) return { error: "No se pudo cerrar la caja" };
+
+  // 2. Insertar montos de cierre
+  if (montosCierre.length > 0) {
+    const records = montosCierre.map((m) => ({
+      caja_turno_id: cajaId,
+      medio_pago_id: m.medio_pago_id,
+      monto: m.monto,
+      evento: "cierre",
+    }));
+    await supabase.from("medio_pago_caja_monto").insert(records);
+  }
+
+  // 3. Confirmar y marcar todos los movimientos del turno como conciliados
+  await supabase
+    .from("movimiento_caja")
+    .update({
+      estado: "confirmado",
+      conciliado: true,
+      fecha_conciliacion: new Date().toISOString(),
+    })
+    .eq("caja_turno_id", cajaId);
+
+  revalidatePath("/pagos");
+  return { success: true };
+}
+
+export async function getMontosEsperadosCajaAction(cajaId: string) {
+  const detalle = await getDetalleCierreCajaAction(cajaId);
+  if (!detalle) return [];
+  return detalle.resumen_medios.map((r) => ({
+    medio_pago_id: r.medio_pago_id,
+    monto: r.esperado,
+  }));
 }
 
 export async function getMediosPagoParaCajaAction() {
@@ -193,6 +429,7 @@ export async function registrarMovimientoLibreAction(data: {
   referencia: string;
   observacion: string;
   tipo: "I" | "E";
+  tipo_comprobante?: string;
   proveedor?: {
     id?: string;
     nombre?: string;
@@ -213,6 +450,9 @@ export async function registrarMovimientoLibreAction(data: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
 
+  const { data: usr } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
+  if (!usr?.sede_id) return { error: "No se pudo resolver la sede" };
+
   let proveedorId = data.proveedor?.id || null;
   if (data.tipo === "E" && data.proveedor && !proveedorId) {
     const { data: newProv, error: pErr } = await supabase.from("proveedores").insert({
@@ -220,7 +460,7 @@ export async function registrarMovimientoLibreAction(data: {
       ruc: data.proveedor.ruc || null,
       telefono: data.proveedor.telefono || null,
       email: data.proveedor.email || null,
-      estado: "confirmado" // No activo boolean, just creating with confirm
+      estado: "confirmado"
     }).select("id").single();
     if (pErr) return { error: "No se pudo registrar el nuevo proveedor" };
     proveedorId = newProv.id;
@@ -239,7 +479,25 @@ export async function registrarMovimientoLibreAction(data: {
     clientePId = newCli.id;
   }
 
-  const { error } = await supabase.from("movimiento_caja").insert({
+  // Generar comprobante de pago
+  let comprobanteId = null;
+  const tipoComp = data.tipo_comprobante || (data.tipo === "I" ? "boleta" : "recibo");
+  const { data: comp, error: compErr } = await supabase.from("comprobante_pago").insert({
+    sede_id: usr.sede_id,
+    tipo_comprobante: tipoComp,
+    cliente_id: clientePId,
+    moneda: "PEN",
+    monto_exonerado: Math.abs(data.monto),
+    monto_total: Math.abs(data.monto),
+    emitido_por: user.id,
+    estado: "emitido"
+  }).select("id").single();
+
+  if (!compErr && comp) {
+    comprobanteId = comp.id;
+  }
+
+  const { data: mov, error } = await supabase.from("movimiento_caja").insert({
     caja_turno_id: data.caja_turno_id,
     monto: data.tipo === "E" ? -Math.abs(data.monto) : Math.abs(data.monto),
     categoria_id: data.categoria_id,
@@ -249,15 +507,20 @@ export async function registrarMovimientoLibreAction(data: {
     referencia: data.referencia || null,
     observacion: data.observacion || null,
     usuario_id: user.id,
-    estado: "pendiente",
+    estado: "confirmado",
+    comprobante_pago_id: comprobanteId,
     tipo_moneda_id: data.tipo_moneda_id
-  });
+  }).select("id").single();
 
   if (error) {
     console.error("Error al registrar movimiento libre:", error.message);
     return { error: "No se pudo registrar el movimiento." };
   }
 
+  if (comprobanteId && mov) {
+    await supabase.from("comprobante_pago").update({ movimiento_caja_id: mov.id }).eq("id", comprobanteId);
+  }
+
   revalidatePath("/pagos");
-  return { success: true };
+  return { success: true, movimiento_id: mov?.id };
 }

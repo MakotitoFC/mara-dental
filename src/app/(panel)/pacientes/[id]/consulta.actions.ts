@@ -1570,7 +1570,7 @@ export async function registrarPagoAction(data: {
     observacion: data.observaciones || null,
     usuario_id: user.id,
     cliente_id: clientePId,
-    estado: "pendiente",
+    estado: "confirmado",
     comprobante_pago_id: comprobanteId,
     categoria_id: categoriaId
   }).select("id").single();
@@ -1743,7 +1743,7 @@ export async function getSedeInfoAction() {
 
   const { data } = await supabase
     .from("usuarios")
-    .select("sede ( nombre_clinica, direccion, telefono, email_contacto )")
+    .select("sede ( id, nombre_clinica, direccion, telefono, email_contacto )")
     .eq("id", user.id)
     .single();
 

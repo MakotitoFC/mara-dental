@@ -24,12 +24,15 @@ export const metadata: Metadata = {
   },
 };
 
+import { GlobalErrorCatcher } from "@/components/GlobalErrorCatcher";
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es" className={poppins.variable}>
       <body className="antialiased overflow-x-hidden">
+        <GlobalErrorCatcher />
         <ToastProvider>
           <ConfirmProvider>{children}</ConfirmProvider>
         </ToastProvider>

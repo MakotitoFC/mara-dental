@@ -22,6 +22,7 @@ export function fmtGenerado(): string {
 }
 
 export interface ClinicaInfo {
+  id?: number | string | null;
   nombre_clinica?: string | null;
   direccion?: string | null;
   telefono?: string | null;

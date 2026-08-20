@@ -277,9 +277,10 @@ export async function getCajaTurnosAction() {
   }
 
   return data.map((turno: any) => {
-    const movs = movimientos.filter(m => m.caja_turno_id === turno.id);
-    const ingresos = movs.filter(m => m.categoria?.tipo === 'I').reduce((acc, curr) => acc + Number(curr.monto), 0);
-    const egresos = movs.filter(m => m.categoria?.tipo === 'E').reduce((acc, curr) => acc + Number(curr.monto), 0);
+    const movs = movimientos.filter((m: any) => m.caja_turno_id === turno.id);
+    const getCatTipo = (m: any) => Array.isArray(m.categoria) ? m.categoria[0]?.tipo : m.categoria?.tipo;
+    const ingresos = movs.filter((m: any) => getCatTipo(m) === 'I').reduce((acc: number, curr: any) => acc + Number(curr.monto), 0);
+    const egresos = movs.filter((m: any) => getCatTipo(m) === 'E').reduce((acc: number, curr: any) => acc + Number(curr.monto), 0);
     
     return {
       ...turno,

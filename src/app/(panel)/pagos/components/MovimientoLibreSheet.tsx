@@ -7,7 +7,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { registrarMovimientoLibreAction, searchProveedoresAction, searchClientesPagoAction } from "../caja.actions";
 
 export function MovimientoLibreSheet({
-  cajaId, categoriasIngreso, categoriasEgreso, mediosPago, tiposMoneda, onClose
+  cajaId, categoriasIngreso, categoriasEgreso, mediosPago, tiposMoneda, onClose, onSaved
 }: {
   cajaId: string;
   categoriasIngreso: { id: number; nombre: string }[];
@@ -15,12 +15,14 @@ export function MovimientoLibreSheet({
   mediosPago: { id: number; nombre: string }[];
   tiposMoneda: { id: number; moneda: string }[];
   onClose: () => void;
+  onSaved?: (monto: number, tipo: "I" | "E", medioNombre: string, concepto: string) => void;
 }) {
   const [tipo, setTipo] = useState<"E" | "I">("E"); // I = Ingreso, E = Egreso
   const [monto, setMonto] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
   const [medioPagoId, setMedioPagoId] = useState(mediosPago[0] ? String(mediosPago[0].id) : "");
   const [monedaId, setMonedaId] = useState(tiposMoneda.find(m => m.moneda === "PEN") ? String(tiposMoneda.find(m => m.moneda === "PEN")?.id) : "1");
+  const [tipoComprobante, setTipoComprobante] = useState<string>("recibo");
   const [referencia, setReferencia] = useState("");
   const [observacion, setObservacion] = useState("");
   
@@ -46,8 +48,13 @@ export function MovimientoLibreSheet({
 
   // Initial select setup
   useEffect(() => {
-    if (tipo === "E" && categoriasEgreso.length > 0) setCategoriaId(String(categoriasEgreso[0].id));
-    if (tipo === "I" && categoriasIngreso.length > 0) setCategoriaId(String(categoriasIngreso[0].id));
+    if (tipo === "E") {
+      if (categoriasEgreso.length > 0) setCategoriaId(String(categoriasEgreso[0].id));
+      setTipoComprobante("recibo");
+    } else {
+      if (categoriasIngreso.length > 0) setCategoriaId(String(categoriasIngreso[0].id));
+      setTipoComprobante("boleta");
+    }
   }, [tipo, categoriasEgreso, categoriasIngreso]);
 
   useEffect(() => {
@@ -104,6 +111,7 @@ export function MovimientoLibreSheet({
       categoria_id: parseInt(categoriaId),
       medio_pago_id: parseInt(medioPagoId),
       tipo_moneda_id: parseInt(monedaId),
+      tipo_comprobante: tipoComprobante,
       proveedor: tipo === "E" && selectedProveedor ? selectedProveedor : undefined,
       cliente_pago: tipo === "I" && selectedCliente ? selectedCliente : undefined,
       referencia,
@@ -113,8 +121,17 @@ export function MovimientoLibreSheet({
     const res = await registrarMovimientoLibreAction(payload);
     setSaving(false);
 
-    if (res.error) setError(res.error);
-    else onClose();
+    if (res.error) {
+      setError(res.error);
+    } else {
+      const medioNombre = mediosPago.find(mp => String(mp.id) === medioPagoId)?.nombre ?? "Efectivo";
+      let concepto = tipo === "E" 
+        ? (selectedProveedor?.nombre || observacion || "Egreso Libre")
+        : (selectedCliente ? `${selectedCliente.nombres} ${selectedCliente.apellidos}`.trim() : (observacion || "Ingreso Libre"));
+      
+      onSaved?.(m, tipo, medioNombre, concepto);
+      onClose();
+    }
   };
 
   const fechaActual = new Date().toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" });
@@ -205,6 +222,62 @@ export function MovimientoLibreSheet({
               onChange={setMedioPagoId}
               options={mediosPago.map(m => ({ value: String(m.id), label: m.nombre }))}
             />
+          </div>
+        </div>
+
+        {/* Tipo de Comprobante */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Tipo de Comprobante</label>
+          <div className="grid grid-cols-3 gap-2">
+            {tipo === "I" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setTipoComprobante("boleta")}
+                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "boleta" ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
+                >
+                  Boleta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoComprobante("factura")}
+                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "factura" ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
+                >
+                  Factura
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoComprobante("ticket_interno")}
+                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "ticket_interno" ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
+                >
+                  Ticket Interno
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setTipoComprobante("recibo")}
+                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "recibo" ? "border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
+                >
+                  Recibo Egreso
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoComprobante("factura")}
+                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "factura" ? "border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
+                >
+                  Factura
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoComprobante("ticket_interno")}
+                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "ticket_interno" ? "border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
+                >
+                  Ticket Interno
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -394,17 +467,18 @@ export function MovimientoLibreSheet({
           <input
             value={referencia}
             onChange={e => setReferencia(e.target.value)}
-            placeholder="Boleta, factura, ticket..."
+            placeholder="Nro. operación, comprobante..."
             className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Observaciones</label>
+          <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Observaciones / Concepto</label>
           <textarea
             rows={2}
             value={observacion}
             onChange={e => setObservacion(e.target.value)}
+            placeholder="Detalle o descripción del movimiento..."
             className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 resize-none"
           />
         </div>

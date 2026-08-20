@@ -82,25 +82,29 @@ export function Sidebar() {
       });
 
     // Subscripción en tiempo real
+    const refetchCount = () => {
+      supabase.from("solicitud_validacion")
+        .select("*", { count: "exact", head: true })
+        .eq("sede_id", user.sede_id!)
+        .eq("estado", "pendiente")
+        .then(({ count }) => {
+          if (count !== null) setValidacionesCount(count);
+        });
+    };
+
     const channel = supabase.channel("validaciones_sidebar")
       .on("postgres_changes", {
         event: "*",
         schema: "public",
         table: "solicitud_validacion",
         filter: `sede_id=eq.${user.sede_id}`
-      }, (payload) => {
-        // Simple re-fetch para no complicar la lógica
-        supabase.from("solicitud_validacion")
-          .select("*", { count: "exact", head: true })
-          .eq("sede_id", user.sede_id!)
-          .eq("estado", "pendiente")
-          .then(({ count }) => {
-            if (count !== null) setValidacionesCount(count);
-          });
+      }, refetchCount)
+      .on("broadcast", { event: "NEW_VALIDACION" }, (payload) => {
+        if (!payload.payload?.sede_id || payload.payload?.sede_id === user.sede_id) {
+          refetchCount();
+        }
       })
-      .subscribe((status) => {
-        console.log("[Sidebar] Realtime status:", status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);

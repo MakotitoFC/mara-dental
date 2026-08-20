@@ -198,7 +198,7 @@ export function HistoriaView({
       if (opts.consultaId == null) params.delete("consulta");
       else params.set("consulta", String(opts.consultaId));
     }
-    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
   function handleReanudarConsulta(idToResume: string) {

@@ -28,8 +28,10 @@ export async function generarCuotasAction(data: {
     return { error: "No se pudieron generar las cuotas" };
   }
 
+  // Eliminamos revalidatePath("/pagos") porque el estado local (React) ahora se encarga
+  // de mostrar las cuotas inmediatamente sin hacer esperar al servidor 3 segundos.
+  // Solo revalidamos la ficha del paciente en 2do plano.
   revalidatePath(`/pacientes/${data.paciente_id}`);
-  revalidatePath("/pagos");
   return { success: true };
 }
 
@@ -111,38 +113,141 @@ export async function solicitarValidacionAction(referenciaId: string, tipoAccion
     return { error: "Error al crear la solicitud" };
   }
 
-  // Obtenemos el nombre para el broadcast
-  const { data: per } = await supabase.from("personal").select("nombre, apellido").eq("usuario_id", user.id).maybeSingle();
-  const nombre = per?.nombre || "Usuario";
-  const apellido = per?.apellido || "Desconocido";
+  const adminClient = getAdminClient();
 
-  // Fallback: Disparamos un evento de broadcast
-  try {
-    const adminClient = await getAdminClient();
-    const channel = adminClient.channel("validaciones_view");
-    channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.send({
-          type: "broadcast",
-          event: "NEW_VALIDACION",
-          payload: {
-            id: newRow.id,
-            sede_id: usr.sede_id,
-            solicitante_id: user.id,
-            tipo_accion: tipoAccion,
-            referencia_id: referenciaId,
-            estado: "pendiente",
-            fecha_solicitud: newRow.fecha_solicitud,
-            solicitante_nombre: nombre,
-            solicitante_apellido: apellido
+  // Obtenemos el nombre para el broadcast y la notificación usando adminClient
+  const { data: per } = await adminClient.from("personal").select("nombre, apellido").eq("usuario_id", user.id).maybeSingle();
+  const nombre = per?.nombre || "Personal";
+  const apellido = per?.apellido || "";
+
+  // Generar notificaciones para los admins
+  const { data: admins } = await adminClient.from("usuarios").select("id, rol(rol)").eq("sede_id", usr.sede_id);
+  const adminIds = admins?.filter((a: any) => {
+    const r = Array.isArray(a.rol) ? a.rol[0] : a.rol;
+    return r?.rol === "admin" || r?.rol === "superadmin";
+  }).map(a => a.id) || [];
+
+  if (adminIds.length > 0) {
+    const notifs = adminIds.map(aid => ({
+      destinatario_id: aid,
+      generado_por_id: user.id,
+      titulo: "Nueva Validación Pendiente",
+      mensaje: `${nombre} ${apellido}`.trim() + ` solicitó autorización para: ${tipoAccion === "eliminar_cuotas" ? "Eliminar Cuotas" : tipoAccion}.`,
+      link: "/admin/validaciones"
+    }));
+    await adminClient.from("notificaciones").insert(notifs);
+    
+    // Broadcast confiable para las notificaciones del header
+    try {
+      const channel = adminClient.channel("header_alerts_messages");
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          resolve();
+        }, 1000);
+
+        channel.subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            try {
+              for (const aid of adminIds) {
+                await channel.send({ type: "broadcast", event: "NEW_NOTIFICACION", payload: { destinatario_id: aid } });
+              }
+            } catch (e) {}
+            setTimeout(() => {
+              clearTimeout(timer);
+              resolve();
+            }, 300);
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            clearTimeout(timer);
+            resolve();
           }
         });
-        setTimeout(() => adminClient.removeChannel(channel), 1000);
-      }
-    });
-  } catch (e) {
-    console.error("Broadcast failed:", e);
+      });
+    } catch (e) {}
   }
+
+  // Obtener info detallada del presupuesto para el broadcast de la vista de validaciones
+  let presupuestoInfo: any = null;
+  if (tipoAccion === "eliminar_cuotas") {
+    const { data: p } = await adminClient
+      .from("presupuestos")
+      .select(`
+        id, total_bruto, descuento_monto,
+        pacientes ( nombre, apellido, dni ),
+        detalle_presupuesto ( catalogo_tratamientos ( nombre, moneda ) ),
+        cuotas ( id, numero_cuota, monto, fecha_vencimiento, estado, movimiento_caja_id )
+      `)
+      .eq("id", referenciaId)
+      .maybeSingle();
+
+    if (p) {
+      const pacRaw = (p as any).pacientes;
+      const pac = Array.isArray(pacRaw) ? pacRaw[0] : pacRaw;
+      const detalles = Array.isArray(p.detalle_presupuesto) ? p.detalle_presupuesto : (p.detalle_presupuesto ? [p.detalle_presupuesto] : []);
+      const tratamientos = detalles
+        .map((d: any) => (Array.isArray(d.catalogo_tratamientos) ? d.catalogo_tratamientos[0] : d.catalogo_tratamientos)?.nombre)
+        .filter(Boolean);
+      const primerCat = (detalles[0] as any)?.catalogo_tratamientos;
+      const moneda = (Array.isArray(primerCat) ? primerCat[0]?.moneda : primerCat?.moneda) || "PEN";
+      const totalNeto = Number(p.total_bruto) - Number(p.descuento_monto || 0);
+
+      const cuotasList = (p.cuotas || []).sort((a: any, b: any) => a.numero_cuota - b.numero_cuota);
+      const cuotasPagadas = cuotasList.filter((c: any) => c.movimiento_caja_id != null || c.estado === "pagado");
+      const montoPagado = cuotasPagadas.reduce((acc: number, c: any) => acc + Number(c.monto), 0);
+
+      presupuestoInfo = {
+        paciente_nombre: pac ? `${pac.nombre ?? ""} ${pac.apellido ?? ""}`.trim() : "Paciente no especificado",
+        paciente_dni: pac?.dni ?? null,
+        tratamiento: tratamientos.slice(0, 2).join(" + ") || "Tratamiento",
+        total_neto: totalNeto,
+        moneda,
+        cuotas: cuotasList,
+        cuotas_total: cuotasList.length,
+        cuotas_pagadas_count: cuotasPagadas.length,
+        monto_pagado: montoPagado,
+        tiene_pagos: cuotasPagadas.length > 0,
+      };
+    }
+  }
+
+  // Broadcast confiable para validaciones_view
+  try {
+    const adminClient2 = getAdminClient();
+    const channel2 = adminClient2.channel("validaciones_view");
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        resolve();
+      }, 1000);
+
+      channel2.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          try {
+            await channel2.send({
+              type: "broadcast",
+              event: "NEW_VALIDACION",
+              payload: {
+                id: newRow.id,
+                sede_id: usr.sede_id,
+                solicitante_id: user.id,
+                tipo_accion: tipoAccion,
+                referencia_id: referenciaId,
+                estado: "pendiente",
+                fecha_solicitud: newRow.fecha_solicitud,
+                solicitante: { nombre, apellido },
+                presupuesto_info: presupuestoInfo
+              }
+            });
+          } catch (e) {}
+          setTimeout(() => {
+            clearTimeout(timer);
+            resolve();
+          }, 300);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+  } catch (e) {}
 
   return { success: true };
 }

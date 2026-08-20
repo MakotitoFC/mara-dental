@@ -3,19 +3,22 @@
 import { createClient } from "@/lib/supabase/server";
 
 function calcularEdad(fechaNacimiento: string): number {
+  if (!fechaNacimiento) return 0;
   const hoy = new Date();
   const nacimiento = new Date(fechaNacimiento + "T00:00:00");
+  if (isNaN(nacimiento.getTime())) return 0;
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
   const m = hoy.getMonth() - nacimiento.getMonth();
   if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
   return edad;
 }
 
-/** Días calendario hasta el próximo cumpleaños (0 = hoy, maneja el corte de año). */
 function diasHastaCumple(fechaNacimiento: string, hoy: Date): number | null {
-  const [, mesStr, diaStr] = fechaNacimiento.split("-");
-  const mes = Number(mesStr), dia = Number(diaStr);
-  if (!mes || !dia) return null;
+  if (!fechaNacimiento) return null;
+  const parts = fechaNacimiento.split("-");
+  if (parts.length < 3) return null;
+  const mes = Number(parts[1]), dia = Number(parts[2]);
+  if (!mes || !dia || isNaN(mes) || isNaN(dia)) return null;
   const año = hoy.getFullYear();
   let proximo = new Date(año, mes - 1, dia);
   const hoySinHora = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
@@ -23,7 +26,7 @@ function diasHastaCumple(fechaNacimiento: string, hoy: Date): number | null {
   return Math.round((proximo.getTime() - hoySinHora.getTime()) / 86400000);
 }
 
-const EMPTY = { citasProximas: [], cumpleanos: [], alergias: [], tratamientosPendientes: [], mensajesNoLeidos: [] };
+const EMPTY = { citasProximas: [], cumpleanos: [], alergias: [], tratamientosPendientes: [], mensajesNoLeidos: [], notificacionesSistema: [] };
 
 export interface AlertaCitaProxima {
   id: string;
@@ -62,12 +65,21 @@ export interface AlertaMensaje {
   cantidad: number;
 }
 
+export interface AlertaNotificacion {
+  id: string;
+  titulo: string;
+  mensaje: string;
+  link?: string;
+  created_at: string;
+}
+
 export interface AlertasData {
   citasProximas: AlertaCitaProxima[];
   cumpleanos: AlertaCumpleanos[];
   alergias: AlertaAlergias[];
   tratamientosPendientes: AlertaTratamiento[];
   mensajesNoLeidos?: AlertaMensaje[];
+  notificacionesSistema?: AlertaNotificacion[];
 }
 
 function fmtHoraCita(fecha: string, horaInicio: string) {
@@ -276,5 +288,24 @@ export async function getAlertasAction(): Promise<AlertasData> {
     id: `msg-${m.pacienteId}-${m.cantidad}`
   }));
 
-  return { citasProximas, cumpleanos, alergias, tratamientosPendientes: tratamientosPendientes.slice(0, 8), mensajesNoLeidos };
+  const { data: notifData } = await supabase
+    .from("notificaciones")
+    .select("id, titulo, mensaje, link, created_at")
+    .eq("destinatario_id", user.id)
+    .eq("leido", false)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const notificacionesSistema: AlertaNotificacion[] = notifData || [];
+
+  return { citasProximas, cumpleanos, alergias, tratamientosPendientes: tratamientosPendientes.slice(0, 8), mensajesNoLeidos, notificacionesSistema };
+}
+
+export async function markNotificacionLeidaAction(id: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  await supabase.from("notificaciones").update({ leido: true }).eq("id", id).eq("destinatario_id", user.id);
+  return { success: true };
 }
