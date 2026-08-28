@@ -300,7 +300,7 @@ function TimelineNode({
   consulta: any; isLast: boolean; active: boolean; onSelect: () => void; onNavigateTab?: (tab: TabNav) => void;
 }) {
   const { getVars } = useTipoConsultaVars();
-  const vars = getVars(c.tipo_consulta_id); // Se usa tipo_consulta_id para obtener los colores
+  const vars = getVars(c.tipo_consulta_id || c.motivo_id);
   const diagCount = c.diagnosticos?.length || 0;
   const presuCount = c.presupuestos?.length || 0;
   const archivosCount = c.archivos?.length || 0;

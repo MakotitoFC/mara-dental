@@ -385,7 +385,7 @@ export async function getHistorialConsultasAction(
   let consultasQuery = supabase
     .from("consultas")
     .select(`
-      id, nota_clinica_id, fecha_consulta, motivo, observaciones, examen_fisico,
+      id, nota_clinica_id, tipo_consulta_id, fecha_consulta, motivo, observaciones, examen_fisico,
       usuarios ( personal ( nombre, apellido, url_firma_digital, especialidad ( especialidad ) ) ),
       recomendacion ( id, contenido ),
       diagnostico!consulta_origen_id (
@@ -537,6 +537,7 @@ export async function getHistorialConsultasAction(
     return {
       id: String(c.id),
       nota_clinica_id: String(c.nota_clinica_id),
+      tipo_consulta_id: c.tipo_consulta_id,
       fecha: c.fecha_consulta,
       motivo: c.motivo || "Consulta",
       observaciones: c.observaciones || "",

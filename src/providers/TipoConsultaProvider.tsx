@@ -43,8 +43,9 @@ export function useTipoConsulta() {
 export function useTipoConsultaVars() {
   const { tipos } = useTipoConsulta();
 
-  const getVars = (id: string | null) => {
-    const tipo = tipos.find(t => t.id === id);
+  const getVars = (id: string | number | null | undefined) => {
+    if (id == null) return { solid: "#94a3b8", bg: "#94a3b826", text: "#94a3b8", label: "Desconocido" };
+    const tipo = tipos.find(t => String(t.id) === String(id));
     const hex = tipo?.color || "#94a3b8"; 
     
     // Convertir hex a variables (15% opacity -> 26)
