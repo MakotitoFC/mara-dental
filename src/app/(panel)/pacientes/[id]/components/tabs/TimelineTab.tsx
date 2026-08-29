@@ -61,6 +61,24 @@ export function TimelineTab({
   const [estadoOverrides, setEstadoOverrides] = useState<Record<string, string>>({});
   const toast = useToast();
 
+  // Acordeón de casos clínicos — el caso activo (estado distinto de "De
+  // Alta") empieza abierto; los dados de alta empiezan cerrados. Solo se
+  // guarda acá lo que el usuario tocó a mano (colapsar/expandir); mientras
+  // un caso no esté en este mapa, su estado por defecto se deriva en cada
+  // render a partir de `caso.estado` (ver `isCasoOpen`) — así un caso nuevo
+  // que aparezca tras recargar también nace con el criterio correcto, sin
+  // necesitar un efecto aparte.
+  const [casoOpenOverrides, setCasoOpenOverrides] = useState<Record<string, boolean>>({});
+  function isCasoOpen(caso: any): boolean {
+    const override = casoOpenOverrides[caso.id];
+    if (override !== undefined) return override;
+    const estado = estadoOverrides[caso.id] ?? caso.estado ?? "En Consulta";
+    return estado !== "De Alta";
+  }
+  function toggleCaso(caso: any) {
+    setCasoOpenOverrides((prev) => ({ ...prev, [caso.id]: !isCasoOpen(caso) }));
+  }
+
   // Seleccionar la consulta. Usamos el historial plano solo para tener una base rápida si es necesario.
   const [selectedId, setSelectedId] = useState<string | null>(historial?.[0]?.id ?? null);
   
@@ -156,23 +174,38 @@ export function TimelineTab({
               los casos separados por líneas grises (mismo patrón que
               Configuración), a todo el ancho y alto disponibles. */}
           <div className="flex-1 min-w-0 lg:max-w-200 flex flex-col divide-y divide-slate-200 lg:h-full lg:min-h-0 lg:overflow-y-auto no-scrollbar">
-            {casos.map((caso: any) => (
+            {casos.map((caso: any) => {
+              const open = isCasoOpen(caso);
+              return (
               <div key={caso.id} className="p-3 sm:p-4 md:p-6">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
+                {/* Cabecera del acordeón — div clickeable (no <button>: el
+                    Select de estado, adentro, ya es interactivo, y anidar un
+                    <button> dentro de otro no es HTML válido). Su propio
+                    clic no debe togglear el caso. */}
+                <div
+                  onClick={() => toggleCaso(caso)}
+ className="w-full flex justify-between items-start gap-2 mb-2 cursor-pointer select-none"
+                >
+ <div className="flex items-start gap-2 min-w-0">
+ <Icon name={open ? "expand_more" : "chevron_right"} size={18} className="text-slate-400 shrink-0 mt-0.5"/>
+ <div className="min-w-0">
  <h4 className="text-[13px] font-bold text-slate-800 mb-0.5">
-                      {caso.motivo_consulta || "Caso sin motivo principal"}
-                    </h4>
-                    <p className="text-[11px] text-slate-500">Iniciado el: {fmtFull(caso.created_at)}</p>
+                        {caso.motivo_consulta || "Caso sin motivo principal"}
+                      </h4>
+                      <p className="text-[11px] text-slate-500">Iniciado el: {fmtFull(caso.created_at)}</p>
+                    </div>
                   </div>
-                  <Select
-                    className="w-40 shrink-0"
-                    value={estadoOverrides[caso.id] ?? caso.estado ?? "En Consulta"}
-                    onChange={(v) => handleCambiarEstado(caso.id, v)}
-                    options={ESTADO_CASO_OPTIONS}
-                  />
+ <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Select
+                      className="w-40"
+                      value={estadoOverrides[caso.id] ?? caso.estado ?? "En Consulta"}
+                      onChange={(v) => handleCambiarEstado(caso.id, v)}
+                      options={ESTADO_CASO_OPTIONS}
+                    />
+                  </div>
                 </div>
 
+                {open && (
                 <div className="pl-2">
                   {caso.consultas.length === 0 ? (
                     <p className="text-[12px] text-slate-400 italic">Sin consultas en este caso.</p>
@@ -200,8 +233,10 @@ export function TimelineTab({
                     </motion.div>
                   )}
                 </div>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Columna derecha — panel de detalle, tamaño fijo con su propio

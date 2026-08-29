@@ -1007,15 +1007,22 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
     );
   }
 
-  // --- VISTA ADMIN / SUPERADMIN ---
+  // --- VISTA ADMIN / SUPERADMIN (y roles genéricos como contador, sin
+  // SECCIÓN 2 de sede) ---
+  // Sin esAdminOrSuperadmin no hay SECCIÓN 2 (sede) — la página quedaría con
+  // la tarjeta de "Información Personal" pegada arriba y un vacío enorme
+  // debajo. Se corrige centrando la tarjeta (con su propio ancho máximo,
+  // borde y margen respecto al borde de la pantalla) en el espacio
+  // disponible, en cualquier tamaño de pantalla. Con SECCIÓN 2
+  // (admin/superadmin) se mantiene el layout de siempre, a todo el ancho.
   return (
-    <div className="flex flex-col gap-6">
-      
+    <div className={esAdminOrSuperadmin ? "flex flex-col gap-6" : "flex flex-col gap-6 h-full items-center justify-center px-4 sm:px-6"}>
+
       {/* SECCIONES 1 y 2: unificadas en una sola hoja/card blanca continua —
           antes eran dos cards independientes con gap-6 entre sí; ahora
           comparten un único contenedor bg-white/border/shadow y se separan
           con un border-t entre ambas (ver SECCIÓN 2 más abajo). */}
-      <div className="bg-white">
+      <div className={esAdminOrSuperadmin ? "bg-white" : "bg-white rounded-2xl border border-slate-200 shadow-sm w-full max-w-2xl"}>
       {/* SECCIÓN 1: DATOS PERSONALES */}
  <div className="p-5">
  <div className="flex items-center justify-between gap-3 mb-4">

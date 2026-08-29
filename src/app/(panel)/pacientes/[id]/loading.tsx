@@ -1,7 +1,7 @@
 import { Header } from "@/components/layout/Header";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-const TABS = ["Info", "Timeline", "Dental", "Diagnóstico", "Archivos", "Recetas", "Presup."];
+const TABS = ["Info", "Timeline", "Dental", "Diagnóstico", "Archivos", "Presup.", "Chat"];
 
 export default function LoadingPaciente() {
   return (
@@ -52,7 +52,7 @@ export default function LoadingPaciente() {
               </div>
             </div>
             <div className="flex flex-col gap-4 w-full lg:flex-1 lg:min-w-0 lg:max-w-md">
-              {Array.from({ length: 3 }).map((_, i) => (
+              {Array.from({ length: 4 }).map((_, i) => (
  <div key={i} className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-col gap-2.5">
                   <Skeleton className="h-3.5 w-24" />
                   <Skeleton className="h-3 w-full" />
