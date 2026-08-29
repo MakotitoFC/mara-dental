@@ -194,7 +194,7 @@ export default function ComprobantesPage() {
                           </div>
                           <div className="min-w-0">
                             <p className="font-bold text-slate-800 truncate">{getComprobanteNombre(t.tipo_comprobante)}</p>
-                            <p className="text-[12px] font-mono text-slate-500">{t.serie}-{t.numero}</p>
+                            <p className="text-[12px] font-mono text-slate-500">{t.serie || t.numero ? `${t.serie || ''}-${t.numero || ''}` : "N/N"}</p>
                           </div>
                         </div>
                       </td>
@@ -330,7 +330,7 @@ export default function ComprobantesPage() {
                         <Icon name="receipt_long" size={18} />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-bold text-[13px] text-slate-800 truncate">{getComprobanteNombre(t.tipo_comprobante)} {t.serie}-{t.numero}</p>
+                        <p className="font-bold text-[13px] text-slate-800 truncate">{getComprobanteNombre(t.tipo_comprobante)} {t.serie || t.numero ? `${t.serie || ''}-${t.numero || ''}` : "N/N"}</p>
                         <p className="text-[12px] text-slate-500 truncate">{clienteInfo.nombre}</p>
                       </div>
                     </div>
@@ -396,7 +396,7 @@ export default function ComprobantesPage() {
         {selectedComprobante && (
           <ResponsiveSheet
             onClose={() => setSelectedComprobante(null)}
-            title={`Detalle de ${getComprobanteNombre(selectedComprobante.tipo_comprobante)} ${selectedComprobante.serie}-${selectedComprobante.numero}`}
+            title={`Detalle de ${getComprobanteNombre(selectedComprobante.tipo_comprobante)} ${selectedComprobante.serie || selectedComprobante.numero ? `${selectedComprobante.serie || ''}-${selectedComprobante.numero || ''}` : 'N/N'}`}
             footer={
               <div className="flex items-center justify-end gap-3">
                 <button
