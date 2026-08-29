@@ -231,6 +231,92 @@ export async function enviarVoucherPagoAction(pacienteId: string, chatId: string
   return { success: true };
 }
 
+/** Arma un `PresupuestoPendiente` a partir de la fila cruda de Supabase
+ * (presupuesto + paciente + detalle + movimientos + cuotas) — compartido
+ * entre la búsqueda por nombre/DNI y el listado completo de la sede.
+ * Devuelve null si no corresponde incluirlo (sin saldo pendiente ni pagado). */
+function mapPresupuestoPendiente(p: any, pac: { id: string | number; nombre: string; apellido: string; dni: string | null; telegram_chat_id: string | null }): PresupuestoPendiente | null {
+  const totalNeto = Number(p.total_bruto) - Number(p.descuento_monto || 0);
+  const pagosHechos = (p.movimiento_caja || []).filter((pg: any) => pg.estado === "confirmado");
+  const pagado = pagosHechos.reduce((acc: number, pg: any) => acc + Number(pg.monto), 0);
+
+  const detalles = Array.isArray(p.detalle_presupuesto) ? p.detalle_presupuesto : (p.detalle_presupuesto ? [p.detalle_presupuesto] : []);
+  const nombresTratamiento = detalles
+    .map((d: any) => { const c = Array.isArray(d.catalogo_tratamientos) ? d.catalogo_tratamientos[0] : d.catalogo_tratamientos; return c?.nombre; })
+    .filter(Boolean);
+  const primeraMoneda = (() => {
+    const d = detalles[0];
+    const c = d ? (Array.isArray(d.catalogo_tratamientos) ? d.catalogo_tratamientos[0] : d.catalogo_tratamientos) : null;
+    return c?.moneda || "PEN";
+  })();
+
+  const saldo = Math.max(0, totalNeto - pagado);
+  const esPagado = p.estado === "pagado" || (saldo <= 0.009 && pagado > 0);
+
+  if (saldo <= 0.009 && !esPagado) return null;
+
+  return {
+    id: String(p.id),
+    paciente_id: String(pac.id),
+    paciente_nombre: `${pac.nombre ?? ""} ${pac.apellido ?? ""}`.trim(),
+    paciente_documento: pac.dni ?? null,
+    telegram_chat_id: pac.telegram_chat_id ?? null,
+    fecha_emision: p.fecha_emision,
+    estado: p.estado,
+    esPagado,
+    tratamiento: nombresTratamiento.slice(0, 2).join(" + ") || "Tratamiento",
+    total_neto: totalNeto,
+    pagado,
+    saldo: esPagado ? 0 : saldo,
+    moneda: primeraMoneda,
+    cuotas: (p.cuotas || []).sort((a: any, b: any) => a.numero_cuota - b.numero_cuota),
+  };
+}
+
+/** Todos los presupuestos con saldo pendiente (o recién pagados, para poder
+ * solicitar devolución) de la sede del usuario — usado para la vista por
+ * defecto de "Pendientes de Cobro" (sin necesidad de buscar primero). */
+export async function getPendientesCobroSedeAction(): Promise<PresupuestoPendiente[]> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: usr } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
+  if (!usr?.sede_id) return [];
+
+  const adminClient = getAdminClient();
+
+  const { data: presupuestos, error } = await adminClient
+    .from("presupuestos")
+    .select(`
+      id, fecha_emision, total_bruto, descuento_monto, estado, paciente_id,
+      pacientes!inner ( id, nombre, apellido, dni, telegram_chat_id, sede_id, activo ),
+      detalle_presupuesto ( id, catalogo_tratamientos ( nombre, moneda ) ),
+      movimiento_caja ( id, monto, estado, fecha, medio_pago_id, medio_pago ( nombre ) ),
+      cuotas ( id, numero_cuota, monto, fecha_vencimiento, estado, movimiento_caja_id )
+    `)
+    .eq("pacientes.sede_id", usr.sede_id)
+    .eq("pacientes.activo", true)
+    .in("estado", ["aprobado", "pagado"])
+    .order("fecha_emision", { ascending: false });
+
+  if (error) {
+    console.error("Error obteniendo pendientes de cobro:", error.message);
+    return [];
+  }
+
+  const pendientes: PresupuestoPendiente[] = [];
+  for (const p of presupuestos || []) {
+    const pacRaw = (p as any).pacientes;
+    const pac = Array.isArray(pacRaw) ? pacRaw[0] : pacRaw;
+    if (!pac) continue;
+    const item = mapPresupuestoPendiente(p, pac);
+    if (item) pendientes.push(item);
+  }
+
+  return pendientes;
+}
+
 export async function buscarPresupuestosPendientesAction(query: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -284,46 +370,10 @@ export async function buscarPresupuestosPendientesAction(query: string) {
   const pendientes: PresupuestoPendiente[] = [];
 
   for (const p of presupuestos || []) {
-    const pacienteId = String(p.paciente_id);
-    const pac = pacienteMap.get(pacienteId);
+    const pac = pacienteMap.get(String(p.paciente_id));
     if (!pac) continue;
-
-    const totalNeto = Number(p.total_bruto) - Number(p.descuento_monto || 0);
-    const pagosHechos = (p.movimiento_caja || []).filter((pg: any) => pg.estado === "confirmado");
-    const pagado = pagosHechos.reduce((acc: number, pg: any) => acc + Number(pg.monto), 0);
-
-    const detalles = Array.isArray(p.detalle_presupuesto) ? p.detalle_presupuesto : (p.detalle_presupuesto ? [p.detalle_presupuesto] : []);
-    const nombresTratamiento = detalles
-      .map((d: any) => { const c = Array.isArray(d.catalogo_tratamientos) ? d.catalogo_tratamientos[0] : d.catalogo_tratamientos; return c?.nombre; })
-      .filter(Boolean);
-    const primeraMoneda = (() => {
-      const d = detalles[0];
-      const c = d ? (Array.isArray(d.catalogo_tratamientos) ? d.catalogo_tratamientos[0] : d.catalogo_tratamientos) : null;
-      return c?.moneda || "PEN";
-    })();
-
-    const saldo = Math.max(0, totalNeto - pagado);
-    const esPagado = p.estado === "pagado" || (saldo <= 0.009 && pagado > 0);
-
-    // Incluir presupuestos con saldo pendiente (aprobados) O totalmente pagados (para solicitar devolución)
-    if (saldo > 0.009 || esPagado) {
-      pendientes.push({
-        id: String(p.id),
-        paciente_id: pacienteId,
-        paciente_nombre: `${pac.nombre ?? ""} ${pac.apellido ?? ""}`.trim(),
-        paciente_documento: pac.dni ?? null,
-        telegram_chat_id: pac.telegram_chat_id ?? null,
-        fecha_emision: p.fecha_emision,
-        estado: p.estado,
-        esPagado: esPagado,
-        tratamiento: nombresTratamiento.slice(0, 2).join(" + ") || "Tratamiento",
-        total_neto: totalNeto,
-        pagado,
-        saldo: esPagado ? 0 : saldo,
-        moneda: primeraMoneda,
-        cuotas: (p.cuotas || []).sort((a: any, b: any) => a.numero_cuota - b.numero_cuota),
-      });
-    }
+    const item = mapPresupuestoPendiente(p, pac);
+    if (item) pendientes.push(item);
   }
 
   return pendientes;

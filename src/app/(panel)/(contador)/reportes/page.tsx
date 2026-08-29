@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
 import { Header } from "@/components/layout/Header";
-import { getReporteFinancieroAction } from "../contador.actions";
+import { DatePicker } from "@/components/ui/DatePicker";
+import { getReporteFinancieroAction, getResumenReporteAction } from "../contador.actions";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import ExcelJS from "exceljs";
@@ -17,6 +18,22 @@ export default function ReportesPage() {
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Resumen liviano (conteos/sumas reales) del rango seleccionado — para las
+  // 3 tarjetas de KPI arriba del generador.
+  const [resumen, setResumen] = useState<{ movimientos: number; montoTotal: number; comprobantes: number } | null>(null);
+  const [loadingResumen, setLoadingResumen] = useState(false);
+
+  useEffect(() => {
+    if (!startDate || !endDate) return;
+    let isActive = true;
+    setLoadingResumen(true);
+    getResumenReporteAction(startDate, endDate)
+      .then((res) => { if (isActive) setResumen(res); })
+      .catch(() => { if (isActive) setResumen(null); })
+      .finally(() => { if (isActive) setLoadingResumen(false); });
+    return () => { isActive = false; };
+  }, [startDate, endDate]);
 
   function setRango(tipo: 'hoy' | 'semana' | 'mes') {
     const today = new Date();
@@ -31,6 +48,19 @@ export default function ReportesPage() {
       setEndDate(format(endOfMonth(today), "yyyy-MM-dd"));
     }
   }
+
+  // Qué preset (si alguno) corresponde al rango actualmente seleccionado —
+  // para pintar su tag en cian, mismo patrón que Dashboard Directivo.
+  const today = new Date();
+  const todayStr = format(today, "yyyy-MM-dd");
+  const weekAgoStr = format(subDays(today, 7), "yyyy-MM-dd");
+  const monthStartStr = format(startOfMonth(today), "yyyy-MM-dd");
+  const monthEndStr = format(endOfMonth(today), "yyyy-MM-dd");
+  const activeRango: 'hoy' | 'semana' | 'mes' | null =
+    startDate === todayStr && endDate === todayStr ? 'hoy'
+    : startDate === weekAgoStr && endDate === todayStr ? 'semana'
+    : startDate === monthStartStr && endDate === monthEndStr ? 'mes'
+    : null;
 
   async function handleGenerateExcel() {
     if (!startDate || !endDate) {
@@ -298,73 +328,100 @@ export default function ReportesPage() {
   return (
     <>
       <Header title="Generador de Reportes" />
-      <main className="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6 md:p-8 no-scrollbar">
-        <div className="max-w-3xl mx-auto space-y-6 md:space-y-8">
-          
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold text-slate-800">Exportar Reportes Financieros</h1>
-            <p className="text-[13px] md:text-sm text-slate-500">Genera reportes en Excel con hojas de datos crudos (RAW) y vistas estéticas.</p>
+      <div className="flex flex-col flex-1 min-h-0 bg-slate-50">
+        <header className="shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6 py-4 sm:py-6 bg-white border-b border-slate-200">
+          <div className="min-w-0">
+            <h1 className="text-[15px] md:text-base font-bold text-slate-800">Exportar Reportes Financieros</h1>
+            <p className="hidden sm:block text-[13px] md:text-sm text-slate-500 mt-0.5">Genera reportes en Excel con hojas de datos crudos (RAW) y vistas estéticas.</p>
+          </div>
+          <button
+            onClick={handleGenerateExcel}
+            disabled={isGenerating}
+            className="shrink-0 flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors"
+          >
+            {isGenerating ? (
+              <Icon name="hourglass_empty" size={16} className="animate-spin" />
+            ) : (
+              <Icon name="download" size={16} />
+            )}
+            <span>{isGenerating ? "Generando…" : "Excel"}</span>
+          </button>
+        </header>
+
+        <main className="flex-1 overflow-y-auto no-scrollbar">
+          {/* KPIs reales del rango seleccionado — mismo diseño de card que
+              "Resumen Financiero" del Dashboard. */}
+          <div className="grid grid-cols-3 gap-3 px-4 sm:px-6 py-5 bg-white border-b border-slate-200">
+            <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex flex-col justify-between">
+              <span className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Movimientos</span>
+              <span className="text-[18px] md:text-[20px] font-semibold font-mono text-slate-900 truncate">
+                {loadingResumen ? "…" : (resumen?.movimientos ?? 0)}
+              </span>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex flex-col justify-between">
+              <span className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Monto Total</span>
+              <span className="text-[18px] md:text-[20px] font-semibold font-mono text-slate-900 truncate">
+                {loadingResumen ? "…" : `S/ ${(resumen?.montoTotal ?? 0).toFixed(2)}`}
+              </span>
+            </div>
+            <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex flex-col justify-between">
+              <span className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Comprobantes</span>
+              <span className="text-[18px] md:text-[20px] font-semibold font-mono text-slate-900 truncate">
+                {loadingResumen ? "…" : (resumen?.comprobantes ?? 0)}
+              </span>
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-8 flex flex-col gap-6">
-            <div className="flex flex-col gap-4">
-              <h2 className="text-[15px] font-bold text-slate-800">Rango de Fechas</h2>
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                <button onClick={() => setRango('hoy')} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[12px] font-semibold transition-colors">Hoy</button>
-                <button onClick={() => setRango('semana')} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[12px] font-semibold transition-colors">Última Semana</button>
-                <button onClick={() => setRango('mes')} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[12px] font-semibold transition-colors">Mes Actual</button>
+          {/* Rango de Fechas — sin card propia, ancho completo. */}
+          <div className="px-4 sm:px-6 py-5 bg-white border-b border-slate-200 flex flex-col gap-4">
+            <h2 className="text-[14px] font-bold text-slate-800">Rango de Fechas</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { key: "hoy" as const, label: "Hoy" },
+                { key: "semana" as const, label: "Última Semana" },
+                { key: "mes" as const, label: "Mes Actual" },
+              ].map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => setRango(r.key)}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+                    activeRango === r.key ? "bg-cyan-600 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-500 mb-1">Fecha Inicio</label>
+                <DatePicker value={startDate} onChange={setStartDate} />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[12px] font-semibold text-slate-500 mb-1">Fecha Inicio</label>
-                  <input 
-                    type="date" 
-                    value={startDate} 
-                    onChange={e => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[14px] text-slate-800 focus:border-cyan-500 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[12px] font-semibold text-slate-500 mb-1">Fecha Fin</label>
-                  <input 
-                    type="date" 
-                    value={endDate} 
-                    onChange={e => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[14px] text-slate-800 focus:border-cyan-500 transition-colors"
-                  />
+              <div>
+                <label className="block text-[12px] font-semibold text-slate-500 mb-1">Fecha Fin</label>
+                <DatePicker value={endDate} onChange={setEndDate} />
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-6 md:p-8">
+            <div className="max-w-3xl mx-auto">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 md:p-8 flex flex-col gap-4">
+                <h2 className="text-[15px] font-bold text-slate-800">Formatos Disponibles</h2>
+                <div className="p-4 border-2 border-cyan-100 bg-cyan-50/50 rounded-2xl flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0 border border-cyan-100 text-cyan-600 shadow-sm">
+                    <Icon name="description" size={28} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-slate-800 text-[14px]">Reporte Financiero Consolidado</h3>
+                    <p className="text-[13px] text-slate-600 mt-1">Archivo Excel (.xlsx) que incluye un tablero estético resumen y múltiples pestañas RAW (Movimientos y Comprobantes) con filtros pre-configurados.</p>
+                  </div>
                 </div>
               </div>
             </div>
-
-            <div className="pt-6 border-t border-slate-100 flex flex-col gap-4">
-              <h2 className="text-[15px] font-bold text-slate-800">Formatos Disponibles</h2>
-              
-              <div className="p-4 border-2 border-cyan-100 bg-cyan-50/50 rounded-2xl flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0 border border-cyan-100 text-cyan-600 shadow-sm">
-                  <Icon name="description" size={28} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-slate-800 text-[14px]">Reporte Financiero Consolidado</h3>
-                  <p className="text-[13px] text-slate-600 mt-1">Archivo Excel (.xlsx) que incluye un tablero estético resumen y múltiples pestañas RAW (Movimientos y Comprobantes) con filtros pre-configurados.</p>
-                  <button 
-                    onClick={handleGenerateExcel}
-                    disabled={isGenerating}
-                    className="mt-4 w-full sm:w-auto px-6 py-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-[14px] font-bold shadow-sm flex items-center justify-center gap-2 transition-colors"
-                  >
-                    {isGenerating ? (
-                      <>Generando... <Icon name="hourglass_empty" size={18} className="animate-spin" /></>
-                    ) : (
-                      <>Descargar Excel <Icon name="download" size={18} /></>
-                    )}
-                  </button>
-                </div>
-              </div>
-              
-            </div>
           </div>
-          
-        </div>
-      </main>
+        </main>
+      </div>
     </>
   );
 }

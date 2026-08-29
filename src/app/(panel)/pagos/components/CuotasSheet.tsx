@@ -146,22 +146,15 @@ export function CuotasSheet({
     <ResponsiveSheet
       onClose={onClose}
       title="Gestión de Cuotas"
-      footer={
-        <div className="flex w-full">
-          <button onClick={onClose} className="w-full h-11 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-semibold text-[13px]">
-            Cerrar
-          </button>
-        </div>
-      }
     >
       <div className="flex flex-col gap-4 py-2">
         {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-[12px] font-medium flex items-center gap-2">
+ <div className="p-3 bg-red-50 text-red-600 rounded-xl text-[12px] font-medium flex items-center gap-2">
             <Icon name="warning" size={16} /> {error}
           </div>
         )}
         {info && (
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl text-[12px] font-medium flex items-center gap-2">
+ <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl text-[12px] font-medium flex items-center gap-2">
             <Icon name="check_circle" size={16} /> {info}
           </div>
         )}
@@ -169,7 +162,7 @@ export function CuotasSheet({
         {hasCuotas ? (
           <div className="flex flex-col gap-3">
             <div className="flex justify-between items-center">
-              <h3 className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Cuotas Generadas</h3>
+ <h3 className="text-[13px] font-bold text-slate-800">Cuotas Generadas</h3>
               {!loadingEstado && solicitudEstado?.estado !== "pendiente" && (
                 <button onClick={handleEliminar} disabled={loading} className="text-red-500 hover:text-red-600 text-[12px] font-semibold flex items-center gap-1 disabled:opacity-50">
                   <Icon name="delete" size={14} /> Eliminar Cuotas
@@ -178,13 +171,13 @@ export function CuotasSheet({
             </div>
 
             {!loadingEstado && solicitudEstado?.estado === "pendiente" && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 rounded-xl text-[12px] font-medium flex items-center gap-2">
+ <div className="p-3 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-[12px] font-medium flex items-center gap-2">
                 <Icon name="warning" size={16} /> Solicitud de eliminación pendiente de aprobación.
               </div>
             )}
 
             {!loadingEstado && solicitudEstado?.estado === "rechazada" && (
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl text-[12px] font-medium flex flex-col gap-2">
+ <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-[12px] font-medium flex flex-col gap-2">
                 <div className="flex items-start gap-2">
                   <Icon name="warning" size={16} className="mt-0.5 shrink-0" />
                   <span>El administrador rechazó su solicitud: <strong>{solicitudEstado.comentarios || "Sin comentarios"}</strong></span>
@@ -193,22 +186,22 @@ export function CuotasSheet({
                   <button onClick={handleEliminar} disabled={loading} className="px-3 py-1.5 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
                     Volver a solicitar
                   </button>
-                  <button onClick={() => setSolicitudEstado(null)} disabled={loading} className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-semibold hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 transition-colors">
+ <button onClick={() => setSolicitudEstado(null)} disabled={loading} className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg font-semibold hover:bg-slate-300 disabled:opacity-50 transition-colors">
                     Cancelar
                   </button>
                 </div>
               </div>
             )}
 
-            <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
+ <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
               {existingCuotas.map(c => (
                 <div key={c.id || c.numero_cuota} className="flex justify-between items-center p-3 text-[12.5px]">
                   <div>
-                    <p className="font-semibold text-slate-800 dark:text-slate-200">Cuota {c.numero_cuota}</p>
-                    <p className="text-slate-500 dark:text-slate-400 text-[11px]">Vence: {c.fecha_vencimiento}</p>
+ <p className="font-semibold text-slate-800">Cuota {c.numero_cuota}</p>
+ <p className="text-slate-500 text-[11px]">Vence: {c.fecha_vencimiento}</p>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="font-bold text-slate-900 dark:text-slate-100">{presupuesto.moneda} {c.monto.toFixed(2)}</span>
+ <span className="font-bold text-slate-900">{presupuesto.moneda} {c.monto.toFixed(2)}</span>
                     <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${c.estado === "pagado" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
                       {c.estado}
                     </span>
@@ -219,8 +212,8 @@ export function CuotasSheet({
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="p-3.5 rounded-xl border border-cyan-200 dark:border-cyan-900/50 bg-cyan-50 dark:bg-cyan-900/20">
-              <p className="text-[13px] text-cyan-800 dark:text-cyan-300 font-medium">
+ <div className="p-3.5 rounded-xl border border-cyan-200 bg-cyan-50">
+ <p className="text-[13px] text-cyan-800 font-medium">
                 Saldo a dividir: <span className="font-bold">{presupuesto.moneda} {presupuesto.saldo.toFixed(2)}</span>
               </p>
             </div>
@@ -228,11 +221,11 @@ export function CuotasSheet({
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-semibold text-slate-500 uppercase">Cantidad</label>
-                <input type="number" min="2" max="24" value={numCuotas} onChange={e => setNumCuotas(Number(e.target.value))} className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[13px] dark:bg-slate-900 dark:text-white" />
+ <input type="number" min="2" max="24" value={numCuotas} onChange={e => setNumCuotas(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px]"/>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-semibold text-slate-500 uppercase">Frecuencia</label>
-                <select value={frecuencia} onChange={e => setFrecuencia(e.target.value as any)} className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[13px] dark:bg-slate-900 dark:text-white">
+ <select value={frecuencia} onChange={e => setFrecuencia(e.target.value as any)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px]">
                   <option value="semanal">Semanal</option>
                   <option value="quincenal">Quincenal</option>
                   <option value="mensual">Mensual</option>
@@ -243,7 +236,7 @@ export function CuotasSheet({
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold text-slate-500 uppercase">Inicio de pagos</label>
-              <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[13px] dark:bg-slate-900 dark:text-white" />
+ <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px]"/>
             </div>
 
             <button onClick={handleGenerar} disabled={loading} className="w-full h-11 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 mt-2">

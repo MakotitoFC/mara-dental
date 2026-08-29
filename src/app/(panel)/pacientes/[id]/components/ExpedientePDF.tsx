@@ -20,10 +20,10 @@ Font.register({
 
 const ACCENT = "#0891b2";
 const ACCENT_BG = "#E6F5F7";
-const INK = "#1E293B";
-const MUTED = "#64748B";
-const FAINT = "#94A3B8";
-const LINE = "#E2E8F0";
+const INK = "#212E3D";
+const MUTED = "#5D6D7E";
+const FAINT = "#95A5A6";
+const LINE = "#EDF0F4";
 const RED = "#DC2626";
 const RED_BG = "#FEE2E2";
 const AMBER = "#B45309";
@@ -94,8 +94,8 @@ const styles = StyleSheet.create({
   consultaFecha: { fontSize: 9, fontWeight: 700, color: ACCENT, fontFamily: "JetBrains Mono" },
 
   table: { borderWidth: 1, borderColor: LINE, borderRadius: 4, marginBottom: 8 },
-  tHeadRow: { flexDirection: "row", backgroundColor: "#F8FAFC", borderBottomWidth: 1, borderBottomColor: LINE },
-  tRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  tHeadRow: { flexDirection: "row", backgroundColor: "#F7F8FA", borderBottomWidth: 1, borderBottomColor: LINE },
+  tRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#F1F3F6" },
   tRowLast: { flexDirection: "row" },
   th: { fontSize: 7.5, fontWeight: 700, color: FAINT, textTransform: "uppercase", padding: 5 },
   td: { fontSize: 8.5, color: INK, padding: 5 },
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   toothRow: { flexDirection: "row", marginBottom: 3 },
   toothChip: {
     width: 18, height: 18, borderRadius: 3, borderWidth: 1, borderColor: LINE,
-    alignItems: "center", justifyContent: "center", marginRight: 2, backgroundColor: "#F8FAFC",
+    alignItems: "center", justifyContent: "center", marginRight: 2, backgroundColor: "#F7F8FA",
   },
   toothChipActive: { backgroundColor: ACCENT, borderColor: ACCENT },
   toothChipText: { fontSize: 6.5, color: FAINT, fontFamily: "JetBrains Mono" },
@@ -219,7 +219,7 @@ const PLAN_LABEL: Record<string, string> = {
   "No iniciado": "No iniciado", "En proceso": "En proceso", "Terminado": "Terminado",
 };
 const PLAN_STYLE: Record<string, object> = {
-  "No iniciado": { backgroundColor: "#F1F5F9", color: MUTED },
+  "No iniciado": { backgroundColor: "#F1F3F6", color: MUTED },
   "En proceso": { backgroundColor: AMBER_BG, color: AMBER },
   "Terminado": { backgroundColor: GREEN_BG, color: GREEN },
 };

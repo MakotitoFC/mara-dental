@@ -47,11 +47,11 @@ export function InfoTab({
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col lg:flex-row gap-4 items-start pb-6">
       {/* Columna Izquierda: Resumen, Datos Personales y Notas */}
       <div className="flex flex-col gap-4 w-full lg:flex-1">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
-          <h3 className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-3">Resumen del paciente</h3>
+ <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
+ <h3 className="text-[13px] font-bold text-slate-900 mb-3">Resumen del paciente</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <StatTile icon="cake" label="Nacimiento" value={nacimiento ? nacimiento.split("/").slice(0, 2).join("/") : "—"} sub={edad !== null ? `${edad} años` : undefined} />
             <StatTile icon="person" label="Sexo" value={p.sexo || "—"} />
@@ -66,20 +66,20 @@ export function InfoTab({
           ))}
         </Card>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
+ <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[13px] font-bold text-slate-900 dark:text-slate-100">Notas clínicas recientes</h3>
+ <h3 className="text-[13px] font-bold text-slate-900">Notas clínicas recientes</h3>
             {recientes.length > 0 && (
               <button
                 onClick={() => onNavigateTab?.("timeline")}
-                className="text-[11.5px] font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 cursor-pointer"
+ className="text-[11.5px] font-semibold text-cyan-600 hover:text-cyan-700 cursor-pointer"
               >
                 Ver todo →
               </button>
             )}
           </div>
           {recientes.length === 0 ? (
-            <p className="text-[12.5px] text-slate-400 dark:text-slate-500 py-2">
+ <p className="text-[12.5px] text-slate-400 py-2">
               Aún no hay notas clínicas registradas. Se agregan al iniciar una consulta.
             </p>
           ) : (
@@ -87,17 +87,17 @@ export function InfoTab({
               {recientes.map((c: any) => {
                 const date = fmtDMY(c.created_at) || c.created_at;
                 return (
-                  <div key={c.id} className="flex items-start gap-3 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0 last:pb-0">
+ <div key={c.id} className="flex items-start gap-3 py-2.5 border-b border-slate-100 last:border-0 last:pb-0">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 truncate">
+ <p className="text-[13px] font-semibold text-slate-800 truncate">
                           {c.titulo}
                         </p>
-                        <span className="text-[10.5px] text-slate-400 dark:text-slate-500 shrink-0">{date}</span>
+ <span className="text-[10.5px] text-slate-400 shrink-0">{date}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <p className="text-[11.5px] text-slate-500 dark:text-slate-400">{c.consultas?.length || 0} consulta{(c.consultas?.length || 0) !== 1 && "s"}</p>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.estado === "abierto" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"}`}>
+ <p className="text-[11.5px] text-slate-500">{c.consultas?.length || 0} consulta{(c.consultas?.length || 0) !== 1 &&"s"}</p>
+ <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.estado === "abierto" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
                           {c.estado === "abierto" ? "En curso" : "Finalizado"}
                         </span>
                       </div>
@@ -119,17 +119,17 @@ export function InfoTab({
           <Row icon="home" label="Domicilio" value={has(p.domicilio) ? p.domicilio : "—"} />
         </Card>
 
-        <div className={`rounded-2xl border-2 p-4 sm:p-5 bg-white dark:bg-slate-800 ${alergias.length > 0 ? "border-red-500 dark:border-red-500" : "border-slate-200 dark:border-slate-700"}`}>
+ <div className="rounded-2xl border border-slate-200 p-4 sm:p-5 bg-white">
           <div className="flex items-center gap-2 mb-2">
-            <Icon name="warning_amber" size={16} className={alergias.length > 0 ? "text-red-500" : "text-slate-300 dark:text-slate-600"} />
-            <h3 className={`text-[13px] font-bold ${alergias.length > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"}`}>Alergias</h3>
+ <Icon name="warning_amber" size={16} className="text-slate-300" />
+ <h3 className="text-[13px] font-bold text-slate-900">Alergias</h3>
           </div>
           {alergias.length === 0 ? (
-            <p className="text-[12.5px] text-slate-400 dark:text-slate-500">Ninguna registrada</p>
+ <p className="text-[12.5px] text-slate-400">Ninguna registrada</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {alergias.map((a) => (
-                <span key={a} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-bold bg-red-600 text-white">
+                <span key={a} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full text-red-600 border border-red-200">
                   {a}
                 </span>
               ))}

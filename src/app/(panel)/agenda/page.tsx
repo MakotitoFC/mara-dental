@@ -17,8 +17,8 @@ async function AgendaDataLoader({ isAsistente, preTratamientoId, prePacienteId, 
 function LoaderSkeleton() {
   return (
     <div className="p-6 flex flex-col gap-6 w-full h-full animate-pulse">
-      <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded-lg w-full mb-4"></div>
-      <div className="h-full bg-slate-200 dark:bg-slate-700 rounded-2xl w-full flex-1"></div>
+ <div className="h-10 bg-slate-200 rounded-lg w-full mb-4"></div>
+ <div className="h-full bg-slate-200 rounded-2xl w-full flex-1"></div>
     </div>
   );
 }

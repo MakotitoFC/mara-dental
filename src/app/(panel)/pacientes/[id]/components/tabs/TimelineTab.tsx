@@ -10,7 +10,6 @@ import { getConsultaDetalleTimelineAction } from "../../consulta.actions";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
-import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { EditarConsultaModal } from "../EditarConsultaModal";
 
 const ESTADO_CASO_OPTIONS = [
@@ -33,9 +32,9 @@ const fmtCorta = (d: string) => {
 const money = (n: number, m = "PEN") => `${m === "PEN" ? "S/" : m} ${Number(n).toFixed(2)}`;
 
 const PLAN_CFG: Record<string, { bg: string; text: string; label: string }> = {
-  hacer: { bg: "bg-slate-100 dark:bg-slate-700", text: "text-slate-600 dark:text-slate-300", label: "Por hacer" },
-  haciendo: { bg: "bg-amber-100 dark:bg-amber-900/30", text: "text-amber-700 dark:text-amber-400", label: "Haciendo" },
-  hecho: { bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400", label: "Hecho" },
+ hacer: { bg: "bg-slate-100", text: "text-slate-600", label: "Por hacer"},
+ haciendo: { bg: "bg-amber-100", text: "text-amber-700", label: "Haciendo"},
+ hecho: { bg: "bg-emerald-100", text: "text-emerald-700", label: "Hecho"},
 };
 
 type TabNav = "info" | "timeline" | "dental" | "diagnosticos" | "archivos" | "recetas" | "presupuestos";
@@ -61,7 +60,6 @@ export function TimelineTab({
   const [savingHC, setSavingHC] = useState(false);
   const [estadoOverrides, setEstadoOverrides] = useState<Record<string, string>>({});
   const toast = useToast();
-  const isMobile = useIsMobile();
 
   // Seleccionar la consulta. Usamos el historial plano solo para tener una base rápida si es necesario.
   const [selectedId, setSelectedId] = useState<string | null>(historial?.[0]?.id ?? null);
@@ -126,58 +124,43 @@ export function TimelineTab({
 
   return (
     <div className="flex flex-col lg:h-full lg:min-h-0">
-      {/* Cabecera fija — Historia Clínica Universal + Casos Clínicos, pegada al nav de
-          tabs sin franja que las separe, sin ser un contenedor aparte. Mismo patrón en
-          todos los breakpoints: Historia Clínica Universal arriba (sin botón), Casos
-          Clínicos + el botón de acción abajo, separados por una línea sutil, ambos
-          sobre el fondo blanco del header (antes en desktop el botón vivía junto a
-          Historia Clínica y "Casos Clínicos" quedaba suelto más abajo sin fondo). */}
-      <div className="shrink-0 sticky top-0 z-20 px-3 sm:px-4 md:px-6 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
-        <div className="py-3 sm:py-4">
+      {/* Cabecera fija — Casos Clínicos, pegada al nav de tabs sin franja que
+          la separe, sin ser un contenedor aparte. El código y fecha de la
+          historia clínica ahora viven en el header del paciente (debajo del
+          DNI), no acá. */}
+ <div className="shrink-0 sticky top-0 z-20 px-3 sm:px-4 md:px-6 bg-white border-b border-slate-100">
+ <div className="flex items-center justify-between gap-3 py-3 sm:py-4">
           <div className="min-w-0">
-            <h3 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 sm:gap-2 text-[14.5px] sm:text-[17px]">
-              <Icon name="folder_shared" size={isMobile ? 18 : 20} className="text-cyan-600 dark:text-cyan-400 shrink-0" />
-              <span className="truncate">Historia Clínica Universal</span>
-            </h3>
-            {hc ? (
-              <p className="text-[11px] sm:text-[13px] md:text-[14px] text-slate-500 dark:text-slate-400 mt-1 truncate">
-                Código: <strong className="text-slate-700 dark:text-slate-300">{hc.codigo_historia}</strong>
-                <br />
-                Creada: {fmtFull(hc.fecha_creacion)}
-              </p>
-            ) : (
-              <p className="text-[11px] sm:text-[13px] md:text-[14px] text-amber-600 dark:text-amber-500 mt-1 flex items-center gap-1">
-                <Icon name="warning" size={14} className="shrink-0" /> El paciente aún no tiene Historia Clínica generada.
-              </p>
-            )}
+            <h3 className="text-[15px] md:text-base font-bold text-slate-800">Casos Clínicos</h3>
+            <p className="hidden sm:block text-[12px] text-slate-500 mt-0.5">Consultas del paciente agrupadas por caso, en orden cronológico.</p>
           </div>
-        </div>
-        <div className="flex items-center justify-between gap-3 py-3 border-t border-slate-100 dark:border-slate-700">
-          <h3 className="text-[14.5px] sm:text-[17px] font-bold text-slate-800 dark:text-slate-200">Casos Clínicos</h3>
           {accionBoton}
         </div>
       </div>
 
-      <div className="flex flex-col gap-6 px-3 sm:px-4 md:px-6 pt-6 pb-2 md:pb-10 lg:pb-12 lg:flex-1 lg:min-h-0">
+      <div className="flex flex-col lg:flex-1 lg:min-h-0">
       {casos.length === 0 ? (
-        <div className="shrink-0 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 py-16 px-6 flex flex-col items-center text-center gap-3">
-          <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center">
-            <Icon name="history_edu" size={32} className="text-slate-300 dark:text-slate-600" />
+ <div className="shrink-0 m-3 sm:m-4 md:m-6 bg-white rounded-2xl border border-slate-200 py-16 px-6 flex flex-col items-center text-center gap-3">
+ <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center">
+ <Icon name="history_edu" size={32} className="text-slate-300"/>
           </div>
-          <p className="text-[15px] font-bold text-slate-700 dark:text-slate-300">Sin Casos Clínicos</p>
-          <p className="text-[12.5px] text-slate-400 dark:text-slate-500 max-w-xs leading-relaxed">
+ <p className="text-[15px] font-bold text-slate-700">Sin Casos Clínicos</p>
+ <p className="text-[12.5px] text-slate-400 max-w-xs leading-relaxed">
             Inicia un nuevo caso clínico para agrupar las consultas de este paciente.
           </p>
         </div>
       ) : (
-        <div className="flex gap-4 items-start lg:flex-1 lg:min-h-0">
-          {/* Columna Izquierda: Casos — scroll propio oculto */}
-          <div className="flex-1 min-w-0 lg:max-w-200 flex flex-col gap-3 lg:h-full lg:min-h-0 lg:overflow-y-auto no-scrollbar lg:pr-1">
+        <div className="bg-white flex gap-0 items-stretch lg:flex-1 lg:min-h-0">
+          {/* Columna Izquierda: Casos — scroll propio oculto. Ya no es un
+              conjunto de cards flotantes independientes: es una sola hoja con
+              los casos separados por líneas grises (mismo patrón que
+              Configuración), a todo el ancho y alto disponibles. */}
+          <div className="flex-1 min-w-0 lg:max-w-200 flex flex-col divide-y divide-slate-200 lg:h-full lg:min-h-0 lg:overflow-y-auto no-scrollbar">
             {casos.map((caso: any) => (
-              <div key={caso.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-3">
+              <div key={caso.id} className="p-3 sm:p-4 md:p-6">
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <h4 className="text-[13px] font-bold text-slate-800 dark:text-slate-200 mb-0.5">
+ <h4 className="text-[13px] font-bold text-slate-800 mb-0.5">
                       {caso.motivo_consulta || "Caso sin motivo principal"}
                     </h4>
                     <p className="text-[11px] text-slate-500">Iniciado el: {fmtFull(caso.created_at)}</p>
@@ -221,9 +204,11 @@ export function TimelineTab({
             ))}
           </div>
 
-          {/* Columna derecha — panel de detalle, tamaño fijo con su propio scroll
-              independiente (no sticky: no se mueve con el scroll de la izquierda). */}
-          <div className="hidden lg:block w-90 shrink-0 lg:h-full lg:min-h-0 lg:overflow-y-auto no-scrollbar">
+          {/* Columna derecha — panel de detalle, tamaño fijo con su propio
+              scroll independiente (no sticky: no se mueve con el scroll de la
+              izquierda). Separada de la lista con un borde gris lineal, ya no
+              es su propia card flotante. */}
+          <div className="hidden lg:block w-90 shrink-0 border-l border-slate-200 lg:h-full lg:min-h-0 lg:overflow-y-auto no-scrollbar">
             {selectedId && (
               <AnimatePresence mode="wait">
                 <motion.div
@@ -232,10 +217,10 @@ export function TimelineTab({
                   initial="hidden"
                   animate="visible"
                   exit="exit"
-                  className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden relative min-h-75"
+                  className="relative min-h-75"
                 >
                   {loadingDetalle && (
-                    <div className="absolute inset-0 z-10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm flex items-center justify-center">
+ <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-sm flex items-center justify-center">
                       <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
                     </div>
                   )}
@@ -256,9 +241,9 @@ export function TimelineTab({
       <AnimatePresence>
         {isMobileModalOpen && selectedId && (
           <ResponsiveSheet onClose={() => setIsMobileModalOpen(false)}>
-            <div className="relative min-h-75 overflow-y-auto no-scrollbar bg-white dark:bg-slate-800">
+ <div className="relative min-h-75 overflow-y-auto no-scrollbar bg-white">
               {loadingDetalle && (
-                <div className="absolute inset-0 z-10 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm flex items-center justify-center">
+ <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-sm flex items-center justify-center">
                   <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               )}
@@ -314,18 +299,18 @@ function TimelineNode({
       {/* Eje: línea + nodo */}
       <div className="relative w-5 shrink-0 flex flex-col items-center">
         <span
-          className="w-3 h-3 rounded-full mt-3.5 shrink-0 z-10 ring-4 ring-slate-50 dark:ring-slate-900"
+ className="w-3 h-3 rounded-full mt-3.5 shrink-0 z-10 ring-4 ring-slate-50"
           style={{ background: vars.solid }}
         />
-        {!isLast && <span className="w-0.5 flex-1 bg-slate-300 dark:bg-slate-600" />}
+ {!isLast && <span className="w-0.5 flex-1 bg-slate-300"/>}
       </div>
 
       {/* Tarjeta */}
       <div className="flex-1 min-w-0 pb-2.5">
-        <div className={`bg-white dark:bg-slate-800 rounded-2xl border overflow-hidden transition-colors ${active ? "border-cyan-300 dark:border-cyan-700 ring-1 ring-cyan-100 dark:ring-cyan-900/40" : "border-slate-200 dark:border-slate-700"}`}>
+ <div className={`bg-white rounded-2xl border overflow-hidden transition-colors ${active ? "border-cyan-300 ring-1 ring-cyan-100" : "border-slate-200"}`}>
           <button
             onClick={handleClick}
-            className="w-full flex items-start gap-3 p-2.5 text-left hover:bg-slate-50/60 dark:hover:bg-slate-700/40 transition-colors"
+ className="w-full flex items-start gap-3 p-2.5 text-left hover:bg-slate-50/60 transition-colors"
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -335,12 +320,12 @@ function TimelineNode({
                 >
                   {vars.label}
                 </span>
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">{fmtFull(c.fecha || c.fecha_consulta)}</span>
+ <span className="text-[11px] text-slate-400">{fmtFull(c.fecha || c.fecha_consulta)}</span>
               </div>
-              <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 leading-snug truncate">
+ <p className="text-[13px] font-bold text-slate-900 leading-snug truncate">
                 {c.motivo || "Consulta sin motivo"}
               </p>
-              {c.doctor && <p className="text-[11.5px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{c.doctor}</p>}
+ {c.doctor && <p className="text-[11.5px] text-slate-500 mt-0.5 truncate">{c.doctor}</p>}
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0 pl-1">
@@ -370,7 +355,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
 
   return (
     <div className="p-4 flex flex-col gap-3">
-      <div className="pb-3 border-b border-slate-100 dark:border-slate-700">
+ <div className="pb-3 border-b border-slate-100">
         {/* Insignia y botones en la misma fila flex — así nunca se pisan
             entre sí sin importar el ancho de pantalla, a diferencia de
             posicionarlos con `absolute` y offsets en px calculados a mano
@@ -388,7 +373,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
               {isSameDay && onEdit && (
                 <button
                   onClick={onEdit}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-amber-50 dark:bg-slate-800 dark:hover:bg-amber-900/30 text-slate-400 hover:text-amber-600 transition-colors"
+ className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors"
                   title="Editar consulta"
                 >
                   <Icon name="edit" size={15} />
@@ -398,7 +383,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
                 <button
                   onClick={onClose}
                   aria-label="Cerrar"
-                  className="w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 shadow-sm transition-colors"
+ className="w-8 h-8 rounded-full bg-white/90 border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 shadow-sm transition-colors"
                 >
                   <Icon name="close" size={16} />
                 </button>
@@ -407,20 +392,20 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
           )}
         </div>
 
-        <p className="text-[14.5px] font-bold text-slate-900 dark:text-slate-100 leading-snug">{c.motivo || "Consulta sin motivo"}</p>
-        <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-0.5">{fmtFull(c.fecha)}{c.doctor ? ` · ${c.doctor}` : ""}</p>
+ <p className="text-[14.5px] font-bold text-slate-900 leading-snug">{c.motivo ||"Consulta sin motivo"}</p>
+ <p className="text-[11.5px] text-slate-400 mt-0.5">{fmtFull(c.fecha)}{c.doctor ?`· ${c.doctor}`:""}</p>
       </div>
 
       {(c.observaciones || (c.examen?.length ?? 0) > 0) && (
         <Section icon="notes" title="Observaciones">
           {c.observaciones && (
-            <p className="text-[12.5px] text-slate-600 dark:text-slate-300 leading-relaxed mb-2">{c.observaciones}</p>
+ <p className="text-[12.5px] text-slate-600 leading-relaxed mb-2">{c.observaciones}</p>
           )}
           {(c.examen?.length ?? 0) > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {c.examen.map((e: any) => (
-                <span key={e.clave} className="text-[11.5px] bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-lg">
-                  <b className="font-semibold text-slate-700 dark:text-slate-200">{e.clave}:</b> {e.valor}
+ <span key={e.clave} className="text-[11.5px] bg-white border border-slate-100 text-slate-600 px-2.5 py-1 rounded-lg">
+ <b className="font-semibold text-slate-700">{e.clave}:</b> {e.valor}
                 </span>
               ))}
             </div>
@@ -429,28 +414,28 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
       )}
 
       {(!c.diagnosticos || c.diagnosticos.length === 0) ? (
-        <p className="text-[12.5px] text-slate-400 dark:text-slate-500 italic">Sin diagnóstico registrado en esta consulta.</p>
+ <p className="text-[12.5px] text-slate-400 italic">Sin diagnóstico registrado en esta consulta.</p>
       ) : c.diagnosticos.map((d: any) => (
         <div key={d.id} className="flex flex-col gap-3">
           <Section icon="biotech" title="Diagnóstico">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${d.es_definitivo ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400" : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"}`}>
+ <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${d.es_definitivo ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
                 {d.es_definitivo ? "Definitivo" : "Presuntivo"}
               </span>
               {d.es_tratado && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
+ <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700">
                   Se trata en clínica
                 </span>
               )}
             </div>
-            <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300">
+ <p className="text-[13px] font-medium text-slate-700">
               {d.texto}
-              {d.fecha_deteccion && <span className="text-slate-400 dark:text-slate-500 font-normal ml-2 text-[11px] whitespace-nowrap">{fmtCorta(d.fecha_deteccion)}</span>}
+ {d.fecha_deteccion && <span className="text-slate-400 font-normal ml-2 text-[11px] whitespace-nowrap">{fmtCorta(d.fecha_deteccion)}</span>}
             </p>
             {d.cie10 && (
-              <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">{d.cie10.codigo}</span>
-                <span className="text-[11.5px] text-slate-600 dark:text-slate-300">{d.cie10.descripcion}</span>
+ <div className="inline-flex items-center gap-2 mt-2 px-2.5 py-1 bg-white border border-slate-100 rounded-lg">
+ <span className="text-[11px] font-bold text-slate-500">{d.cie10.codigo}</span>
+ <span className="text-[11.5px] text-slate-600">{d.cie10.descripcion}</span>
               </div>
             )}
           </Section>
@@ -459,27 +444,27 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
             <Section icon="medical_services" title="Tratamiento y Plan">
               <div className="flex flex-col gap-3">
                 {d.tratamientos.map((t: any) => (
-                  <div key={t.id} className="flex flex-col gap-2 pb-3 border-b border-slate-100 dark:border-slate-700 last:border-0 last:pb-0">
+ <div key={t.id} className="flex flex-col gap-2 pb-3 border-b border-slate-100 last:border-0 last:pb-0">
                     <div className="flex justify-between gap-3 items-start">
-                      <span className="text-[12.5px] text-slate-700 dark:text-slate-300 font-semibold leading-snug">
+ <span className="text-[12.5px] text-slate-700 font-semibold leading-snug">
                         {t.nombre}
                         {t.descripcion && <span className="text-slate-500 font-normal ml-1">— {t.descripcion}</span>}
-                        {t.fecha && <span className="text-slate-400 dark:text-slate-500 font-normal ml-2 text-[11px] whitespace-nowrap">{fmtCorta(t.fecha)}</span>}
+ {t.fecha && <span className="text-slate-400 font-normal ml-2 text-[11px] whitespace-nowrap">{fmtCorta(t.fecha)}</span>}
                       </span>
                       {t.precio != null && (
-                        <span className="text-[12.5px] font-medium text-slate-700 dark:text-slate-300 shrink-0 mt-0.5">{money(t.precio, t.moneda)}</span>
+ <span className="text-[12.5px] font-medium text-slate-700 shrink-0 mt-0.5">{money(t.precio, t.moneda)}</span>
                       )}
                     </div>
                     {t.plan?.length > 0 && (
-                      <div className="flex flex-col gap-1.5 pl-3 border-l-2 border-slate-100 dark:border-slate-700 mt-0.5">
+ <div className="flex flex-col gap-1.5 pl-3 border-l-2 border-slate-100 mt-0.5">
                         {t.plan.map((p: any) => {
                           const cfg = PLAN_CFG[p.estado] ?? PLAN_CFG.hacer;
                           return (
                             <div key={p.id} className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
-                                <p className="text-[11.5px] font-medium text-slate-600 dark:text-slate-400">{p.etapa}</p>
+ <p className="text-[11.5px] font-medium text-slate-600">{p.etapa}</p>
                                 {(p.tiempo || p.descripcion) && (
-                                  <p className="text-[10.5px] text-slate-400 dark:text-slate-500">
+ <p className="text-[10.5px] text-slate-400">
                                     {p.tiempo}{p.tiempo && p.descripcion ? " · " : ""}{p.descripcion}
                                   </p>
                                 )}
@@ -506,26 +491,26 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
                 icon="medication"
                 title="Receta"
                 action={onNavigateTab && (
-                  <button onClick={() => onNavigateTab("recetas")} className="text-[11px] font-semibold text-cyan-700 dark:text-cyan-400 hover:text-cyan-800 dark:hover:text-cyan-300">
+ <button onClick={() => onNavigateTab("recetas")} className="text-[11px] font-semibold text-cyan-700 hover:text-cyan-800">
                     Ver completa
                   </button>
                 )}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${receta.estado === "activa" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"}`}>
+ <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${receta.estado === "activa" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
                     {receta.estado}
                   </span>
-                  {receta.fecha_emision && <span className="text-slate-400 dark:text-slate-500 font-normal text-[11px]">{fmtCorta(receta.fecha_emision)}</span>}
+ {receta.fecha_emision && <span className="text-slate-400 font-normal text-[11px]">{fmtCorta(receta.fecha_emision)}</span>}
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {preview.map((m: any, i: number) => (
                     <div key={i} className="text-[12.5px]">
-                      <p className="font-semibold text-slate-700 dark:text-slate-300">
-                        {m.nombre} {m.dosis && <span className="font-normal text-slate-500 dark:text-slate-400">{m.dosis}</span>}
+ <p className="font-semibold text-slate-700">
+ {m.nombre} {m.dosis && <span className="font-normal text-slate-500">{m.dosis}</span>}
                       </p>
                     </div>
                   ))}
-                  {resto > 0 && <p className="text-[11px] text-slate-400 dark:text-slate-500">+{resto} medicamento{resto !== 1 ? "s" : ""} más</p>}
+ {resto > 0 && <p className="text-[11px] text-slate-400">+{resto} medicamento{resto !== 1 ? "s" : ""} más</p>}
                 </div>
               </Section>
             );
@@ -538,7 +523,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
           icon="tooth"
           title="Odontograma"
           action={onNavigateTab && (
-            <button onClick={() => onNavigateTab("dental")} className="text-[11px] font-semibold text-cyan-700 dark:text-cyan-400 hover:text-cyan-800 dark:hover:text-cyan-300">
+ <button onClick={() => onNavigateTab("dental")} className="text-[11px] font-semibold text-cyan-700 hover:text-cyan-800">
               Ver completo
             </button>
           )}
@@ -546,10 +531,10 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
           {c.odontogramas.map((odo: any) => {
             const piezas = odo.odontograma_diente?.length || 0;
             return (
-              <p key={odo.id} className="text-[12.5px] text-slate-700 dark:text-slate-300 mb-1 last:mb-0">
+ <p key={odo.id} className="text-[12.5px] text-slate-700 mb-1 last:mb-0">
                 <span className="font-semibold">{piezas}</span> pieza{piezas !== 1 ? "s" : ""} marcada{piezas !== 1 ? "s" : ""}
-                {odo.tipo_tratamiento ? <span className="text-slate-400 dark:text-slate-500"> · {odo.tipo_tratamiento}</span> : null}
-                {odo.created_at && <span className="text-slate-400 dark:text-slate-500 font-normal ml-2 text-[11px] whitespace-nowrap">{fmtCorta(odo.created_at)}</span>}
+ {odo.tipo_tratamiento ? <span className="text-slate-400"> · {odo.tipo_tratamiento}</span> : null}
+ {odo.created_at && <span className="text-slate-400 font-normal ml-2 text-[11px] whitespace-nowrap">{fmtCorta(odo.created_at)}</span>}
               </p>
             );
           })}
@@ -558,7 +543,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
 
       {c.recomendaciones && c.recomendaciones.length > 0 && (
         <Section icon="heart" title="Recomendaciones">
-          <ul className="list-disc pl-4 text-[12.5px] text-slate-700 dark:text-slate-300 flex flex-col gap-1">
+ <ul className="list-disc pl-4 text-[12.5px] text-slate-700 flex flex-col gap-1">
             {c.recomendaciones.map((r: any) => (
               <li key={r.id}>{r.contenido}</li>
             ))}
@@ -571,7 +556,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
           icon="photo_library"
           title="Archivos"
           action={onNavigateTab && (
-            <button onClick={() => onNavigateTab("archivos")} className="text-[11px] font-semibold text-cyan-700 dark:text-cyan-400 hover:text-cyan-800 dark:hover:text-cyan-300">
+ <button onClick={() => onNavigateTab("archivos")} className="text-[11px] font-semibold text-cyan-700 hover:text-cyan-800">
               Ver galería
             </button>
           )}
@@ -581,12 +566,12 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
               const isImg = a.tipo_archivo === "image" || /\.(jpg|jpeg|png|webp|gif)$/i.test(a.nombre_archivo || "");
               const extra = i === 3 ? c.archivos.length - 4 : 0;
               return (
-                <div key={a.id} className="relative aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-100 dark:border-slate-700">
+ <div key={a.id} className="relative aspect-square rounded-lg overflow-hidden bg-slate-100 border border-slate-100">
                   {isImg && a.displayUrl ? (
                     <img src={a.displayUrl} alt={a.nombre_archivo} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <Icon name="description" size={18} className="text-red-400 dark:text-red-500" />
+ <Icon name="description" size={18} className="text-red-400"/>
                     </div>
                   )}
                   {extra > 0 && (
@@ -605,20 +590,20 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
         <Section key={p.id} icon="description" title="Presupuesto">
           <div className="flex flex-col gap-1">
             {p.items.map((it: any, i: number) => (
-              <div key={i} className="flex justify-between gap-3 py-1 border-b border-slate-100 dark:border-slate-700 last:border-0">
-                <span className="text-[12.5px] text-slate-600 dark:text-slate-300">{it.nombre} ×{it.cantidad}</span>
-                <span className="text-[12.5px] font-medium text-slate-700 dark:text-slate-300">{money(it.subtotal)}</span>
+ <div key={i} className="flex justify-between gap-3 py-1 border-b border-slate-100 last:border-0">
+ <span className="text-[12.5px] text-slate-600">{it.nombre} ×{it.cantidad}</span>
+ <span className="text-[12.5px] font-medium text-slate-700">{money(it.subtotal)}</span>
               </div>
             ))}
             <div className="flex justify-between pt-2">
-              <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">Total</span>
-              <span className="text-[13px] font-bold text-slate-900 dark:text-slate-100">{money(p.neto)}</span>
+ <span className="text-[13px] font-semibold text-slate-800">Total</span>
+ <span className="text-[13px] font-bold text-slate-900">{money(p.neto)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-[12px] text-slate-500 dark:text-slate-400">Saldo</span>
-              <span className="text-[12px] font-medium text-amber-600 dark:text-amber-400">{money(p.saldo)}</span>
+ <span className="text-[12px] text-slate-500">Saldo</span>
+ <span className="text-[12px] font-medium text-amber-600">{money(p.saldo)}</span>
             </div>
-            <span className={`self-start mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${p.estado === "aprobado" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400" : p.estado === "cancelado" ? "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400" : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"}`}>
+ <span className={`self-start mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${p.estado === "aprobado" ? "bg-emerald-100 text-emerald-700": p.estado === "cancelado" ? "bg-slate-100 text-slate-500" : "bg-amber-100 text-amber-700"}`}>
               {p.estado}
             </span>
           </div>
@@ -632,7 +617,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
 
 function CountBadge({ icon, count }: { icon: string; count: number }) {
   return (
-    <span className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-[10.5px] font-bold">
+ <span className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-slate-50 text-slate-500 text-[10.5px] font-bold">
       <Icon name={icon} size={12} />{count}
     </span>
   );
@@ -640,11 +625,11 @@ function CountBadge({ icon, count }: { icon: string; count: number }) {
 
 function Section({ icon, title, action, children }: { icon: string; title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-3.5">
+ <div className="bg-white rounded-xl border border-slate-100 p-3.5">
       <div className="flex items-center justify-between gap-2 mb-2.5">
         <div className="flex items-center gap-2">
-          <Icon name={icon} size={16} className="text-cyan-600 dark:text-cyan-400" />
-          <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200">{title}</p>
+ <Icon name={icon} size={16} className="text-cyan-600"/>
+ <p className="text-[13px] font-semibold text-slate-800">{title}</p>
         </div>
         {action}
       </div>

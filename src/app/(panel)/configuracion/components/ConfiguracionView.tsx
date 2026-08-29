@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
@@ -37,7 +37,7 @@ const TURNOS: { value: Turno; label: string; icon: string }[] = [
 const TURNO_COLOR: Record<Turno, string> = {
   mañana: "bg-amber-400",
   tarde: "bg-orange-500",
-  noche: "bg-indigo-600",
+  noche: "bg-blue-600",
 };
 const TURNO_LABEL: Record<Turno, string> = { mañana: "Mañana", tarde: "Tarde", noche: "Noche" };
 
@@ -60,11 +60,11 @@ function DiaHorarioRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }: {
   onAdd: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-3 sm:p-4">
+ <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
       <div className="flex items-center justify-between gap-4">
-        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{dia.label}</span>
+ <span className="text-sm font-semibold text-slate-800">{dia.label}</span>
         {!editing && (
-          <span className={`text-sm font-medium ${ranges.length > 0 ? "text-slate-600 dark:text-slate-300" : "text-slate-400 dark:text-slate-500"}`}>
+ <span className={`text-sm font-medium ${ranges.length > 0 ? "text-slate-600" : "text-slate-400"}`}>
             {ranges.length > 0 ? "Abierto" : "Cerrado"}
           </span>
         )}
@@ -79,7 +79,7 @@ function DiaHorarioRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }: {
                 onChange={(v) => onUpdate(idx, "hora_inicio", v)}
                 className="flex-1"
               />
-              <span className="text-slate-400 dark:text-slate-500 text-sm shrink-0">–</span>
+ <span className="text-slate-400 text-sm shrink-0">–</span>
               <TimePicker
                 value={r.hora_fin}
                 onChange={(v) => onUpdate(idx, "hora_fin", v)}
@@ -88,7 +88,7 @@ function DiaHorarioRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }: {
               <button
                 onClick={() => onRemove(idx)}
                 aria-label="Eliminar rango"
-                className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-red-400 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+ className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-50 transition-colors"
               >
                 <Icon name="delete" size={15} />
               </button>
@@ -96,7 +96,7 @@ function DiaHorarioRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }: {
           ))}
           <button
             onClick={onAdd}
-            className="flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg border border-cyan-200 dark:border-cyan-800 text-[12px] font-semibold text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors"
+ className="flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg border border-cyan-200 text-[12px] font-semibold text-cyan-600 hover:bg-cyan-50 transition-colors"
           >
             <Icon name="add" size={14} /> Agregar rango
           </button>
@@ -104,13 +104,13 @@ function DiaHorarioRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }: {
       ) : ranges.length > 0 ? (
         <div className="mt-3 grid gap-2">
           {ranges.map((r, idx) => (
-            <div key={idx} className="rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300">
+ <div key={idx} className="rounded-xl bg-white border border-slate-200 px-3 py-1.5 text-sm text-slate-700">
               {r.hora_inicio} – {r.hora_fin}
             </div>
           ))}
         </div>
       ) : (
-        <p className="mt-2 text-[12px] text-slate-400 dark:text-slate-500">Sin horario de atención configurado.</p>
+ <p className="mt-2 text-[12px] text-slate-400">Sin horario de atención configurado.</p>
       )}
     </div>
   );
@@ -129,7 +129,7 @@ function TurnoDots({ rangos }: { rangos: { turno: Turno; hora_inicio: string; ho
       {TURNOS.map((t) => (
         <span
           key={t.value}
-          className={`w-2 h-2 rounded-full ${activos.has(t.value) ? TURNO_COLOR[t.value] : "bg-slate-200 dark:bg-slate-700"}`}
+ className={`w-2 h-2 rounded-full ${activos.has(t.value) ? TURNO_COLOR[t.value] :"bg-slate-200"}`}
         />
       ))}
     </div>
@@ -149,11 +149,11 @@ function DiaHorarioMedicoRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }
   onAdd: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-3 sm:p-4">
+ <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
       <div className="flex items-center justify-between gap-4">
-        <span className="text-[13px] md:text-sm font-semibold text-slate-800 dark:text-slate-100">{dia.label}</span>
+ <span className="text-[13px] md:text-sm font-semibold text-slate-800">{dia.label}</span>
         {!editing && (
-          <span className={`text-[13px] md:text-sm font-medium ${ranges.length > 0 ? "text-slate-600 dark:text-slate-300" : "text-slate-400 dark:text-slate-500"}`}>
+ <span className={`text-[13px] md:text-sm font-medium ${ranges.length > 0 ? "text-slate-600" : "text-slate-400"}`}>
             {ranges.length > 0 ? "Abierto" : "Cerrado"}
           </span>
         )}
@@ -175,7 +175,7 @@ function DiaHorarioMedicoRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }
                   onChange={(v) => onUpdate(idx, "hora_inicio", v)}
                   className="flex-1"
                 />
-                <span className="text-slate-400 dark:text-slate-500 text-[13px] shrink-0">–</span>
+ <span className="text-slate-400 text-[13px] shrink-0">–</span>
                 <TimePicker
                   value={r.hora_fin}
                   onChange={(v) => onUpdate(idx, "hora_fin", v)}
@@ -184,7 +184,7 @@ function DiaHorarioMedicoRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }
                 <button
                   onClick={() => onRemove(idx)}
                   aria-label="Eliminar rango"
-                  className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-red-400 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+ className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-50 transition-colors"
                 >
                   <Icon name="delete" size={15} />
                 </button>
@@ -193,7 +193,7 @@ function DiaHorarioMedicoRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }
           ))}
           <button
             onClick={onAdd}
-            className="flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg border border-cyan-200 dark:border-cyan-800 text-[11px] md:text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors"
+ className="flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg border border-cyan-200 text-[11px] md:text-xs font-semibold text-cyan-600 hover:bg-cyan-50 transition-colors"
           >
             <Icon name="add" size={14} /> Agregar turno
           </button>
@@ -201,16 +201,16 @@ function DiaHorarioMedicoRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }
       ) : ranges.length > 0 ? (
         <div className="mt-3 grid gap-2">
           {ranges.map((r, idx) => (
-            <div key={idx} className="flex items-center gap-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-[13px] md:text-sm text-slate-700 dark:text-slate-300">
+ <div key={idx} className="flex items-center gap-2 rounded-xl bg-white border border-slate-200 px-3 py-1.5 text-[13px] md:text-sm text-slate-700">
               <span className={`w-2 h-2 rounded-full shrink-0 ${TURNO_COLOR[r.turno]}`} />
               <span className="font-semibold shrink-0">{TURNO_LABEL[r.turno]}</span>
-              <span className="text-slate-400 dark:text-slate-500">·</span>
+ <span className="text-slate-400">·</span>
               <span>{r.hora_inicio} – {r.hora_fin}</span>
             </div>
           ))}
         </div>
       ) : (
-        <p className="mt-2 text-[13px] md:text-sm text-slate-400 dark:text-slate-500">Sin turnos configurados.</p>
+ <p className="mt-2 text-[13px] md:text-sm text-slate-400">Sin turnos configurados.</p>
       )}
     </div>
   );
@@ -227,7 +227,7 @@ function initialsDoctor(nombre: string, apellido: string) {
 }
 
 function toMinutos(hora: string) {
-  const [h, m] = hora.split(":").map(Number);
+  const [h, m] = hora.split(" : ").map(Number);
   return h * 60 + m;
 }
 function fmtHora(minutos: number) {
@@ -256,11 +256,11 @@ function HorarioStats({ horarios }: { horarios: Record<number, HorarioRango[]> }
   return (
     <div className="grid grid-cols-3 gap-3">
       {tiles.map((t) => (
-        <div key={t.label} className="flex items-center gap-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700 px-3 py-2.5">
+ <div key={t.label} className="flex items-center gap-2.5 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
           <span className="w-1 h-8 rounded-full shrink-0" style={{ background: t.color }} />
           <div className="min-w-0">
-            <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide truncate">{t.label}</p>
-            <p className="text-[14px] sm:text-[15px] font-bold text-slate-800 dark:text-slate-100">{t.value}</p>
+ <p className="text-[9px] sm:text-[9.5px] font-bold text-slate-400 uppercase tracking-wide truncate">{t.label}</p>
+ <p className="text-[14px] sm:text-[15px] font-bold text-slate-800">{t.value}</p>
           </div>
         </div>
       ))}
@@ -292,7 +292,7 @@ function HorarioSemanaCalendar({ horarios }: { horarios: Record<number, HorarioR
           {horasEje.map((m) => (
             <span
               key={m}
-              className="absolute -translate-x-1/2 text-[9px] sm:text-[9.5px] font-medium text-slate-400 dark:text-slate-500 whitespace-nowrap"
+ className="absolute -translate-x-1/2 text-[9px] sm:text-[9.5px] font-medium text-slate-400 whitespace-nowrap"
               style={{ left: `${((m - escalaInicio) / escalaTotal) * 100}%` }}
             >
               {fmtHora(m)}
@@ -308,22 +308,22 @@ function HorarioSemanaCalendar({ horarios }: { horarios: Record<number, HorarioR
         return (
           <div key={dia.num} className="flex items-center gap-2">
             <div className="w-10 sm:w-12 shrink-0 text-right">
-              <p className={`text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wide ${rangos.length > 0 ? "text-slate-600 dark:text-slate-300" : "text-slate-300 dark:text-slate-600"}`}>
+ <p className={`text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wide ${rangos.length > 0 ? "text-slate-600" : "text-slate-300"}`}>
                 {DIAS_CORTO[i]}
               </p>
-              <p className="text-[8.5px] sm:text-[9px] text-slate-400 dark:text-slate-500">{rangos.length > 0 ? `${fmtHoras(horasDia)}h` : "Libre"}</p>
+ <p className="text-[8.5px] sm:text-[9px] text-slate-400">{rangos.length > 0 ?`${fmtHoras(horasDia)}h`:"Libre"}</p>
             </div>
-            <div className="relative flex-1 h-8 rounded-lg bg-slate-50 dark:bg-slate-900/40 overflow-hidden">
+ <div className="relative flex-1 h-8 rounded-lg bg-slate-50 overflow-hidden">
               {horasEje.map((m) => (
                 <span
                   key={m}
-                  className="absolute inset-y-0 w-px bg-slate-200 dark:bg-slate-700/60"
+ className="absolute inset-y-0 w-px bg-slate-200"
                   style={{ left: `${((m - escalaInicio) / escalaTotal) * 100}%` }}
                 />
               ))}
               {rangos.length === 0 ? (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-[10px] text-slate-300 dark:text-slate-600 italic">Sin actividad</span>
+ <span className="text-[10px] text-slate-300 italic">Sin actividad</span>
                 </div>
               ) : (
                 rangos.map((r, idx) => {
@@ -349,14 +349,14 @@ function HorarioSemanaCalendar({ horarios }: { horarios: Record<number, HorarioR
       })}
 
       {/* Leyenda */}
-      <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+ <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm" style={{ background: DIA_COLOR[2] }} />
             Días activos
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+ <span className="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-200"/>
             Día libre
           </span>
         </div>
@@ -393,8 +393,12 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
     telefono: perfil?.telefono ?? "",
   });
 
-  // Estado de Firma Digital
+  // Estado de Firma Digital — mismo patrón de 2 pasos (Subir/Guardar) que el
+  // logo de sede: "Subir" solo abre el selector y previsualiza, "Guardar"
+  // recién sube el archivo.
   const [uploadingFirma, setUploadingFirma] = useState(false);
+  const [pendingFirmaFile, setPendingFirmaFile] = useState<File | null>(null);
+  const [firmaPreview, setFirmaPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Estado de Horarios (Doctor)
@@ -422,7 +426,14 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
   const [isEditingSede, setIsEditingSede] = useState(false);
   const [savingSede, setSavingSede] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const logoFileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPendingLogoFile(null);
+    setLogoPreview(null);
+  }, [activeSede?.id]);
 
   const [sedeForm, setSedeForm] = useState<{
     nombre_clinica: string;
@@ -492,13 +503,19 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
     }
   };
 
-  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !activeSede) return;
+    if (!file) return;
+    setPendingLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
+  const handleSaveLogo = async () => {
+    if (!pendingLogoFile || !activeSede) return;
 
     setUploadingLogo(true);
     const fd = new FormData();
-    fd.append("logo", file);
+    fd.append("logo", pendingLogoFile);
 
     const res = await updateLogoSedeAction(activeSede.id, fd);
     setUploadingLogo(false);
@@ -507,6 +524,8 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
       toast.error(res.error);
     } else {
       toast.success("Logo de la sede actualizado correctamente");
+      setPendingLogoFile(null);
+      setLogoPreview(null);
       router.refresh();
     }
   };
@@ -609,13 +628,19 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
     router.refresh();
   }
 
-  async function handleFirmaChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFirmaFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPendingFirmaFile(file);
+    setFirmaPreview(URL.createObjectURL(file));
+  }
+
+  async function handleSaveFirma() {
+    if (!pendingFirmaFile) return;
 
     setUploadingFirma(true);
     const fd = new FormData();
-    fd.append("firma", file);
+    fd.append("firma", pendingFirmaFile);
 
     const res = await updateFirmaDigitalAction(fd);
     setUploadingFirma(false);
@@ -626,6 +651,8 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
     }
 
     toast.success("Firma digital actualizada");
+    setPendingFirmaFile(null);
+    setFirmaPreview(null);
     router.refresh();
   }
 
@@ -645,99 +672,114 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
     const editingDoctor = horariosLista.find((d) => d.id === editingDoctorId) ?? null;
 
     return (
-      <div className="p-4 sm:p-6 flex flex-col gap-4">
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 max-w-xl">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shrink-0">
-                <Icon name="person" size={18} />
-              </div>
-              <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Información Personal</h2>
+      <div className="flex flex-col gap-6 min-h-full">
+      {/* SECCIONES 1 y 2: unificadas en una sola hoja/card blanca continua —
+          mismo patrón que la vista Admin/Superadmin: un único contenedor
+          bg-white y se separan con un border-t entre ambas. flex-1 + min-h-full
+          en el root: la hoja blanca cubre todo el alto disponible aunque haya
+          pocos doctores, en vez de dejar el fondo gris asomando debajo. */}
+      <div className="bg-white flex-1 flex flex-col">
+      {/* SECCIÓN 1: INFORMACIÓN PERSONAL */}
+      <div className="p-5">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600 shrink-0">
+              <Icon name="person" size={20} />
             </div>
-            <button
-              onClick={() => setIsEditingPersonal(true)}
-              className="px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-1"
-            >
-              <Icon name="edit" size={14} /> Editar
-            </button>
-          </div>
-          <div className="flex flex-col gap-3.5">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Nombre completo</p>
-              <p className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 mt-0.5">{nombreCompleto}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Email</p>
-              <p className="text-[13.5px] text-slate-700 dark:text-slate-300 mt-0.5">{perfil?.email ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Teléfono</p>
-              <p className="text-[13.5px] text-slate-700 dark:text-slate-300 mt-0.5">{perfil?.telefono ?? "—"}</p>
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-bold text-slate-800">Información Personal</h2>
+              <p className="hidden sm:block text-[12px] text-slate-500">Tus datos registrados en la tabla de personal</p>
             </div>
           </div>
+          <button
+            onClick={() => setIsEditingPersonal(true)}
+            className="shrink-0 flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg border border-slate-200 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            <Icon name="edit" size={16} /> Editar Datos
+          </button>
         </div>
 
-        {/* Horarios de doctores — tabla buscable en tablet/desktop, tarjetas
-            en mobile. Editar (en cualquiera de las dos) abre un modal aparte
-            que reutiliza el mismo editor por día que ya existía inline. */}
-        <div className="flex flex-col gap-3">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Nombre completo</p>
+            <p className="text-[13.5px] text-slate-700 mt-0.5">{nombreCompleto}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Email</p>
+            <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.email ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Teléfono</p>
+            <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.telefono ?? "—"}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* SECCIÓN 2: HORARIOS DE DOCTORES — tabla buscable en tablet/desktop,
+          tarjetas en mobile. Editar (en cualquiera de las dos) abre un modal
+          aparte que reutiliza el mismo editor por día que ya existía
+          inline. flex-1 min-h-0: absorbe el alto sobrante para que la tabla
+          llegue hasta abajo en vez de dejar espacio vacío después. */}
+      <div className="p-5 flex flex-col gap-3 border-t border-slate-200 flex-1 min-h-0">
+ <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h2 className="text-[14px] sm:text-[15px] font-bold text-slate-800 dark:text-slate-100">Horarios de doctores</h2>
-                <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-0.5">Configura la disponibilidad semanal de cada médico</p>
+ <h2 className="text-[14px] sm:text-[15px] font-bold text-slate-800">Horarios de doctores</h2>
+ <p className="text-[11.5px] text-slate-400 mt-0.5">Configura la disponibilidad semanal de cada médico</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold">
+ <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {horariosLista.length} doctores
                 </span>
-                <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-bold">
+ <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold">
                   {totalTurnosSemana} turnos/sem.
                 </span>
               </div>
             </div>
 
             <div className="relative mt-3">
-              <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+ <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
               <input
                 value={horarioSearch}
                 onChange={(e) => setHorarioSearch(e.target.value)}
                 placeholder="Buscar doctor o especialidad..."
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 text-[13px] text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
               />
             </div>
           </div>
 
           {horariosLista.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-500 px-1">No hay médicos registrados en tu sede.</p>
+ <p className="text-sm text-slate-500 px-1">No hay médicos registrados en tu sede.</p>
           ) : horariosFiltrados.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-500 px-1">Ningún doctor coincide con la búsqueda.</p>
+ <p className="text-sm text-slate-500 px-1">Ningún doctor coincide con la búsqueda.</p>
           ) : (
             <>
-              {/* Tablet / Desktop — tabla */}
-              <div className="hidden md:block bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="overflow-x-auto no-scrollbar">
+              {/* Tablet / Desktop — tabla. flex-1: el borde de la card llega
+                  hasta abajo del área disponible aunque haya pocos doctores,
+                  en vez de dejar el fondo gris asomando debajo. */}
+ <div className="hidden md:flex flex-col flex-1 min-h-0 bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto no-scrollbar flex-1">
                   <table className="w-full text-left border-collapse min-w-175">
                     <thead>
-                      <tr className="border-b border-slate-100 dark:border-slate-700">
-                        <th className="px-4 sm:px-5 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Doctor</th>
+ <tr className="border-b border-slate-100">
+ <th className="px-4 sm:px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Doctor</th>
                         {DIAS_CORTO.map((d) => (
-                          <th key={d} className="px-2 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide text-center">{d}</th>
+ <th key={d} className="px-2 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide text-center">{d}</th>
                         ))}
-                        <th className="px-4 sm:px-5 py-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide text-right">Acciones</th>
+ <th className="px-4 sm:px-5 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide text-right">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
                       {horariosFiltrados.map((doctor, i) => (
-                        <tr key={doctor.id} className="group border-b border-slate-50 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+ <tr key={doctor.id} className="group border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
                           <td className="px-4 sm:px-5 py-3 align-top">
                             <div className="flex items-center gap-2.5 min-w-0">
                               <span className="w-8 h-8 rounded-full flex items-center justify-center text-[10.5px] font-bold text-white shrink-0" style={{ background: DIA_COLOR[i % DIA_COLOR.length] }}>
                                 {initialsDoctor(doctor.nombre, doctor.apellido)}
                               </span>
                               <div className="min-w-0">
-                                <p className="text-[12.5px] font-bold text-slate-800 dark:text-slate-100 truncate">Dr. {doctor.nombre} {doctor.apellido}</p>
-                                <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">{doctor.especialidad ?? "General"}</p>
+ <p className="text-[12.5px] font-bold text-slate-800 truncate">Dr. {doctor.nombre} {doctor.apellido}</p>
+ <p className="text-[11px] text-slate-400 truncate">{doctor.especialidad ?? "General"}</p>
                               </div>
                             </div>
                           </td>
@@ -750,7 +792,7 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                             <button
                               onClick={() => startEditDoctor(doctor)}
                               title="Editar horario"
-                              className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 inline-flex w-8 h-8 rounded-lg items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors"
+ className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 inline-flex w-8 h-8 rounded-lg items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-cyan-600 transition-colors"
                             >
                               <Icon name="edit" size={15} />
                             </button>
@@ -760,8 +802,8 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                     </tbody>
                   </table>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-3 border-t border-slate-100 dark:border-slate-700">
-                  <div className="flex items-center gap-3 text-[11px] text-slate-400 dark:text-slate-500">
+ <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-3 border-t border-slate-100">
+ <div className="flex items-center gap-3 text-[11px] text-slate-400">
                     {TURNOS.map((t) => (
                       <span key={t.value} className="flex items-center gap-1.5">
                         <span className={`w-2 h-2 rounded-full ${TURNO_COLOR[t.value]}`} />
@@ -769,11 +811,11 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                       </span>
                     ))}
                     <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700" />
+ <span className="w-2 h-2 rounded-full bg-slate-200"/>
                       Sin turno
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500">Pasa el cursor sobre un doctor para editar</p>
+ <p className="text-[11px] text-slate-400">Pasa el cursor sobre un doctor para editar</p>
                 </div>
               </div>
 
@@ -782,19 +824,19 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                 {horariosFiltrados.map((doctor, i) => {
                   const diasActivos = DIAS.filter((dia) => (doctor.horarios[dia.num] ?? []).length > 0);
                   return (
-                    <div key={doctor.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
+ <div key={doctor.id} className="bg-white rounded-2xl border border-slate-200 p-4">
                       <div className="flex items-center gap-2.5">
                         <span className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0" style={{ background: DIA_COLOR[i % DIA_COLOR.length] }}>
                           {initialsDoctor(doctor.nombre, doctor.apellido)}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-bold text-slate-800 dark:text-slate-100 truncate">Dr. {doctor.nombre} {doctor.apellido}</p>
-                          <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">{doctor.especialidad ?? "General"} · {diasActivos.length} días activos</p>
+ <p className="text-[13px] font-bold text-slate-800 truncate">Dr. {doctor.nombre} {doctor.apellido}</p>
+ <p className="text-[11px] text-slate-400 truncate">{doctor.especialidad ?? "General"} · {diasActivos.length} días activos</p>
                         </div>
                         <button
                           onClick={() => startEditDoctor(doctor)}
                           title="Editar horario"
-                          className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors"
+ className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-cyan-600 transition-colors"
                         >
                           <Icon name="edit" size={15} />
                         </button>
@@ -807,9 +849,9 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                           return (
                             <div
                               key={dia.num}
-                              className={`flex-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg ${activo ? "bg-slate-50 dark:bg-slate-900/40" : "bg-slate-100 dark:bg-slate-700"}`}
+ className={`flex-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg ${activo ? "bg-slate-50" : "bg-slate-100"}`}
                             >
-                              <span className={`text-[10px] font-bold ${activo ? "text-slate-600 dark:text-slate-300" : "text-slate-400 dark:text-slate-500"}`}>
+ <span className={`text-[10px] font-bold ${activo ? "text-slate-600" : "text-slate-400"}`}>
                                 {DIAS_CORTO[di][0]}
                               </span>
                               <TurnoDots rangos={rangos} />
@@ -819,13 +861,13 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                       </div>
 
                       {diasActivos.length > 0 && (
-                        <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+ <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-slate-100">
                           {diasActivos.map((dia) => (
                             <div key={dia.num} className="flex items-center justify-between gap-2 text-[12px]">
-                              <span className="text-slate-500 dark:text-slate-400 shrink-0">{dia.label}</span>
+ <span className="text-slate-500 shrink-0">{dia.label}</span>
                               <div className="flex flex-wrap justify-end gap-x-2 gap-y-0.5">
                                 {(doctor.horarios[dia.num] ?? []).map((r, idx) => (
-                                  <span key={idx} className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
+ <span key={idx} className="flex items-center gap-1 font-semibold text-slate-700">
                                     <span className={`w-1.5 h-1.5 rounded-full ${TURNO_COLOR[r.turno]}`} />
                                     {r.hora_inicio}–{r.hora_fin}
                                   </span>
@@ -842,6 +884,7 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
             </>
           )}
         </div>
+      </div>
 
         <AnimatePresence>
           {editingDoctor && (
@@ -853,7 +896,7 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                   <button
                     onClick={cancelEditDoctor}
                     disabled={savingHorarioSede}
-                    className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+ className="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                   >
                     Cancelar
                   </button>
@@ -896,7 +939,7 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                     type="button"
                     onClick={() => setIsEditingPersonal(false)}
                     disabled={savingPersonal}
-                    className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+ className="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                   >
                     Cancelar
                   </button>
@@ -914,43 +957,43 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
             >
               <form id="form-personal-asistente" onSubmit={handleSavePersonal} className="flex flex-col gap-3.5 py-1">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Nombre</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Nombre</span>
                   <input
                     value={personalForm.nombre}
                     onChange={(e) => setPersonalForm((f) => ({ ...f, nombre: e.target.value }))}
                     required
-                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Apellido</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Apellido</span>
                   <input
                     value={personalForm.apellido}
                     onChange={(e) => setPersonalForm((f) => ({ ...f, apellido: e.target.value }))}
                     required
-                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Email</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Email</span>
                   <input
                     type="email"
                     value={personalForm.email}
                     onChange={(e) => setPersonalForm((f) => ({ ...f, email: e.target.value }))}
                     required
-                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Teléfono</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Teléfono</span>
                   <input
                     value={personalForm.telefono}
                     onChange={(e) => setPersonalForm((f) => ({ ...f, telefono: e.target.value }))}
-                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Fecha de nacimiento</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Fecha de nacimiento</span>
                   <DatePicker
                     value={personalForm.fecha_nacimiento}
                     onChange={(v) => setPersonalForm((f) => ({ ...f, fecha_nacimiento: v }))}
@@ -966,17 +1009,22 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
 
   // --- VISTA ADMIN / SUPERADMIN ---
   return (
-    <div className="p-4 sm:p-6 flex flex-col gap-6 max-w-6xl mx-auto">
+    <div className="flex flex-col gap-6">
       
+      {/* SECCIONES 1 y 2: unificadas en una sola hoja/card blanca continua —
+          antes eran dos cards independientes con gap-6 entre sí; ahora
+          comparten un único contenedor bg-white/border/shadow y se separan
+          con un border-t entre ambas (ver SECCIÓN 2 más abajo). */}
+      <div className="bg-white">
       {/* SECCIÓN 1: DATOS PERSONALES */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
+ <div className="p-5">
+ <div className="flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shrink-0">
+ <div className="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600 shrink-0">
               <Icon name="person" size={20} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-[15px] font-bold text-slate-800 dark:text-slate-100">Información Personal</h2>
+ <h2 className="text-[15px] font-bold text-slate-800">Información Personal</h2>
               <p className="hidden sm:block text-[12px] text-slate-500">Tus datos registrados en la tabla de personal</p>
             </div>
           </div>
@@ -991,33 +1039,33 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
               });
               setIsEditingPersonal(true);
             }}
-            className="shrink-0 flex items-center gap-1.5 px-3 h-8 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+ className="shrink-0 flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg border border-slate-200 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
           >
-            <Icon name="edit" size={14} /> Editar Datos
+            <Icon name="edit" size={16} /> Editar Datos
           </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Nombre completo</p>
-            <p className="text-[14px] font-bold text-slate-900 dark:text-slate-100 mt-0.5">{nombreCompleto}</p>
+ <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Nombre completo</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{nombreCompleto}</p>
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Email</p>
-            <p className="text-[13.5px] text-slate-700 dark:text-slate-300 mt-0.5">{perfil?.email ?? "—"}</p>
+ <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Email</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.email ?? "—"}</p>
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Teléfono</p>
-            <p className="text-[13.5px] text-slate-700 dark:text-slate-300 mt-0.5">{perfil?.telefono ?? "—"}</p>
+ <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Teléfono</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.telefono ?? "—"}</p>
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Fecha de Nacimiento</p>
-            <p className="text-[13.5px] text-slate-700 dark:text-slate-300 mt-0.5">{perfil?.fecha_nacimiento ?? "—"}</p>
+ <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Fecha de Nacimiento</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.fecha_nacimiento ?? "—"}</p>
           </div>
           {esDoctor && perfil?.num_colegiatura && (
             <div>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">N.° Colegiatura</p>
-              <p className="text-[13.5px] text-slate-700 dark:text-slate-300 mt-0.5">{perfil.num_colegiatura}</p>
+ <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">N.° Colegiatura</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil.num_colegiatura}</p>
             </div>
           )}
         </div>
@@ -1025,14 +1073,14 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
 
       {/* SECCIÓN 2: INFORMACIÓN DE SEDE(S) PARA ADMIN / SUPERADMIN */}
       {esAdminOrSuperadmin && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm flex flex-col gap-5">
-          <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-700">
+ <div className="p-5 flex flex-col gap-5 border-t border-slate-200">
+ <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shrink-0">
+ <div className="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600 shrink-0">
                 <Icon name="description" size={20} />
               </div>
               <div className="min-w-0">
-                <h2 className="text-[15px] font-bold text-slate-800 dark:text-slate-100">
+ <h2 className="text-[15px] font-bold text-slate-800">
                   {esSuperAdmin ? "Gestión de Sedes de la Clínica" : "Información de la Sede Asignada"}
                 </h2>
                 <p className="hidden sm:block text-[12px] text-slate-500">Configura la información institucional, contacto y horarios de atención</p>
@@ -1042,16 +1090,16 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
             {activeSede && (
               <button
                 onClick={() => startEditSede(activeSede)}
-                className="shrink-0 whitespace-nowrap px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
+                className="shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors"
               >
-                <Icon name="edit" size={15} /> Editar Sede
+                <Icon name="edit" size={16} /> Editar Sede
               </button>
             )}
           </div>
 
           {/* Selector de sedes para SUPERADMIN */}
           {esSuperAdmin && sedes && sedes.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 border-b border-slate-100 dark:border-slate-700">
+ <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2">
               <span className="text-xs font-bold text-slate-400 uppercase mr-2">Sedes:</span>
               {sedes.map((s) => (
                 <button
@@ -1060,7 +1108,7 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
                     activeSede?.id === s.id
                       ? "bg-cyan-600 text-white shadow-sm"
-                      : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+ :"bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
                   {s.nombre_clinica || `Sede #${s.id}`}
@@ -1075,54 +1123,64 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
               {/* Columna Logo + Contacto */}
               <div className="flex flex-col gap-4">
                 {/* Logo Box */}
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-900/40 flex flex-col items-center gap-3">
-                  <div className="w-32 h-32 rounded-xl border border-slate-200 bg-white dark:bg-slate-800 flex items-center justify-center p-2 overflow-hidden shadow-inner relative">
-                    {activeSede.logo_url ? (
+ <div className="rounded-2xl border border-slate-200 p-4 flex flex-col items-center gap-3">
+ <div className="w-full h-32 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center p-2 overflow-hidden relative">
+                    {logoPreview || activeSede.logo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={activeSede.logo_url} alt="Logo Sede" className="max-h-full max-w-full object-contain" />
+                      <img src={logoPreview || activeSede.logo_url || undefined} alt="Logo Sede" className="max-h-full max-w-full object-contain" />
                     ) : (
                       <div className="flex flex-col items-center gap-1 text-slate-400">
-                        <Icon name="photo" size={28} />
+                        <Icon name="cloud_upload" size={28} />
                         <span className="text-[11px]">Sin Logo</span>
                       </div>
                     )}
                   </div>
-                  <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
-                  <button
-                    onClick={() => logoFileRef.current?.click()}
-                    disabled={uploadingLogo}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
-                  >
-                    <Icon name="upload" size={14} />
-                    {uploadingLogo ? "Subiendo Logo…" : "Cambiar Logo"}
-                  </button>
+                  <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoFileSelect} />
+                  <div className="w-full flex items-center gap-2">
+                    <button
+                      onClick={() => logoFileRef.current?.click()}
+                      disabled={uploadingLogo}
+                      className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12.5px] font-semibold transition-colors disabled:opacity-50"
+                    >
+                      <Icon name="upload" size={16} />
+                      Subir
+                    </button>
+                    <button
+                      onClick={handleSaveLogo}
+                      disabled={!pendingLogoFile || uploadingLogo}
+                      className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Icon name="check" size={16} />
+                      {uploadingLogo ? "Guardando…" : "Guardar"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Parámetros de la Sede */}
-                <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-white dark:bg-slate-800">
+ <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 bg-white">
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Nombre de la Clínica</p>
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{activeSede.nombre_clinica || "—"}</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{activeSede.nombre_clinica ||"—"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Teléfono de Contacto</p>
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{activeSede.telefono || "—"}</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{activeSede.telefono ||"—"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Email Institucional</p>
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{activeSede.email_contacto || "—"}</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{activeSede.email_contacto ||"—"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Dirección</p>
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{activeSede.direccion || "—"}</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{activeSede.direccion ||"—"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Business WhatsApp / Phone</p>
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{activeSede.business_phone || "—"}</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{activeSede.business_phone ||"—"}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Telegram Bot</p>
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{activeSede.telegram_bot || "—"}</p>
+ <p className="text-[13.5px] text-slate-700 mt-0.5">{activeSede.telegram_bot ||"—"}</p>
                   </div>
                 </div>
               </div>
@@ -1139,24 +1197,24 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                 const horasSemanales = totalMin / 60;
                 return (
                   <div className="lg:col-span-2 flex flex-col gap-3">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
+ <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <h2 className="text-[14px] sm:text-[15px] font-bold text-slate-800 dark:text-slate-100">Horarios de Atención de la Clínica</h2>
-                          <p className="text-[11.5px] text-slate-400 dark:text-slate-500 mt-0.5">Días y horas en que la sede atiende al público</p>
+ <h2 className="text-[14px] sm:text-[15px] font-bold text-slate-800">Horarios de Atención de la Clínica</h2>
+ <p className="text-[11.5px] text-slate-400 mt-0.5">Días y horas en que la sede atiende al público</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold">
+ <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {diasAbiertos}/7 días abiertos
                           </span>
-                          <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] font-bold">
+ <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold">
                             {fmtHoras(horasSemanales)}h/sem.
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
+ <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {DIAS.map((dia) => {
                           const ranges: DraftRango[] = (rawH[dia.num] ?? []).map((r: any) => ({
@@ -1188,149 +1246,156 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
         </div>
       )}
 
-      {/* SECCIÓN 3: FIRMA DIGITAL & HORARIO PROFESIONAL (SOLO PARA DOCTOR) */}
+      {/* SECCIÓN 3: FIRMA DIGITAL (SOLO PARA DOCTOR) — misma hoja continua,
+          separada con border-t. */}
       {esDoctor && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
-              <div className="w-8 h-8 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shrink-0">
-                <Icon name="draw" size={18} />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Firma Digital</h2>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">Para recetas y documentos clínicos</p>
-              </div>
+        <div className="p-5 border-t border-slate-200">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600 shrink-0">
+              <Icon name="draw" size={20} />
             </div>
-
-            {perfil?.especialidad && (
-              <div className="mb-3">
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Especialidad</p>
-                <p className="text-[13.5px] text-slate-700 dark:text-slate-300 mt-0.5">{perfil.especialidad}</p>
-              </div>
-            )}
-
-            <div className="mb-3">
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Email profesional</p>
-              <p className="text-[13.5px] text-slate-700 dark:text-slate-300 mt-0.5">{perfil?.email ?? "—"}</p>
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-bold text-slate-800">Firma Digital</h2>
+              <p className="hidden sm:block text-[12px] text-slate-500">Para recetas y documentos clínicos</p>
             </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Teléfono</p>
-                <p className="text-[13.5px] text-slate-700 dark:text-slate-300 mt-0.5">{perfil?.telefono ?? "—"}</p>
-              </div>
-              {perfil?.num_colegiatura && (
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">N.° Colegiatura</p>
-                  <p className="text-[13.5px] text-slate-700 dark:text-slate-300 mt-0.5">{perfil.num_colegiatura}</p>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploadingFirma}
-              className="w-full rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 h-28 flex flex-col items-center justify-center gap-1 overflow-hidden mb-3 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-cyan-50/30 dark:hover:bg-cyan-900/10 transition-colors disabled:opacity-50"
-            >
-              {perfil?.firma_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={perfil.firma_url} alt="Firma digital" className="max-h-full max-w-full object-contain" />
-              ) : (
-                <>
-                  <Icon name="upload" size={18} className="text-slate-300 dark:text-slate-600" />
-                  <p className="text-[12px] text-slate-400 dark:text-slate-500">Sin firma registrada</p>
-                  <p className="text-[10.5px] text-slate-300 dark:text-slate-600">Haz clic para subir</p>
-                </>
-              )}
-            </button>
-
-            <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-relaxed mb-3">
-              Esta firma se usará en las recetas electrónicas y documentos clínicos emitidos bajo tu perfil profesional.
-            </p>
-
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFirmaChange} />
-            <button
-              onClick={() => fileRef.current?.click()}
-              disabled={uploadingFirma}
-              className="w-full flex items-center justify-center gap-1.5 h-10 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-            >
-              <Icon name="upload" size={15} />
-              {uploadingFirma ? "Subiendo…" : "Actualizar Firma"}
-            </button>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
-              <div className="w-8 h-8 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shrink-0">
-                <Icon name="calendar_month" size={18} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            {perfil?.especialidad && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Especialidad</p>
+                <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil.especialidad}</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Horario Profesional</h2>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">Semana actual · asignado desde base de datos</p>
-              </div>
-              <button
-                onClick={startEditHorario}
-                className="shrink-0 flex items-center gap-1.5 px-3 h-8 rounded-lg border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-              >
-                <Icon name="edit" size={14} />
-                Editar
-              </button>
-            </div>
-
-            <div className="mt-4 mb-4">
-              <HorarioStats horarios={horarios ?? {}} />
-            </div>
-
+            )}
             <div>
-              <HorarioSemanaCalendar horarios={horarios ?? {}} />
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Email profesional</p>
+              <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.email ?? "—"}</p>
             </div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Teléfono</p>
+              <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.telefono ?? "—"}</p>
+            </div>
+            {perfil?.num_colegiatura && (
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">N.° Colegiatura</p>
+                <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil.num_colegiatura}</p>
+              </div>
+            )}
+          </div>
 
-            <AnimatePresence>
-              {editingHorario && (
-                <ResponsiveSheet
-                  title="Editar horario profesional"
-                  onClose={cancelEditHorario}
-                  maxWidthDesktop="560px"
-                  footer={
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={cancelEditHorario}
-                        disabled={savingHorario}
-                        className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={guardarHorario}
-                        disabled={savingHorario}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[13px] font-semibold transition-colors"
-                      >
-                        <Icon name="save" size={15} />
-                        {savingHorario ? "Guardando…" : "Guardar"}
-                      </button>
-                    </div>
-                  }
-                >
-                  <div className="flex flex-col gap-3">
-                    {DIAS.map((dia) => (
-                      <DiaHorarioMedicoRow
-                        key={dia.num}
-                        dia={dia}
-                        ranges={draftHorarios[dia.num] ?? []}
-                        editing
-                        onUpdate={(idx, field, value) => updateRango(dia.num, idx, field, value)}
-                        onRemove={(idx) => removeRango(dia.num, idx)}
-                        onAdd={() => addRango(dia.num)}
-                      />
-                    ))}
+          <div className="max-w-sm">
+            <div className="rounded-2xl border border-slate-200 p-4 flex flex-col items-center gap-3">
+              <div className="w-full h-28 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center p-2 overflow-hidden relative">
+                {firmaPreview || perfil?.firma_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={firmaPreview || perfil?.firma_url || undefined} alt="Firma digital" className="max-h-full max-w-full object-contain" />
+                ) : (
+                  <div className="flex flex-col items-center gap-1 text-slate-400">
+                    <Icon name="upload" size={22} />
+                    <span className="text-[11px]">Sin firma registrada</span>
                   </div>
-                </ResponsiveSheet>
-              )}
-            </AnimatePresence>
+                )}
+              </div>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFirmaFileSelect} />
+              <div className="w-full flex items-center gap-2">
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploadingFirma}
+                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12.5px] font-semibold transition-colors disabled:opacity-50"
+                >
+                  <Icon name="upload" size={16} />
+                  Subir
+                </button>
+                <button
+                  onClick={handleSaveFirma}
+                  disabled={!pendingFirmaFile || uploadingFirma}
+                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Icon name="check" size={16} />
+                  {uploadingFirma ? "Guardando…" : "Guardar"}
+                </button>
+              </div>
+            </div>
+            <p className="text-[11.5px] text-slate-500 leading-relaxed mt-3">
+              Esta firma se usará en las recetas electrónicas y documentos clínicos emitidos bajo tu perfil profesional.
+            </p>
           </div>
         </div>
       )}
+
+      {/* SECCIÓN 4: HORARIO PROFESIONAL (SOLO PARA DOCTOR) */}
+      {esDoctor && (
+        <div className="p-5 border-t border-slate-200">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600 shrink-0">
+              <Icon name="calendar_month" size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-[15px] font-bold text-slate-800">Horario Profesional</h2>
+              <p className="hidden sm:block text-[12px] text-slate-500">Semana actual · asignado desde base de datos</p>
+            </div>
+            <button
+              onClick={startEditHorario}
+              className="shrink-0 flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg border border-slate-200 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <Icon name="edit" size={16} />
+              Editar
+            </button>
+          </div>
+
+          <div className="mb-4">
+            <HorarioStats horarios={horarios ?? {}} />
+          </div>
+
+          <div>
+            <HorarioSemanaCalendar horarios={horarios ?? {}} />
+          </div>
+
+          <AnimatePresence>
+            {editingHorario && (
+              <ResponsiveSheet
+                title="Editar horario profesional"
+                onClose={cancelEditHorario}
+                size="md"
+                footer={
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={cancelEditHorario}
+                      disabled={savingHorario}
+                      className="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={guardarHorario}
+                      disabled={savingHorario}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[13px] font-semibold transition-colors"
+                    >
+                      <Icon name="save" size={15} />
+                      {savingHorario ? "Guardando…" : "Guardar"}
+                    </button>
+                  </div>
+                }
+              >
+                <div className="flex flex-col gap-3">
+                  {DIAS.map((dia) => (
+                    <DiaHorarioMedicoRow
+                      key={dia.num}
+                      dia={dia}
+                      ranges={draftHorarios[dia.num] ?? []}
+                      editing
+                      onUpdate={(idx, field, value) => updateRango(dia.num, idx, field, value)}
+                      onRemove={(idx) => removeRango(dia.num, idx)}
+                      onAdd={() => addRango(dia.num)}
+                    />
+                  ))}
+                </div>
+              </ResponsiveSheet>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+      </div>
 
       {/* Modal "Editar Datos" — el botón de la Sección 1 ya seteaba
           isEditingPersonal, pero antes no existía ningún ResponsiveSheet acá
@@ -1347,7 +1412,7 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                   type="button"
                   onClick={() => setIsEditingPersonal(false)}
                   disabled={savingPersonal}
-                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+ className="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                 >
                   Cancelar
                 </button>
@@ -1365,43 +1430,43 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
           >
             <form id="form-personal-admin" onSubmit={handleSavePersonal} className="flex flex-col gap-3.5 py-1">
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Nombre</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Nombre</span>
                 <input
                   value={personalForm.nombre}
                   onChange={(e) => setPersonalForm((f) => ({ ...f, nombre: e.target.value }))}
                   required
-                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Apellido</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Apellido</span>
                 <input
                   value={personalForm.apellido}
                   onChange={(e) => setPersonalForm((f) => ({ ...f, apellido: e.target.value }))}
                   required
-                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Email</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Email</span>
                 <input
                   type="email"
                   value={personalForm.email}
                   onChange={(e) => setPersonalForm((f) => ({ ...f, email: e.target.value }))}
                   required
-                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Teléfono</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Teléfono</span>
                 <input
                   value={personalForm.telefono}
                   onChange={(e) => setPersonalForm((f) => ({ ...f, telefono: e.target.value }))}
-                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Fecha de nacimiento</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Fecha de nacimiento</span>
                 <DatePicker
                   value={personalForm.fecha_nacimiento}
                   onChange={(v) => setPersonalForm((f) => ({ ...f, fecha_nacimiento: v }))}
@@ -1419,14 +1484,14 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
           <ResponsiveSheet
             onClose={() => setIsEditingSede(false)}
             title="Editar información de la sede"
-            maxWidthDesktop="640px"
+            size="md"
             footer={
               <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsEditingSede(false)}
                   disabled={savingSede}
-                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors"
+ className="px-4 py-2 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
                 >
                   Cancelar
                 </button>
@@ -1444,61 +1509,61 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
           >
             <form id="form-sede" onSubmit={handleSaveSede} className="flex flex-col gap-3.5 py-1">
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Nombre de la clínica</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Nombre de la clínica</span>
                 <input
                   value={sedeForm.nombre_clinica}
                   onChange={(e) => setSedeForm((f) => ({ ...f, nombre_clinica: e.target.value }))}
                   required
-                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Teléfono</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Teléfono</span>
                   <input
                     value={sedeForm.telefono}
                     onChange={(e) => setSedeForm((f) => ({ ...f, telefono: e.target.value }))}
-                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Email institucional</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Email institucional</span>
                   <input
                     type="email"
                     value={sedeForm.email_contacto}
                     onChange={(e) => setSedeForm((f) => ({ ...f, email_contacto: e.target.value }))}
-                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
               </div>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Dirección</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Dirección</span>
                 <input
                   value={sedeForm.direccion}
                   onChange={(e) => setSedeForm((f) => ({ ...f, direccion: e.target.value }))}
-                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Business WhatsApp / Phone</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Business WhatsApp / Phone</span>
                   <input
                     value={sedeForm.business_phone}
                     onChange={(e) => setSedeForm((f) => ({ ...f, business_phone: e.target.value }))}
-                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Telegram Bot</span>
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Telegram Bot</span>
                   <input
                     value={sedeForm.telegram_bot}
                     onChange={(e) => setSedeForm((f) => ({ ...f, telegram_bot: e.target.value }))}
-                    className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[13.5px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+ className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
               </div>
-              <div className="flex flex-col gap-3 pt-2 border-t border-slate-100 dark:border-slate-700">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Horario de atención</span>
+ <div className="flex flex-col gap-3 pt-2 border-t border-slate-100">
+ <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Horario de atención</span>
                 {DIAS.map((dia) => (
                   <DiaHorarioRow
                     key={dia.num}

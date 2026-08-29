@@ -24,7 +24,7 @@ export default async function ValidacionPage() {
   return (
     <>
       <Header title="Validación y Permisos" />
-      <div className="flex-1 overflow-hidden flex flex-col p-4 md:p-6 bg-slate-50 dark:bg-slate-900/50">
+ <div className="flex-1 overflow-hidden flex flex-col p-4 md:p-6 bg-slate-50">
         <ValidacionView initialPeticiones={peticiones} />
       </div>
     </>

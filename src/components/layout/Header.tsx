@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, startTransition } from "react";
+import { useEffect, useRef, useState, startTransition } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
@@ -8,6 +8,7 @@ import { useAuth } from "./AuthProvider";
 import { getAlertasAction, markNotificacionLeidaAction, type AlertasData } from "./alertas.actions";
 import { createClient } from "@/lib/supabase/client";
 import { GuardedLink } from "./GuardedLink";
+import { useClickOutside } from "@/lib/hooks/useClickOutside";
 
 export interface Breadcrumb {
   label: string;
@@ -25,7 +26,7 @@ function SedeDisplay({ sede }: { sede?: string }) {
   if (!sede) return null;
   return (
     <div
-      className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[13px] font-medium text-slate-700 dark:text-slate-200"
+ className="hidden sm:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-slate-50 border border-slate-200 text-[13px] font-medium text-slate-700"
       title={sede}
     >
       <Icon name="location_on" size={15} className="text-slate-400 shrink-0" />
@@ -60,6 +61,8 @@ function AlertasButton() {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<AlertasData | null>(globalAlertasCache);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const containerRef = useRef<HTMLDivElement>(null);
+  useClickOutside(containerRef, () => setOpen(false), open);
 
   useEffect(() => {
     setDismissed(readDismissed());
@@ -77,19 +80,19 @@ function AlertasButton() {
       .channel("header_alerts_messages")
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => fetchAlertas())
       .on("postgres_changes", { event: "*", schema: "public", table: "notificaciones" }, (payload) => {
-        console.log("[Header] notificaciones postgres_changes:", payload);
+        console.log("[Header] notificaciones postgres_changes: ", payload);
         fetchAlertas();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "solicitud_validacion" }, (payload) => {
-        console.log("[Header] solicitud_validacion postgres_changes:", payload);
+        console.log("[Header] solicitud_validacion postgres_changes: ", payload);
         fetchAlertas();
       })
       .on("broadcast", { event: "NEW_NOTIFICACION" }, (payload) => {
-        console.log("[Header] NEW_NOTIFICACION broadcast recibido:", payload);
+        console.log("[Header] NEW_NOTIFICACION broadcast recibido: ", payload);
         fetchAlertas();
       })
       .subscribe((status) => {
-        console.log("[Header] Realtime status:", status);
+        console.log("[Header] Realtime status: ", status);
       });
 
     return () => {
@@ -98,8 +101,8 @@ function AlertasButton() {
   }, []);
 
   function dismiss(key: string) {
-    if (key.startsWith("notif:")) {
-      markNotificacionLeidaAction(key.replace("notif:", "")).catch(console.error);
+    if (key.startsWith("notif: ")) {
+      markNotificacionLeidaAction(key.replace("notif: ", "")).catch(console.error);
     }
     setDismissed((prev) => {
       const next = new Set(prev);
@@ -113,38 +116,38 @@ function AlertasButton() {
   if (data) {
     for (const n of data.notificacionesSistema || []) {
       rows.push({
-        key: `notif:${n.id}`, icon: "notifications_active", iconColor: "text-blue-600 dark:text-blue-400", iconBg: "bg-blue-50 dark:bg-blue-900/30",
+ key:`notif:${n.id}`, icon: "notifications_active", iconColor: "text-blue-600", iconBg: "bg-blue-50",
         title: n.titulo, subtitle: n.mensaje, link: n.link || undefined
       });
     }
     for (const m of data.mensajesNoLeidos || []) {
       rows.push({
-        key: m.id, icon: "chat", iconColor: "text-green-600 dark:text-green-400", iconBg: "bg-green-50 dark:bg-green-900/30",
+ key: m.id, icon: "chat", iconColor: "text-green-600", iconBg: "bg-green-50",
         title: m.pacienteNombre, subtitle: `${m.cantidad} mensaje${m.cantidad > 1 ? "s" : ""} sin leer`,
         link: `/pacientes/${m.pacienteId}?tab=chat`
       });
     }
     for (const c of data.citasProximas) {
       rows.push({
-        key: `cita:${c.id}`, icon: "schedule", iconColor: "text-cyan-600 dark:text-cyan-400", iconBg: "bg-cyan-50 dark:bg-cyan-900/30",
+ key:`cita:${c.id}`, icon: "schedule", iconColor: "text-cyan-600", iconBg: "bg-cyan-50",
         title: c.pacienteNombre || "Paciente", subtitle: `Cita próxima · ${fmtHoraCita(c.fecha, c.horaInicio)}`,
       });
     }
     for (const b of data.cumpleanos) {
       rows.push({
-        key: `cumple:${b.id}`, icon: "cake", iconColor: "text-[#E91E63]", iconBg: "bg-[#E91E63]/10",
+        key: `cumple:${b.id}`, icon: "cake", iconColor: "text-red-500", iconBg: "bg-red-50",
         title: b.nombre, subtitle: b.esHoy ? `Cumple años hoy · ${b.edad} años` : `Cumple años pronto · ${b.edad} años`,
       });
     }
     for (const a of data.alergias) {
       rows.push({
-        key: `alergia:${a.id}`, icon: "warning_amber", iconColor: "text-red-600 dark:text-red-400", iconBg: "bg-red-50 dark:bg-red-900/30",
+ key:`alergia:${a.id}`, icon: "warning_amber", iconColor: "text-red-600", iconBg: "bg-red-50",
         title: a.pacienteNombre, subtitle: `Alergias: ${a.alergias.join(", ")} · Cita hoy ${a.horaInicio}`,
       });
     }
     for (const t of data.tratamientosPendientes) {
       rows.push({
-        key: `tratamiento:${t.id}`, icon: "medical_services", iconColor: "text-amber-600 dark:text-amber-400", iconBg: "bg-amber-50 dark:bg-amber-900/30",
+ key:`tratamiento:${t.id}`, icon: "medical_services", iconColor: "text-amber-600", iconBg: "bg-amber-50",
         title: t.pacienteNombre, subtitle: `${t.fase} · ${t.estado}`,
       });
     }
@@ -154,12 +157,11 @@ function AlertasButton() {
   const count = visibleRows.length;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         onClick={() => setOpen((o) => !o)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
         aria-label="Alertas"
-        className="relative w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+ className="relative w-8 h-8 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"
       >
         <Icon name="notifications" size={18} />
         {count > 0 && (
@@ -175,14 +177,14 @@ function AlertasButton() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="fixed left-4 right-4 top-14 sm:absolute sm:left-auto sm:right-0 sm:top-9 sm:w-80 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden"
+ className="fixed left-4 right-4 top-14 sm:absolute sm:left-auto sm:right-0 sm:top-9 sm:w-80 z-30 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden"
           >
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-700">
-              <p className="text-[12.5px] font-bold text-slate-800 dark:text-slate-100">Alertas</p>
+ <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+ <p className="text-[12.5px] font-bold text-slate-800">Alertas</p>
               {count > 0 && (
                 <button
                   onMouseDown={(e) => { e.preventDefault(); const next = new Set(dismissed); visibleRows.forEach((r) => next.add(r.key)); setDismissed(next); writeDismissed(next); }}
-                  className="text-[11px] font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300"
+ className="text-[11px] font-semibold text-cyan-600 hover:text-cyan-700"
                 >
                   Marcar todas como leídas
                 </button>
@@ -192,13 +194,13 @@ function AlertasButton() {
             <div className="max-h-80 overflow-y-auto no-scrollbar flex flex-col py-1">
               {!data ? (
                 <div className="py-8 flex justify-center">
-                  <div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" />
+ <div className="w-6 h-6 rounded-full border-2 border-slate-200 border-t-cyan-500 animate-spin"/>
                 </div>
               ) : visibleRows.length === 0 ? (
                 <div className="px-4 py-8 text-center flex flex-col items-center">
-                  <Icon name="check_circle" size={24} className="text-slate-300 dark:text-slate-600 mb-2" />
-                  <p className="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">¡Todo al día!</p>
-                  <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Sin alertas por ahora</p>
+ <Icon name="check_circle" size={24} className="text-slate-300 mb-2"/>
+ <p className="text-[12.5px] font-semibold text-slate-600">¡Todo al día!</p>
+ <p className="text-[12.5px] text-slate-500">Sin alertas por ahora</p>
                 </div>
               ) : (
                 visibleRows.map((r) => {
@@ -208,14 +210,14 @@ function AlertasButton() {
                         <Icon name={r.icon} size={15} className={r.iconColor} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-bold text-slate-800 dark:text-slate-200 truncate">{r.title}</p>
-                        <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{r.subtitle}</p>
+ <p className="text-[12px] font-bold text-slate-800 truncate">{r.title}</p>
+ <p className="text-[11.5px] text-slate-500 truncate mt-0.5">{r.subtitle}</p>
                       </div>
                     </>
                   );
 
                   return (
-                    <div key={r.key} className="flex group px-2 mx-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+ <div key={r.key} className="flex group px-2 mx-2 rounded-xl hover:bg-slate-50 transition-colors">
                       {r.link ? (
                         <GuardedLink 
                           href={r.link} 
@@ -236,7 +238,7 @@ function AlertasButton() {
                       )}
                       <button
                         onMouseDown={(e) => { e.preventDefault(); dismiss(r.key); }}
-                        className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-opacity"
+ className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-slate-600 transition-opacity"
                         title="Descartar"
                       >
                         <Icon name="close" size={14} />
@@ -261,7 +263,7 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-      className="sticky top-0 z-40 h-13 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-6 shrink-0 gap-3 print:hidden"
+ className="sticky top-0 z-40 h-13 bg-white/95 backdrop-blur-sm border-b border-slate-200 flex items-center justify-between px-4 lg:px-6 shrink-0 gap-3 print:hidden"
     >
       {/* Lado izquierdo */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -273,22 +275,22 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
             {/* Sin botón "volver" mobile acá: la página de detalle de
                 paciente (única que usa breadcrumbs) ya tiene el suyo propio
                 en su sub-header — tener los dos apilados era redundante. */}
-            <Icon name="chevron_right" size={16} className="text-slate-300 dark:text-slate-600 shrink-0 hidden sm:block" />
+ <Icon name="chevron_right" size={16} className="text-slate-300 shrink-0 hidden sm:block"/>
 
             <nav className="hidden sm:flex items-center min-w-0">
               {breadcrumbs.map((crumb, i) => {
                 const isLast = i === breadcrumbs.length - 1;
                 return (
                   <span key={i} className="flex items-center min-w-0">
-                    {i > 0 && <Icon name="chevron_right" size={16} className="text-slate-300 dark:text-slate-600 shrink-0 mx-0.5" />}
+ {i > 0 && <Icon name="chevron_right" size={16} className="text-slate-300 shrink-0 mx-0.5"/>}
                     {isLast ? (
-                      <span className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 truncate max-w-50 lg:max-w-sm">
+ <span className="text-[14px] font-semibold text-slate-900 truncate max-w-50 lg:max-w-sm">
                         {crumb.label}
                       </span>
                     ) : (
                       <GuardedLink
                         href={crumb.href ?? "#"}
-                        className="text-[13px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors shrink-0 whitespace-nowrap"
+ className="text-[13px] text-slate-500 hover:text-slate-800 transition-colors shrink-0 whitespace-nowrap"
                       >
                         {crumb.label}
                       </GuardedLink>
@@ -307,14 +309,14 @@ export function Header({ title, breadcrumbs, actions }: HeaderProps) {
         <AlertasButton />
 
         <div className="flex items-center gap-2" title={user?.name ?? ""}>
-          <div className="w-8 h-8 rounded-full bg-cyan-50 dark:bg-cyan-900/40 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center shrink-0">
-            <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-400">{user?.initials ?? "…"}</span>
+ <div className="w-8 h-8 rounded-full bg-cyan-50 border-2 border-cyan-200 flex items-center justify-center shrink-0">
+ <span className="text-[11px] font-bold text-cyan-700">{user?.initials ?? "…"}</span>
           </div>
         </div>
 
         <button
           onClick={logout}
-          className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 active:text-red-500 dark:active:text-red-400 transition-colors"
+ className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 active:text-red-500 transition-colors"
           title="Cerrar sesión"
         >
           <Icon name="logout" size={17} />

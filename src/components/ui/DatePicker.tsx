@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "./Icon";
+import { SmartPopover } from "./SmartPopover";
 
 const DIAS = ["L", "M", "X", "J", "V", "S", "D"];
 const MESES = [
@@ -10,11 +11,6 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 const MESES_CORTO = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-
-// Alto/ancho estimado del panel (peor caso: grilla de días, 6 filas) — se
-// usan para decidir de qué lado abrir cuando no cabe del lado por defecto.
-const PANEL_HEIGHT_ESTIMATE = 320;
-const PANEL_WIDTH = 264;
 
 function toISODate(d: Date) {
   const y = d.getFullYear();
@@ -60,13 +56,9 @@ export function DatePicker({
 }) {
   const selected = mode === "month" ? parseYearMonth(value) : parseISODate(value);
   const [open, setOpen] = useState(false);
-  const [openUpward, setOpenUpward] = useState(false);
-  const [openLeft, setOpenLeft] = useState(false);
   const [view, setView] = useState<"days" | "months" | "years">(mode === "month" ? "months" : "days");
   const [viewDate, setViewDate] = useState(() => selected ?? new Date());
   const [yearBlockStart, setYearBlockStart] = useState(() => (selected ?? new Date()).getFullYear() - 5);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -76,43 +68,6 @@ export function DatePicker({
       setYearBlockStart(base.getFullYear() - 5);
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleToggle() {
-    if (!open && rootRef.current) {
-      const rect = rootRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      setOpenUpward(spaceBelow < PANEL_HEIGHT_ESTIMATE && spaceAbove > spaceBelow);
-
-      const spaceRight = window.innerWidth - rect.left;
-      const spaceLeft = rect.right;
-      setOpenLeft(spaceRight < PANEL_WIDTH && spaceLeft > spaceRight);
-    }
-    setOpen((o) => !o);
-  }
-
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    if (open) document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open]);
-
-  // handleToggle solo estima el lado con el ancho fijo de PANEL_WIDTH contra
-  // el viewport — dentro de un modal centrado eso no basta (el trigger puede
-  // tener "espacio de viewport" de sobra a la derecha aunque el panel real,
-  // una vez pintado, se corte contra el borde real de la ventana). Se mide el
-  // panel ya renderizado y se corrige antes del primer paint si aún así no
-  // entra completo.
-  useLayoutEffect(() => {
-    if (!open || !panelRef.current) return;
-    const r = panelRef.current.getBoundingClientRect();
-    if (r.right > window.innerWidth && r.left >= 0) setOpenLeft(true);
-    else if (r.left < 0 && r.right <= window.innerWidth) setOpenLeft(false);
-    if (r.bottom > window.innerHeight && r.top >= 0) setOpenUpward(true);
-    else if (r.top < 0 && r.bottom <= window.innerHeight) setOpenUpward(false);
-  }, [open, openLeft, openUpward, view]);
 
   const minDate = parseISODate(min);
   const maxDate = parseISODate(max);
@@ -143,24 +98,30 @@ export function DatePicker({
   }
 
   return (
-    <div ref={rootRef} className={`relative ${className}`}>
-      <button
-        type="button"
-        onClick={handleToggle}
-        className="w-full h-9 sm:h-10 flex items-center justify-between gap-2 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-[12px] sm:text-[13px] text-left bg-white dark:bg-slate-800 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+    <div className={className}>
+      <SmartPopover
+        open={open}
+        onClose={() => setOpen(false)}
+        placement="bottom-start"
+        renderTrigger={(ref) => (
+          <button
+            ref={ref}
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+ className="w-full h-9 sm:h-10 flex items-center justify-between gap-2 border border-slate-200 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-[12px] sm:text-[13px] text-left bg-white outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 hover:border-slate-300 transition-colors"
+          >
+ <span className={`flex items-center gap-1.5 truncate ${selected ? "text-slate-800" : "text-slate-400"}`}>
+ <Icon name="calendar_today" size={14} className="text-slate-400 shrink-0"/>
+              {selected ? fmtDisplay(selected) : placeholder}
+            </span>
+          </button>
+        )}
       >
-        <span className={`flex items-center gap-1.5 truncate ${selected ? "text-slate-800 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>
-          <Icon name="calendar_today" size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
-          {selected ? fmtDisplay(selected) : placeholder}
-        </span>
-      </button>
-      {open && (
         <motion.div
-          ref={panelRef}
-          initial={{ opacity: 0, y: openUpward ? 4 : -4 }}
+          initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
-          className={`absolute ${openLeft ? "right-0" : "left-0"} ${openUpward ? "bottom-[calc(100%+4px)]" : "top-[calc(100%+4px)]"} z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-3 w-[264px]`}
+ className="bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-[264px]"
         >
           <div className="flex items-center justify-between mb-2">
             <button
@@ -170,7 +131,7 @@ export function DatePicker({
                 else if (view === "months") setViewDate(new Date(year - 1, month, 1));
                 else setYearBlockStart((y) => y - 12);
               }}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+ className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"
             >
               <Icon name="chevron_left" size={16} />
             </button>
@@ -178,23 +139,23 @@ export function DatePicker({
             {view === "days" && (
               <div className="flex items-center gap-1">
                 <button type="button" onClick={() => setView("months")}
-                  className="text-[12.5px] font-semibold text-slate-700 dark:text-slate-200 hover:text-cyan-700 dark:hover:text-cyan-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-md px-1.5 py-0.5 transition-colors">
+ className="text-[12.5px] font-semibold text-slate-700 hover:text-cyan-700 hover:bg-slate-50 rounded-md px-1.5 py-0.5 transition-colors">
                   {MESES[month]}
                 </button>
                 <button type="button" onClick={() => setView("years")}
-                  className="text-[12.5px] font-semibold text-slate-700 dark:text-slate-200 hover:text-cyan-700 dark:hover:text-cyan-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-md px-1.5 py-0.5 transition-colors">
+ className="text-[12.5px] font-semibold text-slate-700 hover:text-cyan-700 hover:bg-slate-50 rounded-md px-1.5 py-0.5 transition-colors">
                   {year}
                 </button>
               </div>
             )}
             {view === "months" && (
               <button type="button" onClick={() => setView("years")}
-                className="text-[12.5px] font-semibold text-slate-700 dark:text-slate-200 hover:text-cyan-700 dark:hover:text-cyan-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-md px-1.5 py-0.5 transition-colors">
+ className="text-[12.5px] font-semibold text-slate-700 hover:text-cyan-700 hover:bg-slate-50 rounded-md px-1.5 py-0.5 transition-colors">
                 {year}
               </button>
             )}
             {view === "years" && (
-              <span className="text-[12.5px] font-semibold text-slate-700 dark:text-slate-200">{yearBlockStart} – {yearBlockStart + 11}</span>
+ <span className="text-[12.5px] font-semibold text-slate-700">{yearBlockStart} – {yearBlockStart + 11}</span>
             )}
 
             <button
@@ -204,7 +165,7 @@ export function DatePicker({
                 else if (view === "months") setViewDate(new Date(year + 1, month, 1));
                 else setYearBlockStart((y) => y + 12);
               }}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+ className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"
             >
               <Icon name="chevron_right" size={16} />
             </button>
@@ -214,7 +175,7 @@ export function DatePicker({
             <>
               <div className="grid grid-cols-7 gap-0.5 mb-1">
                 {DIAS.map((d) => (
-                  <span key={d} className="text-[10px] font-bold text-slate-400 dark:text-slate-500 text-center py-1">{d}</span>
+ <span key={d} className="text-[10px] font-bold text-slate-400 text-center py-1">{d}</span>
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-0.5">
@@ -234,10 +195,10 @@ export function DatePicker({
                         isSelected
                           ? "bg-cyan-600 text-white font-semibold"
                           : disabled
-                          ? "text-slate-300 dark:text-slate-600 cursor-not-allowed"
+ ? "text-slate-300 cursor-not-allowed"
                           : isToday
-                          ? "text-cyan-700 dark:text-cyan-400 font-semibold bg-cyan-50 dark:bg-cyan-900/30 hover:bg-cyan-100 dark:hover:bg-cyan-900/50"
-                          : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+ ? "text-cyan-700 font-semibold bg-cyan-50 hover:bg-cyan-100"
+ :"text-slate-600 hover:bg-slate-50"
                       }`}
                     >
                       {d.getDate()}
@@ -266,7 +227,7 @@ export function DatePicker({
                       }
                     }}
                     className={`h-9 rounded-lg text-[12px] font-medium transition-colors ${
-                      isSelected ? "bg-cyan-600 text-white font-semibold" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+ isSelected ? "bg-cyan-600 text-white font-semibold" : "text-slate-600 hover:bg-slate-50"
                     }`}
                   >
                     {m}
@@ -286,7 +247,7 @@ export function DatePicker({
                     type="button"
                     onClick={() => { setViewDate(new Date(y, month, 1)); setView("months"); }}
                     className={`h-9 rounded-lg text-[12px] font-medium transition-colors ${
-                      isSelected ? "bg-cyan-600 text-white font-semibold" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+ isSelected ? "bg-cyan-600 text-white font-semibold" : "text-slate-600 hover:bg-slate-50"
                     }`}
                   >
                     {y}
@@ -296,7 +257,7 @@ export function DatePicker({
             </div>
           )}
         </motion.div>
-      )}
+      </SmartPopover>
     </div>
   );
 }

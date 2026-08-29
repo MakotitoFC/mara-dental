@@ -202,21 +202,21 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <div className="w-8 h-8 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" />
+ <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-cyan-500 animate-spin"/>
       </div>
     );
   }
 
   if (accessDenied) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-10 flex flex-col items-center justify-center text-center my-4">
+ <div className="bg-white rounded-2xl border border-slate-200 p-10 flex flex-col items-center justify-center text-center my-4">
         <div className="w-16 h-16 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center mb-4">
           <Icon name="lock" size={32} />
         </div>
-        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">
+ <h2 className="text-lg font-bold text-slate-800 mb-2">
           Acceso Restringido al Chat
         </h2>
-        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto text-[13.5px] leading-relaxed">
+ <p className="text-slate-500 max-w-md mx-auto text-[13.5px] leading-relaxed">
           {deniedMessage || "Solo el médico tratante de este paciente o los administradores pueden acceder a esta conversación."}
         </p>
       </div>
@@ -227,32 +227,32 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
 
   if (!isLinked) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-10 flex flex-col items-center justify-center text-center">
-        <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-500 dark:text-blue-400 mb-6">
+ <div className="bg-white rounded-2xl border border-slate-200 p-10 flex flex-col items-center justify-center text-center">
+ <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-500 mb-6">
           <Icon name="send" size={32} />
         </div>
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
+ <h2 className="text-xl font-bold text-slate-800 mb-2">
           Chat por Telegram no vinculado
         </h2>
-        <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-8 text-[14px]">
+ <p className="text-slate-500 max-w-md mx-auto mb-8 text-[14px]">
           El paciente aún no ha activado la comunicación por Telegram. Genera un enlace de invitación para que pueda iniciar la conversación con el bot de la clínica.
         </p>
 
         {paciente?.telegram_link_code ? (
           <div className="flex flex-col items-center gap-3 w-full max-w-sm">
-            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-3 rounded-xl w-full flex items-center justify-between">
-              <span className="text-[12px] font-mono text-slate-600 dark:text-slate-300 truncate">
+ <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full flex items-center justify-between">
+ <span className="text-[12px] font-mono text-slate-600 truncate">
                 https://t.me/MaraDentalBot?start={paciente.telegram_link_code}
               </span>
               <button
                 onClick={() => copyToClipboard(paciente.telegram_link_code)}
-                className="w-8 h-8 flex items-center justify-center text-cyan-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 rounded-lg transition-colors shrink-0 ml-2"
+ className="w-8 h-8 flex items-center justify-center text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors shrink-0 ml-2"
                 title="Copiar enlace"
               >
                 <Icon name="content_copy" size={16} />
               </button>
             </div>
-            <p className="text-[12px] text-amber-600 dark:text-amber-500 flex items-center gap-1.5">
+ <p className="text-[12px] text-amber-600 flex items-center gap-1.5">
               <Icon name="pending" size={14} />
               Esperando a que el paciente inicie el bot...
             </p>
@@ -274,31 +274,31 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
   const pacienteIniciales = (`${paciente?.nombre?.[0] ?? ""}${paciente?.apellido?.[0] ?? ""}`.toUpperCase()) || "P";
 
   return (
-    <div className="flex flex-col h-[600px] lg:h-full bg-white dark:bg-slate-800 overflow-hidden">
-      <div className="shrink-0 flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-200 dark:border-slate-700">
+ <div className="flex flex-col h-[600px] lg:h-full bg-white overflow-hidden">
+ <div className="shrink-0 flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-200">
         <div className="relative shrink-0">
-          <div className="w-10 h-10 rounded-full bg-cyan-50 dark:bg-cyan-900/30 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center">
-            <span className="text-[13px] font-bold text-cyan-700 dark:text-cyan-400">{pacienteIniciales}</span>
+ <div className="w-10 h-10 rounded-full bg-cyan-50 border-2 border-cyan-200 flex items-center justify-center">
+ <span className="text-[13px] font-bold text-cyan-700">{pacienteIniciales}</span>
           </div>
-          <span className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-[#24A1DE] border-2 border-white dark:border-slate-800 flex items-center justify-center">
+ <span className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-[color:var(--telegram-blue)] border-2 border-white flex items-center justify-center">
             <Icon name="send" size={9} className="text-white" />
           </span>
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[14px] font-bold text-slate-800 dark:text-slate-100 truncate">{pacienteNombre}</h2>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
-            <Icon name="send" size={11} className="text-[#24A1DE]" />
+ <h2 className="text-[14px] font-bold text-slate-800 truncate">{pacienteNombre}</h2>
+ <p className="text-[11px] text-slate-400 flex items-center gap-1">
+            <Icon name="send" size={11} className="text-[color:var(--telegram-blue)]" />
             Vinculado por Telegram
           </p>
         </div>
       </div>
 
       <div
-        className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-5 flex flex-col gap-4 bg-slate-50/50 dark:bg-slate-900/20"
+ className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-5 flex flex-col gap-4 bg-slate-50/50"
         onScroll={handleScroll}
       >
         {messages.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-slate-400 dark:text-slate-500 text-[13px]">
+ <div className="flex-1 flex items-center justify-center text-slate-400 text-[13px]">
             No hay mensajes. Envía el primero para comenzar.
           </div>
         ) : (
@@ -313,7 +313,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
                   className={`px-4 py-2 rounded-2xl text-[13px] relative shadow-sm ${
                     isMe 
                       ? "bg-cyan-600 text-white rounded-br-sm" 
-                      : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-bl-sm"
+ :"bg-white text-slate-700 border border-slate-200 rounded-bl-sm"
                   }`}
                 >
                   {m.file_url && (
@@ -356,9 +356,9 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700">
+ <div className="p-4 bg-white border-t border-slate-100">
         {selectedFile && (
-          <div className="mb-3 flex items-center justify-between bg-slate-100 dark:bg-slate-700 p-2 rounded-lg text-[13px] border border-slate-200 dark:border-slate-600">
+ <div className="mb-3 flex items-center justify-between bg-slate-100 p-2 rounded-lg text-[13px] border border-slate-200">
             <div className="flex items-center gap-2 truncate">
               <Icon name={selectedFile.type.startsWith("image/") ? "image" : "description"} size={18} className="text-cyan-600" />
               <span className="truncate">{selectedFile.name}</span>
@@ -382,18 +382,18 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-10 h-10 flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors shrink-0"
+ className="w-10 h-10 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-full transition-colors shrink-0"
             title="Adjuntar archivo"
           >
             <Icon name="attach_file" size={20} />
           </button>
           
-          <div className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden min-h-[44px] flex items-center">
+ <div className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden min-h-[44px] flex items-center">
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Escribe un mensaje..."
-              className="w-full bg-transparent border-0 focus:ring-0 text-[14px] text-slate-700 dark:text-slate-200 px-4 py-3 resize-none max-h-[120px]"
+ className="w-full bg-transparent border-0 focus:ring-0 text-[14px] text-slate-700 px-4 py-3 resize-none max-h-[120px]"
               rows={1}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -410,7 +410,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
             className={`w-11 h-11 flex items-center justify-center rounded-full transition-colors shrink-0 shadow-sm
               ${(text.trim() || selectedFile) && !sending 
                 ? "bg-cyan-600 hover:bg-cyan-700 text-white" 
-                : "bg-slate-100 dark:bg-slate-700 text-slate-400"
+ :"bg-slate-100 text-slate-400"
               }`}
           >
             {sending ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Icon name="send" size={18} />}

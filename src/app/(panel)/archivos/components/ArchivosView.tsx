@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { VisorModal } from "@/app/(panel)/pacientes/[id]/components/consulta/VisorModal";
 import { getArchivosGlobalAction, type ArchivoGlobal } from "../actions";
 
@@ -79,12 +80,12 @@ export function ArchivosView() {
 
       {/* Buscador */}
       <div className="relative">
-        <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+ <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar por nombre, paciente o descripción…"
-          className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40" />
+ className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-800 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"/>
       </div>
 
       {/* Filtros */}
@@ -98,7 +99,7 @@ export function ArchivosView() {
                 onClick={() => setFiltro(f.key)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all shrink-0 border outline-none focus:outline-none ${active
                     ? "bg-cyan-600 border-cyan-600 text-white"
-                    : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
+ :"bg-white border-slate-200 text-slate-600 hover:border-slate-300"
                   }`}
               >
                 <Icon name={f.icon} size={13} />
@@ -106,7 +107,7 @@ export function ArchivosView() {
               </button>
             );
           })}
-          <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-1 whitespace-nowrap shrink-0">
+ <span className="text-[11px] text-slate-400 ml-1 whitespace-nowrap shrink-0">
             {filtrados.length} ({filtro === "todos" ? "Total" : "Filtrados"})
           </span>
         </div>
@@ -120,9 +121,8 @@ export function ArchivosView() {
           ))}
         </div>
       ) : filtrados.length === 0 ? (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 py-16 text-center text-slate-400 dark:text-slate-500">
-          <Icon name="folder_open" size={36} className="mx-auto mb-2 opacity-30" />
-          <p className="text-[13px]">No se encontraron archivos</p>
+ <div className="bg-white rounded-2xl border border-slate-200">
+          <EmptyState icon="folder_open" title="No se encontraron archivos" />
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -157,9 +157,9 @@ function ArchivoCard({ archivo: a, onClick }: { archivo: ArchivoGlobal; onClick:
   return (
     <div
       onClick={onClick}
-      className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden cursor-pointer hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all group flex sm:flex-col"
+ className="bg-white rounded-2xl border border-slate-200 overflow-hidden cursor-pointer hover:shadow-md hover:border-slate-300 transition-all group flex sm:flex-col"
     >
-      <div className="relative aspect-square sm:aspect-4/3 w-28 sm:w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-900" style={{ background: cfg.bg }}>
+ <div className="relative aspect-square sm:aspect-4/3 w-28 sm:w-full shrink-0 overflow-hidden bg-slate-100" style={{ background: cfg.bg }}>
         {showImg ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={a.displayUrl} alt={a.nombre_archivo} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -180,9 +180,9 @@ function ArchivoCard({ archivo: a, onClick }: { archivo: ArchivoGlobal; onClick:
       </div>
 
       <div className="p-3 flex flex-col justify-center min-w-0 flex-1">
-        <p className="text-[12px] sm:text-[11px] font-semibold text-slate-800 dark:text-slate-100 truncate">{a.nombre_archivo}</p>
-        <p className="text-[11px] sm:text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">{a.paciente_nombre}</p>
-        <p className="text-[11px] sm:text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{fmtFechaArchivo(a.fecha_subida)}</p>
+ <p className="text-[12px] sm:text-[11px] font-semibold text-slate-800 truncate">{a.nombre_archivo}</p>
+ <p className="text-[11px] sm:text-[10px] text-slate-400 truncate mt-0.5">{a.paciente_nombre}</p>
+ <p className="text-[11px] sm:text-[10px] text-slate-400 mt-0.5">{fmtFechaArchivo(a.fecha_subida)}</p>
       </div>
     </div>
   );
@@ -190,13 +190,13 @@ function ArchivoCard({ archivo: a, onClick }: { archivo: ArchivoGlobal; onClick:
 
 function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
   return (
-    <div className="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-3">
+ <div className="bg-white p-3.5 rounded-2xl border border-slate-200 flex items-center gap-3">
       <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: color + "10", color }}>
         <Icon name={icon} size={18} />
       </div>
       <div>
-        <p className="text-[16px] font-bold text-slate-800 dark:text-slate-100 leading-none">{value}</p>
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-1">{label}</p>
+ <p className="text-[16px] font-bold text-slate-800 leading-none">{value}</p>
+ <p className="text-[10px] text-slate-400 font-medium mt-1">{label}</p>
       </div>
     </div>
   );

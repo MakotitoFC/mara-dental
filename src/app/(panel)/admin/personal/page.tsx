@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getPersonalAction, getFiltrosPersonalAction, getAllSedesAction } from "./personal.actions";
+import { getPersonalAction, getPersonalCountsAction, getFiltrosPersonalAction, getAllSedesAction } from "./personal.actions";
 import PersonalClient from "./PersonalClient";
 import { redirect } from "next/navigation";
 import { Header } from "@/components/layout/Header";
@@ -40,10 +40,21 @@ export default async function PersonalPage({
   const puestoId = params.puestoId ? parseInt(params.puestoId as string, 10) : null;
   const rolId = params.rolId ? parseInt(params.rolId as string, 10) : null;
   const sedeId = params.sedeId ? parseInt(params.sedeId as string, 10) : profile.sede_id;
+  const estado = (params.estado as string) || "todos";
+  const activo = estado === "activos" ? true : estado === "inactivos" ? false : null;
 
   const { data, count, totalPages } = await getPersonalAction({
     page,
-    limit: 5,
+    limit: 6,
+    search,
+    especialidadId,
+    puestoId,
+    sedeId,
+    rolId,
+    activo,
+  });
+
+  const { activos: countActivos, inactivos: countInactivos } = await getPersonalCountsAction({
     search,
     especialidadId,
     puestoId,
@@ -66,6 +77,8 @@ export default async function PersonalPage({
         initialCount={count}
         totalPages={totalPages}
         currentPage={page}
+        countActivos={countActivos}
+        countInactivos={countInactivos}
         especialidades={especialidades}
         puestos={puestos}
         sedes={sedes}

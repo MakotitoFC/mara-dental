@@ -18,12 +18,12 @@ const STEPS = [
   { n: 3, label: "Historia clínica" },
 ];
 
-const inputCls = "w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 transition-colors";
+const inputCls ="w-full border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 transition-colors";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[12px] font-semibold text-slate-700 dark:text-slate-300">{label}</label>
+ <label className="text-[12px] font-semibold text-slate-700">{label}</label>
       {children}
     </div>
   );
@@ -139,10 +139,10 @@ export function NuevoPacienteModal({ onClose, onCreated }: { onClose: () => void
   return (
     <ResponsiveSheet
       onClose={onClose}
-      maxWidthDesktop="560px"
+      size="md"
       header={
         <div>
-          <p className="text-[15px] font-bold text-slate-900 dark:text-slate-100 mb-3">Nuevo paciente</p>
+ <p className="text-[15px] font-bold text-slate-900 mb-3">Nuevo paciente</p>
           <div className="flex items-center">
             {STEPS.map((s, i) => (
               <div key={s.n} className="flex items-center flex-1 last:flex-none">
@@ -245,7 +245,7 @@ export function NuevoPacienteModal({ onClose, onCreated }: { onClose: () => void
               />
               <ChipField
                 label="Antecedentes médicos" placeholder="Ej: Hipertensión" chips={cronicas} input={cronicasInput}
-                chipClass="bg-rose-50 text-rose-700 border border-rose-100"
+                chipClass="bg-red-50 text-red-700 border border-red-100"
                 onInputChange={setCronicasInput}
                 onAdd={() => addChip(cronicasInput, cronicas, setCronicas, setCronicasInput)}
                 onRemove={(v) => removeChip(v, cronicas, setCronicas)}
@@ -268,22 +268,22 @@ export function NuevoPacienteModal({ onClose, onCreated }: { onClose: () => void
               <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center">
                 <Icon name="check_circle" size={28} className="text-emerald-500" />
               </div>
-              <p className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Historia clínica lista</p>
-              <p className="text-[12.5px] text-slate-500 dark:text-slate-400 max-w-xs">
+ <p className="text-[15px] font-bold text-slate-900">Historia clínica lista</p>
+ <p className="text-[12.5px] text-slate-500 max-w-xs">
                 Se creó automáticamente la historia clínica con código único y estado activo.
               </p>
-              <div className="w-full bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700">
+ <div className="w-full bg-slate-50 rounded-xl border border-slate-200 divide-y divide-slate-200">
                 <div className="flex items-center justify-between px-4 py-2.5">
-                  <span className="text-[12px] text-slate-500 dark:text-slate-400">Código historia</span>
-                  <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{resultado.historia.codigo_historia}</span>
+ <span className="text-[12px] text-slate-500">Código historia</span>
+ <span className="text-[13px] font-semibold text-slate-900">{resultado.historia.codigo_historia}</span>
                 </div>
                 <div className="flex items-center justify-between px-4 py-2.5">
-                  <span className="text-[12px] text-slate-500 dark:text-slate-400">Estado</span>
-                  <span className="text-[13px] font-semibold text-emerald-600 dark:text-emerald-400 capitalize">{resultado.historia.estado}</span>
+ <span className="text-[12px] text-slate-500">Estado</span>
+ <span className="text-[13px] font-semibold text-emerald-600 capitalize">{resultado.historia.estado}</span>
                 </div>
                 <div className="flex items-center justify-between px-4 py-2.5">
-                  <span className="text-[12px] text-slate-500 dark:text-slate-400">Fecha creación</span>
-                  <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{fmtFecha(resultado.historia.fecha_creacion)}</span>
+ <span className="text-[12px] text-slate-500">Fecha creación</span>
+ <span className="text-[13px] font-semibold text-slate-900">{fmtFecha(resultado.historia.fecha_creacion)}</span>
                 </div>
               </div>
             </div>

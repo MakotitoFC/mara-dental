@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
+import { SmartPopover } from "@/components/ui/SmartPopover";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
 import { GuardedLink } from "@/components/layout/GuardedLink";
@@ -116,7 +117,7 @@ export function HistoriaView({
       const data = await getConsultaActivaAction(consultaId, String(p.id));
       setConsultaData(data);
     } catch (e) {
-      console.error("Error al cargar datos de consulta:", e);
+      console.error("Error al cargar datos de consulta: ", e);
     } finally {
       setLoadingConsulta(false);
     }
@@ -144,7 +145,7 @@ export function HistoriaView({
       }
       setReanudableConsulta(null);
     } catch (e) {
-      console.error("Error al verificar consulta reanudable:", e);
+      console.error("Error al verificar consulta reanudable: ", e);
       setReanudableConsulta(null);
     }
   }, [consultaId, p.id]);
@@ -297,21 +298,26 @@ export function HistoriaView({
 
   const diagnostico = consultaData?.diagnostico ?? null;
 
-  // "dental"/"timeline"/"chat" manejan su propio padding interno (encabezados
-  // fijos, layouts a medida) y por eso no llevan nada acá. "diagnosticos" y
+  // "dental"/"timeline"/"chat"/"archivos" manejan su propio padding interno
+  // (encabezados fijos, layouts a medida, o directamente sin tarjeta propia
+  // como Archivos) y por eso no llevan nada acá. "diagnosticos" y
   // "presupuestos" ahora tienen su propio header sticky (blanco, con
   // título+descripción) pegado al tab bar en TODOS los breakpoints —
   // pt-0 siempre, para que ese header quede junto al tab bar sin franja
-  // gris encima (el propio header ya trae su padding interno).
+  // gris encima (el propio header ya trae su padding interno). Desde lg
+  // ambos usan la cadena lg:h-full (sin scroll de página, ver DiagnosticoTab/
+  // PresupuestoTab) — un padding inferior grande ahí se ve como un hueco
+  // vacío debajo de las tarjetas, así que llevan uno más chico que el resto
+  // de pestañas (que sí scrollean y no lo notan).
   const contentPadding =
-    tab === "chat" || tab === "timeline" || tab === "dental"
+    tab === "chat" || tab === "timeline" || tab === "dental" || tab === "archivos"
       ? ""
       : tab === "diagnosticos" || tab === "presupuestos"
-      ? "px-3 sm:px-4 md:px-6 pt-0 pb-2 md:pb-10 lg:pb-12"
+      ? "px-3 sm:px-4 md:px-6 pt-0 pb-2 md:pb-4 lg:pb-6"
       : "p-3 sm:p-4 md:p-6 pb-2 md:pb-10 lg:pb-12";
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-50/40 dark:bg-slate-900/40">
+ <div className="flex flex-col h-full overflow-hidden bg-slate-50/40">
 
       {showNuevaConsultaModal && (
         <NuevaConsultaModal
@@ -344,98 +350,105 @@ export function HistoriaView({
       )}
 
       {/* ── Sub-header paciente ── */}
-      <div className="flex items-center gap-2.5 sm:gap-3 px-3 sm:px-6 md:px-8 py-3 sm:py-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
+ <div className="flex items-center gap-2.5 sm:gap-3 px-3 sm:px-6 md:px-8 py-3 sm:py-4 bg-white border-b border-slate-200 shrink-0">
         <GuardedLink
           href="/pacientes"
           aria-label="Volver a pacientes"
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors shrink-0"
+ className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors shrink-0"
         >
           <Icon name="chevron_left" size={20} />
         </GuardedLink>
 
-        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-cyan-50 dark:bg-cyan-900/30 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center shrink-0 select-none">
-          <span className="text-[14px] sm:text-[15px] font-bold text-cyan-700 dark:text-cyan-400 uppercase">
+ <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-cyan-50 border-2 border-cyan-200 flex items-center justify-center shrink-0 select-none">
+ <span className="text-[14px] sm:text-[15px] font-bold text-cyan-700 uppercase">
             {initials(nombreCompleto)}
           </span>
         </div>
 
         <div className="min-w-0 flex-1">
-          <h1 className="text-[14.5px] sm:text-[17px] font-bold text-slate-900 dark:text-slate-100 truncate leading-tight">
+ <h1 className="text-[14.5px] sm:text-[17px] font-bold text-slate-900 truncate leading-tight">
             {nombreCompleto}
           </h1>
-          <p className="text-[11.5px] sm:text-[12.5px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">
+ <p className="text-[11.5px] sm:text-[12.5px] text-slate-400 font-medium mt-0.5">
             DNI {p.dni || "—"}{edad !== null ? ` · ${edad} años` : ""}
           </p>
+          {datosCasos?.historia_clinica && (
+ <p className="text-[11px] sm:text-[12px] text-slate-400 mt-0.5 truncate">
+              Código: <span className="text-slate-500">{datosCasos.historia_clinica.codigo_historia}</span>
+              {" · "}Creada: <span className="text-slate-500">
+                {new Date(datosCasos.historia_clinica.fecha_creacion).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" })}
+              </span>
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setShowDescargarModal(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-transparent hover:bg-cyan-50 dark:hover:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 text-[11.5px] font-semibold transition-colors border border-cyan-200 dark:border-cyan-800"
+ className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-transparent hover:bg-cyan-50 text-cyan-700 text-[11.5px] font-semibold transition-colors border border-cyan-200"
           >
             <Icon name="download" size={13} />Expediente
           </button>
 
           <button
             onClick={() => setShowEditModal(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-300 text-[11.5px] font-semibold transition-colors border border-slate-300 dark:border-slate-600"
+ className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-transparent hover:bg-slate-50 text-slate-600 text-[11.5px] font-semibold transition-colors border border-slate-300"
           >
             <Icon name="edit" size={13} />Editar
           </button>
 
-          <div className="relative">
-            <button
-              onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
-              className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-              aria-label="Más opciones"
-            >
-              <Icon name="more_vert" size={17} />
-            </button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
-                <div
-                  className="absolute right-0 top-full mt-1.5 z-30 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden w-40"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() => { setShowEditModal(true); setMenuOpen(false); }}
-                    className="sm:hidden w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <Icon name="edit" size={14} className="text-slate-500 dark:text-slate-400 shrink-0" />Editar paciente
-                  </button>
-                  <button
-                    onClick={() => { setShowDescargarModal(true); setMenuOpen(false); }}
-                    className="sm:hidden w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
-                  >
-                    <Icon name="download" size={14} className="text-cyan-600 dark:text-cyan-400 shrink-0" />Expediente
-                  </button>
-                  <a
-                    href={telegramLink} target="_blank" rel="noreferrer"
-                    className="flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
-                  >
-                    <Icon name="send" size={15} className="text-[#24A1DE] shrink-0" />Telegram
-                  </a>
-                </div>
-              </>
+          <SmartPopover
+            open={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            placement="bottom-end"
+            renderTrigger={(ref) => (
+              <button
+                ref={ref}
+                onClick={() => setMenuOpen((v) => !v)}
+ className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors"
+                aria-label="Más opciones"
+              >
+                <Icon name="more_vert" size={17} />
+              </button>
             )}
-          </div>
+          >
+ <div className="bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden w-40">
+              <button
+                onClick={() => { setShowEditModal(true); setMenuOpen(false); }}
+ className="sm:hidden w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+ <Icon name="edit" size={14} className="text-slate-500 shrink-0"/>Editar paciente
+              </button>
+              <button
+                onClick={() => { setShowDescargarModal(true); setMenuOpen(false); }}
+ className="sm:hidden w-full flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100"
+              >
+ <Icon name="download" size={14} className="text-cyan-600 shrink-0"/>Expediente
+              </button>
+              <a
+                href={telegramLink} target="_blank" rel="noreferrer"
+ className="flex items-center gap-2 px-3 py-2.5 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100"
+              >
+                <Icon name="send" size={15} className="text-[color:var(--telegram-blue)] shrink-0" />Telegram
+              </a>
+            </div>
+          </SmartPopover>
         </div>
       </div>
 
       {/* ── Submenú de navegación por tabs ── */}
-      <div className="flex items-center gap-1 overflow-x-auto no-scrollbar px-3 sm:px-6 md:px-8 py-2 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
+ <div className="flex items-center gap-1 overflow-x-auto no-scrollbar px-3 sm:px-6 md:px-8 py-2 bg-white border-b border-slate-200 shrink-0">
         {TABS.map((t) => {
           const active = tab === t.key;
           return (
             <button
               key={t.key}
               onClick={() => guardedGoTo(t.key)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-semibold whitespace-nowrap transition-colors shrink-0 border-0 ${
-                active ? "bg-cyan-600 text-white" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              className={`flex items-center gap-1.5 px-3.5 py-2 -mb-px border-b-2 text-[12.5px] font-semibold whitespace-nowrap transition-colors shrink-0 ${
+ active ? "border-cyan-600 text-cyan-700" : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              <Icon name={t.icon} size={15} className={active ? "text-white" : "text-slate-400 dark:text-slate-500"} />
+ <Icon name={t.icon} size={15} className={active ? "text-cyan-600" : "text-slate-400"} />
               <span>{t.label}</span>
             </button>
           );
@@ -459,22 +472,22 @@ export function HistoriaView({
 
       {/* ── Banner de Consulta en Curso Interrumpida (Reanudable dentro de 1 hora) ── */}
       {reanudableConsulta && !consultaId && (
-        <div className="mx-3 sm:mx-6 md:mx-8 mt-3 p-3.5 sm:p-4 rounded-2xl bg-linear-to-r from-amber-500/10 via-cyan-500/10 to-blue-500/10 border border-amber-400/40 dark:border-cyan-500/40 flex flex-wrap items-center justify-between gap-3 shadow-sm animate-fadeIn shrink-0">
+ <div className="mx-3 sm:mx-6 md:mx-8 mt-3 p-3.5 sm:p-4 rounded-2xl bg-linear-to-r from-amber-500/10 via-cyan-500/10 to-blue-500/10 border border-amber-400/40 flex flex-wrap items-center justify-between gap-3 shadow-sm animate-fadeIn shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
+ <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0 shadow-inner">
               <Icon name="history" size={22} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h4 className="text-[13.5px] font-bold text-slate-800 dark:text-slate-100">
+ <h4 className="text-[13.5px] font-bold text-slate-800">
                   Consulta en curso interrumpida
                 </h4>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-semibold border border-amber-300 dark:border-amber-800">
+ <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold border border-amber-300">
                   Iniciada hace {reanudableConsulta.minutosTranscurridos} min
                 </span>
               </div>
-              <p className="text-[12px] text-slate-600 dark:text-slate-400 truncate mt-0.5">
-                Motivo: <span className="font-medium text-slate-700 dark:text-slate-300">{reanudableConsulta.motivo}</span> • Tienes <strong className="text-cyan-600 dark:text-cyan-400 font-semibold">{reanudableConsulta.minutosRestantes} min</strong> para reanudar antes de que expire.
+ <p className="text-[12px] text-slate-600 truncate mt-0.5">
+ Motivo: <span className="font-medium text-slate-700">{reanudableConsulta.motivo}</span> • Tienes <strong className="text-cyan-600 font-semibold">{reanudableConsulta.minutosRestantes} min</strong> para reanudar antes de que expire.
               </p>
             </div>
           </div>
@@ -508,7 +521,7 @@ export function HistoriaView({
             initial="hidden"
             animate="visible"
             exit="exit"
-            className={diagnosticoWizardActivo ? "h-full" : "lg:h-full"}
+            className={diagnosticoWizardActivo ? "h-full" : tab === "dental" ? "md:h-full" : "lg:h-full"}
           >
             {tab === "info" && <InfoTab paciente={p} historial={historial} datosCasos={datosCasos} onNavigateTab={(t) => goTo(t as TabKey)} />}
             {tab === "timeline" && (

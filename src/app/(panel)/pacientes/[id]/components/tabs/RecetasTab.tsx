@@ -10,9 +10,9 @@ import type { ClinicaInfo } from "@/lib/reportExport";
 
 function Notice({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3">
-      <Icon name="info" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
-      <p className="text-[12.5px] text-slate-500 dark:text-slate-400">{text}</p>
+ <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+ <Icon name="info" size={16} className="text-slate-400 shrink-0"/>
+ <p className="text-[12.5px] text-slate-500">{text}</p>
     </div>
   );
 }
@@ -25,7 +25,7 @@ function RecetasHistorial({ recetas, pacienteNombre, telefono, dni }: { recetas:
 
   if (recetas.length === 0) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 py-10 text-center text-slate-400 dark:text-slate-500">
+ <div className="bg-white rounded-2xl border border-slate-200 py-10 text-center text-slate-400">
         <Icon name="medication" size={28} className="opacity-30 mx-auto mb-2" />
         <p className="text-[12px]">Sin recetas registradas aún</p>
       </div>
@@ -93,9 +93,9 @@ export function RecetasTab({ paciente, consultaId, data, loading, refetch }: {
 
   if (!diagnostico) {
     return (
-      <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3">
-        <Icon name="info" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
-        <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Registra primero el diagnóstico de esta consulta para poder emitir una receta.</p>
+ <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+ <Icon name="info" size={16} className="text-slate-400 shrink-0"/>
+ <p className="text-[12.5px] text-slate-500">Registra primero el diagnóstico de esta consulta para poder emitir una receta.</p>
       </div>
     );
   }

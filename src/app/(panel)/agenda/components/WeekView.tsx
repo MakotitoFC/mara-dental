@@ -17,7 +17,7 @@ function NowLine() {
   const top = (mins / 60) * SLOT_H;
   return (
     <div className="absolute left-0 right-0 z-10 pointer-events-none flex items-center" style={{ top }}>
-      <span className="w-2 h-2 rounded-full bg-cyan-600 shrink-0 -ml-1 border-2 border-white dark:border-slate-800" />
+ <span className="w-2 h-2 rounded-full bg-cyan-600 shrink-0 -ml-1 border-2 border-white"/>
       <div className="flex-1 h-px bg-cyan-500/70" />
     </div>
   );
@@ -43,11 +43,11 @@ export function WeekView({
   const { getVars } = useTipoConsultaVars();
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-white dark:bg-slate-800">
+ <div className="flex flex-col h-full overflow-hidden bg-white">
       <div className="overflow-x-auto overflow-y-auto no-scrollbar flex-1 min-h-0">
         <div style={{ minWidth: 640 }}>
           {/* Encabezado de días */}
-          <div className="grid sticky top-0 z-20 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700" style={{ gridTemplateColumns: "44px repeat(7, 1fr)" }}>
+ <div className="grid sticky top-0 z-20 bg-white border-b border-slate-100" style={{ gridTemplateColumns: "44px repeat(7, 1fr)" }}>
             <div />
             {weekDays.map((d, i) => {
               const isToday = toDateStr(d) === todayStr;
@@ -56,12 +56,12 @@ export function WeekView({
                 <button
                   key={i}
                   onClick={() => onDayClick(d)}
-                  className="py-2 flex flex-col items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-l border-slate-100 dark:border-slate-700"
+ className="py-2 flex flex-col items-center gap-1 hover:bg-slate-50 transition-colors border-l border-slate-100"
                 >
-                  <span className="text-[9.5px] font-semibold text-slate-400 dark:text-slate-500 tracking-wide">{DAY_SHORT[i]}</span>
+ <span className="text-[9.5px] font-semibold text-slate-400 tracking-wide">{DAY_SHORT[i]}</span>
                   <span
                     className={`w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold transition-colors ${
-                      isToday ? "bg-cyan-600 text-white" : "text-slate-700 dark:text-slate-300"
+ isToday ? "bg-cyan-600 text-white" : "text-slate-700"
                     }`}
                   >
                     {d.getDate()}
@@ -80,7 +80,7 @@ export function WeekView({
             {HOURS.map(hr => (
               <div key={hr} className="grid" style={{ gridTemplateColumns: "44px repeat(7, 1fr)", height: SLOT_H, borderBottom: "1px solid #f1f5f9" }}>
                 <div className="pt-1 pr-1.5 text-right shrink-0">
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">{hr}</span>
+ <span className="text-[9px] text-slate-400 font-medium">{hr}</span>
                 </div>
                 {weekDays.map((d, i) => {
                   const blocks = getSlotCitas(d, hr);
@@ -88,7 +88,7 @@ export function WeekView({
                     <div
                       key={i}
                       onClick={() => { if (blocks.length === 0) onCellClick(d, hr); }}
-                      className={`border-l border-slate-100 dark:border-slate-700 p-0.5 overflow-hidden ${blocks.length === 0 ? "cursor-pointer hover:bg-cyan-50/40 dark:hover:bg-cyan-900/20" : ""}`}
+ className={`border-l border-slate-100 p-0.5 overflow-hidden ${blocks.length === 0 ? "cursor-pointer hover:bg-cyan-50/40" : ""}`}
                     >
                       {blocks.map(c => {
                         const tipoVars = getVars(c.tipo_consulta_id);

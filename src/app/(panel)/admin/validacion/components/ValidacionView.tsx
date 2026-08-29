@@ -41,39 +41,39 @@ export function ValidacionView({ initialPeticiones }: { initialPeticiones: any[]
   };
 
   return (
-    <div className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 md:p-6 flex flex-col">
+ <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-4 md:p-6 flex flex-col">
       <div className="mb-6">
-        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Icon name="verified_user" size={20} className="text-cyan-600 dark:text-cyan-400" />
+ <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+ <Icon name="verified_user" size={20} className="text-cyan-600"/>
           Solicitudes Pendientes
         </h2>
-        <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-1">
+ <p className="text-[13px] text-slate-500 mt-1">
           Aprueba o rechaza acciones críticas solicitadas por el rol Asistente (ej. eliminación de cuotas).
         </p>
       </div>
 
       {peticiones.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center py-12 text-center text-slate-400 dark:text-slate-500">
+ <div className="flex-1 flex flex-col items-center justify-center py-12 text-center text-slate-400">
           <Icon name="task_alt" size={40} className="opacity-30 mb-3" />
-          <p className="text-[14px] font-medium text-slate-600 dark:text-slate-300">No hay solicitudes pendientes</p>
+ <p className="text-[14px] font-medium text-slate-600">No hay solicitudes pendientes</p>
           <p className="text-[12px]">Todo está al día.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {peticiones.map(p => (
-            <div key={p.id} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 flex flex-col gap-3">
+ <div key={p.id} className="border border-slate-200 rounded-xl p-4 flex flex-col gap-3">
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+ <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-50 text-amber-700">
                     Requiere Validación
                   </span>
-                  <h3 className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 mt-2">
+ <h3 className="text-[14px] font-semibold text-slate-900 mt-2">
                     {p.tipo_accion === "eliminar_cuotas" ? "Eliminación de Cuotas" : p.tipo_accion}
                   </h3>
                 </div>
                 <Icon name="priority_high" size={20} className="text-amber-500" />
               </div>
-              <div className="text-[12.5px] text-slate-500 dark:text-slate-400 flex flex-col gap-1">
+ <div className="text-[12.5px] text-slate-500 flex flex-col gap-1">
                 <p><strong>Solicitante:</strong> {p.solicitante_nombre}</p>
                 <p><strong>Referencia:</strong> Presupuesto #{p.referencia_id.slice(0, 8)}</p>
                 <p><strong>Fecha:</strong> {new Date(p.fecha_solicitud).toLocaleString()}</p>
@@ -82,7 +82,7 @@ export function ValidacionView({ initialPeticiones }: { initialPeticiones: any[]
                 <button
                   onClick={() => handleResolver(p.id, false)}
                   disabled={loading !== null}
-                  className="flex-1 h-9 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-[12px] font-semibold hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
+ className="flex-1 h-9 rounded-lg border border-red-200 text-red-600 text-[12px] font-semibold hover:bg-red-50 disabled:opacity-50 transition-colors"
                 >
                   Rechazar
                 </button>

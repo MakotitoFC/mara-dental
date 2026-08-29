@@ -7,6 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 import type { Cita } from "@/types/agenda";
 import { getCitasRealesAction, getCitasSedeAction, getPatientByIdAction } from "../actions";
 import { CalendarToolbar, type TipoFiltro, type EstadoFiltro, type DoctorFiltro } from "./CalendarToolbar";
+import { DoctorSidebar, type SidebarGroupMode } from "./DoctorSidebar";
 import { MonthView } from "./MonthView";
 import { WeekView } from "./WeekView";
 import { DayView } from "./DayView";
@@ -20,6 +21,7 @@ import { AppointmentDetailSheet } from "./AppointmentDetailSheet";
 import { CitaFormSheet, type CitaFormState, type PatientLite } from "./CitaFormSheet";
 import { scaleIn } from "@/lib/animations";
 import { getDoctorVars } from "./doctorColors";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import {
   type CalView, type DoctorLite, type DoctorMap,
   addDays, getMonday, toDateStr, MONTHS_L, initials,
@@ -46,10 +48,24 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
   const [doctorFiltro, setDoctorFiltro] = useState<DoctorFiltro>("todos");
   const [especialidadFiltro, setEspecialidadFiltro] = useState("todas");
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("todos");
-  const [soloConCitasHoy, setSoloConCitasHoy] = useState(false);
 
   const [citas, setCitas] = useState<Cita[]>(initialCitas || []);
   const [loadingCitas, setLoadingCitas] = useState(false);
+
+  const isMobile = useIsMobile(1024);
+  // Desktop: sidebar inline dentro del flex, colapsable a mano. Por defecto
+  // colapsado en la vista Año (más espacio para la grilla de 12 meses); el
+  // override manual del usuario se respeta hasta el próximo cambio de vista.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  useEffect(() => {
+    setSidebarCollapsed(view === "year");
+  }, [view]);
+
+  // Tablet/mobile (<1024px): no hay sidebar ni columna de avatares — el
+  // botón "Doctores" del toolbar despliega un acordeón EN EL FLUJO normal
+  // del documento (entre el header y el calendario), que empuja el
+  // calendario hacia abajo al abrirse en vez de taparlo (no es overlay).
+  const [isDoctorAccordionOpen, setIsDoctorAccordionOpen] = useState(false);
 
   const doctorMap: DoctorMap = useMemo(() => {
     const map: DoctorMap = {};
@@ -69,21 +85,15 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
     return result;
   }, [citas, tipoFiltro, estadoFiltro, doctorFiltro, isAsistente]);
 
-  // Doctores visibles en la columna del día — se acotan por especialidad,
-  // selección del filtro de médicos, y opcionalmente solo los que tienen
-  // alguna cita ese día (evita columnas vacías cuando hay muchos médicos).
+  // Doctores visibles en la columna del día — se acotan por especialidad y
+  // por la selección del filtro de médicos. Siempre se muestran todos,
+  // incluyendo los que no tienen citas en el período (sin opción de ocultarlos).
   const doctoresFiltrados = useMemo(() => {
     let result = doctores;
     if (especialidadFiltro !== "todas") result = result.filter(d => d.especialidad === especialidadFiltro);
     if (doctorFiltro !== "todos") result = result.filter(d => doctorFiltro.includes(d.id));
-    // "Solo con citas hoy" solo tiene sentido (y solo es visible en el toolbar) en la vista Día.
-    if (soloConCitasHoy && view === "day") {
-      const ds = toDateStr(selectedDate);
-      const idsConCitas = new Set(citasFiltradas.filter(c => c.fecha === ds).map(c => c.doctor_id));
-      result = result.filter(d => idsConCitas.has(d.id));
-    }
     return result;
-  }, [doctores, especialidadFiltro, doctorFiltro, soloConCitasHoy, view, selectedDate, citasFiltradas]);
+  }, [doctores, especialidadFiltro, doctorFiltro]);
 
   const [daySheetDate, setDaySheetDate] = useState<Date | null>(null);
   const [detailCita, setDetailCita] = useState<Cita | null>(null);
@@ -113,6 +123,31 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
+  // Citas a mostrar en el DoctorSidebar — acotadas al período de la vista
+  // activa (no todo el historial), y su modo de agrupación dentro del
+  // acordeón de cada doctor.
+  const sidebarPeriodCitas = useMemo(() => {
+    if (!isAsistente) return [];
+    if (view === "day") return citasForDate(selectedDate);
+    if (view === "week") {
+      const dateSet = new Set(weekDays.map(toDateStr));
+      return citasFiltradas.filter(c => dateSet.has(c.fecha));
+    }
+    if (view === "month" || view === "year") {
+      const prefix = `${calMonth.year}-${String(calMonth.month + 1).padStart(2, "0")}`;
+      return citasFiltradas.filter(c => c.fecha.startsWith(prefix));
+    }
+    // Cronograma: próximas 20 citas futuras.
+    const todayStr = toDateStr(today);
+    return citasFiltradas
+      .filter(c => c.fecha >= todayStr)
+      .sort((a, b) => (a.fecha + a.hora_inicio).localeCompare(b.fecha + b.hora_inicio))
+      .slice(0, 20);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAsistente, view, citasFiltradas, selectedDate, weekDays.map(toDateStr).join(), calMonth, today]);
+
+  const sidebarGroupMode: SidebarGroupMode = view === "day" ? "none" : view === "cronograma" ? "relative" : "date";
+
   // ── Navegación ──────────────────────────────────────────────────────────
   function prevPeriod() {
     if (view === "day") setSelectedDate(p => addDays(p, -1));
@@ -140,12 +175,6 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
     setCalMonth({ year: d.getFullYear(), month: d.getMonth() });
     setWeekStart(getMonday(d));
     setView("day");
-  }
-  // Mueve la semana visible sin cambiar de vista — usado por el mini-calendario
-  // del panel lateral de la grilla de tiempo semanal.
-  function jumpToWeek(d: Date) {
-    setWeekStart(getMonday(d));
-    setCalMonth({ year: d.getFullYear(), month: d.getMonth() });
   }
 
   const label = (() => {
@@ -191,7 +220,7 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900/50">
+ <div className="flex flex-col h-full overflow-hidden bg-slate-50">
       <CalendarToolbar
         view={view}
         onViewChange={setView}
@@ -210,18 +239,56 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
         onEspecialidadFiltroChange={setEspecialidadFiltro}
         estadoFiltro={estadoFiltro}
         onEstadoFiltroChange={setEstadoFiltro}
-        soloConCitasHoy={soloConCitasHoy}
-        onSoloConCitasHoyChange={setSoloConCitasHoy}
+        onOpenDoctorPanel={isAsistente ? () => setIsDoctorAccordionOpen((v) => !v) : undefined}
       />
 
+      {/* Acordeón de doctores (tablet/mobile): vive en el flujo normal del
+          documento, entre el header y la fila del calendario — al abrir
+          empuja el calendario hacia abajo (nunca lo tapa, no es overlay). */}
+      {isAsistente && isMobile && (
+        <AnimatePresence>
+          {isDoctorAccordionOpen && (
+            <DoctorSidebar
+              key="doctor-accordion"
+              doctores={doctoresFiltrados}
+              periodCitas={sidebarPeriodCitas}
+              groupMode={sidebarGroupMode}
+              today={today}
+              view={view}
+              collapsed={false}
+              onToggleCollapse={() => setIsDoctorAccordionOpen(false)}
+              onChanged={loadCitas}
+              variant="accordion"
+              onClose={() => setIsDoctorAccordionOpen(false)}
+            />
+          )}
+        </AnimatePresence>
+      )}
+
+      {/* Fila 2: sidebar de doctores + área del calendario, ambos debajo del
+          header. En tablet/mobile NO hay columna de avatares acá — el
+          calendario ocupa 100% del ancho. */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+      {isAsistente && !isMobile && (
+        <DoctorSidebar
+          doctores={doctoresFiltrados}
+          periodCitas={sidebarPeriodCitas}
+          groupMode={sidebarGroupMode}
+          today={today}
+          view={view}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+          onChanged={loadCitas}
+        />
+      )}
       <div className="flex-1 min-h-0 relative overflow-hidden">
         {loadingCitas && (
-          <div className="absolute inset-0 z-20 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3">
+ <div className="absolute inset-0 z-20 bg-slate-50/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3">
             <div className="relative w-9 h-9">
-              <div className="absolute inset-0 rounded-full border-[3px] border-slate-200 dark:border-slate-700" />
+ <div className="absolute inset-0 rounded-full border-[3px] border-slate-200"/>
               <div className="absolute inset-0 rounded-full border-[3px] border-t-cyan-500 animate-spin" />
             </div>
-            <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400">Cargando citas…</p>
+ <p className="text-[12px] font-medium text-slate-500">Cargando citas…</p>
           </div>
         )}
 
@@ -249,15 +316,11 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
               <MultiDoctorWeekTimeGrid
                 weekDays={weekDays}
                 citas={citasFiltradas}
-                doctoresTodos={doctores}
-                doctoresVisibles={doctoresFiltrados}
+                doctores={doctoresFiltrados}
                 today={today}
-                doctorFiltro={doctorFiltro}
-                onDoctorFiltroChange={setDoctorFiltro}
                 onEventClick={openDetail}
                 onCellClick={(d: Date, hr: string) => openCreate(d, hr)}
                 onDayClick={goToDay}
-                onDateJump={jumpToWeek}
               />
             )}
             {view === "week" && !isAsistente && (
@@ -278,7 +341,7 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
                 doctores={doctoresFiltrados}
                 today={today}
                 onEventClick={openDetail}
-                onCellClick={(doctorId: string, d: Date, hr: string) => openCreate(d, hr, doctorId)}
+                onCellClick={(d: Date, hr: string) => openCreate(d, hr)}
               />
             )}
             {view === "day" && !isAsistente && (
@@ -318,6 +381,7 @@ function AgendaViewInner({ initialCitas, preTratamientoId, prePacienteId, role, 
             )}
           </motion.div>
         </AnimatePresence>
+      </div>
       </div>
 
       {/* Paneles */}

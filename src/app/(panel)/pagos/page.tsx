@@ -39,10 +39,10 @@ async function PagosDataLoader() {
 function LoaderSkeleton() {
   return (
     <div className="p-6 flex flex-col gap-6 w-full h-full animate-pulse">
-      <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-lg w-1/4"></div>
+ <div className="h-8 bg-slate-200 rounded-lg w-1/4"></div>
       <div className="flex gap-6 h-full">
-        <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-2xl h-[600px]"></div>
-        <div className="w-[300px] bg-slate-200 dark:bg-slate-700 rounded-2xl h-[600px]"></div>
+ <div className="flex-1 bg-slate-200 rounded-2xl h-[600px]"></div>
+ <div className="w-[300px] bg-slate-200 rounded-2xl h-[600px]"></div>
       </div>
     </div>
   );

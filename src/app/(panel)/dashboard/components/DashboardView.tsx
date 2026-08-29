@@ -16,18 +16,6 @@ function saludoDelDia() {
   return "Buenas noches";
 }
 
-function WaveEmoji() {
-  return (
-    <motion.span
-      className="inline-block origin-[70%_70%] text-[28px] sm:text-[32px] leading-none"
-      animate={{ rotate: [0, 16, -8, 16, -4, 0] }}
-      transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 2.4, ease: "easeInOut" }}
-    >
-      👋
-    </motion.span>
-  );
-}
-
 function initials(nombre: string) {
   const partes = nombre.trim().split(/\s+/);
   return ((partes[0]?.[0] ?? "") + (partes[1]?.[0] ?? "")).toUpperCase();
@@ -40,13 +28,13 @@ function AlertRow({
   href?: string; actionLabel?: string; onAction?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 sm:p-4">
+ <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-3 sm:p-4">
       <div className={`w-9 h-9 rounded-full ${iconBg} flex items-center justify-center shrink-0`}>
         <Icon name={icon} size={17} className={iconColor} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate">{title}</p>
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{subtitle}</p>
+ <p className="text-[13px] font-semibold text-slate-900 truncate">{title}</p>
+ <p className="text-[11px] text-slate-500 truncate">{subtitle}</p>
       </div>
       {href ? (
         <Link href={href} className="shrink-0 text-[12px] font-semibold text-cyan-600 hover:text-cyan-700">
@@ -79,33 +67,33 @@ function BirthdayModal({ pacientes, onClose }: { pacientes: CumpleañosHoy[]; on
     >
       <motion.div
         variants={scaleIn} initial="hidden" animate="visible" exit="exit"
-        className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col items-center text-center gap-3"
+ className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col items-center text-center gap-3"
         onClick={(e) => e.stopPropagation()}
       >
-        <button onClick={onClose} className="self-end -mt-2 -mr-2 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+ <button onClick={onClose} className="self-end -mt-2 -mr-2 w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
           <Icon name="close" size={18} />
         </button>
         <motion.div
           animate={{ scale: [1, 1.08, 1] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          className="w-14 h-14 rounded-full bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center -mt-4"
+ className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center -mt-4"
         >
-          <Icon name="cake" size={26} className="text-rose-500 dark:text-rose-400" />
+ <Icon name="cake" size={26} className="text-red-500"/>
         </motion.div>
-        <p className="text-[15px] font-bold text-slate-900 dark:text-slate-100">¡Hoy cumple años!</p>
+ <p className="text-[15px] font-bold text-slate-900">¡Hoy cumple años!</p>
 
-        <div className="w-16 h-16 rounded-full bg-cyan-50 dark:bg-cyan-900/30 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center font-bold text-[18px] text-cyan-700 dark:text-cyan-400">
+ <div className="w-16 h-16 rounded-full bg-cyan-50 border-2 border-cyan-200 flex items-center justify-center font-bold text-[18px] text-cyan-700">
           {initials(p.nombre)}
         </div>
-        <p className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">{p.nombre} · {p.edad} años</p>
+ <p className="text-[14px] font-semibold text-slate-800">{p.nombre} · {p.edad} años</p>
 
         {pacientes.length > 1 && (
-          <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
-            <button onClick={() => setIdx((i) => (i - 1 + pacientes.length) % pacientes.length)} className="hover:text-slate-700 dark:hover:text-slate-300">
+ <div className="flex items-center gap-2 text-[11px] text-slate-400">
+ <button onClick={() => setIdx((i) => (i - 1 + pacientes.length) % pacientes.length)} className="hover:text-slate-700">
               <Icon name="chevron_left" size={16} />
             </button>
             {idx + 1} de {pacientes.length}
-            <button onClick={() => setIdx((i) => (i + 1) % pacientes.length)} className="hover:text-slate-700 dark:hover:text-slate-300">
+ <button onClick={() => setIdx((i) => (i + 1) % pacientes.length)} className="hover:text-slate-700">
               <Icon name="chevron_right" size={16} />
             </button>
           </div>
@@ -115,11 +103,11 @@ function BirthdayModal({ pacientes, onClose }: { pacientes: CumpleañosHoy[]; on
           value={mensaje}
           onChange={(e) => setMensaje(e.target.value)}
           rows={3}
-          className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] text-left outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
+ className="w-full border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] text-left outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 resize-none"
         />
 
         <div className="flex items-center gap-2.5 w-full">
-          <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-[13px] font-medium transition-colors">
+ <button onClick={onClose} className="flex-1 h-10 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-[13px] font-medium transition-colors">
             Más tarde
           </button>
           <button
@@ -163,14 +151,14 @@ const QUICK_ACCESS = [
 ];
 
 const ESTADO_CITA_CFG: Record<string, { label: string; bg: string; text: string }> = {
-  hecho: { label: "Completada", bg: "bg-emerald-50 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400" },
-  programada: { label: "Pendiente", bg: "bg-amber-50 dark:bg-amber-900/30", text: "text-amber-700 dark:text-amber-400" },
-  cancelada: { label: "Cancelada", bg: "bg-slate-100 dark:bg-slate-700", text: "text-slate-500 dark:text-slate-400" },
+ hecho: { label: "Completada", bg: "bg-emerald-50", text: "text-emerald-700"},
+ programada: { label: "Pendiente", bg: "bg-amber-50", text: "text-amber-700"},
+ cancelada: { label: "Cancelada", bg: "bg-slate-100", text: "text-slate-500"},
 };
 
 function duracionMin(inicio: string, fin: string): number | null {
-  const [h1, m1] = inicio.split(":").map(Number);
-  const [h2, m2] = fin.split(":").map(Number);
+  const [h1, m1] = inicio.split(" : ").map(Number);
+  const [h2, m2] = fin.split(" : ").map(Number);
   if ([h1, m1, h2, m2].some((n) => Number.isNaN(n))) return null;
   const diff = h2 * 60 + m2 - (h1 * 60 + m1);
   return diff > 0 ? diff : null;
@@ -183,9 +171,9 @@ export function DashboardView({ data }: { data: DashboardData }) {
   const { getVars } = useTipoConsultaVars();
 
   const STATS = [
-    { label: "Citas hoy", value: statsCitasHoy, icon: "calendar_month", color: "text-cyan-600", bg: "bg-cyan-50" },
-    { label: "Completadas", value: statsCompletas, icon: "check_circle", color: "text-green-600", bg: "bg-green-50" },
-    { label: "Pacientes este mes", value: statsPacientesMes, icon: "groups", color: "text-purple-600", bg: "bg-purple-50" },
+    { label: "Citas hoy", value: statsCitasHoy, icon: "calendar_month" },
+    { label: "Completadas", value: statsCompletas, icon: "check_circle" },
+    { label: "Pacientes este mes", value: statsPacientesMes, icon: "groups" },
   ];
 
   const sinAlertas = statsPendientes === 0 && recordatoriosPendientes === 0 && cumpleañosHoy.length === 0;
@@ -198,18 +186,17 @@ export function DashboardView({ data }: { data: DashboardData }) {
       variants={staggerContainer(0.08)}
       initial="hidden"
       animate="visible"
-      className="p-4 sm:p-6 flex flex-col gap-5 sm:gap-6"
+      className="w-full max-w-6xl mx-auto p-4 sm:p-6 flex flex-col gap-5 sm:gap-6"
     >
       {/* Bienvenida — el saludo personalizado es exclusivo del rol doctor;
           otros roles que también llegan a este dashboard (admin, contador)
           solo ven el encabezado genérico. */}
       <motion.div variants={staggerItem} className="flex items-center gap-2.5 min-w-0">
-        {user?.rol === "doctor" && <WaveEmoji />}
         <div className="min-w-0">
-          <p className="text-[15px] sm:text-[17px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate">
+ <p className="text-[15px] sm:text-[17px] font-semibold text-slate-900 leading-tight truncate">
             {user?.rol === "doctor" ? `${saludoDelDia()}${user?.name ? `, ${user.name}` : ""}` : "Resumen del día"}
           </p>
-          <p className="text-[11px] sm:text-[12px] text-slate-400 dark:text-slate-500 capitalize truncate">
+ <p className="text-[11px] sm:text-[12px] text-slate-400 capitalize truncate">
             {fechaLarga}{user?.sede ? ` · ${user.sede}` : ""}
           </p>
         </div>
@@ -218,16 +205,16 @@ export function DashboardView({ data }: { data: DashboardData }) {
       {/* Stats */}
       <motion.div variants={staggerItem} className="grid grid-cols-3 gap-2 sm:gap-4">
         {STATS.map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg ${stat.bg} flex items-center justify-center shrink-0`}>
-              <Icon name={stat.icon} size={16} className={`sm:hidden ${stat.color}`} />
-              <Icon name={stat.icon} size={20} className={`hidden sm:block ${stat.color}`} />
+ <div key={stat.label} className="bg-white border border-slate-200 rounded-xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3">
+ <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-cyan-50 flex items-center justify-center shrink-0">
+ <Icon name={stat.icon} size={16} className="sm:hidden text-cyan-600"/>
+ <Icon name={stat.icon} size={20} className="hidden sm:block text-cyan-600"/>
             </div>
             <div className="min-w-0">
-              <p className="text-[16px] sm:text-[22px] font-bold text-slate-900 dark:text-slate-100 leading-none">
+ <p className="text-[16px] sm:text-[22px] font-bold text-slate-900 leading-none">
                 <AnimatedNumber value={stat.value} />
               </p>
-              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{stat.label}</p>
+ <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 truncate">{stat.label}</p>
             </div>
           </div>
         ))}
@@ -237,16 +224,16 @@ export function DashboardView({ data }: { data: DashboardData }) {
         {/* Columna principal — Agenda de hoy */}
         <motion.div variants={staggerItem} className="flex-1 min-w-0 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">Agenda de hoy</p>
+ <p className="text-[13px] font-semibold text-slate-900">Agenda de hoy</p>
             {statsCitasHoy > 0 && (
-              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">{statsCompletas}/{statsCitasHoy} completadas</span>
+ <span className="text-[11px] font-medium text-slate-400">{statsCompletas}/{statsCitasHoy} completadas</span>
             )}
           </div>
 
           {citasHoy.length === 0 ? (
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 flex flex-col items-center gap-2 text-center">
-              <Icon name="event" size={28} className="text-slate-300 dark:text-slate-600" />
-              <p className="text-[13px] text-slate-500 dark:text-slate-400">No tienes citas programadas para hoy</p>
+ <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col items-center gap-2 text-center">
+ <Icon name="event" size={28} className="text-slate-300"/>
+ <p className="text-[13px] text-slate-500">No tienes citas programadas para hoy</p>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -260,12 +247,12 @@ export function DashboardView({ data }: { data: DashboardData }) {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: Math.min(i, 10) * 0.04, ease: [0.4, 0, 0.2, 1] }}
-                    className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 sm:p-4 flex items-center gap-3"
+ className="bg-white border border-slate-200 rounded-xl p-3 sm:p-4 flex items-center gap-3"
                     style={{ borderLeftWidth: 3, borderLeftColor: vars.solid }}
                   >
                     <div className="w-14 sm:w-16 shrink-0 text-center">
-                      <p className="text-[13px] sm:text-[14px] font-bold text-slate-900 dark:text-slate-100 leading-none">{cita.hora_inicio}</p>
-                      {dur != null && <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{dur} min</p>}
+ <p className="text-[13px] sm:text-[14px] font-bold text-slate-900 leading-none">{cita.hora_inicio}</p>
+ {dur != null && <p className="text-[10px] text-slate-400 mt-1">{dur} min</p>}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
@@ -278,12 +265,12 @@ export function DashboardView({ data }: { data: DashboardData }) {
                       </div>
                       <Link
                         href={`/pacientes/${cita.paciente_id}`}
-                        className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 truncate hover:text-cyan-700 dark:hover:text-cyan-400 block"
+ className="text-[13px] font-semibold text-slate-800 truncate hover:text-cyan-700 block"
                       >
                         {cita.paciente_nombre}
                       </Link>
                       {cita.telefono && (
-                        <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+ <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
                           <Icon name="phone" size={11} />
                           {cita.telefono}
                         </div>
@@ -300,20 +287,23 @@ export function DashboardView({ data }: { data: DashboardData }) {
         </motion.div>
 
         {/* Columna lateral — Acceso rápido + Alertas */}
-        <motion.div variants={staggerItem} className="w-full lg:w-72 shrink-0 flex flex-col gap-5">
+        <motion.div variants={staggerItem} className="dashboard-sidebar-width shrink-0 flex flex-col gap-5">
           <div className="flex flex-col gap-2">
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Acceso rápido</p>
-            <div className="grid grid-cols-3 lg:grid-cols-2 gap-2">
+            {/* grid-cols-3 en todos los breakpoints — mismo diseño que
+                mobile. Con lg:grid-cols-2 los 3 items quedaban 2+1, con el
+                tercero solo en su fila (deformado) en vez de parejo. */}
+            <div className="grid grid-cols-3 gap-2">
               {QUICK_ACCESS.map((item) => (
                 <Link
                   key={item.label}
                   href={item.href}
-                  className="flex flex-col items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-4 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-cyan-50/40 dark:hover:bg-cyan-900/20 active:scale-[0.98] transition-all"
+ className="flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 rounded-xl py-4 hover:border-cyan-300 hover:bg-cyan-50/40 active:scale-[0.98] transition-all"
                 >
-                  <div className="w-9 h-9 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center">
-                    <Icon name={item.icon} size={18} className="text-cyan-600 dark:text-cyan-400" />
+ <div className="w-9 h-9 rounded-lg bg-cyan-50 flex items-center justify-center">
+ <Icon name={item.icon} size={18} className="text-cyan-600"/>
                   </div>
-                  <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 text-center px-1">{item.label}</span>
+ <span className="text-[11px] font-medium text-slate-700 text-center px-1">{item.label}</span>
                 </Link>
               ))}
             </div>
@@ -340,7 +330,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
               )}
               {cumpleañosHoy.length > 0 && (
                 <AlertRow
-                  icon="cake" iconBg="bg-rose-50" iconColor="text-rose-600"
+                  icon="cake" iconBg="bg-red-50" iconColor="text-red-600"
                   title={`${cumpleañosHoy.length} cumpleaños hoy`}
                   subtitle={cumpleañosHoy.map((p) => p.nombre).join(", ")}
                   actionLabel="Saludar"

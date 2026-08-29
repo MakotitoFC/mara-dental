@@ -737,6 +737,38 @@ export async function getDashboardContadorAction() {
 // Reportes (Excel)
 // -----------------------------------------------------------------------------
 
+/** Resumen liviano (solo conteos/sumas, sin joins pesados) para la vista
+ * previa de KPIs del generador de reportes — evita traer todas las columnas
+ * de getReporteFinancieroAction solo para mostrar 3 números. */
+export async function getResumenReporteAction(startDate: string, endDate: string) {
+  const adminClient = getAdminClient();
+
+  const { data: movimientos, error } = await adminClient
+    .from("movimiento_caja")
+    .select("monto, estado")
+    .gte("fecha", startDate + "T00:00:00Z")
+    .lte("fecha", endDate + "T23:59:59Z");
+
+  if (error) throw error;
+
+  const activos = (movimientos || []).filter((m: any) => m.estado !== "anulado");
+  const montoTotal = activos.reduce((acc: number, m: any) => acc + Math.abs(Number(m.monto)), 0);
+
+  const { count: comprobantesCount, error: compErr } = await adminClient
+    .from("comprobante_pago")
+    .select("id", { count: "exact", head: true })
+    .gte("fecha_emision", startDate + "T00:00:00Z")
+    .lte("fecha_emision", endDate + "T23:59:59Z");
+
+  if (compErr) throw compErr;
+
+  return {
+    movimientos: activos.length,
+    montoTotal,
+    comprobantes: comprobantesCount || 0,
+  };
+}
+
 export async function getReporteFinancieroAction(startDate: string, endDate: string) {
   const adminClient = getAdminClient();
   

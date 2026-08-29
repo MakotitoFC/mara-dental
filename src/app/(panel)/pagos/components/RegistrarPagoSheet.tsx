@@ -177,7 +177,7 @@ export function RegistrarPagoSheet({
       if (mode === "print") await printHtml(html, `Comprobante de pago #${presupuesto.id}`);
       else await downloadHtmlAsPaginatedPdf(html, `comprobante_${presupuesto.id}.pdf`, 800);
     } catch (err) {
-      console.error("Error exportando comprobante:", err);
+      console.error("Error exportando comprobante: ", err);
     } finally {
       setExportando(null);
     }
@@ -191,7 +191,7 @@ export function RegistrarPagoSheet({
         paso === "form" ? (
           <div className="flex flex-col gap-2">
             {error && (
-              <p className="text-[11.5px] text-red-600 dark:text-red-400 font-medium flex items-center gap-1.5">
+ <p className="text-[11.5px] text-red-600 font-medium flex items-center gap-1.5">
                 <Icon name="warning" size={13} /> {error}
               </p>
             )}
@@ -199,14 +199,14 @@ export function RegistrarPagoSheet({
               <button
                 onClick={onClose}
                 disabled={saving}
-                className="flex-1 h-11 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+ className="flex-1 h-11 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={guardar}
                 disabled={saving || esCuotaInvalida}
-                className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[13px] font-semibold transition-colors"
+                className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[13px] font-semibold transition-colors"
               >
                 <Icon name="check_circle" size={15} />
                 {saving ? "Guardando…" : "Confirmar pago"}
@@ -225,24 +225,24 @@ export function RegistrarPagoSheet({
     >
       {paso === "form" ? (
         <div className="flex flex-col gap-4 pt-1 pb-2">
-          <div className="flex items-center justify-between rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 px-3.5 py-3">
+ <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-3">
             <div className="min-w-0">
-              <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 truncate">{presupuesto.paciente_nombre}</p>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Saldo pendiente</p>
+ <p className="text-[13px] font-bold text-slate-900 truncate">{presupuesto.paciente_nombre}</p>
+ <p className="text-[11px] text-slate-400 mt-0.5">Saldo pendiente</p>
             </div>
             <div className="flex flex-col items-end">
-              <span className="text-[15px] font-bold text-amber-600 dark:text-amber-400 shrink-0">
+ <span className="text-[15px] font-bold text-amber-600 shrink-0">
                 {presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda} {presupuesto.saldo.toFixed(2)}
               </span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute:"2-digit" })}
+ <span className="text-[10px] text-slate-400">
+                {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
               </span>
             </div>
           </div>
 
           {cuotasPendientes.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Cuota a Pagar</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Cuota a Pagar</label>
               <Select
                 value={cuotaSeleccionada}
                 onChange={(val) => {
@@ -261,8 +261,8 @@ export function RegistrarPagoSheet({
               
               {/* Alerta de bloqueo secuencial si se intenta pagar una cuota posterior */}
               {esCuotaInvalida && (
-                <div className="p-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-amber-800 dark:text-amber-300 text-[12px] flex items-start gap-2 mt-1">
-                  <Icon name="warning" size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+ <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[12px] flex items-start gap-2 mt-1">
+ <Icon name="warning" size={16} className="text-amber-600 mt-0.5 shrink-0"/>
                   <div>
                     <strong className="block font-bold">Pago secuencial obligatorio:</strong>
                     <span>Debe pagar primero la <strong>Cuota {cuotaAnteriorImpaga?.numero_cuota}</strong> antes de poder abonar la Cuota {cuotaActual?.numero_cuota}.</span>
@@ -274,17 +274,17 @@ export function RegistrarPagoSheet({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Monto</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Monto</label>
               <input
                 type="number" step="0.01" min="0"
                 value={monto}
                 onChange={e => setMonto(e.target.value)}
                 readOnly={cuotaSeleccionada !== ""}
-                className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+ className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Medio de pago</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Medio de pago</label>
               <Select
                 value={medioId}
                 onChange={setMedioId}
@@ -293,7 +293,7 @@ export function RegistrarPagoSheet({
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Moneda</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Moneda</label>
               <Select
                 value={monedaId}
                 onChange={setMonedaId}
@@ -301,7 +301,7 @@ export function RegistrarPagoSheet({
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Comprobante</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Comprobante</label>
               <Select
                 value={tipoComprobante}
                 onChange={(val) => setTipoComprobante(val as any)}
@@ -313,7 +313,7 @@ export function RegistrarPagoSheet({
               />
             </div>
             <div className="flex flex-col gap-1.5 col-span-2">
-              <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Categoría</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Categoría</label>
               <Select
                 value={categoriaId}
                 onChange={setCategoriaId}
@@ -322,18 +322,18 @@ export function RegistrarPagoSheet({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+ <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-200 bg-slate-50/50">
             <label className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wide mb-1">¿Quién realiza el pago?</label>
             
             {/* Segmented Toggle estilizado sin pérdida de color activo */}
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-1">
+ <div className="flex p-1 bg-slate-100 rounded-xl mb-1">
               <button
                 type="button"
                 onClick={() => setQuienPaga("paciente")}
                 className={`flex-1 py-1.5 text-[12.5px] font-semibold rounded-lg transition-all ${
                   quienPaga === "paciente"
-                    ? "bg-white dark:bg-slate-700 text-cyan-700 dark:text-cyan-300 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+ ? "bg-white text-cyan-700 shadow-sm"
+ :"text-slate-500 hover:text-slate-700"
                 }`}
               >
                 Mismo paciente
@@ -343,8 +343,8 @@ export function RegistrarPagoSheet({
                 onClick={() => setQuienPaga("tercero")}
                 className={`flex-1 py-1.5 text-[12.5px] font-semibold rounded-lg transition-all ${
                   quienPaga === "tercero"
-                    ? "bg-white dark:bg-slate-700 text-cyan-700 dark:text-cyan-300 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+ ? "bg-white text-cyan-700 shadow-sm"
+ :"text-slate-500 hover:text-slate-700"
                 }`}
               >
                 Otra persona (Tercero)
@@ -367,48 +367,48 @@ export function RegistrarPagoSheet({
                     placeholder="Nro. Documento"
                     value={terceroDocNum}
                     onChange={e => setTerceroDocNum(e.target.value)}
-                    className="col-span-2 border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+ className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
                   />
                 </div>
                 <input
                   placeholder="Nombres"
                   value={terceroNombres}
                   onChange={e => setTerceroNombres(e.target.value)}
-                  className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+ className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
                 />
                 <input
                   placeholder="Apellidos"
                   value={terceroApellidos}
                   onChange={e => setTerceroApellidos(e.target.value)}
-                  className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+ className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
                 />
               </div>
             )}
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Referencia</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Referencia</label>
             <input
               value={referencia}
               onChange={e => setReferencia(e.target.value)}
               placeholder="Referencia (operación, voucher…)"
-              className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+ className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Observaciones</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Observaciones</label>
             <textarea
               rows={2}
               value={observaciones}
               onChange={e => setObservaciones(e.target.value)}
               placeholder="Notas internas del pago…"
-              className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
+ className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 resize-none"
             />
           </div>
 
           {!presupuesto.telegram_chat_id && (
-            <p className="flex items-center gap-1.5 text-[11.5px] text-slate-400 dark:text-slate-500">
+ <p className="flex items-center gap-1.5 text-[11.5px] text-slate-400">
               <Icon name="info" size={13} className="shrink-0" />
               Este paciente no tiene Telegram configurado — no se podrá enviar el comprobante automáticamente.
             </p>
@@ -417,39 +417,39 @@ export function RegistrarPagoSheet({
       ) : (
         <div className="flex flex-col gap-4 pt-1 pb-2">
           <div className="flex flex-col items-center text-center gap-2 py-3">
-            <div className="w-14 h-14 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+ <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <Icon name="check_circle" size={28} />
             </div>
-            <p className="text-[14px] font-bold text-slate-900 dark:text-slate-100">Pago registrado</p>
-            <p className="text-[12px] text-slate-500 dark:text-slate-400">
+ <p className="text-[14px] font-bold text-slate-900">Pago registrado</p>
+ <p className="text-[12px] text-slate-500">
               {nuevoSaldo > 0.009
                 ? `Saldo restante: ${presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda} ${nuevoSaldo.toFixed(2)}`
                 : "Presupuesto totalmente cancelado"}
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 px-3.5 py-3">
+ <div className="rounded-xl border border-slate-200 px-3.5 py-3">
             {enviandoVoucher ? (
-              <p className="flex items-center gap-2 text-[12.5px] text-slate-500 dark:text-slate-400">
-                <span className="w-3.5 h-3.5 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin shrink-0" />
+ <p className="flex items-center gap-2 text-[12.5px] text-slate-500">
+ <span className="w-3.5 h-3.5 rounded-full border-2 border-slate-200 border-t-cyan-500 animate-spin shrink-0"/>
                 Enviando comprobante por Telegram…
               </p>
             ) : voucherEstado === "enviado" ? (
-              <p className="flex items-center gap-2 text-[12.5px] text-emerald-600 dark:text-emerald-400 font-medium">
+ <p className="flex items-center gap-2 text-[12.5px] text-emerald-600 font-medium">
                 <Icon name="send" size={15} /> Comprobante enviado por Telegram
               </p>
             ) : voucherEstado === "sin_telegram" ? (
-              <p className="flex items-center gap-2 text-[12.5px] text-slate-500 dark:text-slate-400">
+ <p className="flex items-center gap-2 text-[12.5px] text-slate-500">
                 <Icon name="info" size={15} /> Paciente sin Telegram configurado — comprobante no enviado
               </p>
             ) : voucherEstado === "fallido" ? (
               <div className="flex flex-col gap-2">
-                <p className="flex items-center gap-2 text-[12.5px] text-red-600 dark:text-red-400 font-medium">
+ <p className="flex items-center gap-2 text-[12.5px] text-red-600 font-medium">
                   <Icon name="warning" size={15} /> No se pudo enviar el comprobante{voucherError ? `: ${voucherError}` : ""}
                 </p>
                 <button
                   onClick={() => intentarEnviarVoucher(voucherTexto)}
-                  className="self-start text-[11.5px] font-semibold text-cyan-700 dark:text-cyan-400 hover:underline"
+ className="self-start text-[11.5px] font-semibold text-cyan-700 hover:underline"
                 >
                   Reintentar envío
                 </button>
@@ -461,14 +461,14 @@ export function RegistrarPagoSheet({
             <button
               onClick={() => handleExportarVoucher("print")}
               disabled={exportando !== null}
-              className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors"
+ className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
             >
               <Icon name="print" size={14} /> Imprimir comprobante
             </button>
             <button
               onClick={() => handleExportarVoucher("pdf")}
               disabled={exportando !== null}
-              className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-[12.5px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors"
+ className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
             >
               <Icon name="download" size={14} /> Descargar PDF
             </button>

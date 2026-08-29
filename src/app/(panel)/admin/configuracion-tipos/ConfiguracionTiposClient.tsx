@@ -22,19 +22,16 @@ import {
 } from "./actions";
 
 // Paleta de colores predefinidos (oscuros y claros diferenciables)
+// Paleta curada de marca — Condición del Diente (pasteles)
 const PASTEL_COLORS = [
-  "#fecaca", "#fed7aa", "#fde68a", "#fef08a", "#d9f99d", "#bbf7d0", "#a7f3d0",
-  "#99f6e4", "#a5f3fc", "#bae6fd", "#bfdbfe", "#c7d2fe", "#ddd6fe", "#e9d5ff",
-  "#fbcfe8", "#fecdd3", "#ffe4e6", 
-  "#ffedd5", "#fef3c7", "#ecfccb", "#ccfbf1", "#e0f2fe", "#ede9fe", "#fae8ff"
+  "#E0F2F1", "#B2EBF2", "#80DEEA", "#4DD0E1",
+  "#E9F8EF", "#FEF4E3", "#FDECEA", "#EEF1F3",
 ];
 
+// Paleta curada de marca — Tipos de Consulta (sólidos)
 const PRESET_COLORS = [
-  "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16", "#22c55e", "#10b981", 
-  "#14b8a6", "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", 
-  "#d946ef", "#ec4899", "#f43f5e", 
-  "#7f1d1d", "#7c2d12", "#713f12", "#365314", "#14532d", "#064e3b", "#164e63", 
-  "#1e3a8a", "#312e81", "#4c1d95", "#701a75", "#831843", "#475569"
+  "#0A8EA0", "#0D7377", "#1D95A0", "#073D42",
+  "#5D6D7E", "#27AE60", "#F39C12", "#E74C3C",
 ];
 
 interface ConfiguracionTiposClientProps {
@@ -63,12 +60,12 @@ export default function ConfiguracionTiposClient({
   // Estado Consultas
   const [consultas, setConsultas] = useState<any[]>(initialConsultas);
   const [isConsultaModalOpen, setIsConsultaModalOpen] = useState(false);
-  const [consultaForm, setConsultaForm] = useState({ id: "", tipo_consulta: "", color: "#3b82f6", estado: true });
+  const [consultaForm, setConsultaForm] = useState({ id: "", tipo_consulta: "", color: "#0A8EA0", estado: true });
   
   // Estado Condicion Diente
   const [condiciones, setCondiciones] = useState<any[]>(initialCondiciones);
   const [isCondicionModalOpen, setIsCondicionModalOpen] = useState(false);
-  const [condicionForm, setCondicionForm] = useState({ id: "", condicion: "", color: "#bae6fd", estado: true });
+  const [condicionForm, setCondicionForm] = useState({ id: "", condicion: "", color: "#E0F2F1", estado: true });
   
   // Estado Archivos
   const [archivos, setArchivos] = useState<any[]>(initialArchivos);
@@ -434,9 +431,6 @@ export default function ConfiguracionTiposClient({
       <header className="flex flex-col gap-4 px-4 sm:px-6 pt-4 sm:pt-6 bg-white border-b border-slate-200 shrink-0">
         {/* En mobile solo el título — ícono y descripción se ocultan. */}
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex w-10 h-10 rounded-xl bg-cyan-50 items-center justify-center text-cyan-600 shrink-0">
-            <Icon name="category" size={24} />
-          </div>
           <div>
             <h1 className="text-[15px] md:text-base font-bold text-slate-800">Configuración de Tipos</h1>
             <p className="hidden sm:block text-[13px] md:text-sm text-slate-500">Gestiona los tipos de consultas y archivos permitidos en el sistema.</p>
@@ -484,10 +478,10 @@ export default function ConfiguracionTiposClient({
               </h2>
               <button
                 onClick={() => {
-                  setConsultaForm({ id: "", tipo_consulta: "", color: "#3b82f6", estado: true });
+                  setConsultaForm({ id: "", tipo_consulta: "", color: "#0A8EA0", estado: true });
                   setIsConsultaModalOpen(true);
                 }}
-                className="flex items-center gap-2 px-2.5 lg:px-3 py-1.5 bg-cyan-600 text-white text-[13px] md:text-sm font-semibold rounded-lg hover:bg-cyan-700 transition-colors shadow-sm shadow-cyan-600/20"
+                className="flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors"
               >
                 <Icon name="add" size={16} /> <span className="hidden lg:inline">Nuevo Tipo</span>
               </button>
@@ -539,7 +533,7 @@ export default function ConfiguracionTiposClient({
               </h2>
               <button
                 onClick={() => {
-                  setCondicionForm({ id: "", condicion: "", color: "#bae6fd", estado: true });
+                  setCondicionForm({ id: "", condicion: "", color: "#E0F2F1", estado: true });
                   setIsCondicionModalOpen(true);
                 }}
                 className="flex items-center gap-2 px-2.5 lg:px-3 py-1.5 bg-cyan-600 text-white text-[13px] md:text-sm font-semibold rounded-lg hover:bg-cyan-700 transition-colors shadow-sm shadow-cyan-600/20"
@@ -596,7 +590,7 @@ export default function ConfiguracionTiposClient({
                   setArchivoForm({ id: "", tipo_archivo: "", estado: true });
                   setIsArchivoModalOpen(true);
                 }}
-                className="flex items-center gap-2 px-2.5 lg:px-3 py-1.5 bg-cyan-600 text-white text-[13px] md:text-sm font-semibold rounded-lg hover:bg-cyan-700 transition-colors shadow-sm shadow-cyan-600/20"
+                className="flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors"
               >
                 <Icon name="add" size={16} /> <span className="hidden lg:inline">Nuevo Tipo</span>
               </button>
@@ -658,7 +652,7 @@ export default function ConfiguracionTiposClient({
             <div className="flex-1 overflow-auto no-scrollbar p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {cie10.map(c => (
-                  <div key={c.codigo} className={`border rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow ${c.estado === false ? 'border-amber-200 bg-amber-50/40 opacity-70' : 'border-slate-200 bg-white'}`}>
+                  <div key={c.codigo} className="border border-slate-200 bg-white rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow">
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => {
                         setCie10Form({ codigo: c.codigo, descripcion: c.descripcion, codigo_antiguo: c.codigo, estado: c.estado !== undefined ? c.estado : true });
@@ -673,11 +667,11 @@ export default function ConfiguracionTiposClient({
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${c.estado === false ? 'bg-amber-500' : 'bg-cyan-500'}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${c.estado === false ? 'bg-slate-300' : 'bg-cyan-600'}`}></div>
                       <h3 className="font-bold text-[13px] md:text-sm text-slate-800 break-all">{c.codigo}</h3>
                     </div>
                     <p className="text-[13px] md:text-sm text-slate-600 line-clamp-3" title={c.descripcion}>{c.descripcion}</p>
-                    {c.estado === false && <span className="text-[10px] md:text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
+                    {c.estado === false && <span className="text-[10px] md:text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
                   </div>
                 ))}
                 {cie10.length === 0 && (
@@ -707,7 +701,7 @@ export default function ConfiguracionTiposClient({
             <div className="flex-1 overflow-auto no-scrollbar p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {roles.map(r => (
-                  <div key={r.id} className={`border ${r.estado ? 'border-slate-200 bg-white' : 'border-red-200 bg-red-50/50 opacity-70'} rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow`}>
+                  <div key={r.id} className="border border-slate-200 bg-white rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow">
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => {
                         setRolForm({ id: r.id, rol: r.rol, descripcion: r.descripcion, estado: r.estado });
@@ -722,11 +716,11 @@ export default function ConfiguracionTiposClient({
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${r.estado ? 'bg-cyan-500' : 'bg-red-500'}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${r.estado ? 'bg-cyan-600' : 'bg-slate-300'}`}></div>
                       <h3 className="font-bold text-[13px] md:text-sm text-slate-800 break-all">{r.rol}</h3>
                     </div>
                     <p className="text-[13px] md:text-sm text-slate-600 line-clamp-3">{r.descripcion}</p>
-                    {!r.estado && <span className="text-[10px] md:text-[11px] font-bold text-red-500 bg-red-100 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
+                    {!r.estado && <span className="text-[10px] md:text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
                   </div>
                 ))}
                 {roles.length === 0 && (
@@ -757,7 +751,7 @@ export default function ConfiguracionTiposClient({
             <div className="flex-1 overflow-auto no-scrollbar p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {puestos.map(p => (
-                  <div key={p.id} className={`border ${p.estado ? 'border-slate-200 bg-white' : 'border-red-200 bg-red-50/50 opacity-70'} rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow`}>
+                  <div key={p.id} className="border border-slate-200 bg-white rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow">
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => {
                         setPuestoForm({ id: p.id, puesto: p.puesto, descripcion: p.descripcion, estado: p.estado });
@@ -772,11 +766,11 @@ export default function ConfiguracionTiposClient({
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${p.estado ? 'bg-cyan-500' : 'bg-red-500'}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${p.estado ? 'bg-cyan-600' : 'bg-slate-300'}`}></div>
                       <h3 className="font-bold text-[13px] md:text-sm text-slate-800 break-all">{p.puesto}</h3>
                     </div>
                     <p className="text-[13px] md:text-sm text-slate-600 line-clamp-3">{p.descripcion}</p>
-                    {!p.estado && <span className="text-[10px] md:text-[11px] font-bold text-red-500 bg-red-100 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
+                    {!p.estado && <span className="text-[10px] md:text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
                   </div>
                 ))}
                 {puestos.length === 0 && (
@@ -807,7 +801,7 @@ export default function ConfiguracionTiposClient({
             <div className="flex-1 overflow-auto no-scrollbar p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {especialidades.map(e => (
-                  <div key={e.id} className={`border ${e.estado ? 'border-slate-200 bg-white' : 'border-red-200 bg-red-50/50 opacity-70'} rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow`}>
+                  <div key={e.id} className="border border-slate-200 bg-white rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow">
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => {
                         setEspecialidadForm({ id: e.id, especialidad: e.especialidad, descripcion: e.descripcion, estado: e.estado });
@@ -822,11 +816,11 @@ export default function ConfiguracionTiposClient({
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${e.estado ? 'bg-cyan-500' : 'bg-red-500'}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${e.estado ? 'bg-cyan-600' : 'bg-slate-300'}`}></div>
                       <h3 className="font-bold text-[13px] md:text-sm text-slate-800 break-all">{e.especialidad}</h3>
                     </div>
                     <p className="text-[13px] md:text-sm text-slate-600 line-clamp-3">{e.descripcion}</p>
-                    {!e.estado && <span className="text-[10px] md:text-[11px] font-bold text-red-500 bg-red-100 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
+                    {!e.estado && <span className="text-[10px] md:text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded w-fit mt-auto">INACTIVO</span>}
                   </div>
                 ))}
                 {especialidades.length === 0 && (
@@ -846,7 +840,7 @@ export default function ConfiguracionTiposClient({
           <ResponsiveSheet
             onClose={() => setIsConsultaModalOpen(false)}
             title={consultaForm.id ? "Editar Tipo de Consulta" : "Nuevo Tipo de Consulta"}
-            maxWidthDesktop="448px"
+            size="sm"
             footer={
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setIsConsultaModalOpen(false)} className="px-4 py-2 text-[13px] md:text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
@@ -915,7 +909,7 @@ export default function ConfiguracionTiposClient({
           <ResponsiveSheet
             onClose={() => setIsCondicionModalOpen(false)}
             title={condicionForm.id ? "Editar Condición" : "Nueva Condición"}
-            maxWidthDesktop="448px"
+            size="sm"
             footer={
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setIsCondicionModalOpen(false)} className="px-4 py-2 text-[13px] md:text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
@@ -1012,7 +1006,7 @@ export default function ConfiguracionTiposClient({
           <ResponsiveSheet
             onClose={() => setIsCie10ModalOpen(false)}
             title={`${cie10Form.codigo_antiguo ? "Editar" : "Nuevo"} Código CIE-10`}
-            maxWidthDesktop="448px"
+            size="sm"
             footer={
               <div className="flex items-center justify-end gap-3">
                 <button type="button" onClick={() => setIsCie10ModalOpen(false)} className="px-4 py-2 font-semibold text-slate-500 hover:bg-slate-100 rounded-lg text-[13px] md:text-sm transition-colors">
@@ -1057,7 +1051,7 @@ export default function ConfiguracionTiposClient({
           <ResponsiveSheet
             onClose={() => setIsRolModalOpen(false)}
             title={rolForm.id ? "Editar Rol" : "Nuevo Rol"}
-            maxWidthDesktop="448px"
+            size="sm"
             footer={
               <div className="flex items-center justify-end gap-3">
                 <button type="button" onClick={() => setIsRolModalOpen(false)} className="px-4 py-2 font-semibold text-slate-500 hover:bg-slate-100 rounded-lg text-[13px] md:text-sm transition-colors">
@@ -1111,7 +1105,7 @@ export default function ConfiguracionTiposClient({
           <ResponsiveSheet
             onClose={() => setIsPuestoModalOpen(false)}
             title={puestoForm.id ? "Editar Puesto" : "Nuevo Puesto"}
-            maxWidthDesktop="448px"
+            size="sm"
             footer={
               <div className="flex items-center justify-end gap-3">
                 <button type="button" onClick={() => setIsPuestoModalOpen(false)} className="px-4 py-2 font-semibold text-slate-500 hover:bg-slate-100 rounded-lg text-[13px] md:text-sm transition-colors">
@@ -1165,7 +1159,7 @@ export default function ConfiguracionTiposClient({
           <ResponsiveSheet
             onClose={() => setIsEspecialidadModalOpen(false)}
             title={especialidadForm.id ? "Editar Especialidad" : "Nueva Especialidad"}
-            maxWidthDesktop="448px"
+            size="sm"
             footer={
               <div className="flex items-center justify-end gap-3">
                 <button type="button" onClick={() => setIsEspecialidadModalOpen(false)} className="px-4 py-2 font-semibold text-slate-500 hover:bg-slate-100 rounded-lg text-[13px] md:text-sm transition-colors">

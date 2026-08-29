@@ -11,6 +11,8 @@ import { staggerContainer, staggerItem } from "@/lib/animations";
 import type { EstadoPaciente } from "@/types/paciente";
 import { getDoctorPacientesAction, getPreviewPacienteAction } from "../actions";
 import { NuevoPacienteModal } from "./NuevoPacienteModal";
+import { Avatar } from "@/components/ui/Avatar";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type DetallePaciente = Awaited<ReturnType<typeof getPreviewPacienteAction>>;
 
@@ -27,25 +29,6 @@ type PacienteListItem = {
   grupo_sanguineo?: string;
 };
 
-// Paleta de avatares — variedad visual determinística por paciente, coherente con
-// el lenguaje cyan del design system (Header/Sidebar usan bg-cyan-50/border-cyan-200/text-cyan-700).
-const AVATAR_PALETTE = [
-  { bg: "bg-cyan-50", border: "border-cyan-200", text: "text-cyan-700" },
-  { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700" },
-  { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700" },
-  { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700" },
-] as const;
-
-function initials(nombre: string) {
-  const partes = nombre.trim().split(/\s+/);
-  return ((partes[0]?.[0] ?? "") + (partes[1]?.[0] ?? "")).toUpperCase();
-}
-
-function avatarStyle(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
-}
 
 function isBirthdayToday(fechaNacimiento: string): boolean {
   if (!fechaNacimiento) return false;
@@ -56,7 +39,7 @@ function isBirthdayToday(fechaNacimiento: string): boolean {
 
 function SkeletonCard() {
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex items-center gap-3">
+ <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
       <Skeleton className="w-11 h-11 rounded-full shrink-0" />
       <div className="flex-1 flex flex-col gap-2">
         <Skeleton className="h-3.5 w-2/5" />
@@ -67,19 +50,17 @@ function SkeletonCard() {
   );
 }
 
-function EmptyState({ hasPatients, onNuevo }: { hasPatients: boolean; onNuevo: () => void }) {
+function PacientesEmptyState({ hasPatients, onNuevo }: { hasPatients: boolean; onNuevo: () => void }) {
   return (
-    <div className="py-16 px-6 text-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center gap-3">
-      <div className="w-14 h-14 rounded-full bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center">
-        <Icon name="person_search" size={26} className="text-slate-300 dark:text-slate-500" />
-      </div>
-      <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400">
-        {hasPatients ? "No se encontraron pacientes" : "Aún no tienes pacientes registrados"}
-      </p>
+ <div className="py-16 px-6 bg-white rounded-2xl border border-slate-200">
+      <EmptyState
+        icon="person_search"
+        title={hasPatients ? "No se encontraron pacientes" : "Aún no tienes pacientes registrados"}
+      />
       {!hasPatients && (
         <button
           onClick={onNuevo}
-          className="mt-1 inline-flex items-center gap-1.5 px-4 py-2.5 min-h-11 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-medium transition-colors"
+          className="mt-1 mx-auto flex items-center gap-1.5 px-4 py-2.5 min-h-11 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[13px] font-medium transition-colors"
         >
           <Icon name="person_add" size={16} />
           Registrar paciente
@@ -150,7 +131,7 @@ export function PacientesView({ initialData }: { initialData: any[] }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por nombre o DNI…"
-              className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-cyan-500 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 transition-colors text-[16px] sm:text-[13px]"
+ className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 outline-none focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-100 transition-colors text-[16px] sm:text-[13px]"
             />
           </div>
           <button
@@ -173,7 +154,7 @@ export function PacientesView({ initialData }: { initialData: any[] }) {
 
         {/* Empty */}
         {!loading && filtrados.length === 0 && (
-          <EmptyState hasPatients={todos.length > 0} onNuevo={() => setShowNuevoModal(true)} />
+          <PacientesEmptyState hasPatients={todos.length > 0} onNuevo={() => setShowNuevoModal(true)} />
         )}
 
         {/* Lista — grid responsive que llena el espacio disponible */}
@@ -203,9 +184,9 @@ export function PacientesView({ initialData }: { initialData: any[] }) {
           {active ? (
             <PacientePreviewPanel key={active.id} paciente={active} detalle={detalle} detalleLoading={detalleLoading} />
           ) : (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 flex flex-col items-center gap-2.5 text-center">
-              <Icon name="person" size={22} className="text-slate-300 dark:text-slate-600" />
-              <p className="text-[12.5px] text-slate-400 dark:text-slate-500">Sin pacientes que mostrar</p>
+ <div className="bg-white rounded-2xl border border-slate-200 p-8 flex flex-col items-center gap-2.5 text-center">
+ <Icon name="person" size={22} className="text-slate-300"/>
+ <p className="text-[12.5px] text-slate-400">Sin pacientes que mostrar</p>
             </div>
           )}
         </AnimatePresence>
@@ -234,7 +215,6 @@ function PacienteCardBase({
   onHoverEnd: (id: string) => void;
 }) {
   const edad = calcEdad(p.fecha_nacimiento);
-  const avatar = avatarStyle(p.id);
   const cumpleHoy = isBirthdayToday(p.fecha_nacimiento);
   const tieneAlergias = p.alergias && p.alergias.length > 0;
 
@@ -242,15 +222,13 @@ function PacienteCardBase({
     <motion.div variants={staggerItem} onMouseEnter={() => onHoverStart(p.id)} onMouseLeave={() => onHoverEnd(p.id)}>
       <GuardedLink
         href={`/pacientes/${p.id}`}
-        className={`flex items-start gap-3 bg-white dark:bg-slate-800 rounded-2xl border p-4 hover:border-cyan-300 dark:hover:border-cyan-700 hover:shadow-sm active:scale-[0.99] transition-all ${
-          active ? "border-cyan-400 dark:border-cyan-600 ring-1 ring-cyan-100 dark:ring-cyan-900/40" : "border-slate-200 dark:border-slate-700"
+ className={`flex items-start gap-3 bg-white rounded-2xl border p-4 hover:border-cyan-300 hover:shadow-sm active:scale-[0.99] transition-all ${
+ active ? "border-cyan-400 ring-1 ring-cyan-100" : "border-slate-200"
         }`}
       >
         {/* Avatar */}
-        <div
-          className={`relative w-11 h-11 rounded-full border-2 flex items-center justify-center shrink-0 font-bold text-[13px] ${avatar.bg} ${avatar.border} ${avatar.text}`}
-        >
-          {initials(p.nombre)}
+        <div className="relative shrink-0">
+          <Avatar name={p.nombre} size="md" />
           {cumpleHoy && (
             <span
               className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center"
@@ -263,11 +241,11 @@ function PacienteCardBase({
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <p className="text-[14px] font-bold text-slate-900 dark:text-slate-100 truncate">{p.nombre}</p>
-          <p className="text-[12px] text-slate-500 dark:text-slate-400 truncate">
+ <p className="text-[14px] font-bold text-slate-900 truncate">{p.nombre}</p>
+ <p className="text-[12px] text-slate-500 truncate">
             DNI {p.dni} · {edad} años
           </p>
-          <p className="text-[12px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+ <p className="text-[12px] text-slate-400 truncate mt-0.5">
             Última consulta: {p.ultima_visita ? fmtFecha(p.ultima_visita) : "Sin consultas"}
           </p>
         </div>
@@ -275,12 +253,12 @@ function PacienteCardBase({
         {/* Pills */}
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           {p.estado === "nuevo" && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-400 whitespace-nowrap">
+ <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 whitespace-nowrap">
               1 cita
             </span>
           )}
           {tieneAlergias && (
-            <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 whitespace-nowrap">
+ <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-red-200 text-red-600 whitespace-nowrap">
               <Icon name="warning_amber" size={10} />
               Alergias
             </span>
@@ -303,7 +281,6 @@ function PacientePreviewPanel({
   detalleLoading: boolean;
 }) {
   const edad = calcEdad(p.fecha_nacimiento);
-  const avatar = avatarStyle(p.id);
   const info = detalle?.paciente;
   const alergias: string[] = info?.alergias ?? p.alergias ?? [];
 
@@ -313,16 +290,14 @@ function PacientePreviewPanel({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 6 }}
       transition={{ duration: 0.15 }}
-      className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3"
+ className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col gap-3"
     >
       {/* Encabezado */}
       <div className="flex items-center gap-3">
-        <div className={`w-11 h-11 rounded-full border-2 flex items-center justify-center shrink-0 font-bold text-[14px] ${avatar.bg} ${avatar.border} ${avatar.text}`}>
-          {initials(p.nombre)}
-        </div>
+        <Avatar name={p.nombre} size="md" />
         <div className="min-w-0">
-          <p className="text-[14px] font-bold text-slate-900 dark:text-slate-100 truncate">{p.nombre}</p>
-          <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">
+ <p className="text-[14px] font-bold text-slate-900 truncate">{p.nombre}</p>
+ <p className="text-[11.5px] text-slate-500 truncate">
             DNI {p.dni} · {edad} años{info?.sexo ? ` · ${info.sexo}` : ""}
           </p>
         </div>
@@ -331,34 +306,34 @@ function PacientePreviewPanel({
       {detalleLoading ? (
         <div className="flex flex-col gap-1.5">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+ <div key={i} className="h-4 bg-slate-100 rounded animate-pulse"/>
           ))}
         </div>
       ) : (
-        <div className="flex flex-col gap-1.5 text-[12px] text-slate-600 dark:text-slate-300 border-t border-slate-100 dark:border-slate-700 pt-2.5">
+ <div className="flex flex-col gap-1.5 text-[12px] text-slate-600 border-t border-slate-100 pt-2.5">
           <p className="flex items-center gap-1.5">
-            <Icon name="phone" size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
+ <Icon name="phone" size={13} className="text-slate-400 shrink-0"/>
             {info?.telefono || p.telefono || "—"}
           </p>
           {info?.grupo_sanguineo && (
             <p className="flex items-center gap-1.5">
-              <Icon name="bloodtype" size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
+ <Icon name="bloodtype" size={13} className="text-slate-400 shrink-0"/>
               {info.grupo_sanguineo}
             </p>
           )}
           <p className="flex items-center gap-1.5">
-            <Icon name="history" size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
+ <Icon name="history" size={13} className="text-slate-400 shrink-0"/>
             Última consulta: {p.ultima_visita ? fmtFecha(p.ultima_visita) : "Sin consultas"}
           </p>
           {alergias.length > 0 && (
             <div className="pt-0.5">
-              <p className="flex items-center gap-1 text-[10.5px] font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wide mb-1">
+ <p className="flex items-center gap-1 text-[10.5px] font-semibold text-red-600 uppercase tracking-wide mb-1">
                 <Icon name="warning_amber" size={11} />
                 Alergias
               </p>
               <div className="flex flex-wrap gap-1">
                 {alergias.map((a) => (
-                  <span key={a} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+ <span key={a} className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full text-red-600 border border-red-200">
                     {a}
                   </span>
                 ))}
@@ -369,7 +344,7 @@ function PacientePreviewPanel({
       )}
 
       {/* Acciones */}
-      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+ <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
         <GuardedLink
           href={`/pacientes/${p.id}`}
           className="flex items-center justify-center gap-1.5 h-9 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[12px] font-medium transition-colors"
@@ -379,14 +354,14 @@ function PacientePreviewPanel({
         </GuardedLink>
         <GuardedLink
           href={`/agenda?paciente=${p.id}`}
-          className="flex items-center justify-center gap-1.5 h-9 rounded-xl border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-medium transition-colors"
+ className="flex items-center justify-center gap-1.5 h-9 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[12px] font-medium transition-colors"
         >
           <Icon name="calendar_today" size={14} />
           Nueva Cita
         </GuardedLink>
         <GuardedLink
           href={`/pacientes/${p.id}?tab=presupuestos`}
-          className="col-span-2 flex items-center justify-center gap-1.5 h-9 rounded-xl border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-medium transition-colors"
+ className="col-span-2 flex items-center justify-center gap-1.5 h-9 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-[12px] font-medium transition-colors"
         >
           <Icon name="payments" size={14} />
           Presupuestos

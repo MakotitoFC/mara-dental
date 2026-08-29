@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { Badge } from "@/components/ui/Badge";
 import { Header } from "@/components/layout/Header";
 import { format, isPast, isToday } from "date-fns";
 import { es } from "date-fns/locale";
@@ -36,12 +37,16 @@ export default function CuentasPorCobrarClient({ initialData }: { initialData: a
   function getEstadoBadge(fecha_vencimiento: string) {
     const v = new Date(fecha_vencimiento + "T00:00:00");
     if (isPast(v) && !isToday(v)) {
-      return <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-100 text-rose-700">VENCIDO</span>;
+      return <Badge status="error" className="text-[10px] font-bold">VENCIDO</Badge>;
     }
     if (isToday(v)) {
-      return <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700">VENCE HOY</span>;
+      return (
+        <Badge status="info" className="gap-1 text-[10px] font-bold">
+          <Icon name="schedule" size={10} /> VENCE HOY
+        </Badge>
+      );
     }
-    return <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-500">PENDIENTE</span>;
+    return <Badge status="pending" className="text-[10px] font-bold">PENDIENTE</Badge>;
   }
 
   return (

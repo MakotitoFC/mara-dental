@@ -15,12 +15,12 @@ const SEXO_OPTIONS = SEXOS.map((s) => ({ value: s, label: s }));
 const GRUPO_OPTIONS = GRUPOS_SANGUINEOS.map((g) => ({ value: g, label: g }));
 const ESTADO_CIVIL_OPTIONS = ESTADOS_CIVILES.map((s) => ({ value: s, label: s }));
 
-const inputCls = "w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 transition-colors";
+const inputCls ="w-full border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 transition-colors";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[12px] font-semibold text-slate-700 dark:text-slate-300">{label}</label>
+ <label className="text-[12px] font-semibold text-slate-700">{label}</label>
       {children}
     </div>
   );
@@ -43,7 +43,7 @@ function ChipField({
           className={`flex-1 ${inputCls}`}
         />
         <button type="button" onClick={onAdd} disabled={!input.trim()}
-          className="px-3.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-40 text-slate-600 dark:text-slate-200 text-[12px] font-semibold transition-colors">
+ className="px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-600 text-[12px] font-semibold transition-colors">
           Añadir
         </button>
       </div>
@@ -171,10 +171,10 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
     <ResponsiveSheet
       onClose={onClose}
       title="Editar paciente"
-      maxWidthDesktop="680px"
+      size="lg"
       footer={
         <div className="flex items-center justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-[13px] font-medium border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+ <button onClick={onClose} className="px-4 py-2 text-[13px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
             Cancelar
           </button>
           <button
@@ -189,7 +189,7 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3">
-            <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Datos personales y contacto</p>
+ <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Datos personales y contacto</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Nombre *">
                 <input value={nombre} onChange={(e) => setNombre(e.target.value)} className={inputCls} />
@@ -260,36 +260,36 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 pt-3 border-t border-slate-100 dark:border-slate-700/60">
-            <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Datos médicos y antecedentes</p>
+ <div className="flex flex-col gap-3 pt-3 border-t border-slate-100">
+ <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Datos médicos y antecedentes</p>
             <Field label="Grupo sanguíneo">
               <Select value={grupoSanguineo} onChange={setGrupo} options={GRUPO_OPTIONS} placeholder="— No especificado —" />
             </Field>
 
             <ChipField
               label="Alergias" placeholder="Ej: Penicilina" chips={alergias} input={alergiasInput}
-              chipClass="bg-orange-50 text-orange-700 border border-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900"
+ chipClass="bg-orange-50 text-orange-700 border border-orange-100"
               onInputChange={setAlergiasInput}
               onAdd={() => addChip(alergiasInput, alergias, setAlergias, setAlergiasInput)}
               onRemove={(v) => removeChip(v, alergias, setAlergias)}
             />
             <ChipField
               label="Enfermedades crónicas" placeholder="Ej: Hipertensión" chips={cronicas} input={cronicasInput}
-              chipClass="bg-rose-50 text-rose-700 border border-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900"
+ chipClass="bg-red-50 text-red-700 border border-red-100"
               onInputChange={setCronicasInput}
               onAdd={() => addChip(cronicasInput, cronicas, setCronicas, setCronicasInput)}
               onRemove={(v) => removeChip(v, cronicas, setCronicas)}
             />
             <ChipField
               label="Medicamentos actuales" placeholder="Ej: Enalapril 5mg" chips={medicacion} input={medInput}
-              chipClass="bg-cyan-50 text-cyan-700 border border-cyan-100 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-900"
+ chipClass="bg-cyan-50 text-cyan-700 border border-cyan-100"
               onInputChange={setMedInput}
               onAdd={() => addChip(medInput, medicacion, setMedicacion, setMedInput)}
               onRemove={(v) => removeChip(v, medicacion, setMedicacion)}
             />
             <ChipField
               label="Antecedentes quirúrgicos" placeholder="Ej: Apendicectomía" chips={quirurgicos} input={quirInput}
-              chipClass="bg-violet-50 text-violet-700 border border-violet-100 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900"
+ chipClass="bg-violet-50 text-violet-700 border border-violet-100"
               onInputChange={setQuirInput}
               onAdd={() => addChip(quirInput, quirurgicos, setQuirurgicos, setQuirInput)}
               onRemove={(v) => removeChip(v, quirurgicos, setQuirurgicos)}
@@ -298,14 +298,14 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <ChipField
                 label="Enfermedad actual" placeholder="Ej: Dolor dental" chips={enfermedadActual} input={enfermedadInput}
-                chipClass="bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900"
+ chipClass="bg-blue-50 text-blue-700 border border-blue-100"
                 onInputChange={setEnfermedadInput}
                 onAdd={() => addChip(enfermedadInput, enfermedadActual, setEnfermedadActual, setEnfermedadInput)}
                 onRemove={(v) => removeChip(v, enfermedadActual, setEnfermedadActual)}
               />
               <ChipField
                 label="Restricciones clínicas" placeholder="Ej: No usar anestesia X" chips={restriccionesClinicas} input={restriccionInput}
-                chipClass="bg-red-50 text-red-700 border border-red-100 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900"
+ chipClass="bg-red-50 text-red-700 border border-red-100"
                 onInputChange={setRestriccionInput}
                 onAdd={() => addChip(restriccionInput, restriccionesClinicas, setRestriccionesClinicas, setRestriccionInput)}
                 onRemove={(v) => removeChip(v, restriccionesClinicas, setRestriccionesClinicas)}
@@ -314,7 +314,7 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-[12px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900 rounded-xl px-3 py-2">
+ <div className="flex items-center gap-2 text-[12px] text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
               <Icon name="warning" size={15} className="shrink-0" /> {error}
             </div>
           )}

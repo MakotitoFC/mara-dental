@@ -49,6 +49,7 @@ export async function getPersonalAction({
   puestoId = null,
   sedeId = null,
   rolId = null,
+  activo = null,
 }: {
   page?: number;
   limit?: number;
@@ -57,6 +58,7 @@ export async function getPersonalAction({
   puestoId?: number | null;
   sedeId?: number | null; // Solo usado si es superadmin
   rolId?: number | null;
+  activo?: boolean | null;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -111,6 +113,10 @@ export async function getPersonalAction({
     query = query.eq("usuarios.rol_id", rolId);
   }
 
+  if (activo !== null) {
+    query = query.eq("usuarios.activo", activo);
+  }
+
   if (search.trim()) {
     const s = `%${search.trim()}%`;
     query = query.or(`nombre.ilike.${s},apellido.ilike.${s}`);
@@ -132,6 +138,69 @@ export async function getPersonalAction({
     data: data || [],
     count: count || 0,
     totalPages: Math.ceil((count || 0) / limit),
+  };
+}
+
+/** Conteos para los tabs Todos/Activos/Inactivos — respeta los mismos
+ * filtros de sede/especialidad/puesto/rol/búsqueda que getPersonalAction,
+ * pero sin el filtro de estado ni paginación (dos count-only queries,
+ * livianas: `head: true` no trae filas). */
+export async function getPersonalCountsAction({
+  search = "",
+  especialidadId = null,
+  puestoId = null,
+  sedeId = null,
+  rolId = null,
+}: {
+  search?: string;
+  especialidadId?: number | null;
+  puestoId?: number | null;
+  sedeId?: number | null;
+  rolId?: number | null;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autorizado");
+
+  const currentUserProfile = await getUsuarioConRol(supabase, user.id);
+  if (!currentUserProfile) throw new Error("Perfil no encontrado");
+
+  const role = currentUserProfile.rol;
+  if (role !== "admin" && role !== "superadmin") {
+    throw new Error("No tienes permisos para ver el personal");
+  }
+
+  let targetSedeId = sedeId;
+  if (role === "admin") {
+    targetSedeId = currentUserProfile.sede_id;
+  } else if (role === "superadmin" && !targetSedeId) {
+    targetSedeId = currentUserProfile.sede_id;
+  }
+
+  function baseQuery(activo: boolean) {
+    let q = supabase
+      .from("personal")
+      .select("usuario_id, usuarios!inner ( activo, rol_id, sede_id )", { count: "exact", head: true })
+      .eq("usuarios.activo", activo);
+    if (targetSedeId) q = q.eq("usuarios.sede_id", targetSedeId);
+    if (especialidadId) q = q.eq("especialidad_id", especialidadId);
+    if (puestoId) q = q.eq("puesto_id", puestoId);
+    if (rolId) q = q.eq("usuarios.rol_id", rolId);
+    if (search.trim()) {
+      const s = `%${search.trim()}%`;
+      q = q.or(`nombre.ilike.${s},apellido.ilike.${s}`);
+    }
+    return q;
+  }
+
+  const [activos, inactivos] = await Promise.all([
+    baseQuery(true),
+    baseQuery(false),
+  ]);
+
+  return {
+    activos: activos.count || 0,
+    inactivos: inactivos.count || 0,
   };
 }
 

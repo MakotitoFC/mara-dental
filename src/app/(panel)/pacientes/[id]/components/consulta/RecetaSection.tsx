@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
+import { SmartPopover } from "@/components/ui/SmartPopover";
 import { fadeIn, scaleIn, slideUp, staggerContainer, staggerItem } from "@/lib/animations";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
@@ -100,7 +101,7 @@ export function RecetaSection(props: SectionProps) {
 
   async function handleDeleteMed(medId: number) {
     const ok = await confirm({
-      title: "¿Quitar medicamento?",
+      title: "¿Quitar medicamento? ",
       message: "El medicamento será removido de esta receta médica.",
       confirmLabel: "Sí, quitar",
     });
@@ -112,29 +113,29 @@ export function RecetaSection(props: SectionProps) {
   }
 
   return (
-    <motion.div variants={fadeIn} initial="hidden" animate="visible" className={`bg-white dark:bg-slate-800 rounded-2xl border relative ${scrollBody ? "flex flex-col h-full overflow-hidden" : ""} ${enabled ? "border-slate-200 dark:border-slate-700" : "border-slate-200 dark:border-slate-700 opacity-60"}`}>
+ <motion.div variants={fadeIn} initial="hidden" animate="visible" className={`bg-white rounded-2xl border relative ${scrollBody ? "flex flex-col h-full overflow-hidden" : ""} ${enabled ? "border-slate-200" : "border-slate-200 opacity-60"}`}>
       {!enabled && (
-        <div className="absolute inset-0 z-10 bg-white/70 dark:bg-slate-800/70 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2 rounded-2xl">
-          <Icon name="lock" size={22} className="text-slate-400 dark:text-slate-500" />
-          <p className="text-[12px] font-semibold text-slate-500 dark:text-slate-400">Disponible con diagnóstico definitivo</p>
+ <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2 rounded-2xl">
+ <Icon name="lock" size={22} className="text-slate-400"/>
+ <p className="text-[12px] font-semibold text-slate-500">Disponible con diagnóstico definitivo</p>
         </div>
       )}
-      <div className={`${scrollBody ? "shrink-0" : ""} flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-700`}>
+ <div className={`${scrollBody ? "shrink-0" : ""} flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100`}>
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 dark:text-blue-400 shrink-0">
+ <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
             <Icon name="medication" size={18} />
           </div>
-          <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Recetas médicas</h2>
+ <h2 className="text-[14px] font-semibold text-slate-800">Recetas médicas</h2>
         </div>
         <button onClick={() => enabled && setShowModal(true)} disabled={!enabled}
-          className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-cyan-200 dark:border-cyan-800 text-[12px] font-semibold text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 disabled:opacity-40 transition-colors">
+ className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-cyan-200 text-[12px] font-semibold text-cyan-600 hover:bg-cyan-50 disabled:opacity-40 transition-colors">
           <Icon name="add" size={16} /> Nueva receta
         </button>
       </div>
 
       <div className={`p-5 flex flex-col gap-4 ${scrollBody ? "flex-1 min-h-0 overflow-y-auto no-scrollbar" : ""}`}>
         {recetas.length === 0 ? (
-          <div className="py-8 text-center text-slate-400 dark:text-slate-500">
+ <div className="py-8 text-center text-slate-400">
             <Icon name="medication" size={28} className="opacity-30 mx-auto mb-2" />
             <p className="text-[12px]">Sin recetas emitidas</p>
           </div>
@@ -201,7 +202,7 @@ const fmtFechaCorta = (d: string) => {
   catch { return d; }
 };
 
-function ActionLink({ icon, label, onClick, hoverClass = "hover:text-cyan-600 dark:hover:text-cyan-400", textClass = "text-slate-500 dark:text-slate-400", className = "" }: {
+function ActionLink({ icon, label, onClick, hoverClass ="hover:text-cyan-600", textClass ="text-slate-500", className =""}: {
   icon: string; label: string; onClick?: () => void; hoverClass?: string; textClass?: string; className?: string;
 }) {
   return (
@@ -209,7 +210,7 @@ function ActionLink({ icon, label, onClick, hoverClass = "hover:text-cyan-600 da
       onClick={(e) => { e.stopPropagation(); onClick?.(); }}
       title={label}
       aria-label={label}
-      className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-lg ${textClass} ${hoverClass} hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors ${className}`}
+ className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-lg ${textClass} ${hoverClass} hover:bg-slate-50 transition-colors ${className}`}
     >
       <Icon name={icon} size={15} />
     </button>
@@ -237,59 +238,59 @@ export function PrescriptionRow({ medicamento, estado, fechaEmision, doctorNombr
   return (
     <div
       onClick={onView}
-      className={`flex rounded-3xl overflow-hidden border border-blue-100 dark:border-blue-900/50 bg-white dark:bg-slate-800 shadow-sm ${onView ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
+ className={`flex rounded-3xl overflow-hidden border border-blue-100 bg-white shadow-sm ${onView ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
     >
       <div className="flex-1 min-w-0 p-4 sm:p-5 flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <span className={`flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wide ${isActive ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-slate-500"}`}>
+ <span className={`flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wide ${isActive ? "text-emerald-600" : "text-slate-400"}`}>
             <Icon name="medication" size={14} /> Receta médica
           </span>
-          <span className={`text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full shrink-0 ${isActive ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"}`}>
+ <span className={`text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full shrink-0 ${isActive ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>
             {isActive ? "Activa" : "Cancelada"}
           </span>
         </div>
 
         <div>
-          <p className="text-[17px] font-bold text-slate-900 dark:text-slate-100">{medicamento.medicamento_nombre}</p>
-          {subtitle && <p className="text-[12.5px] text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
+ <p className="text-[17px] font-bold text-slate-900">{medicamento.medicamento_nombre}</p>
+ {subtitle && <p className="text-[12.5px] text-slate-500 mt-0.5">{subtitle}</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="min-w-0">
-            <p className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Emitida</p>
-            <p className="text-[12.5px] font-semibold text-slate-700 dark:text-slate-300 truncate">{fmtFechaCorta(fechaEmision)}</p>
+ <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Emitida</p>
+ <p className="text-[12.5px] font-semibold text-slate-700 truncate">{fmtFechaCorta(fechaEmision)}</p>
           </div>
           <div className="min-w-0">
-            <p className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Doctor</p>
-            <p className="text-[12.5px] font-semibold text-slate-700 dark:text-slate-300 truncate">Dr. {doctorNombre}</p>
+ <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Doctor</p>
+ <p className="text-[12.5px] font-semibold text-slate-700 truncate">Dr. {doctorNombre}</p>
           </div>
         </div>
 
         {medicamento.indicaciones && (
-          <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl px-3 py-2">
-            <Icon name="info" size={13} className="text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-[11.5px] text-amber-800 dark:text-amber-300 leading-snug">{medicamento.indicaciones}</p>
+ <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+ <Icon name="info" size={13} className="text-amber-500 shrink-0 mt-0.5"/>
+ <p className="text-[11.5px] text-amber-800 leading-snug">{medicamento.indicaciones}</p>
           </div>
         )}
 
-        <div className="flex items-center justify-end flex-nowrap gap-0.5 pt-3 mt-1 -mx-4 sm:-mx-5 px-4 sm:px-5 border-t border-slate-100 dark:border-slate-700">
-          <ActionLink icon="download" label="Descargar" onClick={onDownload} hoverClass="hover:text-emerald-600 dark:hover:text-emerald-400" />
-          <ActionLink icon="print" label="Imprimir" onClick={onPrint} hoverClass="hover:text-emerald-600 dark:hover:text-emerald-400" />
-          <ActionLink icon="send" label="Enviar" onClick={onSend} hoverClass="hover:text-[#24A1DE]" />
+ <div className="flex items-center justify-end flex-nowrap gap-0.5 pt-3 mt-1 -mx-4 sm:-mx-5 px-4 sm:px-5 border-t border-slate-100">
+ <ActionLink icon="download" label="Descargar" onClick={onDownload} hoverClass="hover:text-emerald-600"/>
+ <ActionLink icon="print" label="Imprimir" onClick={onPrint} hoverClass="hover:text-emerald-600"/>
+          <ActionLink icon="send" label="Enviar" onClick={onSend} hoverClass="hover:text-[color:var(--telegram-blue)]" />
           {showManage && (
             <>
               <ActionLink
                 icon={isActive ? "block" : "check_circle"}
                 label={isActive ? "Cancelar" : "Activar"}
                 onClick={onToggleEstado}
-                hoverClass="hover:text-amber-600 dark:hover:text-amber-400"
+ hoverClass="hover:text-amber-600"
               />
               <ActionLink
                 icon="delete"
                 label="Eliminar"
                 onClick={onDeleteMed}
-                textClass="text-red-400 dark:text-red-400/80"
-                hoverClass="hover:text-red-600 dark:hover:text-red-400"
+ textClass="text-red-400"
+ hoverClass="hover:text-red-600"
               />
             </>
           )}
@@ -315,7 +316,7 @@ export function RecetaDetailModal({ data, dni, onClose }: { data: DocData; dni?:
         <button
           onClick={onClose}
           aria-label="Cerrar"
-          className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-white dark:bg-slate-800 shadow-md border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+ className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-white shadow-md border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
         >
           <Icon name="close" size={16} />
         </button>
@@ -346,8 +347,8 @@ function buildRecetaHtml(opts: DocData): string {
 
   const infoCell = (label: string, value?: string | null) => value ? `
     <div>
-      <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">${esc(label)}</div>
-      <div style="font-size:12px;font-weight:700;color:#1e293b;">${esc(value)}</div>
+      <div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">${esc(label)}</div>
+      <div style="font-size:12px;font-weight:700;color:#212E3D;">${esc(value)}</div>
     </div>
   ` : "";
 
@@ -362,16 +363,16 @@ function buildRecetaHtml(opts: DocData): string {
   `;
 
   const medsHtml = opts.medicamentos.map((m, i) => `
-    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:10px;">
+    <div style="border:1px solid #EDF0F4;border-radius:10px;padding:14px 16px;margin-bottom:10px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
         <span style="width:22px;height:22px;border-radius:50%;background:#0891b2;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i + 1}</span>
-        <span style="font-size:13.5px;font-weight:800;color:#1e293b;">${esc(m.medicamento_nombre)}</span>
-        ${m.dosis ? `<span style="font-size:12px;color:#64748b;">${esc(m.dosis)}</span>` : ""}
+        <span style="font-size:13.5px;font-weight:800;color:#212E3D;">${esc(m.medicamento_nombre)}</span>
+        ${m.dosis ? `<span style="font-size:12px;color:#5D6D7E;">${esc(m.dosis)}</span>` : ""}
       </div>
       ${m.frecuencia || m.indicaciones ? `
         <div style="padding-left:32px;">
-          ${m.frecuencia ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Frecuencia</div><div style="font-size:12px;color:#334155;margin-bottom:6px;">${esc(m.frecuencia)}</div>` : ""}
-          ${m.indicaciones ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Indicaciones</div><div style="font-size:12px;color:#334155;">${esc(m.indicaciones)}</div>` : ""}
+          ${m.frecuencia ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Frecuencia</div><div style="font-size:12px;color:#2C3E50;margin-bottom:6px;">${esc(m.frecuencia)}</div>` : ""}
+          ${m.indicaciones ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Indicaciones</div><div style="font-size:12px;color:#2C3E50;">${esc(m.indicaciones)}</div>` : ""}
         </div>
       ` : ""}
     </div>`).join("");
@@ -389,8 +390,8 @@ function buildRecetaHtml(opts: DocData): string {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         <span style="width:34px;height:34px;border-radius:50%;background:#ecfeff;color:#0891b2;font-family:Georgia,serif;font-size:20px;display:flex;align-items:center;justify-content:center;">℞</span>
         <div>
-          <div style="font-size:14px;font-weight:800;color:#1e293b;">Prescripción Médica</div>
-          <div style="font-size:10.5px;color:#94a3b8;">Válida por 30 días desde la fecha de emisión</div>
+          <div style="font-size:14px;font-weight:800;color:#212E3D;">Prescripción Médica</div>
+          <div style="font-size:10.5px;color:#95A5A6;">Válida por 30 días desde la fecha de emisión</div>
         </div>
       </div>
       ${medsHtml}
@@ -490,17 +491,17 @@ function RecetaModal({
       <motion.div
         variants={isMobile ? slideUp : scaleIn}
         initial="hidden" animate="visible" exit="exit"
-        className="fixed inset-x-0 bottom-0 top-10 md:relative md:inset-auto rounded-t-2xl md:rounded-2xl bg-white dark:bg-slate-800 w-full shadow-2xl overflow-hidden flex flex-col"
+ className="fixed inset-x-0 bottom-0 top-10 md:relative md:inset-auto rounded-t-2xl md:rounded-2xl bg-white w-full shadow-2xl overflow-hidden flex flex-col"
         style={{ maxWidth: isMobile ? undefined : 900, maxHeight: isMobile ? undefined : "min(90vh, calc(100dvh - 96px))" }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
+ <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <div>
-            <p className="text-[14px] font-semibold text-slate-900 dark:text-slate-100">Nueva receta electrónica</p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500">{pacienteNombre} · {fmtFecha(today)}</p>
+ <p className="text-[14px] font-semibold text-slate-900">Nueva receta electrónica</p>
+ <p className="text-[11px] text-slate-400">{pacienteNombre} · {fmtFecha(today)}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700">
+ <button onClick={onClose} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-50">
             <Icon name="close" size={16} />
           </button>
         </div>
@@ -508,16 +509,16 @@ function RecetaModal({
         {/* Body */}
         <div className="flex flex-col flex-1 overflow-hidden md:flex-row">
           {/* Formulario */}
-          <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-5 flex flex-col gap-4 md:border-r md:border-slate-100 dark:md:border-slate-700">
+ <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-5 flex flex-col gap-4 md:border-r md:border-slate-100">
             <Field label="Diagnóstico / motivo">
               <input value={motivo} onChange={e => setMotivo(e.target.value)}
                 placeholder="Ej: Gingivitis crónica, infección post-extracción…"
-                className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 bg-white dark:bg-slate-900 dark:text-slate-100" />
+ className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 bg-white"/>
             </Field>
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Medicamentos</p>
+ <p className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Medicamentos</p>
                 <button onClick={addMed} className="flex items-center gap-1 text-[11px] text-cyan-600 hover:text-cyan-700 font-medium">
                   <Icon name="add_circle" size={14} /> Agregar
                 </button>
@@ -525,38 +526,43 @@ function RecetaModal({
 
               <div className="flex flex-col gap-3">
                 {meds.map((m, i) => (
-                  <div key={i} className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col gap-2">
+ <div key={i} className="border border-slate-200 rounded-xl p-3 flex flex-col gap-2">
                     <div className="flex items-center gap-2 justify-between">
                       <span className="text-[11px] font-bold text-cyan-600">#{i + 1}</span>
                       {meds.length > 1 && (
-                        <button onClick={() => removeMed(i)} className="text-slate-300 dark:text-slate-600 hover:text-red-400 transition-colors">
+ <button onClick={() => removeMed(i)} className="text-slate-300 hover:text-red-400 transition-colors">
                           <Icon name="close" size={14} />
                         </button>
                       )}
                     </div>
-                    <div className="relative">
-                      <Field label="Medicamento">
-                        <input value={m.medicamento_nombre} onChange={e => buscarMed(e.target.value, i)}
-                          placeholder="Amoxicilina, Ibuprofeno…"
-                          className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white dark:bg-slate-900 dark:text-slate-100" />
-                      </Field>
-                      {activeIdx === i && searchResults.length > 0 && (
-                        <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-10 max-h-44 overflow-y-auto no-scrollbar">
-                          {searchResults.map(r => (
-                            <button key={r.id} onClick={() => elegirMed(i, r)}
-                              className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-50 dark:border-slate-700 last:border-0">
-                              <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-100">{r.nombre_comercial || r.nombre_generico}</p>
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400">{r.concentracion} - {r.forma_farmaceutica}</p>
-                            </button>
-                          ))}
-                        </div>
+                    <SmartPopover
+                      open={activeIdx === i && searchResults.length > 0}
+                      onClose={() => { setSearchResults([]); setActiveIdx(null); }}
+                      placement="bottom-start"
+                      matchWidth
+                      renderTrigger={(ref) => (
+                        <Field label="Medicamento">
+                          <input ref={ref} value={m.medicamento_nombre} onChange={e => buscarMed(e.target.value, i)}
+                            placeholder="Amoxicilina, Ibuprofeno…"
+ className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
+                        </Field>
                       )}
-                    </div>
+                    >
+ <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-44 overflow-y-auto no-scrollbar">
+                        {searchResults.map(r => (
+                          <button key={r.id} onClick={() => elegirMed(i, r)}
+ className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0">
+ <p className="text-[12px] font-semibold text-slate-800">{r.nombre_comercial || r.nombre_generico}</p>
+ <p className="text-[10px] text-slate-500">{r.concentracion} - {r.forma_farmaceutica}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </SmartPopover>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <Field label="Dosis">
                         <input value={m.dosis} onChange={e => setField(i, "dosis", e.target.value)}
                           placeholder="500mg, 15ml…"
-                          className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white dark:bg-slate-900 dark:text-slate-100" />
+ className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
                       </Field>
                       <Field label="Frecuencia">
                         <Select value={m.frecuencia} onChange={(v) => setField(i, "frecuencia", v)} options={FRECUENCIA_OPTIONS} />
@@ -565,7 +571,7 @@ function RecetaModal({
                     <Field label="Indicaciones">
                       <input value={m.indicaciones} onChange={e => setField(i, "indicaciones", e.target.value)}
                         placeholder="Tomar con alimentos, no mezclar con alcohol…"
-                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white dark:bg-slate-900 dark:text-slate-100" />
+ className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
                     </Field>
                   </div>
                 ))}
@@ -575,15 +581,15 @@ function RecetaModal({
           </div>
 
           {/* Vista previa */}
-          <div className="hidden md:block w-75 shrink-0 overflow-y-auto no-scrollbar p-5 bg-slate-50 dark:bg-slate-900/50">
-            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3">Vista previa</p>
+ <div className="hidden md:block w-75 shrink-0 overflow-y-auto no-scrollbar p-5 bg-slate-50">
+ <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-3">Vista previa</p>
             <RecetaPreview pacienteNombre={pacienteNombre} dni={dni} fecha={today} doctorNombre={doctorNombre} diagnostico={motivo} medicamentos={validMeds} />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-slate-100 dark:border-slate-700 shrink-0" style={{ paddingBottom: isMobile ? "calc(0.75rem + env(safe-area-inset-bottom))" : undefined }}>
-          <button onClick={onClose} className="px-4 py-2 text-[12px] font-medium border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+ <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-slate-100 shrink-0" style={{ paddingBottom: isMobile ? "calc(0.75rem + env(safe-area-inset-bottom))": undefined }}>
+ <button onClick={onClose} className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
             Cancelar
           </button>
           <div className="flex items-center flex-wrap gap-2">
@@ -592,12 +598,12 @@ function RecetaModal({
               <Icon name="save" size={14} /> {saving ? "Guardando…" : "Guardar"}
             </button>
             <button onClick={() => canSave && handlePrint(previewData)} disabled={!canSave}
-              className="hidden sm:flex items-center gap-1.5 px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-[12px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+ className="hidden sm:flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               <Icon name="print" size={14} /> Imprimir PDF
             </button>
             <a href={canSave ? telegramLink : undefined} target="_blank" rel="noreferrer"
               onClick={canSave ? (e) => { e.preventDefault(); guardar().then(ok => { if (ok) { window.open(telegramLink, "_blank"); onSaved?.(); onClose(); } }); } : (e) => e.preventDefault()}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium transition-colors ${canSave ? "bg-[#24A1DE] hover:bg-[#1c8ac2] text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-300 dark:text-slate-600 cursor-not-allowed pointer-events-none"}`}>
+ className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium transition-colors ${canSave ? "bg-[color:var(--telegram-blue)] hover:bg-[color:var(--telegram-blue-hover)] text-white" : "bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none"}`}>
               <Icon name="send" size={14} /> Telegram
             </a>
           </div>
@@ -677,7 +683,7 @@ export function RecetaPreview({ pacienteNombre, dni, fecha, doctorNombre, diagno
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{label}</label>
+ <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
       {children}
     </div>
   );

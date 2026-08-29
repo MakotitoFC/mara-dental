@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
+import { SmartPopover } from "@/components/ui/SmartPopover";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
+import { ESTADO_PRESUPUESTO_CFG } from "@/lib/estadoConfig";
+import { Badge } from "@/components/ui/Badge";
 import {
   searchCatalogoAction,
   getCatalogoTratamientosAction,
@@ -71,8 +74,8 @@ function buildPresupuestoHtml(opts: {
 
   const infoCell = (label: string, value?: string | null) => value ? `
     <div>
-      <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">${esc(label)}</div>
-      <div style="font-size:12px;font-weight:700;color:#1e293b;">${esc(value)}</div>
+      <div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">${esc(label)}</div>
+      <div style="font-size:12px;font-weight:700;color:#212E3D;">${esc(value)}</div>
     </div>
   ` : "";
 
@@ -88,35 +91,35 @@ function buildPresupuestoHtml(opts: {
 
   const itemsRows = presupuesto.items.map((it, i) => `
     <tr>
-      <td style="padding:8px 4px;border-bottom:1px solid #f1f5f9;font-size:11px;font-weight:700;color:#0e7490;">${String(i + 1).padStart(2, "0")}</td>
-      <td style="padding:8px 4px;border-bottom:1px solid #f1f5f9;">
-        <div style="font-size:12px;font-weight:600;color:#1e293b;">${esc(it.nombre)}</div>
-        ${it.descripcion ? `<div style="font-size:10.5px;color:#94a3b8;">${esc(it.descripcion)}</div>` : ""}
+      <td style="padding:8px 4px;border-bottom:1px solid #F1F3F6;font-size:11px;font-weight:700;color:#0e7490;">${String(i + 1).padStart(2, "0")}</td>
+      <td style="padding:8px 4px;border-bottom:1px solid #F1F3F6;">
+        <div style="font-size:12px;font-weight:600;color:#212E3D;">${esc(it.nombre)}</div>
+        ${it.descripcion ? `<div style="font-size:10.5px;color:#95A5A6;">${esc(it.descripcion)}</div>` : ""}
       </td>
-      <td style="padding:8px 4px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:12px;color:#334155;">${it.cantidad}</td>
-      <td style="padding:8px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-size:12px;color:#334155;">${esc(money(it.precio_unitario, it.moneda))}</td>
-      <td style="padding:8px 4px;border-bottom:1px solid #f1f5f9;text-align:right;font-size:12px;font-weight:700;color:#1e293b;">${esc(money(it.subtotal, it.moneda))}</td>
+      <td style="padding:8px 4px;border-bottom:1px solid #F1F3F6;text-align:center;font-size:12px;color:#2C3E50;">${it.cantidad}</td>
+      <td style="padding:8px 4px;border-bottom:1px solid #F1F3F6;text-align:right;font-size:12px;color:#2C3E50;">${esc(money(it.precio_unitario, it.moneda))}</td>
+      <td style="padding:8px 4px;border-bottom:1px solid #F1F3F6;text-align:right;font-size:12px;font-weight:700;color:#212E3D;">${esc(money(it.subtotal, it.moneda))}</td>
     </tr>
   `).join("");
 
   const pagosRows = pagosValidos.length === 0
-    ? `<p style="font-size:11.5px;color:#94a3b8;">Sin pagos registrados.</p>`
+    ? `<p style="font-size:11.5px;color:#95A5A6;">Sin pagos registrados.</p>`
     : `<table style="width:100%;border-collapse:collapse;">
         <thead>
           <tr>
-            <th style="text-align:left;padding:6px 4px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Fecha</th>
-            <th style="text-align:left;padding:6px 4px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Método</th>
-            <th style="text-align:left;padding:6px 4px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Referencia</th>
-            <th style="text-align:right;padding:6px 4px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #e2e8f0;">Monto</th>
+            <th style="text-align:left;padding:6px 4px;font-size:9px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:1px solid #EDF0F4;">Fecha</th>
+            <th style="text-align:left;padding:6px 4px;font-size:9px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:1px solid #EDF0F4;">Método</th>
+            <th style="text-align:left;padding:6px 4px;font-size:9px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:1px solid #EDF0F4;">Referencia</th>
+            <th style="text-align:right;padding:6px 4px;font-size:9px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:1px solid #EDF0F4;">Monto</th>
           </tr>
         </thead>
         <tbody>
         ${pagosValidos.map((p) => `
           <tr>
-            <td style="padding:7px 4px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#334155;">${esc(new Date(p.fecha_pago).toLocaleDateString("es-PE"))}</td>
-            <td style="padding:7px 4px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#334155;">${esc(p.medio_pago_nombre)}</td>
-            <td style="padding:7px 4px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#94a3b8;">${esc(p.referencia || "—")}</td>
-            <td style="padding:7px 4px;border-bottom:1px solid #f1f5f9;font-size:11.5px;font-weight:700;color:#059669;text-align:right;">${esc(money(p.monto, moneda))}</td>
+            <td style="padding:7px 4px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#2C3E50;">${esc(new Date(p.fecha_pago).toLocaleDateString("es-PE"))}</td>
+            <td style="padding:7px 4px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#2C3E50;">${esc(p.medio_pago_nombre)}</td>
+            <td style="padding:7px 4px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#95A5A6;">${esc(p.referencia || "—")}</td>
+            <td style="padding:7px 4px;border-bottom:1px solid #F1F3F6;font-size:11.5px;font-weight:700;color:#059669;text-align:right;">${esc(money(p.monto, moneda))}</td>
           </tr>
         `).join("")}
         </tbody>
@@ -136,20 +139,20 @@ function buildPresupuestoHtml(opts: {
       <table style="width:100%;border-collapse:collapse;">
         <thead>
           <tr>
-            <th style="text-align:left;padding:6px 4px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:2px solid #e2e8f0;">#</th>
-            <th style="text-align:left;padding:6px 4px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:2px solid #e2e8f0;">Tratamiento</th>
-            <th style="text-align:center;padding:6px 4px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:2px solid #e2e8f0;">Cant.</th>
-            <th style="text-align:right;padding:6px 4px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:2px solid #e2e8f0;">P. Unit.</th>
-            <th style="text-align:right;padding:6px 4px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:2px solid #e2e8f0;">Subtotal</th>
+            <th style="text-align:left;padding:6px 4px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:2px solid #EDF0F4;">#</th>
+            <th style="text-align:left;padding:6px 4px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:2px solid #EDF0F4;">Tratamiento</th>
+            <th style="text-align:center;padding:6px 4px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:2px solid #EDF0F4;">Cant.</th>
+            <th style="text-align:right;padding:6px 4px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:2px solid #EDF0F4;">P. Unit.</th>
+            <th style="text-align:right;padding:6px 4px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:2px solid #EDF0F4;">Subtotal</th>
           </tr>
         </thead>
         <tbody>${itemsRows}</tbody>
       </table>
       <div style="display:flex;justify-content:flex-end;margin-top:12px;">
         <div style="width:260px;">
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:#64748b;margin-bottom:4px;padding:0 14px;"><span>Subtotal</span><span>${esc(money(presupuesto.total_bruto, moneda))}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:#5D6D7E;margin-bottom:4px;padding:0 14px;"><span>Subtotal</span><span>${esc(money(presupuesto.total_bruto, moneda))}</span></div>
           ${presupuesto.descuento_monto > 0 ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#e11d48;margin-bottom:4px;padding:0 14px;"><span>Descuento (${presupuesto.descuento_porcentaje}%)</span><span>− ${esc(money(presupuesto.descuento_monto, moneda))}</span></div>` : ""}
-          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;color:#ffffff;background:#0f172a;border-radius:8px;padding:10px 14px;margin-top:6px;"><span>Total</span><span style="color:#22d3ee;">${esc(money(totalNeto, moneda))}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;color:#ffffff;background:#1A1A2E;border-radius:8px;padding:10px 14px;margin-top:6px;"><span>Total</span><span style="color:#22d3ee;">${esc(money(totalNeto, moneda))}</span></div>
         </div>
       </div>
     </div>
@@ -164,15 +167,15 @@ function buildPresupuestoHtml(opts: {
       </div>
     </div>
 
-    <div style="margin:22px 28px 0;padding:14px 16px;background:#f8fafc;border-radius:10px;">
-      <div style="font-size:10.5px;color:#64748b;line-height:1.6;"><b style="color:#334155;">Condiciones:</b> Este presupuesto tiene validez de 30 días desde la fecha de emisión. El paciente firma en señal de conformidad con el plan de tratamiento propuesto. Cualquier cambio en el plan de tratamiento puede modificar el total.</div>
+    <div style="margin:22px 28px 0;padding:14px 16px;background:#F7F8FA;border-radius:10px;">
+      <div style="font-size:10.5px;color:#5D6D7E;line-height:1.6;"><b style="color:#2C3E50;">Condiciones:</b> Este presupuesto tiene validez de 30 días desde la fecha de emisión. El paciente firma en señal de conformidad con el plan de tratamiento propuesto. Cualquier cambio en el plan de tratamiento puede modificar el total.</div>
     </div>
 
     <div style="padding:32px 28px 24px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
       <div style="text-align:left;">
-        <div style="height:1px;width:170px;background:#cbd5e1;margin-bottom:6px;"></div>
-        <div style="font-size:11px;font-weight:700;color:#1e293b;">Firma del Paciente</div>
-        ${(opts.pacienteNombre || opts.pacienteDni) ? `<div style="font-size:9.5px;color:#94a3b8;">${esc([opts.pacienteNombre, opts.pacienteDni ? `DNI ${opts.pacienteDni}` : null].filter(Boolean).join(" · "))}</div>` : ""}
+        <div style="height:1px;width:170px;background:#D5D8DC;margin-bottom:6px;"></div>
+        <div style="font-size:11px;font-weight:700;color:#212E3D;">Firma del Paciente</div>
+        ${(opts.pacienteNombre || opts.pacienteDni) ? `<div style="font-size:9.5px;color:#95A5A6;">${esc([opts.pacienteNombre, opts.pacienteDni ? `DNI ${opts.pacienteDni}` : null].filter(Boolean).join(" · "))}</div>` : ""}
       </div>
       ${buildSignatureBlock({ nombre: presupuesto.doctor_nombre, especialidad: presupuesto.doctor_especialidad, numColegiatura: presupuesto.doctor_num_colegiatura, firmaUrl: presupuesto.doctor_firma_url })}
     </div>
@@ -206,7 +209,6 @@ function PresupuestoSelectCombobox({
   const [catalogoList, setCatalogoList] = useState<any[]>([]);
   const [filterText, setFilterText] = useState("");
   const [loading, setLoading] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -216,51 +218,48 @@ function PresupuestoSelectCombobox({
     });
   }, []);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const filtered = catalogoList.filter((item) =>
     item.nombre.toLowerCase().includes(filterText.toLowerCase())
   );
 
   return (
-    <div ref={containerRef} className="relative w-full">
-      <div
-        onClick={() => setOpen(true)}
-        className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl px-3 py-2 text-[13px] flex items-center justify-between gap-2 cursor-pointer focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100 dark:focus-within:ring-cyan-900/40 shadow-sm"
+    <div className="w-full">
+      <SmartPopover
+        open={open}
+        onClose={() => setOpen(false)}
+        placement="bottom-start"
+        matchWidth
+        renderTrigger={(ref) => (
+          <div
+            ref={ref}
+            onClick={() => setOpen(true)}
+ className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-[13px] flex items-center justify-between gap-2 cursor-pointer focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-100 shadow-sm"
+          >
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+ <Icon name="search" size={16} className="text-slate-400 shrink-0"/>
+              <input
+                type="text"
+                value={filterText}
+                onChange={(e) => {
+                  setFilterText(e.target.value);
+                  if (!open) setOpen(true);
+                }}
+                onFocus={() => setOpen(true)}
+                placeholder="Buscar o seleccionar tratamiento del catálogo para agregar…"
+ className="w-full bg-transparent text-slate-800 placeholder-slate-400 outline-none text-[16px] sm:text-[13px]"
+              />
+            </div>
+            <div className="flex items-center gap-1 shrink-0 text-slate-400">
+              {loading && <div className="w-3.5 h-3.5 border-2 border-cyan-200 border-t-cyan-600 rounded-full animate-spin" />}
+              <Icon name={open ? "expand_less" : "expand_more"} size={18} />
+            </div>
+          </div>
+        )}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <Icon name="search" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
-          <input
-            type="text"
-            value={filterText}
-            onChange={(e) => {
-              setFilterText(e.target.value);
-              if (!open) setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            placeholder="Buscar o seleccionar tratamiento del catálogo para agregar…"
-            className="w-full bg-transparent text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none text-[16px] sm:text-[13px]"
-          />
-        </div>
-        <div className="flex items-center gap-1 shrink-0 text-slate-400">
-          {loading && <div className="w-3.5 h-3.5 border-2 border-cyan-200 border-t-cyan-600 rounded-full animate-spin" />}
-          <Icon name={open ? "expand_less" : "expand_more"} size={18} />
-        </div>
-      </div>
-
-      {/* Menú flotante (Límite visual de 4 elementos a la vez con scroll) */}
-      {open && (
+        {/* Límite visual de 4 elementos a la vez con scroll */}
         <div
           onMouseDown={(e) => e.preventDefault()}
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-xl max-h-[168px] overflow-y-auto no-scrollbar py-1"
+ className="bg-white border border-slate-200 shadow-xl rounded-xl max-h-[168px] overflow-y-auto no-scrollbar py-1"
         >
           {loading ? (
             <div className="px-3 py-4 text-center text-[12px] text-slate-400 flex items-center justify-center gap-2">
@@ -281,19 +280,19 @@ function PresupuestoSelectCombobox({
                   setOpen(false);
                   setFilterText("");
                 }}
-                className="w-full text-left px-3 py-2 hover:bg-cyan-50 dark:hover:bg-slate-700/60 border-b border-slate-100 dark:border-slate-700/50 last:border-0 flex items-center justify-between gap-2 transition-colors cursor-pointer"
+ className="w-full text-left px-3 py-2 hover:bg-cyan-50 border-b border-slate-100 last:border-0 flex items-center justify-between gap-2 transition-colors cursor-pointer"
               >
-                <span className="text-[13px] font-medium text-slate-800 dark:text-slate-100 truncate flex-1 min-w-0">
+ <span className="text-[13px] font-medium text-slate-800 truncate flex-1 min-w-0">
                   {item.nombre}
                 </span>
-                <span className="text-[12px] font-semibold text-slate-500 dark:text-slate-400 shrink-0">
+ <span className="text-[12px] font-semibold text-slate-500 shrink-0">
                   {item.moneda || "S/"} {item.precio}
                 </span>
               </button>
             ))
           )}
         </div>
-      )}
+      </SmartPopover>
     </div>
   );
 }
@@ -359,14 +358,14 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
   }
 
   return (
-    <motion.div variants={fadeIn} initial="hidden" animate="visible" className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 sm:p-6 flex flex-col gap-5">
-      <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-700">
-        <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+ <motion.div variants={fadeIn} initial="hidden" animate="visible" className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 flex flex-col gap-5">
+ <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+ <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
           <Icon name="receipt_long" size={18} />
         </div>
         <div>
-          <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Presupuesto</h2>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">Agrega ítems del catálogo para generar el presupuesto</p>
+ <h2 className="text-[14px] font-semibold text-slate-800">Presupuesto</h2>
+ <p className="text-[11px] text-slate-400">Agrega ítems del catálogo para generar el presupuesto</p>
         </div>
       </div>
 
@@ -385,33 +384,33 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
 
       {/* Líneas */}
       {lineas.length === 0 ? (
-        <div className="py-10 flex flex-col items-center justify-center text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900/50">
-          <Icon name="receipt_long" size={28} className="text-slate-300 dark:text-slate-600 mb-2" />
-          <p className="text-[13px] text-slate-500 dark:text-slate-400">Sin ítems aún. Agrega desde el catálogo.</p>
+ <div className="py-10 flex flex-col items-center justify-center text-center border border-dashed border-slate-200 rounded-xl bg-slate-50">
+ <Icon name="receipt_long" size={28} className="text-slate-300 mb-2"/>
+ <p className="text-[13px] text-slate-500">Sin ítems aún. Agrega desde el catálogo.</p>
         </div>
       ) : (
         <motion.div variants={staggerContainer()} initial="hidden" animate="visible" className="flex flex-col gap-2">
           {lineas.map((l, i) => (
-            <motion.div key={l.catalogo_id} variants={staggerItem} className="flex items-center gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-xl">
+ <motion.div key={l.catalogo_id} variants={staggerItem} className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl">
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100 truncate">{l.nombre}</p>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">{money(l.precio_unitario, l.moneda)} c/u</p>
+ <p className="text-[13px] font-medium text-slate-800 truncate">{l.nombre}</p>
+ <p className="text-[11px] text-slate-400">{money(l.precio_unitario, l.moneda)} c/u</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button onClick={() => setLineas(prev => prev.map((x, idx) => idx === i ? { ...x, cantidad: Math.max(1, x.cantidad - 1) } : x))}
-                  className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"><Icon name="remove" size={14} /></button>
-                <span className="w-8 text-center text-[13px] font-semibold text-slate-700 dark:text-slate-300">{l.cantidad}</span>
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50"><Icon name="remove" size={14} /></button>
+ <span className="w-8 text-center text-[13px] font-semibold text-slate-700">{l.cantidad}</span>
                 <button onClick={() => setLineas(prev => prev.map((x, idx) => idx === i ? { ...x, cantidad: x.cantidad + 1 } : x))}
-                  className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"><Icon name="add" size={14} /></button>
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50"><Icon name="add" size={14} /></button>
               </div>
               <div className="w-24 text-right shrink-0">
                 <input type="number" value={l.precio_unitario} min={0} step="0.01"
                   onChange={e => setLineas(prev => prev.map((x, idx) => idx === i ? { ...x, precio_unitario: Number(e.target.value) } : x))}
-                  className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-[16px] sm:text-[13px] text-right outline-none focus:border-cyan-500 bg-white dark:bg-slate-900 dark:text-slate-100" />
+ className="w-full border border-slate-200 rounded-lg px-2 py-1 text-[16px] sm:text-[13px] text-right outline-none focus:border-cyan-500 bg-white"/>
               </div>
-              <span className="w-24 text-right text-[13px] font-semibold text-slate-800 dark:text-slate-100 shrink-0">{money(l.cantidad * l.precio_unitario, l.moneda)}</span>
+ <span className="w-24 text-right text-[13px] font-semibold text-slate-800 shrink-0">{money(l.cantidad * l.precio_unitario, l.moneda)}</span>
               <button onClick={() => setLineas(prev => prev.filter((_, idx) => idx !== i))}
-                className="w-8 h-8 shrink-0 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"><Icon name="delete" size={15} /></button>
+ className="w-8 h-8 shrink-0 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Icon name="delete" size={15} /></button>
             </motion.div>
           ))}
         </motion.div>
@@ -419,39 +418,39 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
 
       {/* Totales */}
       {lineas.length > 0 && (
-        <div className="flex flex-col gap-2 border-t border-slate-100 dark:border-slate-700 pt-4">
+ <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
           <div className="flex items-center justify-between text-[13px]">
-            <span className="text-slate-500 dark:text-slate-400">Subtotal</span>
-            <span className="font-medium text-slate-700 dark:text-slate-300">{money(totalBruto, moneda)}</span>
+ <span className="text-slate-500">Subtotal</span>
+ <span className="font-medium text-slate-700">{money(totalBruto, moneda)}</span>
           </div>
           <div className="flex items-center justify-between text-[13px]">
-            <span className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
+ <span className="text-slate-500 flex items-center gap-2">
               Descuento
               <span className="flex items-center gap-1">
                 <input type="number" value={descuento} min={0} max={100}
                   onChange={e => setDescuento(Math.min(100, Math.max(0, Number(e.target.value))))}
-                  className="w-16 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 text-[16px] sm:text-[13px] text-right outline-none focus:border-cyan-500 bg-white dark:bg-slate-900 dark:text-slate-100" />
-                <span className="text-slate-400 dark:text-slate-500">%</span>
+ className="w-16 border border-slate-200 rounded-lg px-2 py-0.5 text-[16px] sm:text-[13px] text-right outline-none focus:border-cyan-500 bg-white"/>
+ <span className="text-slate-400">%</span>
               </span>
             </span>
-            <span className="font-medium text-rose-500">− {money(descMonto, moneda)}</span>
+            <span className="font-medium text-red-500">− {money(descMonto, moneda)}</span>
           </div>
-          <div className="flex items-center justify-between text-[15px] pt-2 border-t border-slate-100 dark:border-slate-700">
-            <span className="font-semibold text-slate-800 dark:text-slate-100">Total</span>
-            <span className="font-bold text-slate-900 dark:text-slate-100">{money(totalNeto, moneda)}</span>
+ <div className="flex items-center justify-between text-[15px] pt-2 border-t border-slate-100">
+ <span className="font-semibold text-slate-800">Total</span>
+ <span className="font-bold text-slate-900">{money(totalNeto, moneda)}</span>
           </div>
         </div>
       )}
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-[12px] font-semibold text-slate-700 dark:text-slate-300">Notas (opcional)</label>
+ <label className="text-[12px] font-semibold text-slate-700">Notas (opcional)</label>
         <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2}
           placeholder="Notas adicionales u observaciones..."
-          className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-500 bg-slate-50 dark:bg-slate-900 dark:text-slate-100 resize-none" />
+ className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-500 bg-slate-50 resize-none"/>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900 rounded-xl text-[12px] text-red-600 dark:text-red-400">
+ <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl text-[12px] text-red-600">
           <Icon name="warning" size={14} className="shrink-0" /> {error}
         </div>
       )}
@@ -459,7 +458,7 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
       <div className="flex justify-end pt-2 gap-2">
         {onCancel && (
           <button onClick={onCancel} disabled={saving}
-            className="px-6 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-700 dark:text-slate-300 rounded-xl text-[13px] font-semibold transition-colors">
+ className="px-6 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 rounded-xl text-[13px] font-semibold transition-colors">
             Cancelar
           </button>
         )}
@@ -496,12 +495,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
   const totalNeto = presupuesto.total_bruto - presupuesto.descuento_monto;
   const pagosValidos = presupuesto.pagos.filter(p => p.estado !== "anulado");
 
-  const estadoCfg: Record<string, { bg: string; text: string; label: string; dot: string }> = {
-    pendiente: { bg: "bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800", text: "text-amber-700 dark:text-amber-400", label: "Pendiente", dot: "bg-amber-400" },
-    aprobado:  { bg: "bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800", text: "text-emerald-700 dark:text-emerald-400", label: "Aprobado", dot: "bg-emerald-500" },
-    cancelado: { bg: "bg-slate-100 dark:bg-slate-700 border-slate-200 dark:border-slate-600", text: "text-slate-500 dark:text-slate-400", label: "Cancelado", dot: "bg-slate-300 dark:bg-slate-600" },
-  };
-  const cfg = estadoCfg[presupuesto.estado] ?? estadoCfg.pendiente;
+  const cfg = ESTADO_PRESUPUESTO_CFG[presupuesto.estado] ?? ESTADO_PRESUPUESTO_CFG.pendiente;
 
   async function cambiarEstado(estado: string) {
     setBusy(true); setError("");
@@ -541,7 +535,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
         }, "image/png");
       }
     } catch (err) {
-      console.error("Error exportando presupuesto:", err);
+      console.error("Error exportando presupuesto: ", err);
     } finally {
       if (mode !== "telegram") setExportando(null); // telegram is async with toBlob, but we'll clear it via unmount anyway, or just clear it immediately. Wait, toBlob is async but fast. Let's clear it immediately.
       else setTimeout(() => setExportando(null), 500); // clear UI state after a moment
@@ -564,37 +558,37 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
     <motion.div variants={fadeIn} initial="hidden" animate="visible" className={`flex flex-col gap-4 ${fillHeight ? "h-full min-h-0" : ""}`}>
       {/* Card presupuesto */}
       {/* max-h-[480px] = 8 filas × 60px, mismo tope que el panel de Historial de al lado (PresupuestoTab). */}
-      <div className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 md:p-6 flex flex-col gap-4 min-h-0 ${fillHeight ? "h-full" : "max-h-[480px]"}`}>
-        <div className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-700">
+ <div className={`bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 md:p-6 flex flex-col gap-4 min-h-0 ${fillHeight ? "h-full" : "max-h-[480px]"}`}>
+ <div className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2 min-w-0 flex-wrap">
             <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
             {presupuesto.fecha_emision && (
-              <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">{fmtFechaCorta(presupuesto.fecha_emision)}</span>
+ <span className="text-[13px] font-semibold text-slate-700">{fmtFechaCorta(presupuesto.fecha_emision)}</span>
             )}
-            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${cfg.bg} ${cfg.text}`}>
+            <Badge status={cfg.status} className="text-[10px] font-bold uppercase tracking-wide">
               {cfg.label}
-            </span>
+            </Badge>
             {presupuesto.doctor_nombre && (
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1"><Icon name="person" size={11} /> Dr. {presupuesto.doctor_nombre}</span>
+ <span className="text-[11px] text-slate-400 flex items-center gap-1"><Icon name="person" size={11} /> Dr. {presupuesto.doctor_nombre}</span>
             )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
             {presupuesto.estado === "pendiente" && (
               <button onClick={() => setIsEditing(true)} title="Editar Presupuesto"
-                className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
                 <Icon name="edit" size={13} />
               </button>
             )}
             <button onClick={() => handleExportar("print")} disabled={exportando !== null} title="Imprimir"
-              className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors">
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors">
               <Icon name="print" size={13} />
             </button>
             <button onClick={() => handleExportar("pdf")} disabled={exportando !== null} title="Descargar PDF"
-              className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 transition-colors">
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors">
               <Icon name="download" size={13} />
             </button>
             <button onClick={() => handleExportar("telegram")} disabled={exportando !== null} title="Enviar por Telegram"
-              className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#2AABEE] hover:bg-[#2AABEE]/10 disabled:opacity-40 transition-colors">
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-[color:var(--telegram-blue)] hover:bg-[color:var(--telegram-blue)]/10 disabled:opacity-40 transition-colors">
               <Icon name="send" size={13} />
             </button>
           </div>
@@ -608,49 +602,49 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
           <div className="hidden md:block overflow-x-auto -mx-1">
             <table className="w-full text-left border-collapse min-w-[420px]">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-700">
-                  <th className="sticky top-0 z-10 bg-white dark:bg-slate-800 px-1 py-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Tratamiento</th>
-                  <th className="sticky top-0 z-10 bg-white dark:bg-slate-800 px-1 py-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide text-center">Cant.</th>
-                  <th className="sticky top-0 z-10 bg-white dark:bg-slate-800 px-1 py-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide text-right">P. Unit.</th>
-                  <th className="sticky top-0 z-10 bg-white dark:bg-slate-800 px-1 py-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide text-right">Subtotal</th>
+ <tr className="border-b border-slate-100">
+ <th className="sticky top-0 z-10 bg-white px-1 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Tratamiento</th>
+ <th className="sticky top-0 z-10 bg-white px-1 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide text-center">Cant.</th>
+ <th className="sticky top-0 z-10 bg-white px-1 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide text-right">P. Unit.</th>
+ <th className="sticky top-0 z-10 bg-white px-1 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide text-right">Subtotal</th>
                 </tr>
               </thead>
               <tbody>
                 {presupuesto.items.map(it => (
-                  <tr key={it.id} className="border-b border-slate-50 dark:border-slate-700 last:border-0">
+ <tr key={it.id} className="border-b border-slate-50 last:border-0">
                     <td className="px-1 py-2.5 align-top">
-                      <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100">{it.nombre}</p>
-                      {it.descripcion && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{it.descripcion}</p>}
+ <p className="text-[13px] font-medium text-slate-800">{it.nombre}</p>
+ {it.descripcion && <p className="text-[11px] text-slate-400 mt-0.5">{it.descripcion}</p>}
                     </td>
-                    <td className="px-1 py-2.5 align-top text-center text-[13px] text-slate-600 dark:text-slate-300">{it.cantidad}</td>
-                    <td className="px-1 py-2.5 align-top text-right text-[13px] text-slate-600 dark:text-slate-300 whitespace-nowrap">{money(it.precio_unitario, it.moneda)}</td>
-                    <td className="px-1 py-2.5 align-top text-right text-[13px] font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">{money(it.subtotal, it.moneda)}</td>
+ <td className="px-1 py-2.5 align-top text-center text-[13px] text-slate-600">{it.cantidad}</td>
+ <td className="px-1 py-2.5 align-top text-right text-[13px] text-slate-600 whitespace-nowrap">{money(it.precio_unitario, it.moneda)}</td>
+ <td className="px-1 py-2.5 align-top text-right text-[13px] font-semibold text-slate-800 whitespace-nowrap">{money(it.subtotal, it.moneda)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
+ <div className="md:hidden divide-y divide-slate-100">
             {presupuesto.items.map(it => (
               <div key={it.id} className="py-3 flex flex-col gap-2">
                 <div>
-                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Tratamiento</span>
-                  <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100">{it.nombre}</p>
-                  {it.descripcion && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{it.descripcion}</p>}
+ <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Tratamiento</span>
+ <p className="text-[13px] font-medium text-slate-800">{it.nombre}</p>
+ {it.descripcion && <p className="text-[11px] text-slate-400 mt-0.5">{it.descripcion}</p>}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Cant.</span>
-                    <span className="text-[13px] text-slate-600 dark:text-slate-300">{it.cantidad}</span>
+ <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Cant.</span>
+ <span className="text-[13px] text-slate-600">{it.cantidad}</span>
                   </div>
                   <div>
-                    <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">P. Unit.</span>
-                    <span className="text-[13px] text-slate-600 dark:text-slate-300 whitespace-nowrap">{money(it.precio_unitario, it.moneda)}</span>
+ <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">P. Unit.</span>
+ <span className="text-[13px] text-slate-600 whitespace-nowrap">{money(it.precio_unitario, it.moneda)}</span>
                   </div>
                   <div className="text-right">
-                    <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">Subtotal</span>
-                    <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">{money(it.subtotal, it.moneda)}</span>
+ <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Subtotal</span>
+ <span className="text-[13px] font-semibold text-slate-800 whitespace-nowrap">{money(it.subtotal, it.moneda)}</span>
                   </div>
                 </div>
               </div>
@@ -659,16 +653,16 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
         </div>
 
         {/* Total y acciones — fijos, no forman parte del scroll de arriba */}
-        <div className="shrink-0 flex flex-col gap-1.5 border-t border-slate-100 dark:border-slate-700 pt-3">
-          <div className="flex justify-between text-[13px]"><span className="text-slate-500 dark:text-slate-400">Subtotal</span><span className="text-slate-700 dark:text-slate-300">{money(presupuesto.total_bruto, moneda)}</span></div>
+ <div className="shrink-0 flex flex-col gap-1.5 border-t border-slate-100 pt-3">
+ <div className="flex justify-between text-[13px]"><span className="text-slate-500">Subtotal</span><span className="text-slate-700">{money(presupuesto.total_bruto, moneda)}</span></div>
           {presupuesto.descuento_monto > 0 && (
-            <div className="flex justify-between text-[13px]"><span className="text-slate-500 dark:text-slate-400">Descuento ({presupuesto.descuento_porcentaje}%)</span><span className="text-rose-500">− {money(presupuesto.descuento_monto, moneda)}</span></div>
+ <div className="flex justify-between text-[13px]"><span className="text-slate-500">Descuento ({presupuesto.descuento_porcentaje}%)</span><span className="text-red-500">− {money(presupuesto.descuento_monto, moneda)}</span></div>
           )}
-          <div className="flex justify-between text-[15px] pt-1"><span className="font-semibold text-slate-800 dark:text-slate-100">Total</span><span className="font-bold text-slate-900 dark:text-slate-100">{money(totalNeto, moneda)}</span></div>
+ <div className="flex justify-between text-[15px] pt-1"><span className="font-semibold text-slate-800">Total</span><span className="font-bold text-slate-900">{money(totalNeto, moneda)}</span></div>
         </div>
 
         {error && (
-          <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900 rounded-xl text-[12px] text-red-600 dark:text-red-400">
+ <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl text-[12px] text-red-600">
             <Icon name="warning" size={14} className="shrink-0" /> {error}
           </div>
         )}
@@ -679,13 +673,13 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
           <div className="flex items-center gap-1.5 sm:gap-2">
             {presupuesto.estado === "pendiente" && (
               <button onClick={() => cambiarEstado("aprobado")} disabled={busy} title="Aprobar presupuesto"
-                className="flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-[12px] font-semibold transition-colors">
+                className="flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-xl text-[12px] font-semibold transition-colors">
                 <Icon name="check_circle" size={15} /> <span className="hidden sm:inline">Aprobar presupuesto</span>
               </button>
             )}
             {presupuesto.estado === "aprobado" && (
               <button onClick={() => cambiarEstado("pendiente")} disabled={busy} title="Volver a pendiente"
-                className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[12px] font-medium transition-colors">
+ className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-[12px] font-medium transition-colors">
                 <Icon name="undo" size={15} /> <span className="hidden sm:inline">Volver a pendiente</span>
               </button>
             )}
@@ -693,12 +687,12 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
           <div className="flex items-center gap-1.5 sm:gap-2">
             {presupuesto.estado !== "cancelado" && (
               <button onClick={() => cambiarEstado("cancelado")} disabled={busy} title="Cancelar"
-                className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl text-[12px] font-medium transition-colors">
+ className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-[12px] font-medium transition-colors">
                 <Icon name="block" size={15} /> <span className="hidden sm:inline">Cancelar</span>
               </button>
             )}
             <button onClick={eliminar} disabled={busy} title="Eliminar presupuesto"
-              className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-100 dark:border-rose-900 disabled:opacity-40 rounded-xl text-[12px] font-medium transition-colors">
+ className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 text-red-500 hover:bg-red-50 border border-red-100 disabled:opacity-40 rounded-xl text-[12px] font-medium transition-colors">
               <Icon name="delete" size={14} /> <span className="hidden sm:inline">Eliminar presupuesto</span>
             </button>
           </div>

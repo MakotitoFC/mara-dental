@@ -27,9 +27,9 @@ const FEATURES = [
 ];
 
 const TEST_USERS = [
-  { email: "superadmin2026@gmail.com", password: "SuperAdmin2026", name: "Juan Pablo Escalante", rol: "SuperAdmin (S1)", color: "bg-purple-100 text-purple-700" },
-  { email: "israjm19@gmail.com", password: "M@ria10ijmrasmr", name: "María Isabel Gutiérrez", rol: "Admin (S1)", color: "bg-violet-100 text-violet-700" },
-  { email: "admin1sede2@gmail.com", password: "Admin1Sede2", name: "Luis Fernando López", rol: "Admin (S2)", color: "bg-violet-100 text-violet-700" },
+  { email: "superadmin2026@gmail.com", password: "SuperAdmin2026", name: "Juan Pablo Escalante", rol: "SuperAdmin (S1)", color: "bg-slate-200 text-slate-700" },
+  { email: "israjm19@gmail.com", password: "M@ria10ijmrasmr", name: "María Isabel Gutiérrez", rol: "Admin (S1)", color: "bg-amber-100 text-amber-700" },
+  { email: "admin1sede2@gmail.com", password: "Admin1Sede2", name: "Luis Fernando López", rol: "Admin (S2)", color: "bg-amber-100 text-amber-700" },
   { email: "escalinza14@gmail.com", password: "Takemy2026", name: "Dr. Carlos Rodríguez", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
   { email: "doctor2sede1@gmail.com", password: "Doctor2Sede1", name: "Dr. Miguel Ángel Díaz", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
   { email: "doctor3sede1@gmail.com", password: "Doctor3Sede1", name: "Dr. Marco Torres", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },

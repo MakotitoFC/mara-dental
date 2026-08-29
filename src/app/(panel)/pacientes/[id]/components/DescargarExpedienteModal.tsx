@@ -74,7 +74,7 @@ const fmtFechaLarga = (iso?: string | null) => {
 
 const PLAN_LABEL: Record<string, string> = { "No iniciado": "No iniciado", "En proceso": "En proceso", "Terminado": "Terminado" };
 const PLAN_STYLE: Record<string, { bg: string; fg: string }> = {
-  "No iniciado": { bg: "#f1f5f9", fg: "#64748b" },
+  "No iniciado": { bg: "#F1F3F6", fg: "#5D6D7E" },
   "En proceso": { bg: "#fef3c7", fg: "#b45309" },
   "Terminado": { bg: "#d1fae5", fg: "#059669" },
 };
@@ -101,18 +101,18 @@ function buildOdontogramaHtml(entries: any[]): string {
       ${teeth.map((n) => {
         const f = byTooth.get(n);
         const style = f ? toothStyle(f.isAll ? f.allConvention : f.surfaceConditions?.[0]?.convention) : null;
-        return `<div style="aspect-ratio:1;border:1px solid ${style ? style.bg : "#e2e8f0"};border-radius:4px;background:${style ? style.bg : "#f8fafc"};color:${style ? style.fg : "#94a3b8"};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;">${n}</div>`;
+        return `<div style="aspect-ratio:1;border:1px solid ${style ? style.bg : "#EDF0F4"};border-radius:4px;background:${style ? style.bg : "#F7F8FA"};color:${style ? style.fg : "#95A5A6"};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;">${n}</div>`;
       }).join("")}
     </div>
   `;
 
   const findingLines = allFindings.map((f: any) => {
     const cond = f.isAll ? f.allConvention : (f.surfaceConditions || []).map((s: any) => `${s.surface}: ${s.convention}`).join(", ");
-    return `<div style="font-size:10px;color:#64748b;margin-top:3px;"><b style="color:#1e293b;font-weight:700;">Pieza ${f.toothNumber}</b> — ${esc(cond)}${f.observaciones ? ` · ${esc(f.observaciones)}` : ""}</div>`;
+    return `<div style="font-size:10px;color:#5D6D7E;margin-top:3px;"><b style="color:#212E3D;font-weight:700;">Pieza ${f.toothNumber}</b> — ${esc(cond)}${f.observaciones ? ` · ${esc(f.observaciones)}` : ""}</div>`;
   }).join("");
 
   return `
-    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-top:10px;">
+    <div style="border:1px solid #EDF0F4;border-radius:10px;padding:14px 16px;margin-top:10px;">
       ${row(UPPER_TEETH)}
       ${row(LOWER_TEETH)}
       ${findingLines}
@@ -137,14 +137,14 @@ function buildHistoriaClinicaHtml(data: any): string {
 
   const field = (label: string, value?: string | null) => `
     <div style="padding-left:11px;border-left:2px solid #d3edf1;">
-      <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;">${esc(label)}</div>
-      <div style="font-size:12.5px;color:#1e293b;font-weight:500;margin-top:2px;">${esc(value ?? "—")}</div>
+      <div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;">${esc(label)}</div>
+      <div style="font-size:12.5px;color:#212E3D;font-weight:500;margin-top:2px;">${esc(value ?? "—")}</div>
     </div>
   `;
   const infoItem = (label: string, value?: string | null) => value ? `
     <div>
-      <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;">${esc(label)}</div>
-      <div style="font-size:11.5px;color:#1e293b;font-weight:500;margin-top:2px;">${esc(value)}</div>
+      <div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;">${esc(label)}</div>
+      <div style="font-size:11.5px;color:#212E3D;font-weight:500;margin-top:2px;">${esc(value)}</div>
     </div>
   ` : "";
   const pillRow = (items: string[], bg: string, fg: string) => items.length === 0 ? "" : `
@@ -161,11 +161,11 @@ function buildHistoriaClinicaHtml(data: any): string {
         </tr></table>
       </td>
       <td style="vertical-align:middle;padding-right:28px;">
-        <div style="font-size:20px;font-weight:800;color:#1e293b;">${esc(nombreCompleto)}</div>
-        <div style="font-size:11.5px;color:#64748b;margin-top:3px;">DNI ${esc(p.dni || "—")} · ${esc(p.sexo || "—")}${edad != null ? ` · ${edad} años` : ""}</div>
+        <div style="font-size:20px;font-weight:800;color:#212E3D;">${esc(nombreCompleto)}</div>
+        <div style="font-size:11.5px;color:#5D6D7E;margin-top:3px;">DNI ${esc(p.dni || "—")} · ${esc(p.sexo || "—")}${edad != null ? ` · ${edad} años` : ""}</div>
         <div style="margin-top:8px;">
           ${hc?.codigo_historia ? `<span style="display:inline-block;padding:4px 11px 3px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;background:#e3f4f6;color:#0e7490;">${esc(hc.codigo_historia)}</span>` : ""}
-          ${p.activo != null ? `<span style="display:inline-block;padding:4px 11px 3px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;margin-left:6px;background:${p.activo ? "#d1fae5" : "#f1f5f9"};color:${p.activo ? "#059669" : "#64748b"};">${p.activo ? "Activo" : "Inactivo"}</span>` : ""}
+          ${p.activo != null ? `<span style="display:inline-block;padding:4px 11px 3px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;margin-left:6px;background:${p.activo ? "#d1fae5" : "#F1F3F6"};color:${p.activo ? "#059669" : "#5D6D7E"};">${p.activo ? "Activo" : "Inactivo"}</span>` : ""}
         </div>
       </td>
     </tr></table>
@@ -179,7 +179,7 @@ function buildHistoriaClinicaHtml(data: any): string {
       ${field("Dirección", p.direccion || p.domicilio)}
     </div>
 
-    <div style="margin:20px 28px 0;padding:16px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
+    <div style="margin:20px 28px 0;padding:16px 18px;background:#F7F8FA;border:1px solid #EDF0F4;border-radius:10px;">
       ${sectionLabel("Resumen clínico")}
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px 20px;margin-bottom:12px;">
         ${infoItem("Ocupación", p.ocupacion)}
@@ -189,23 +189,23 @@ function buildHistoriaClinicaHtml(data: any): string {
         ${infoItem("Religión", p.religion)}
         ${infoItem("Lugar de nacimiento", p.lugar_nacimiento)}
       </div>
-      <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;">Alergias</div>
-      ${alergias.length > 0 ? pillRow(alergias, "#fee2e2", "#dc2626") : `<div style="font-size:11px;color:#94a3b8;margin-top:3px;">Ninguna registrada</div>`}
-      ${ant.cronicas?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Enfermedades crónicas</div>${pillRow(ant.cronicas, "#fef3c7", "#b45309")}` : ""}
-      ${ant.medicacion_habitual?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Medicación habitual</div>${pillRow(ant.medicacion_habitual, "#ede9fe", "#7c3aed")}` : ""}
-      ${ant.quirurgicos?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Antecedentes quirúrgicos</div>${pillRow(ant.quirurgicos, "#e3f4f6", "#0e7490")}` : ""}
-      ${p.enfermedad_actual ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Enfermedad actual / restricciones</div><div style="font-size:11.5px;color:#1e293b;margin-top:3px;">${esc(p.enfermedad_actual)}</div>` : ""}
+      <div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;">Alergias</div>
+      ${alergias.length > 0 ? pillRow(alergias, "#fee2e2", "#dc2626") : `<div style="font-size:11px;color:#95A5A6;margin-top:3px;">Ninguna registrada</div>`}
+      ${ant.cronicas?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Enfermedades crónicas</div>${pillRow(ant.cronicas, "#fef3c7", "#b45309")}` : ""}
+      ${ant.medicacion_habitual?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Medicación habitual</div>${pillRow(ant.medicacion_habitual, "#ede9fe", "#7c3aed")}` : ""}
+      ${ant.quirurgicos?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Antecedentes quirúrgicos</div>${pillRow(ant.quirurgicos, "#e3f4f6", "#0e7490")}` : ""}
+      ${p.enfermedad_actual ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Enfermedad actual / restricciones</div><div style="font-size:11.5px;color:#212E3D;margin-top:3px;">${esc(p.enfermedad_actual)}</div>` : ""}
     </div>
   `;
 
   const consultasHtml = data.consultas.length === 0
-    ? `<div style="padding:22px 28px 0;"><p style="font-size:11.5px;color:#94a3b8;">Sin consultas registradas en el rango seleccionado.</p></div>`
+    ? `<div style="padding:22px 28px 0;"><p style="font-size:11.5px;color:#95A5A6;">Sin consultas registradas en el rango seleccionado.</p></div>`
     : data.consultas.map((c: any) => {
       const diagnosticosRows = (c.diagnosticos || []).map((d: any) => `
         <tr>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11px;font-weight:700;color:#0e7490;">${esc(d.cie10?.codigo || "—")}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#1e293b;">${esc(d.texto)}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;">
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;font-weight:700;color:#0e7490;">${esc(d.cie10?.codigo || "—")}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#212E3D;">${esc(d.texto)}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;">
             <span style="display:inline-flex;padding:3px 9px;border-radius:5px;font-size:10px;font-weight:700;background:${d.es_definitivo ? "#fee2e2" : "#fef3c7"};color:${d.es_definitivo ? "#dc2626" : "#b45309"};">${d.es_definitivo ? "Definitivo" : "Presuntivo"}</span>
           </td>
         </tr>
@@ -214,9 +214,9 @@ function buildHistoriaClinicaHtml(data: any): string {
       const planItems = (c.diagnosticos || []).flatMap((d: any) => d.tratamientos || []);
       const planRows = planItems.map((t: any) => `
         <tr>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#1e293b;font-weight:600;">${esc(t.nombre)}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#64748b;">${esc(t.notas || "—")}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#1e293b;text-align:right;">${t.precio > 0 ? `${t.moneda === "PEN" ? "S/" : t.moneda} ${Number(t.precio).toFixed(2)}` : "—"}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#212E3D;font-weight:600;">${esc(t.nombre)}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#5D6D7E;">${esc(t.notas || "—")}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#212E3D;text-align:right;">${t.precio > 0 ? `${t.moneda === "PEN" ? "S/" : t.moneda} ${Number(t.precio).toFixed(2)}` : "—"}</td>
         </tr>
       `).join("");
 
@@ -225,39 +225,39 @@ function buildHistoriaClinicaHtml(data: any): string {
         const st = PLAN_STYLE[f.estado] || PLAN_STYLE["No iniciado"];
         return `
         <tr>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#1e293b;font-weight:600;">${esc(f.etapa)}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#64748b;">${esc(f.descripcion || "—")}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;"><span style="display:inline-flex;padding:3px 9px;border-radius:5px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg};">${esc(PLAN_LABEL[f.estado] || f.estado)}</span></td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#212E3D;font-weight:600;">${esc(f.etapa)}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#5D6D7E;">${esc(f.descripcion || "—")}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;"><span style="display:inline-flex;padding:3px 9px;border-radius:5px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg};">${esc(PLAN_LABEL[f.estado] || f.estado)}</span></td>
         </tr>
       `;}).join("");
 
       const medsItems = (c.diagnosticos || []).flatMap((d: any) => (d.recetas || []).flatMap((r: any) => r.medicamentos || []));
       const medsRows = medsItems.map((m: any) => `
         <tr>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11.5px;color:#1e293b;font-weight:700;">${esc(m.nombre)}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#334155;">${esc(m.dosis || "—")}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#334155;">${esc(m.frecuencia || "—")}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#64748b;">${esc(m.indicaciones || "—")}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#212E3D;font-weight:700;">${esc(m.nombre)}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#2C3E50;">${esc(m.dosis || "—")}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#2C3E50;">${esc(m.frecuencia || "—")}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#5D6D7E;">${esc(m.indicaciones || "—")}</td>
         </tr>
       `).join("");
 
       const presupuestosHtml = (c.presupuestos || []).map((p: any) => `
-        <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;">
+        <table style="width:100%;border-collapse:collapse;border:1px solid #EDF0F4;border-radius:8px;margin-bottom:8px;">
           <thead><tr>
-            <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Ítem</th>
-            <th style="text-align:center;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Cant.</th>
-            <th style="text-align:right;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Subtotal</th>
+            <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Ítem</th>
+            <th style="text-align:center;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Cant.</th>
+            <th style="text-align:right;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Subtotal</th>
           </tr></thead>
           <tbody>
             ${(p.items || []).map((it: any) => `
               <tr>
-                <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#1e293b;">${esc(it.nombre)}</td>
-                <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#334155;text-align:center;">${it.cantidad}</td>
-                <td style="padding:7px 10px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#1e293b;text-align:right;">S/ ${Number(it.subtotal).toFixed(2)}</td>
+                <td style="padding:7px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#212E3D;">${esc(it.nombre)}</td>
+                <td style="padding:7px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#2C3E50;text-align:center;">${it.cantidad}</td>
+                <td style="padding:7px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#212E3D;text-align:right;">S/ ${Number(it.subtotal).toFixed(2)}</td>
               </tr>
             `).join("")}
             <tr>
-              <td style="padding:7px 10px;font-size:11px;font-weight:700;color:#1e293b;" colspan="2">Total neto / Pagado / Saldo</td>
+              <td style="padding:7px 10px;font-size:11px;font-weight:700;color:#212E3D;" colspan="2">Total neto / Pagado / Saldo</td>
               <td style="padding:7px 10px;font-size:11px;font-weight:700;color:#0e7490;text-align:right;">S/ ${Number(p.neto).toFixed(2)} / S/ ${Number(p.pagado).toFixed(2)} / S/ ${Number(p.saldo).toFixed(2)}</td>
             </tr>
           </tbody>
@@ -272,16 +272,16 @@ function buildHistoriaClinicaHtml(data: any): string {
           ${(c.archivos || []).map((a: any) => {
             const isImg = /\.(jpe?g|png|gif|webp)$/i.test(a.nombre_archivo || "");
             return `
-              <div style="width:120px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;flex-shrink:0;">
-                <div style="height:84px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+              <div style="width:120px;border:1px solid #EDF0F4;border-radius:8px;overflow:hidden;flex-shrink:0;">
+                <div style="height:84px;background:#F1F3F6;display:flex;align-items:center;justify-content:center;overflow:hidden;">
                   ${isImg
                     ? `<img src="${a.displayUrl}" style="width:100%;height:100%;object-fit:cover;" crossorigin="anonymous" />`
-                    : `<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" stroke="#94a3b8" stroke-width="1.6"/><path d="M14 2v5h5" stroke="#94a3b8" stroke-width="1.6"/></svg>`
+                    : `<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" stroke="#95A5A6" stroke-width="1.6"/><path d="M14 2v5h5" stroke="#95A5A6" stroke-width="1.6"/></svg>`
                   }
                 </div>
                 <div style="padding:5px 7px;">
-                  <div style="font-size:9px;color:#334155;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.nombre_archivo)}</div>
-                  <div style="font-size:8px;color:#94a3b8;margin-top:1px;">${esc(a.categoria || a.tipo_archivo || "")}</div>
+                  <div style="font-size:9px;color:#2C3E50;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.nombre_archivo)}</div>
+                  <div style="font-size:8px;color:#95A5A6;margin-top:1px;">${esc(a.categoria || a.tipo_archivo || "")}</div>
                 </div>
               </div>
             `;
@@ -293,7 +293,7 @@ function buildHistoriaClinicaHtml(data: any): string {
         <div style="margin:14px 0 4px;">${sectionLabel("Recomendaciones")}</div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;">
           ${(c.recomendaciones || []).map((r: any) => `
-            <div style="border:1px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:11px;color:#1e293b;line-height:1.5;">${esc(r.contenido)}</div>
+            <div style="border:1px solid #EDF0F4;border-radius:8px;padding:9px 12px;font-size:11px;color:#212E3D;line-height:1.5;">${esc(r.contenido)}</div>
           `).join("")}
         </div>
       `;
@@ -302,29 +302,29 @@ function buildHistoriaClinicaHtml(data: any): string {
         <div style="padding:26px 28px 0;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px;">
             <div>
-              <div style="font-size:15px;font-weight:800;color:#1e293b;">${esc(c.motivo)}</div>
-              <div style="font-size:11px;color:#64748b;margin-top:2px;">${esc(c.doctor)}${c.doctorEspecialidad ? ` · ${esc(c.doctorEspecialidad)}` : ""}</div>
+              <div style="font-size:15px;font-weight:800;color:#212E3D;">${esc(c.motivo)}</div>
+              <div style="font-size:11px;color:#5D6D7E;margin-top:2px;">${esc(c.doctor)}${c.doctorEspecialidad ? ` · ${esc(c.doctorEspecialidad)}` : ""}</div>
             </div>
             <div style="font-size:12px;font-weight:700;color:#0e7490;white-space:nowrap;">${esc(fmtFechaLarga(c.fecha))}</div>
           </div>
 
           ${c.observaciones ? `
-            <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:10px;">
+            <div style="border:1px solid #EDF0F4;border-radius:10px;padding:12px 16px;margin-bottom:10px;">
               ${sectionLabel("Anamnesis / Observaciones")}
-              <div style="font-size:11.5px;color:#1e293b;line-height:1.55;">${esc(c.observaciones)}</div>
+              <div style="font-size:11.5px;color:#212E3D;line-height:1.55;">${esc(c.observaciones)}</div>
             </div>
           ` : ""}
 
           ${diagnosticosRows ? `
-            <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;">
+            <table style="width:100%;border-collapse:collapse;border:1px solid #EDF0F4;border-radius:8px;margin-bottom:10px;">
               <thead><tr>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">CIE-10</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Diagnóstico</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Tipo</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">CIE-10</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Diagnóstico</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Tipo</th>
               </tr></thead>
               <tbody>${diagnosticosRows}</tbody>
             </table>
-          ` : `<p style="font-size:11px;color:#94a3b8;margin-bottom:10px;">Sin diagnóstico registrado en esta consulta.</p>`}
+          ` : `<p style="font-size:11px;color:#95A5A6;margin-bottom:10px;">Sin diagnóstico registrado en esta consulta.</p>`}
 
           ${archivosHtml}
 
@@ -332,11 +332,11 @@ function buildHistoriaClinicaHtml(data: any): string {
 
           ${planRows ? `
             <div style="margin:14px 0 4px;">${sectionLabel("Tratamientos")}</div>
-            <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;">
+            <table style="width:100%;border-collapse:collapse;border:1px solid #EDF0F4;border-radius:8px;margin-bottom:10px;">
               <thead><tr>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Tratamiento</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Notas</th>
-                <th style="text-align:right;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Costo</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Tratamiento</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Notas</th>
+                <th style="text-align:right;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Costo</th>
               </tr></thead>
               <tbody>${planRows}</tbody>
             </table>
@@ -344,11 +344,11 @@ function buildHistoriaClinicaHtml(data: any): string {
 
           ${faseRows ? `
             <div style="margin-bottom:4px;">${sectionLabel("Fases del tratamiento")}</div>
-            <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;">
+            <table style="width:100%;border-collapse:collapse;border:1px solid #EDF0F4;border-radius:8px;margin-bottom:10px;">
               <thead><tr>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Fase</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Descripción</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Estado</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Fase</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Descripción</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Estado</th>
               </tr></thead>
               <tbody>${faseRows}</tbody>
             </table>
@@ -358,12 +358,12 @@ function buildHistoriaClinicaHtml(data: any): string {
 
           ${medsRows ? `
             <div style="margin:14px 0 4px;">${sectionLabel("Receta — medicamentos prescritos")}</div>
-            <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;">
+            <table style="width:100%;border-collapse:collapse;border:1px solid #EDF0F4;border-radius:8px;margin-bottom:6px;">
               <thead><tr>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Medicamento</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Dosis</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Frecuencia</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Indicaciones</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Medicamento</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Dosis</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Frecuencia</th>
+                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Indicaciones</th>
               </tr></thead>
               <tbody>${medsRows}</tbody>
             </table>
@@ -371,7 +371,7 @@ function buildHistoriaClinicaHtml(data: any): string {
 
           ${presupuestosHtml ? `<div style="margin:14px 0 4px;">${sectionLabel("Presupuestos de la visita")}</div>${presupuestosHtml}` : ""}
         </div>
-        <div style="padding:0 28px 22px;border-bottom:1px solid #e2e8f0;"></div>
+        <div style="padding:0 28px 22px;border-bottom:1px solid #EDF0F4;"></div>
       `;
     }).join("");
 
@@ -453,7 +453,7 @@ export function DescargarExpedienteModal({ paciente, onClose }: {
     <ResponsiveSheet
       onClose={onClose}
       title="Descargar expediente"
-      maxWidthDesktop="480px"
+      size="sm"
       footer={
         <div className="flex flex-col gap-2">
           {error && (

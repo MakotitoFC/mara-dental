@@ -12,24 +12,9 @@ import { SolicitarDevolucionSheet } from "./SolicitarDevolucionSheet";
 import type { ClinicaInfo } from "@/lib/reportExport";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Avatar } from "@/components/ui/Avatar";
+import { EmptyState } from "@/components/ui/EmptyState";
 
-// Mismo patrón de avatar determinístico por id que ya usa PacientesView.tsx.
-const AVATAR_PALETTE = [
-  { bg: "bg-cyan-50 dark:bg-cyan-900/30", text: "text-cyan-700 dark:text-cyan-400" },
-  { bg: "bg-blue-50 dark:bg-blue-900/30", text: "text-blue-700 dark:text-blue-400" },
-  { bg: "bg-emerald-50 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-400" },
-  { bg: "bg-amber-50 dark:bg-amber-900/30", text: "text-amber-700 dark:text-amber-400" },
-] as const;
-
-function avatarStyle(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
-}
-function initials(nombre: string) {
-  const p = nombre.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase();
-}
 function fmtFechaRelativa(iso: string) {
   if (!iso) return "Sin fecha";
   const hoy = new Date();
@@ -95,6 +80,42 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
     setDashboard(initialDashboard);
   }, [initialDashboard]);
 
+  // Pendientes de Cobro: por defecto se muestran TODOS los pendientes de la
+  // sede (antes solo aparecían al buscar). La búsqueda sigue funcionando
+  // igual (debounce + acción server-side), pero cuando el campo está vacío
+  // usamos este listado completo en vez de un array vacío.
+  const [allPendientes, setAllPendientes] = useState<PresupuestoPendiente[]>([]);
+  const [loadingPendientes, setLoadingPendientes] = useState(true);
+
+  async function loadAllPendientes() {
+    setLoadingPendientes(true);
+    try {
+      const { getPendientesCobroSedeAction } = await import("../actions");
+      const res = await getPendientesCobroSedeAction();
+      setAllPendientes(res);
+    } catch (err) {
+      console.error("Error cargando pendientes de cobro: ", err);
+    } finally {
+      setLoadingPendientes(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAllPendientes();
+  }, []);
+
+  function updatePendienteLocal(presupuestoId: string, updater: (p: PresupuestoPendiente) => PresupuestoPendiente | null) {
+    const apply = (prev: PresupuestoPendiente[]) =>
+      prev.reduce<PresupuestoPendiente[]>((acc, p) => {
+        if (p.id !== presupuestoId) { acc.push(p); return acc; }
+        const next = updater(p);
+        if (next) acc.push(next);
+        return acc;
+      }, []);
+    setAllPendientes(apply);
+    setPendientesBuscados(apply);
+  }
+
   useEffect(() => {
     if (!sede?.id) return;
     const supabase = createClient();
@@ -127,6 +148,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
             if (fresh) setDashboard(fresh);
           });
         });
+        loadAllPendientes();
       })
       .subscribe();
 
@@ -154,7 +176,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
         const res = await buscarPresupuestosPendientesAction(q);
         setPendientesBuscados(res);
       } catch (err) {
-        console.error("Error buscando presupuestos:", err);
+        console.error("Error buscando presupuestos: ", err);
       } finally {
         setIsSearching(false);
       }
@@ -163,18 +185,16 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
     return () => clearTimeout(timeoutId);
   }, [query]);
 
-  const pendientesFiltrados = pendientesBuscados;
+  const pendientesFiltrados = query.trim() ? pendientesBuscados : allPendientes;
 
   function handlePagoRegistrado(presupuestoId: string, nuevoSaldo: number, montoPagado: number, medioNombre: string) {
     const pacienteNombre = activo?.paciente_nombre || "Paciente";
     const monedaPago = activo?.moneda || "PEN";
 
-    setPendientesBuscados((prev) => 
-      nuevoSaldo <= 0.009
-        ? prev.filter((p) => p.id !== presupuestoId)
-        : prev.map((p) => (p.id === presupuestoId ? { ...p, saldo: nuevoSaldo, pagado: p.total_neto - nuevoSaldo } : p))
+    updatePendienteLocal(presupuestoId, (p) =>
+      nuevoSaldo <= 0.009 ? null : { ...p, saldo: nuevoSaldo, pagado: p.total_neto - nuevoSaldo }
     );
-    
+
     setDashboard((prev) => {
       const metodosPago = (() => {
         const acc = new Map(prev.metodosPago.map((m) => [m.nombre, m.monto]));
@@ -245,9 +265,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
   }
 
   function handleCuotasActualizadas(presupuestoId: string, cuotas: any[]) {
-    setPendientesBuscados((prev) => 
-      prev.map((p) => p.id === presupuestoId ? { ...p, cuotas } : p)
-    );
+    updatePendienteLocal(presupuestoId, (p) => ({ ...p, cuotas }));
     if (activoCuotas && activoCuotas.id === presupuestoId) {
       setActivoCuotas(prev => prev ? { ...prev, cuotas } : null);
     }
@@ -293,7 +311,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
         await downloadHtmlAsPaginatedPdf(html, `comprobante_${detalle.comprobante_id}.pdf`, 800);
       }
     } catch (err) {
-      console.error("Error exportando comprobante:", err);
+      console.error("Error exportando comprobante: ", err);
     } finally {
       setExportingId(null);
     }
@@ -302,11 +320,11 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
   const monedaBase = dashboard.pendientes[0]?.moneda ?? dashboard.historial[0]?.moneda ?? "PEN";
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900/50">
-      <div className="shrink-0 px-4 md:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+ <div className="flex flex-col h-full overflow-hidden bg-slate-50">
+ <div className="shrink-0 px-4 md:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white border-b border-slate-200">
         <div>
-          <h1 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Panel de Pagos</h1>
-          <p className="text-[11.5px] text-slate-500 dark:text-slate-400">
+ <h1 className="text-[15px] font-bold text-slate-900">Panel de Pagos</h1>
+ <p className="text-[11.5px] text-slate-500">
             {sede?.nombre_clinica ?? "Sede"} · Cobros y movimientos de caja en tiempo real
           </p>
         </div>
@@ -314,7 +332,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => setShowMovimientoLibre(true)}
-            className="flex items-center justify-center h-[38px] px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-[13px] font-semibold transition-colors shrink-0 gap-1.5"
+ className="flex items-center justify-center h-[38px] px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[13px] font-semibold transition-colors shrink-0 gap-1.5"
             title="Registrar Ingreso/Egreso"
           >
             <Icon name="swap_vert" size={18} />
@@ -325,13 +343,13 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar paciente…"
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[13px] pr-9 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+ className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2.5 text-[13px] pr-9 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
             />
-            <Icon name="search" size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+ <Icon name="search" size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"/>
           </div>
           <button
             onClick={() => setShowCerrarCaja(true)}
-            className="flex items-center justify-center h-[38px] px-3.5 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/30 dark:text-rose-300 dark:hover:bg-rose-900/50 rounded-xl text-[13px] font-semibold transition-colors shrink-0 gap-1.5 border border-rose-200/60 dark:border-rose-800/40"
+            className="flex items-center justify-center h-[38px] px-3.5 bg-slate-100 text-slate-700 hover:bg-red-600 hover:text-white active:bg-red-700 active:text-white rounded-xl text-[13px] font-semibold transition-colors shrink-0 gap-1.5"
             title="Cerrar turno de caja"
           >
             <Icon name="point_of_sale" size={17} />
@@ -343,107 +361,176 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
       <div className="flex-1 overflow-y-auto no-scrollbar p-4 md:p-6">
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           {/* Pendientes de cobro */}
-          <div className="xl:col-span-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-slate-100 dark:border-slate-700">
+ <div className="xl:col-span-2 xl:self-start bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col">
+ <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+ <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
                   <Icon name="payments" size={16} />
                 </div>
-                <h2 className="text-[14px] font-semibold text-slate-800 dark:text-slate-100">Pendientes de Cobro</h2>
+ <h2 className="text-[14px] font-semibold text-slate-800">Pendientes de Cobro</h2>
               </div>
-              <span className="text-[10.5px] font-bold px-2 py-1 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+ <span className="text-[10.5px] font-medium px-2 py-1 rounded-full bg-amber-50/60 text-amber-600">
                 {pendientesFiltrados.length} pendiente{pendientesFiltrados.length !== 1 ? "s" : ""}
               </span>
             </div>
 
-            {isSearching ? (
-              <div className="py-12 text-center text-slate-400 dark:text-slate-500">
+            {(isSearching || (loadingPendientes && !query.trim())) ? (
+ <div className="py-12 text-center text-slate-400">
                 <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                <p className="text-[12.5px]">Buscando pacientes...</p>
+                <p className="text-[12.5px]">{isSearching ? "Buscando pacientes..." : "Cargando pendientes..."}</p>
               </div>
             ) : pendientesFiltrados.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 dark:text-slate-500">
-                <Icon name="search" size={30} className="opacity-30 mx-auto mb-2" />
-                <p className="text-[12.5px]">{!query.trim() ? "Busca un paciente por nombre o DNI" : "Sin resultados para tu búsqueda"}</p>
-              </div>
+              <EmptyState icon="search" title={!query.trim() ? "No hay pendientes de cobro" : "Sin resultados para tu búsqueda"} size="sm" />
             ) : (
-              <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-700">
-                {pendientesFiltrados.map((p) => {
-                  const av = avatarStyle(p.paciente_id);
-                  const isPagado = p.esPagado || p.estado === "pagado";
+              <>
+                {/* Desktop/Tablet — tabla, mismo diseño que Personal. Crece
+                    con el contenido hasta ~10 registros (self-start en la
+                    card evita que la estire el grid); de ahí en más scroll
+                    interno oculto en vez de seguir creciendo. */}
+                <div className="hidden md:block overflow-auto no-scrollbar" style={{ maxHeight: 620 }}>
+                  <table className="w-full text-left text-[13px]" style={{ minWidth: 640 }}>
+                    <thead className="sticky top-0 z-10 bg-white border-b border-slate-100">
+                      <tr>
+                        <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">Paciente</th>
+                        <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">Fecha</th>
+                        <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 text-right">Monto</th>
+                        <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 text-center">Estado</th>
+                        <th className="px-5 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {pendientesFiltrados.map((p) => {
+                        const isPagado = p.esPagado || p.estado === "pagado";
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <Avatar name={p.paciente_nombre} size="sm" />
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-800 truncate">{p.paciente_nombre}</p>
+                                  <p className="text-[12px] text-slate-500 truncate">{p.tratamiento}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3 text-slate-500 text-[11.5px] whitespace-nowrap">
+                              {fmtFechaRelativa(p.fecha_emision)}
+                            </td>
+                            <td className="px-5 py-3 text-right whitespace-nowrap">
+                              <span className="text-[13.5px] text-slate-900">
+                                {simbolo(p.moneda)} {(isPagado ? p.total_neto : p.saldo).toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 text-center">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                                isPagado ? "bg-emerald-50 text-emerald-600" : "bg-amber-50/60 text-amber-600"
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${isPagado ? "bg-emerald-500" : "bg-amber-400"}`} />
+                                {isPagado ? "Pagado" : "Pendiente"}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 text-right">
+                              {isPagado ? (
+                                <button
+                                  onClick={() => setActivoDevolucion(p)}
+                                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-transparent hover:bg-cyan-500/5 text-cyan-600 text-[11.5px] font-semibold transition-colors border border-cyan-500/40 whitespace-nowrap"
+                                  title="Solicitar devolución de dinero y anulación del presupuesto"
+                                >
+                                  <Icon name="undo" size={14} />
+                                  Devolución
+                                </button>
+                              ) : (
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => setActivoCuotas(p)}
+                                    className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors shrink-0"
+                                    title="Gestionar cuotas"
+                                  >
+                                    <Icon name="splitscreen" size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => setActivo(p)}
+                                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[11.5px] font-semibold transition-colors whitespace-nowrap shrink-0"
+                                  >
+                                    <Icon name="description" size={13} />
+                                    Registrar pago
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                  if (isPagado) {
+                {/* Mobile — tarjetas individuales, mismo diseño que Personal.
+                    Mismo tope de altura + scroll oculto que la tabla. */}
+                <div className="md:hidden bg-white p-3 flex flex-col gap-3 overflow-y-auto no-scrollbar" style={{ maxHeight: 620 }}>
+                  {pendientesFiltrados.map((p) => {
+                    const isPagado = p.esPagado || p.estado === "pagado";
                     return (
-                      <div key={p.id} className="flex items-center gap-3 px-4 sm:px-5 py-3.5 bg-emerald-50/25 dark:bg-emerald-950/15">
-                        <div className={`w-11 h-11 rounded-full ${av.bg} flex items-center justify-center font-bold text-[13px] ${av.text} shrink-0`}>
-                          {initials(p.paciente_nombre)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 truncate">{p.paciente_nombre}</p>
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
-                              <Icon name="check_circle" size={11} /> Pagado
-                            </span>
-                          </div>
-                          <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{p.tratamiento}</p>
-                          <span className="inline-flex items-center gap-1 text-[10.5px] text-slate-400 dark:text-slate-500 mt-0.5">
+                      <div key={p.id} className="bg-white rounded-xl border border-slate-200 flex flex-col">
+                        <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100">
+                          <span className="inline-flex items-center gap-1 text-[10.5px] text-slate-400">
                             <Icon name="event" size={11} /> {fmtFechaRelativa(p.fecha_emision)}
                           </span>
-                        </div>
-                        <div className="flex flex-col items-end gap-1.5 shrink-0">
-                          <span className="text-[15px] font-bold text-emerald-600 dark:text-emerald-400">
-                            {simbolo(p.moneda)} {p.total_neto.toFixed(2)}
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                            isPagado ? "bg-emerald-50 text-emerald-600" : "bg-amber-50/60 text-amber-600"
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isPagado ? "bg-emerald-500" : "bg-amber-400"}`} />
+                            {isPagado ? "Pagado" : "Pendiente"}
                           </span>
-                          <button
-                            onClick={() => setActivoDevolucion(p)}
-                            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-[11.5px] font-semibold transition-colors border border-rose-200/60 dark:border-rose-800/40"
-                            title="Solicitar devolución de dinero y anulación del presupuesto"
-                          >
-                            <Icon name="undo" size={14} />
-                            Devolución
-                          </button>
+                        </div>
+
+                        <div className="flex flex-col gap-3 p-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Avatar name={p.paciente_nombre} size="md" />
+                            <div className="min-w-0">
+                              <p className="font-bold text-[13px] text-slate-800 truncate">{p.paciente_nombre}</p>
+                              <p className="text-[12px] text-slate-500 truncate">{p.tratamiento}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                            <span className="text-[13px] text-slate-900">
+                              {simbolo(p.moneda)} {(isPagado ? p.total_neto : p.saldo).toFixed(2)}
+                            </span>
+                            {isPagado ? (
+                              <button
+                                onClick={() => setActivoDevolucion(p)}
+                                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-transparent hover:bg-cyan-500/5 text-cyan-600 text-[11.5px] font-semibold transition-colors border border-cyan-500/40 whitespace-nowrap"
+                                title="Solicitar devolución de dinero y anulación del presupuesto"
+                              >
+                                <Icon name="undo" size={14} />
+                                Devolución
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  onClick={() => setActivoCuotas(p)}
+                                  className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors shrink-0"
+                                  title="Gestionar cuotas"
+                                >
+                                  <Icon name="splitscreen" size={16} />
+                                </button>
+                                <button
+                                  onClick={() => setActivo(p)}
+                                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[11.5px] font-semibold transition-colors whitespace-nowrap shrink-0"
+                                >
+                                  <Icon name="description" size={13} />
+                                  Registrar pago
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
-                  }
+                  })}
+                </div>
 
-                  return (
-                    <div key={p.id} className="flex items-center gap-3 px-4 sm:px-5 py-3.5">
-                      <div className={`w-11 h-11 rounded-full ${av.bg} flex items-center justify-center font-bold text-[13px] ${av.text} shrink-0`}>
-                        {initials(p.paciente_nombre)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 truncate">{p.paciente_nombre}</p>
-                        <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">{p.tratamiento}</p>
-                        <span className="inline-flex items-center gap-1 text-[10.5px] text-slate-400 dark:text-slate-500 mt-0.5">
-                          <Icon name="event" size={11} /> {fmtFechaRelativa(p.fecha_emision)}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        <span className="text-[15px] font-bold text-slate-900 dark:text-slate-100">
-                          {simbolo(p.moneda)} {p.saldo.toFixed(2)}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setActivoCuotas(p)}
-                            className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors"
-                            title="Gestionar cuotas"
-                          >
-                            <Icon name="splitscreen" size={16} />
-                          </button>
-                          <button
-                            onClick={() => setActivo(p)}
-                            className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[11.5px] font-semibold transition-colors"
-                          >
-                            <Icon name="description" size={13} />
-                            Registrar pago
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              </>
             )}
           </div>
 
@@ -451,49 +538,49 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
           <div className="flex flex-col gap-4">
             {/* 3 Tarjetas Métricas */}
             <div className="grid grid-cols-3 gap-2.5">
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 flex flex-col gap-1.5">
-                <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+ <div className="bg-white border border-slate-200 rounded-2xl p-3 flex flex-col gap-1.5">
+ <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
                   <Icon name="payments" size={14} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide truncate">Ingresos Hoy</p>
-                  <p className="text-[14px] font-bold text-emerald-600 dark:text-emerald-400 truncate">{simbolo(monedaBase)} {dashboard.ingresosHoy.toFixed(2)}</p>
+ <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide truncate">Ingresos Hoy</p>
+ <p className="text-[14px] font-bold text-slate-800 truncate">{simbolo(monedaBase)} {dashboard.ingresosHoy.toFixed(2)}</p>
                 </div>
               </div>
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 flex flex-col gap-1.5">
-                <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 dark:text-rose-400">
+ <div className="bg-white border border-slate-200 rounded-2xl p-3 flex flex-col gap-1.5">
+ <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-600">
                   <Icon name="trending_down" size={14} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide truncate">Egresos Hoy</p>
-                  <p className="text-[14px] font-bold text-rose-600 dark:text-rose-400 truncate">{simbolo(monedaBase)} {dashboard.egresosHoy.toFixed(2)}</p>
+ <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide truncate">Egresos Hoy</p>
+ <p className="text-[14px] font-bold text-slate-800 truncate">{simbolo(monedaBase)} {dashboard.egresosHoy.toFixed(2)}</p>
                 </div>
               </div>
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 flex flex-col gap-1.5">
-                <div className="w-7 h-7 rounded-lg bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
+ <div className="bg-white border border-slate-200 rounded-2xl p-3 flex flex-col gap-1.5">
+ <div className="w-7 h-7 rounded-lg bg-cyan-50 flex items-center justify-center text-cyan-600">
                   <Icon name="description" size={14} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide truncate">Comprobantes</p>
-                  <p className="text-[14px] font-bold text-slate-900 dark:text-slate-100">{dashboard.comprobantesHoy}</p>
+ <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide truncate">Comprobantes</p>
+ <p className="text-[14px] font-bold text-slate-800">{dashboard.comprobantesHoy}</p>
                 </div>
               </div>
             </div>
 
             {/* Métodos de Cobro */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
-              <h3 className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 mb-3">Métodos de Cobro</h3>
+ <div className="bg-white border border-slate-200 rounded-2xl p-4">
+ <h3 className="text-[13px] font-semibold text-slate-800 mb-3">Métodos de Cobro</h3>
               {dashboard.metodosPago.length === 0 ? (
-                <p className="text-[11.5px] text-slate-400 dark:text-slate-500">Sin pagos registrados aún.</p>
+ <p className="text-[11.5px] text-slate-400">Sin pagos registrados aún.</p>
               ) : (
                 <div className="flex flex-col gap-3">
                   {dashboard.metodosPago.map((m) => (
                     <div key={m.nombre}>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11.5px] font-medium text-slate-600 dark:text-slate-300 truncate">{m.nombre}</span>
-                        <span className="text-[11.5px] font-bold text-slate-800 dark:text-slate-100 shrink-0">{m.porcentaje}%</span>
+ <span className="text-[11.5px] font-medium text-slate-600 truncate">{m.nombre}</span>
+ <span className="text-[11.5px] font-bold text-slate-800 shrink-0">{m.porcentaje}%</span>
                       </div>
-                      <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+ <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
                         <div className="h-full bg-cyan-600 rounded-full transition-all" style={{ width: `${m.porcentaje}%` }} />
                       </div>
                     </div>
@@ -503,10 +590,10 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
             </div>
 
             {/* Historial Reciente con Acciones de Comprobante PDF / Imprimir */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
-              <h3 className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 mb-3">Historial Reciente</h3>
+ <div className="bg-white border border-slate-200 rounded-2xl p-4">
+ <h3 className="text-[13px] font-semibold text-slate-800 mb-3">Historial Reciente</h3>
               {dashboard.historial.length === 0 ? (
-                <p className="text-[11.5px] text-slate-400 dark:text-slate-500">Sin movimientos registrados aún.</p>
+ <p className="text-[11.5px] text-slate-400">Sin movimientos registrados aún.</p>
               ) : (
                 <div className="flex flex-col gap-2.5">
                   {dashboard.historial.map((h) => {
@@ -514,25 +601,25 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
                     const isExporting = exportingId === h.id;
 
                     return (
-                      <div key={h.id} className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50/70 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900/80 transition-colors">
+ <div key={h.id} className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50/70 hover:bg-slate-100 transition-colors">
                         <div className="min-w-0 flex-1">
-                          <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-100 truncate">{h.paciente_nombre}</p>
-                          <p className="text-[10.5px] text-slate-400 dark:text-slate-500 truncate">
+ <p className="text-[12px] font-semibold text-slate-800 truncate">{h.paciente_nombre}</p>
+ <p className="text-[10.5px] text-slate-400 truncate">
                             {h.medio_pago_nombre} {h.categoria_nombre ? `· ${h.categoria_nombre}` : ""}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className={`text-[12px] font-bold ${isEgreso ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+ <span className={`text-[12px] font-bold ${isEgreso ? "text-red-600" : "text-emerald-600"}`}>
                             {isEgreso ? "-" : "+"}{simbolo(h.moneda)} {h.monto.toFixed(2)}
                           </span>
                           
                           {/* Botones de Comprobante PDF / Imprimir */}
-                          <div className="flex items-center gap-1 pl-1 border-l border-slate-200 dark:border-slate-700">
+ <div className="flex items-center gap-1 pl-1 border-l border-slate-200">
                             <button
                               onClick={() => handleExportarComprobante(h.id, "print")}
                               disabled={isExporting}
                               title="Imprimir Comprobante"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-cyan-600 hover:border-cyan-400 transition-colors disabled:opacity-50"
+ className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-cyan-600 hover:border-cyan-400 transition-colors disabled:opacity-50"
                             >
                               <Icon name="print" size={13} />
                             </button>
@@ -540,7 +627,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
                               onClick={() => handleExportarComprobante(h.id, "pdf")}
                               disabled={isExporting}
                               title="Descargar Comprobante PDF"
-                              className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-cyan-600 hover:border-cyan-400 transition-colors disabled:opacity-50"
+ className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-cyan-600 hover:border-cyan-400 transition-colors disabled:opacity-50"
                             >
                               <Icon name="download" size={13} />
                             </button>
@@ -576,7 +663,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
             presupuesto={activoDevolucion}
             onClose={() => setActivoDevolucion(null)}
             onSuccess={() => {
-              setPendientesBuscados((prev) => prev.filter((x) => x.id !== activoDevolucion.id));
+              updatePendienteLocal(activoDevolucion.id, () => null);
             }}
           />
         )}

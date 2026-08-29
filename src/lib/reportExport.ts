@@ -60,22 +60,22 @@ export function buildLetterheadHeader(opts: {
   pagina?: string;
 }): string {
   return `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:22px 28px 18px;border-bottom:1px solid #e2e8f0;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:22px 28px 18px;border-bottom:1px solid #EDF0F4;">
       <div style="display:flex;align-items:center;gap:12px;">
         <img src="${logoSrc()}" style="height:38px;object-fit:contain;" crossorigin="anonymous" />
         ${opts.clinica?.nombre_clinica ? `
           <div>
-            <div style="font-size:15px;font-weight:800;color:#0f172a;">${esc(opts.clinica.nombre_clinica)}</div>
-            ${opts.clinica.direccion ? `<div style="font-size:10.5px;color:#94a3b8;">${esc(opts.clinica.direccion)}</div>` : ""}
+            <div style="font-size:15px;font-weight:800;color:#1A1A2E;">${esc(opts.clinica.nombre_clinica)}</div>
+            ${opts.clinica.direccion ? `<div style="font-size:10.5px;color:#95A5A6;">${esc(opts.clinica.direccion)}</div>` : ""}
           </div>
         ` : ""}
       </div>
       <div style="text-align:right;">
         <div style="font-size:9.5px;font-weight:800;color:#0e7490;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">${esc(opts.docLabel)}</div>
-        <div style="font-size:17px;font-weight:800;color:#0f172a;">${esc(opts.docCode)}</div>
-        ${opts.pacienteNombre ? `<div style="font-size:11.5px;font-weight:600;color:#334155;margin-top:2px;">${esc(opts.pacienteNombre)}</div>` : ""}
-        <div style="font-size:9.5px;color:#94a3b8;margin-top:3px;">Generado: ${esc(opts.generado)}</div>
-        ${opts.pagina ? `<div style="font-size:9px;color:#cbd5e1;margin-top:1px;">${esc(opts.pagina)}</div>` : ""}
+        <div style="font-size:17px;font-weight:800;color:#1A1A2E;">${esc(opts.docCode)}</div>
+        ${opts.pacienteNombre ? `<div style="font-size:11.5px;font-weight:600;color:#2C3E50;margin-top:2px;">${esc(opts.pacienteNombre)}</div>` : ""}
+        <div style="font-size:9.5px;color:#95A5A6;margin-top:3px;">Generado: ${esc(opts.generado)}</div>
+        ${opts.pagina ? `<div style="font-size:9px;color:#D5D8DC;margin-top:1px;">${esc(opts.pagina)}</div>` : ""}
       </div>
     </div>
   `;
@@ -90,13 +90,13 @@ export function buildLetterheadFooter(opts: { clinica: ClinicaInfo | null; pacie
   const rightTop = [opts.pacienteNombre, opts.docCode].filter(Boolean).join(" · ");
   if (!left && !rightContact && !rightTop) return "";
   return `
-    <div style="padding:14px 28px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <div style="padding:14px 28px;border-top:1px solid #EDF0F4;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
       <div>
-        ${left ? `<div style="font-size:9.5px;font-weight:700;color:#64748b;">${esc(left)}</div>` : ""}
+        ${left ? `<div style="font-size:9.5px;font-weight:700;color:#5D6D7E;">${esc(left)}</div>` : ""}
       </div>
       <div style="text-align:right;">
-        ${rightTop ? `<div style="font-size:9.5px;font-weight:700;color:#64748b;">${esc(rightTop)}</div>` : ""}
-        ${rightContact ? `<div style="font-size:9px;color:#94a3b8;margin-top:2px;">${esc(rightContact)}</div>` : ""}
+        ${rightTop ? `<div style="font-size:9.5px;font-weight:700;color:#5D6D7E;">${esc(rightTop)}</div>` : ""}
+        ${rightContact ? `<div style="font-size:9px;color:#95A5A6;margin-top:2px;">${esc(rightContact)}</div>` : ""}
       </div>
     </div>
   `;
@@ -125,10 +125,10 @@ export function buildSignatureBlock(f: FirmanteInfo): string {
         ? `<img src="${f.firmaUrl}" style="height:40px;object-fit:contain;margin:0 0 6px auto;display:block;" crossorigin="anonymous" />`
         : GENERIC_SIGNATURE_SVG
       }
-      <div style="height:1px;width:150px;background:#cbd5e1;margin:0 0 6px auto;"></div>
-      <div style="font-size:12px;font-weight:800;color:#0f172a;">Dr. ${esc(f.nombre)}</div>
+      <div style="height:1px;width:150px;background:#D5D8DC;margin:0 0 6px auto;"></div>
+      <div style="font-size:12px;font-weight:800;color:#1A1A2E;">Dr. ${esc(f.nombre)}</div>
       ${f.especialidad ? `<div style="font-size:10.5px;color:#0e7490;font-weight:600;">${esc(f.especialidad)}</div>` : ""}
-      ${f.numColegiatura ? `<div style="font-size:9.5px;color:#94a3b8;">C.O.P. ${esc(f.numColegiatura)}</div>` : ""}
+      ${f.numColegiatura ? `<div style="font-size:9.5px;color:#95A5A6;">C.O.P. ${esc(f.numColegiatura)}</div>` : ""}
     </div>
   `;
 }
@@ -145,7 +145,7 @@ export function sectionLabel(text: string): string {
 }
 
 export function wrapDocument(bodyHtml: string, widthPx = 900): string {
-  return `<div style="width:${widthPx}px;background:#ffffff;font-family:Poppins,Arial,sans-serif;color:#1e293b;border-top:4px solid #0891b2;border-bottom:4px solid #0891b2;">${bodyHtml}</div>`;
+  return `<div style="width:${widthPx}px;background:#ffffff;font-family:Poppins,Arial,sans-serif;color:#212E3D;border-top:4px solid #0891b2;border-bottom:4px solid #0891b2;">${bodyHtml}</div>`;
 }
 
 async function withOffscreenContainer<T>(html: string, fn: (container: HTMLDivElement) => Promise<T>): Promise<T> {

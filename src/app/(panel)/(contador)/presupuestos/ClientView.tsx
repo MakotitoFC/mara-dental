@@ -2,15 +2,47 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { Badge } from "@/components/ui/Badge";
 import { Header } from "@/components/layout/Header";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { FilterCategoryPicker, type FilterCategoryMeta } from "@/components/ui/FilterCategoryPicker";
+import { TagDropdown } from "@/components/ui/TagDropdown";
 import { AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getPresupuestosPaginadosAction } from "../contador.actions";
+
+type FilterTagKey = "sede" | "estado";
+const FILTER_CATEGORIES: Record<FilterTagKey, FilterCategoryMeta> = {
+  sede: { label: "Sede", icon: "location_on" },
+  estado: { label: "Estado", icon: "check_circle" },
+};
+
+const ESTADO_TAB_OPTIONS = [
+  { value: "todos", label: "Todos" },
+  { value: "pendientes", label: "Por Cobrar" },
+  { value: "pagados", label: "Pagados" },
+  { value: "rechazados", label: "Rechazados" },
+];
+
+/** Ventana de números de página con elipsis — mismo patrón que Personal
+ * ("1 2 3 ... 8 9 10"). */
+function getPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (current <= 3) return [1, 2, 3, "...", total - 2, total - 1, total];
+  if (current >= total - 2) return [1, 2, 3, "...", total - 2, total - 1, total];
+  return [1, "...", current - 1, current, current + 1, "...", total];
+}
+
+/** Ventana compacta de 2 números para la píldora flotante de mobile. */
+function getMobilePageWindow(current: number, total: number): number[] {
+  if (total <= 1) return [1];
+  if (current >= total) return [total - 1, total];
+  return [current, current + 1];
+}
 
 export default function PresupuestosClient({
   initialResult,
@@ -29,7 +61,25 @@ export default function PresupuestosClient({
   const [filtro, setFiltro] = useState(searchParams?.get("filtro") || "todos");
   const [sedeId, setSedeId] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = 7;
+
+  // Tags de filtro activo: solo aparecen al elegirlos desde el picker
+  // maestro (mismo patrón que Dashboard Directivo/Personal/Auditoría/
+  // Diagnóstico/Presupuesto de paciente).
+  const [activeFilterTags, setActiveFilterTags] = useState<Set<FilterTagKey>>(new Set());
+  const toggleFilterTag = (k: FilterTagKey) => {
+    setActiveFilterTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      return next;
+    });
+  };
+  const removeFilterTag = (k: FilterTagKey) => {
+    setActiveFilterTags((prev) => { const next = new Set(prev); next.delete(k); return next; });
+    setPage(1);
+    if (k === "sede") setSedeId("");
+    else if (k === "estado") setFiltro("todos");
+  };
 
   const [dataState, setDataState] = useState(initialResult);
   const [selectedPresupuesto, setSelectedPresupuesto] = useState<any | null>(null);
@@ -83,15 +133,15 @@ export default function PresupuestosClient({
 
   function getEstadoBadge(t: any) {
     if (t.estado === "rechazado" || t.estado === "anulado") {
-      return <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-100 text-rose-700">RECHAZADO</span>;
+      return <Badge status="error" className="text-[10px]">Rechazado</Badge>;
     }
     if (t.es_pagado) {
-      return <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-700">PAGADO</span>;
+      return <Badge status="success" className="text-[10px]">Pagado</Badge>;
     }
     return (
-      <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800">
-        PENDIENTE {t.cuotas_pendientes_count > 0 ? `(${t.cuotas_pendientes_count} CUOTAS)` : ""}
-      </span>
+      <Badge status="pending" className="text-[10px]">
+        Pendiente {t.cuotas_pendientes_count > 0 ? `(${t.cuotas_pendientes_count} cuotas)` : ""}
+      </Badge>
     );
   }
 
@@ -101,26 +151,17 @@ export default function PresupuestosClient({
       <div className="flex flex-col flex-1 min-h-0 bg-slate-50">
         {/* Header Principal */}
         <header className="shrink-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-cyan-50 items-center justify-center text-cyan-600 shrink-0 hidden sm:flex">
-                <Icon name="assignment" size={24} />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-[16px] md:text-lg font-bold text-slate-800">Presupuestos y Cobranzas</h1>
-                <p className="text-[12px] md:text-[13px] text-slate-500">Gestión de presupuestos emitidos, cobranzas y cuotas por cobrar.</p>
-              </div>
-            </div>
-            <div className="shrink-0 bg-emerald-50 border border-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg text-[12px] font-bold flex items-center gap-2 self-start sm:self-auto">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Actualizado en Vivo</span>
-            </div>
+          <div className="min-w-0">
+            <h1 className="text-[15px] md:text-base font-bold text-slate-800">Presupuestos y Cobranzas</h1>
+            <p className="hidden sm:block text-[13px] md:text-sm text-slate-500">Gestión de presupuestos emitidos, cobranzas y cuotas por cobrar.</p>
           </div>
 
-          {/* Barra de Búsqueda y Filtros */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-1">
-            {/* Input de Búsqueda de Paciente */}
-            <div className="relative flex-1 max-w-md">
+          {/* Barra de Búsqueda + botón maestro de filtro (mismo patrón que
+              Dashboard Directivo/Personal/Auditoría/Diagnóstico/Presupuesto
+              de paciente): reemplaza el select de Sede + las 4 pestañas de
+              Estado sueltas. */}
+          <div className="flex items-center gap-2 pt-1">
+            <div className="relative flex-1 max-w-xs">
               <Icon name="search" size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -139,130 +180,110 @@ export default function PresupuestosClient({
               )}
             </div>
 
-            {/* Selector de Sede */}
-            <div className="flex items-center gap-2">
-              <select
-                value={sedeId}
-                onChange={(e) => {
-                  setSedeId(e.target.value);
-                  setPage(1);
-                }}
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-700 outline-none focus:bg-white focus:border-cyan-500 transition-colors font-medium"
-              >
-                <option value="">Todas las Sedes</option>
-                {sedes.map((s: any) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre_clinica}
-                  </option>
-                ))}
-              </select>
-
-              {/* Pestañas de Estado */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1">
-                <button
-                  onClick={() => { setFiltro("todos"); setPage(1); }}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
-                    filtro === "todos" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  Todos
-                </button>
-                <button
-                  onClick={() => { setFiltro("pendientes"); setPage(1); }}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors flex items-center gap-1 ${
-                    filtro === "pendientes" ? "bg-white text-amber-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <Icon name="pending_actions" size={14} /> Por Cobrar
-                </button>
-                <button
-                  onClick={() => { setFiltro("pagados"); setPage(1); }}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors flex items-center gap-1 ${
-                    filtro === "pagados" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <Icon name="check_circle" size={14} /> Pagados
-                </button>
-                <button
-                  onClick={() => { setFiltro("rechazados"); setPage(1); }}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors hidden lg:flex items-center gap-1 ${
-                    filtro === "rechazados" ? "bg-white text-rose-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  Rechazados
-                </button>
-              </div>
-            </div>
+            {/* Paso 1 — lista simple de categorías (Sede/Estado), sin sus
+                opciones internas. Icon-only, sin estilo de tag cian. */}
+            <FilterCategoryPicker variant="icon" categories={FILTER_CATEGORIES} activeKeys={activeFilterTags} onToggle={toggleFilterTag} />
           </div>
+
+          {/* Paso 2 — tags interactivos (aparecen solo si se eligieron desde
+              el picker); "+ Filtro" al final los reabre. Sin botón de
+              limpiar: cada X quita su propio filtro. */}
+          {activeFilterTags.size > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {activeFilterTags.has("sede") && (
+                <TagDropdown
+                  icon="location_on"
+                  label={`Sede: ${sedeId ? (sedes.find((s: any) => String(s.id) === sedeId)?.nombre_clinica ?? "—") : "Todas las Sedes"}`}
+                  onRemove={() => removeFilterTag("sede")}
+                >
+                  {(close) => (
+                    <>
+                      <button
+                        type="button"
+                        onMouseDown={() => { setSedeId(""); setPage(1); close(); }}
+                        className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] rounded-md hover:bg-slate-50 ${sedeId === "" ? "text-cyan-700 font-semibold" : "text-slate-600"}`}
+                      >
+                        Todas las Sedes
+                      </button>
+                      {sedes.map((s: any) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onMouseDown={() => { setSedeId(String(s.id)); setPage(1); close(); }}
+                          className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] rounded-md hover:bg-slate-50 ${String(s.id) === sedeId ? "text-cyan-700 font-semibold" : "text-slate-600"}`}
+                        >
+                          {s.nombre_clinica}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </TagDropdown>
+              )}
+              {activeFilterTags.has("estado") && (
+                <TagDropdown
+                  icon="check_circle"
+                  label={`Estado: ${ESTADO_TAB_OPTIONS.find((o) => o.value === filtro)?.label ?? "Todos"}`}
+                  onRemove={() => removeFilterTag("estado")}
+                >
+                  {(close) => (
+                    <>
+                      {ESTADO_TAB_OPTIONS.map((o) => (
+                        <button
+                          key={o.value}
+                          type="button"
+                          onMouseDown={() => { setFiltro(o.value); setPage(1); close(); }}
+                          className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] rounded-md hover:bg-slate-50 ${o.value === filtro ? "text-cyan-700 font-semibold" : "text-slate-600"}`}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </TagDropdown>
+              )}
+              <FilterCategoryPicker variant="chip" categories={FILTER_CATEGORIES} activeKeys={activeFilterTags} onToggle={toggleFilterTag} />
+            </div>
+          )}
         </header>
 
         {/* Contenido Principal */}
         <main className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden">
-          {/* Paginación Header */}
-          <div className="shrink-0 flex items-center justify-between gap-2 px-4 sm:px-6 py-3 border-b border-slate-100">
-            <span className="text-[11px] text-slate-500">
-              Mostrando <span className="font-semibold text-slate-700">{presupuestos.length}</span> de{" "}
-              <span className="font-semibold text-slate-700">{totalRecords}</span> presupuestos
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                disabled={page === 1 || isPending}
-                onClick={() => {
-                  const np = page - 1;
-                  setPage(np);
-                  fetchPresupuestos(np);
-                }}
-                className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40"
-              >
-                <Icon name="chevron_left" size={16} />
-              </button>
-              <span className="text-[12px] font-semibold text-slate-700">
-                Pág. {page} de {totalPages}
-              </span>
-              <button
-                disabled={page === totalPages || isPending}
-                onClick={() => {
-                  const np = page + 1;
-                  setPage(np);
-                  fetchPresupuestos(np);
-                }}
-                className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40"
-              >
-                <Icon name="chevron_right" size={16} />
-              </button>
-            </div>
-          </div>
-
           {/* Tabla Desktop */}
           <div className="hidden md:flex flex-col flex-1 min-h-0 overflow-auto no-scrollbar">
             <table className="w-full text-left text-[13px] md:text-sm" style={{ minWidth: 950 }}>
-              <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-100">
+              <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-slate-500">
                 <tr>
-                  <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500">Fecha</th>
-                  <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500">Paciente / Sede</th>
-                  <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500">Tratamiento</th>
-                  <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-right">Total Neto</th>
-                  <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-right">Cobrado / Saldo</th>
-                  <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-center">Estado</th>
-                  <th className="px-5 py-3 text-[10px] md:text-[11px] font-bold uppercase text-slate-500 text-right">Acción</th>
+                  <th className="px-6 py-4 text-[10px] md:text-[11px] font-bold uppercase tracking-wide">Paciente</th>
+                  <th className="px-6 py-4 text-[10px] md:text-[11px] font-bold uppercase tracking-wide">Fecha</th>
+                  <th className="px-6 py-4 text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-right">Total Neto</th>
+                  <th className="px-6 py-4 text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-right">Cobrado / Saldo</th>
+                  <th className="px-6 py-4 text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-center">Estado</th>
+                  <th className="px-6 py-4 text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-right">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isPending ? (
-                  Array.from({ length: 5 }).map((_, i) => (
+                  Array.from({ length: 6 }).map((_, i) => (
                     <tr key={i}>
-                      <td className="px-5 py-4"><Skeleton className="h-4 w-24" /></td>
-                      <td className="px-5 py-4"><Skeleton className="h-4 w-36" /></td>
-                      <td className="px-5 py-4"><Skeleton className="h-4 w-44" /></td>
-                      <td className="px-5 py-4 text-right"><Skeleton className="h-4 w-20 ml-auto" /></td>
-                      <td className="px-5 py-4 text-right"><Skeleton className="h-4 w-24 ml-auto" /></td>
-                      <td className="px-5 py-4 text-center"><Skeleton className="h-5 w-16 mx-auto rounded-full" /></td>
-                      <td className="px-5 py-4 text-right"><Skeleton className="h-8 w-8 ml-auto rounded-lg" /></td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
+                          <div className="flex flex-col gap-1.5">
+                            <Skeleton className="h-3 w-32" />
+                            <Skeleton className="h-2.5 w-40" />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4"><Skeleton className="h-3 w-24" /></td>
+                      <td className="px-6 py-4 text-right"><Skeleton className="h-3 w-20 ml-auto" /></td>
+                      <td className="px-6 py-4 text-right"><Skeleton className="h-3 w-24 ml-auto" /></td>
+                      <td className="px-6 py-4 text-center"><Skeleton className="h-5 w-16 mx-auto rounded-full" /></td>
+                      <td className="px-6 py-4 text-right"><Skeleton className="h-8 w-8 ml-auto rounded-lg" /></td>
                     </tr>
                   ))
                 ) : presupuestos.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-12 text-slate-400">
+                    <td colSpan={6} className="px-6 py-12 text-center text-[13px] md:text-sm text-slate-500">
                       No se encontraron presupuestos con los filtros seleccionados.
                     </td>
                   </tr>
@@ -273,47 +294,46 @@ export default function PresupuestosClient({
                       onClick={() => setSelectedPresupuesto(t)}
                       className="hover:bg-slate-50/80 cursor-pointer transition-colors"
                     >
-                      <td className="px-5 py-4 text-slate-600">
-                        {format(new Date(t.fecha_emision), "dd/MM/yyyy HH:mm")}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="font-bold text-slate-800">{t.paciente?.nombre_completo || "Paciente General"}</div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono">DNI: {t.paciente?.dni || "-"}</span>
-                          <span className="px-1.5 py-0.2 bg-cyan-50 text-cyan-700 font-semibold rounded text-[10px]">
-                            {t.paciente?.sede_nombre || "Sede"}
-                          </span>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+                            <Icon name="assignment" size={18} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-800 truncate">{t.paciente?.nombre_completo || "Paciente General"}</p>
+                            <p className="text-[12px] text-slate-500 truncate">{t.tratamientos}</p>
+                          </div>
                         </div>
                       </td>
-                      <td className="px-5 py-4 max-w-xs truncate text-slate-700 font-medium">
-                        {t.tratamientos}
+                      <td className="px-6 py-4 text-slate-500 text-[12px] whitespace-nowrap">
+                        {format(new Date(t.fecha_emision), "dd/MM/yyyy HH:mm")}
                       </td>
-                      <td className="px-5 py-4 text-right font-mono font-bold text-slate-800">
+                      <td className="px-6 py-4 text-right font-mono text-slate-900 whitespace-nowrap">
                         {t.moneda === "USD" ? "$" : "S/"} {Number(t.total_neto).toFixed(2)}
                       </td>
-                      <td className="px-5 py-4 text-right">
-                        <div className="font-mono text-emerald-600 font-bold text-[12px]">
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                        <div className="font-mono text-emerald-600 text-[12px]">
                           Cobrado: {t.moneda === "USD" ? "$" : "S/"} {Number(t.pagado).toFixed(2)}
                         </div>
                         {t.saldo > 0.009 && (
-                          <div className="font-mono text-amber-600 font-bold text-[12px] mt-0.5">
+                          <div className="font-mono text-amber-600 text-[12px] mt-0.5">
                             Saldo: {t.moneda === "USD" ? "$" : "S/"} {Number(t.saldo).toFixed(2)}
                           </div>
                         )}
                       </td>
-                      <td className="px-5 py-4 text-center">
+                      <td className="px-6 py-4 text-center">
                         {getEstadoBadge(t)}
                       </td>
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-6 py-4 text-right">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedPresupuesto(t);
                           }}
-                          className="w-8 h-8 rounded-lg text-cyan-600 hover:bg-cyan-50 inline-flex items-center justify-center transition-colors"
+                          className="w-8 h-8 rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 inline-flex items-center justify-center transition-colors"
                           title="Ver Detalle de Cobros y Cuotas"
                         >
-                          <Icon name="visibility" size={18} />
+                          <Icon name="visibility" size={16} />
                         </button>
                       </td>
                     </tr>
@@ -323,8 +343,49 @@ export default function PresupuestosClient({
             </table>
           </div>
 
+          {/* Paginación desktop/tablet — mismo patrón de Personal. */}
+          {!isPending && totalRecords > 0 && (
+            <div className="hidden sm:flex shrink-0 items-center justify-between gap-3 px-4 sm:px-6 py-3 flex-wrap border-t border-slate-200">
+              <span className="text-[12.5px] text-slate-500 whitespace-nowrap">Página {page} de {totalPages}</span>
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                <button
+                  disabled={page === 1 || isPending}
+                  onClick={() => { const np = page - 1; setPage(np); fetchPresupuestos(np); }}
+                  className="shrink-0 flex items-center gap-1 h-8 px-2.5 rounded-lg border border-slate-200 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Icon name="chevron_left" size={16} />
+                  <span className="hidden sm:inline">Anterior</span>
+                </button>
+                {getPageNumbers(page, totalPages).map((p, i) =>
+                  p === "..." ? (
+                    <span key={`ellipsis-${i}`} className="shrink-0 w-8 h-8 flex items-center justify-center text-[12.5px] text-slate-400">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => { setPage(p); fetchPresupuestos(p); }}
+                      className={`shrink-0 w-8 h-8 rounded-lg text-[12.5px] font-semibold transition-colors ${
+                        p === page ? "bg-slate-100 text-slate-800" : "text-slate-600 hover:bg-slate-50 border border-slate-200"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+                <button
+                  disabled={page === totalPages || isPending}
+                  onClick={() => { const np = page + 1; setPage(np); fetchPresupuestos(np); }}
+                  className="shrink-0 flex items-center gap-1 h-8 px-2.5 rounded-lg border border-slate-200 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <span className="hidden sm:inline">Siguiente</span>
+                  <Icon name="chevron_right" size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Vista Mobile Cards */}
-          <div className="md:hidden flex-1 min-h-0 overflow-y-auto no-scrollbar divide-y divide-slate-100">
+          <div className="md:hidden flex-1 min-h-0 overflow-y-auto no-scrollbar bg-slate-50 p-3 flex flex-col">
+            <div className="flex flex-col gap-3">
             {presupuestos.length === 0 ? (
               <p className="text-center text-[13px] text-slate-400 py-10">No hay presupuestos registrados.</p>
             ) : (
@@ -332,35 +393,70 @@ export default function PresupuestosClient({
                 <div
                   key={t.id}
                   onClick={() => setSelectedPresupuesto(t)}
-                  className="p-4 flex flex-col gap-3 active:bg-slate-50 transition-colors"
+                  className="bg-white rounded-xl border border-slate-200 flex flex-col active:bg-slate-50 transition-colors"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-bold text-[14px] text-slate-800 truncate">
-                        {t.paciente?.nombre_completo || "Paciente General"}
-                      </p>
-                      <p className="text-[12px] text-cyan-700 font-medium">
-                        {t.paciente?.sede_nombre || "Sede"} • DNI: {t.paciente?.dni || "-"}
-                      </p>
-                    </div>
+                  <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100">
+                    <span className="text-[11px] font-semibold text-slate-400">{format(new Date(t.fecha_emision), "dd/MM/yyyy")}</span>
                     {getEstadoBadge(t)}
                   </div>
-                  <p className="text-[12px] text-slate-600 line-clamp-1">{t.tratamientos}</p>
-                  <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[12px]">
-                    <span className="text-slate-400">{format(new Date(t.fecha_emision), "dd/MM/yyyy")}</span>
-                    <div className="text-right">
-                      <span className="font-mono font-bold text-slate-800">
+                  <div className="flex flex-col gap-3 p-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+                        <Icon name="assignment" size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-[13px] text-slate-800 truncate">{t.paciente?.nombre_completo || "Paciente General"}</p>
+                        <p className="text-[12px] text-slate-500 truncate">{t.tratamientos}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                      <span className="font-mono text-[13px] text-slate-900">
                         {t.moneda === "USD" ? "$" : "S/"} {Number(t.total_neto).toFixed(2)}
                       </span>
-                      {t.saldo > 0.009 && (
-                        <span className="block font-mono font-bold text-amber-600 text-[11px]">
+                      {t.saldo > 0.009 ? (
+                        <span className="font-mono text-amber-600 text-[11px] font-semibold">
                           Saldo: S/ {Number(t.saldo).toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="font-mono text-emerald-600 text-[11px] font-semibold">
+                          Cobrado: {t.moneda === "USD" ? "$" : "S/"} {Number(t.pagado).toFixed(2)}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
               ))
+            )}
+            </div>
+
+            {!isPending && totalPages > 1 && (
+              <div className="mt-3 sticky bottom-0 self-center z-10 flex items-center gap-1 bg-white/70 backdrop-blur-md border border-slate-200 rounded-full shadow-lg px-1.5 py-1.5">
+                <button
+                  disabled={page === 1}
+                  onClick={() => { const np = page - 1; setPage(np); fetchPresupuestos(np); }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Icon name="chevron_left" size={16} />
+                </button>
+                {getMobilePageWindow(page, totalPages).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => { setPage(p); fetchPresupuestos(p); }}
+                    className={`w-7 h-7 rounded-full text-[12px] font-semibold transition-colors ${
+                      p === page ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button
+                  disabled={page === totalPages}
+                  onClick={() => { const np = page + 1; setPage(np); fetchPresupuestos(np); }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Icon name="chevron_right" size={16} />
+                </button>
+              </div>
             )}
           </div>
         </main>
@@ -372,17 +468,6 @@ export default function PresupuestosClient({
           <ResponsiveSheet
             onClose={() => setSelectedPresupuesto(null)}
             title={`Presupuesto #${selectedPresupuesto.id}`}
-            footer={
-              <div className="flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={() => setSelectedPresupuesto(null)}
-                  className="px-5 py-2 text-[13px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-                >
-                  Cerrar
-                </button>
-              </div>
-            }
           >
             <div className="space-y-5 text-[13px]">
               {/* Resumen Superior */}
@@ -398,15 +483,15 @@ export default function PresupuestosClient({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-center">
-                  <div className="bg-emerald-50 p-2 rounded-xl border border-emerald-100">
-                    <span className="text-[10px] font-bold text-emerald-600 uppercase block">Total Pagado</span>
-                    <span className="text-base font-bold font-mono text-emerald-700">
+                  <div className="bg-cyan-500/5 p-2 rounded-xl border border-cyan-500/40">
+                    <span className="text-[10px] font-semibold text-cyan-600 block">Total Pagado</span>
+                    <span className="text-base font-bold font-mono text-cyan-600">
                       S/ {Number(selectedPresupuesto.pagado).toFixed(2)}
                     </span>
                   </div>
-                  <div className="bg-amber-50 p-2 rounded-xl border border-amber-100">
-                    <span className="text-[10px] font-bold text-amber-600 uppercase block">Saldo Pendiente</span>
-                    <span className="text-base font-bold font-mono text-amber-700">
+                  <div className="bg-cyan-500/5 p-2 rounded-xl border border-cyan-500/40">
+                    <span className="text-[10px] font-semibold text-cyan-600 block">Saldo Pendiente</span>
+                    <span className="text-base font-bold font-mono text-cyan-600">
                       S/ {Number(selectedPresupuesto.saldo).toFixed(2)}
                     </span>
                   </div>
@@ -421,11 +506,11 @@ export default function PresupuestosClient({
                 <div className="grid grid-cols-2 gap-2 pt-1 text-slate-600">
                   <div>
                     <span className="text-[11px] text-slate-400 block">Nombre</span>
-                    <span className="font-semibold text-slate-800">{selectedPresupuesto.paciente?.nombre_completo || "-"}</span>
+                    <span className="text-slate-800">{selectedPresupuesto.paciente?.nombre_completo || "-"}</span>
                   </div>
                   <div>
                     <span className="text-[11px] text-slate-400 block">DNI</span>
-                    <span className="font-mono font-semibold text-slate-800">{selectedPresupuesto.paciente?.dni || "-"}</span>
+                    <span className="font-mono text-slate-800">{selectedPresupuesto.paciente?.dni || "-"}</span>
                   </div>
                   <div>
                     <span className="text-[11px] text-slate-400 block">Sede Asignada</span>
@@ -442,7 +527,7 @@ export default function PresupuestosClient({
               {selectedPresupuesto.cuotas?.length > 0 && (
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
                   <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                    <Icon name="calendar_month" size={16} className="text-indigo-600" /> Plan de Cuotas ({selectedPresupuesto.cuotas.length})
+                    <Icon name="calendar_month" size={16} className="text-blue-600" /> Plan de Cuotas ({selectedPresupuesto.cuotas.length})
                   </h3>
                   <div className="divide-y divide-slate-100">
                     {selectedPresupuesto.cuotas.map((c: any) => {
@@ -457,10 +542,10 @@ export default function PresupuestosClient({
                           </div>
                           <div className="text-right flex items-center gap-2">
                             <span className="font-mono font-bold text-slate-800">S/ {Number(c.monto).toFixed(2)}</span>
-                            <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full ${
-                              isPaid ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
+                            <span className={`px-2 py-0.5 text-[9px] font-medium rounded-full ${
+                              isPaid ? "bg-emerald-50 text-emerald-600" : "bg-amber-50/60 text-amber-600"
                             }`}>
-                              {isPaid ? "PAGADA" : "PENDIENTE"}
+                              {isPaid ? "Pagada" : "Pendiente"}
                             </span>
                           </div>
                         </div>
@@ -489,10 +574,10 @@ export default function PresupuestosClient({
                           <span className={`font-mono font-bold ${m.estado === "anulado" ? "line-through text-slate-400" : "text-emerald-600"}`}>
                             S/ {Math.abs(Number(m.monto)).toFixed(2)}
                           </span>
-                          <span className={`block text-[9px] font-bold uppercase ${
-                            m.estado === "confirmado" ? "text-emerald-600" : "text-rose-600"
+                          <span className={`block text-[9px] font-medium ${
+                            m.estado === "confirmado" ? "text-emerald-600" : "text-red-600"
                           }`}>
-                            {m.estado}
+                            {m.estado.charAt(0).toUpperCase() + m.estado.slice(1)}
                           </span>
                         </div>
                       </div>

@@ -18,18 +18,25 @@ import {
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { DatePicker } from "@/components/ui/DatePicker";
-import { Select } from "@/components/ui/Select";
+import { FilterCategoryPicker, type FilterCategoryMeta } from "@/components/ui/FilterCategoryPicker";
+import { TagDropdown } from "@/components/ui/TagDropdown";
 
 const TIPO_OPTIONS = [
   { value: "definitivo", label: "Definitivo" },
   { value: "presuntivo", label: "Presuntivo" },
 ];
 
+type FilterTagKey = "estado" | "fecha";
+const FILTER_CATEGORIES: Record<FilterTagKey, FilterCategoryMeta> = {
+  estado: { label: "Estado", icon: "check_circle" },
+  fecha: { label: "Fecha", icon: "calendar_today" },
+};
+
 function Notice({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3">
-      <Icon name="info" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
-      <p className="text-[12.5px] text-slate-500 dark:text-slate-400">{text}</p>
+ <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+ <Icon name="info" size={16} className="text-slate-400 shrink-0"/>
+ <p className="text-[12.5px] text-slate-500">{text}</p>
     </div>
   );
 }
@@ -39,52 +46,109 @@ const fmtFecha = (iso: string) => {
   catch { return iso; }
 };
 
-/** Alto fijo de fila — 8 filas visibles antes de scrollear (ver LIST_MAX_H),
- * y el mismo alto se usa como tope del panel de detalle para que ambos
- * paneles del layout maestro-detalle midan exactamente lo mismo (mismos
- * valores que PresupuestoTab, que usa este mismo patrón). */
-const ROW_H = 60;
-const LIST_MAX_H = ROW_H * 8;
+// Paginación de la lista plana en mobile/tablet — mismo tamaño de página (8)
+// y misma ventana compacta de 2 números para la píldora flotante que ya usan
+// las vistas de asistente (Turnos de Caja, Personal, etc.).
+const MOBILE_PAGE_SIZE = 5;
+function getMobilePageWindow(current: number, total: number): number[] {
+  if (total <= 1) return [1];
+  if (current >= total) return [total - 1, total];
+  return [current, current + 1];
+}
 
-/** Fila compacta del historial — fecha + tipo (presuntivo/definitivo) + si
- * tiene tratamiento/recetas. El seleccionado se resalta en gris neutro (no
- * con el color del badge, para no confundirlo con el estado del registro). */
-function DiagnosticoHistorialRow({ d, active, tratCount, recCount, onClick }: {
-  d: any; active: boolean; tratCount: number; recCount: number; onClick: () => void;
+/** Fila del historial — fecha + tipo (presuntivo/definitivo), el detalle
+ * clínico (texto del diagnóstico) y, aparte, tags de si tiene
+ * tratamiento/recetas. El seleccionado se resalta en gris neutro (no con el
+ * color del estado (badge), sino con los mismos colores que resaltan un
+ * ítem activo en el navbar lateral (bg-cyan-50 + texto cyan-700). Alto
+ * variable (ya no fijo) porque el texto del diagnóstico puede ocupar 1 o 2
+ * líneas según el registro. En mobile (`isMobile`) usa en cambio el mismo
+ * diseño de tarjeta que "Catálogo de Tratamientos" (admin/catalogo). */
+function DiagnosticoHistorialRow({ d, active, tratCount, recCount, onClick, isMobile }: {
+  d: any; active: boolean; tratCount: number; recCount: number; onClick: () => void; isMobile: boolean;
 }) {
   const cfg = d.es_definitivo
-    ? { dot: "bg-emerald-500", badge: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800", label: "Definitivo" }
-    : { dot: "bg-amber-500", badge: "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800", label: "Presuntivo" };
+ ? { dot: "bg-emerald-500", pill: "bg-emerald-50 text-emerald-600", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", label: "Definitivo"}
+ : { dot: "bg-amber-500", pill: "bg-amber-50 text-amber-600", badge: "bg-amber-50 text-amber-700 border-amber-200", label: "Presuntivo"};
+
+  if (isMobile) {
+    return (
+      <button
+        onClick={onClick}
+ className={`w-full text-left bg-white rounded-xl border flex flex-col transition-colors ${active ? "border-cyan-400 ring-1 ring-cyan-100" : "border-slate-200"}`}
+      >
+ <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100">
+ <span className="text-[11px] font-semibold text-slate-400">{fmtFecha(d.fecha_deteccion)}</span>
+        </div>
+ <div className="flex flex-col gap-3 p-4">
+ <div className="flex items-start justify-between gap-2">
+ <div className="flex items-center gap-3 min-w-0">
+ <div className="w-9 h-9 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+                <Icon name="stethoscope" size={18} />
+              </div>
+ <div className="min-w-0">
+ <p className="font-bold text-[13px] text-slate-700 truncate">{d.diagnostico_texto || "Diagnóstico"}</p>
+ <p className="text-[12px] text-slate-500 truncate">{d.doctor_nombre || <span className="italic text-slate-300">Sin dentista</span>}</p>
+              </div>
+            </div>
+ <span className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold rounded-full ${cfg.pill}`}>
+ <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+              {cfg.label}
+            </span>
+          </div>
+
+          {(tratCount > 0 || recCount > 0) && (
+ <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+              {tratCount > 0 && (
+ <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                  <Icon name="account_tree" size={12} /> Tratamiento
+                </span>
+              )}
+              {recCount > 0 && (
+ <span className="flex items-center gap-1 text-[11px] text-slate-500">
+                  <Icon name="medication" size={12} /> Recetas
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </button>
+    );
+  }
 
   return (
     <button
       onClick={onClick}
-      style={{ height: ROW_H }}
-      className={`w-full text-left flex items-center gap-3 px-3 border-l-2 transition-colors border-0 ${
+      className={`w-full text-left flex items-start gap-3 px-3 py-3 border-l-2 transition-colors border-0 ${
         active
-          ? "bg-slate-100 dark:bg-slate-700/60 border-l-slate-400 dark:border-l-slate-500"
-          : "border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-700/50"
+ ? "bg-cyan-50 border-l-cyan-600"
+ :"border-l-transparent hover:bg-slate-50"
       }`}
     >
-      <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+      <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${cfg.dot}`} />
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100">{fmtFecha(d.fecha_deteccion)}</p>
+        <div className="flex items-center justify-between gap-2">
+ <p className={`text-[13px] font-medium ${active ? "text-cyan-700" : "text-slate-800"}`}>{fmtFecha(d.fecha_deteccion)}</p>
+ <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold border shrink-0 ${cfg.badge}`}>{cfg.label}</span>
+        </div>
+        {d.diagnostico_texto && (
+ <p className="text-[11.5px] text-slate-500 mt-1 leading-snug line-clamp-2">{d.diagnostico_texto}</p>
+        )}
         {(tratCount > 0 || recCount > 0) && (
-          <div className="flex items-center gap-2.5 mt-0.5">
+          <div className="flex items-center gap-2.5 mt-1.5">
             {tratCount > 0 && (
-              <span className="flex items-center gap-1 text-[10.5px] text-slate-400 dark:text-slate-500">
+ <span className="flex items-center gap-1 text-[10.5px] text-slate-400">
                 <Icon name="account_tree" size={11} /> Tratamiento
               </span>
             )}
             {recCount > 0 && (
-              <span className="flex items-center gap-1 text-[10.5px] text-slate-400 dark:text-slate-500">
+ <span className="flex items-center gap-1 text-[10.5px] text-slate-400">
                 <Icon name="medication" size={11} /> Recetas
               </span>
             )}
           </div>
         )}
       </div>
-      <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold border shrink-0 ${cfg.badge}`}>{cfg.label}</span>
     </button>
   );
 }
@@ -114,13 +178,13 @@ function ConsultaStepper({ step, done, onStepClick }: { step: number; done: bool
                 ? "bg-cyan-600 border-cyan-600 text-white"
                 : i === step
                   ? "border-cyan-600 text-cyan-600"
-                  : "border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600"
+ :"border-slate-200 text-slate-300"
             }`}>
               {done[i] ? <Icon name="check" size={13} /> : i === step ? i + 1 : "–"}
             </div>
           </button>
           {i < WIZARD_STEPS.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-1.5 transition-colors duration-300 ease-out ${done[i + 1] ? "bg-cyan-600" : "bg-slate-200 dark:bg-slate-700"}`} />
+ <div className={`flex-1 h-0.5 mx-1.5 transition-colors duration-300 ease-out ${done[i + 1] ? "bg-cyan-600" : "bg-slate-200"}`} />
           )}
         </div>
       ))}
@@ -130,26 +194,26 @@ function ConsultaStepper({ step, done, onStepClick }: { step: number; done: bool
 
 function ResumenRegistrado({ done, detalles }: { done: boolean[]; detalles: string[][] }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
-      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2.5">Resumen registrado</p>
+ <div className="bg-white rounded-2xl border border-slate-200 p-4">
+ <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Resumen registrado</p>
       <div className="flex flex-col gap-3">
         {WIZARD_STEPS.map((s, i) => (
           <div key={s.key}>
-            <div className={`flex items-center gap-2 text-[12.5px] font-semibold ${done[i] ? "text-slate-700 dark:text-slate-300" : "text-slate-300 dark:text-slate-600"}`}>
+ <div className={`flex items-center gap-2 text-[12.5px] font-semibold ${done[i] ? "text-slate-700" : "text-slate-300"}`}>
               {done[i] ? (
                 <Icon name="check_circle" size={15} className="text-emerald-500 shrink-0" />
               ) : (
-                <span className="w-[15px] h-[15px] rounded-full border-2 border-slate-200 dark:border-slate-700 shrink-0" />
+ <span className="w-[15px] h-[15px] rounded-full border-2 border-slate-200 shrink-0"/>
               )}
               <span className="truncate">{s.label}</span>
             </div>
             {done[i] && detalles[i].length > 0 && (
               <div className="pl-[23px] mt-1 flex flex-col gap-0.5">
                 {detalles[i].slice(0, 4).map((d, j) => (
-                  <p key={j} className="text-[11px] text-slate-500 dark:text-slate-400 truncate">· {d}</p>
+ <p key={j} className="text-[11px] text-slate-500 truncate">· {d}</p>
                 ))}
                 {detalles[i].length > 4 && (
-                  <p className="text-[10.5px] text-slate-400 dark:text-slate-500 italic">+{detalles[i].length - 4} más</p>
+ <p className="text-[10.5px] text-slate-400 italic">+{detalles[i].length - 4} más</p>
                 )}
               </div>
             )}
@@ -177,20 +241,32 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
   // detalle (estilo admin); solo desktop (lg+) mantiene la grilla
   // maestro-detalle de dos columnas.
   const isCompact = useIsMobile(1024);
+  // Mobile "real" (<768) — solo acá las tarjetas del historial usan el
+  // diseño de "Catálogo de Tratamientos"; tablet (dentro de isCompact) y
+  // desktop siguen con la fila compacta de siempre.
+  const isMobile = useIsMobile();
   const [showDetalleModal, setShowDetalleModal] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [filterFecha, setFilterFecha] = useState("");
   const [filterTipo, setFilterTipo] = useState("");
-  const filterRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
-    }
-    if (filterOpen) document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [filterOpen]);
-
+  // Paginación mobile/tablet (lista plana) — se reinicia cada vez que cambia
+  // el filtro, para no quedar en una página que ya no existe.
+  const [mobilePage, setMobilePage] = useState(1);
+  useEffect(() => { setMobilePage(1); }, [filterFecha, filterTipo]);
+  // Tags de filtro activo: solo aparecen al elegirlos desde el picker
+  // maestro (mismo patrón que Dashboard Directivo/Personal/Auditoría).
+  const [activeFilterTags, setActiveFilterTags] = useState<Set<FilterTagKey>>(new Set());
+  const toggleFilterTag = (k: FilterTagKey) => {
+    setActiveFilterTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      return next;
+    });
+  };
+  const removeFilterTag = (k: FilterTagKey) => {
+    setActiveFilterTags((prev) => { const next = new Set(prev); next.delete(k); return next; });
+    if (k === "estado") setFilterTipo("");
+    else if (k === "fecha") setFilterFecha("");
+  };
   // El diagnóstico recién creado solo existe en `data` después de que `refetch`
   // (async) termine — avanzar de paso ahí mismo (antes de esperarlo) dejaba el
   // wizard mostrando "sin diagnóstico" a pesar de haber guardado uno. Se marca
@@ -245,7 +321,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
         setSelectedId(null);
       }
     } catch (e) {
-      console.error("Error al cargar historial de diagnósticos:", e);
+      console.error("Error al cargar historial de diagnósticos: ", e);
       setHistorialPaciente([]);
       setDetalleMap({});
       setSelectedId(null);
@@ -268,59 +344,90 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
       return true;
     });
     const hasFilter = !!filterFecha || !!filterTipo;
+    const mobileTotalPages = Math.max(1, Math.ceil(historialFiltrado.length / MOBILE_PAGE_SIZE));
+    const historialMobilePag = historialFiltrado.slice((mobilePage - 1) * MOBILE_PAGE_SIZE, mobilePage * MOBILE_PAGE_SIZE);
 
-    // ── Cabecera — misma en TODOS los breakpoints (antes desktop tenía una
-    // versión aparte, sin fondo blanco ni descripción, flotando sobre el
-    // fondo gris de la página). Sticky, pegada al navbar de tabs, mismo
-    // fondo blanco y sin espacio entre ambos (el separador gris queda abajo,
-    // entre este bloque y el contenido scrolleable). El ícono de filtro
-    // despliega los selectores de fecha y tipo EN LA MISMA FILA, a la
-    // derecha (no como una fila nueva debajo) — angostos, sin ocupar todo
-    // el ancho.
+    // Botón de filtro + tags activos — reutilizado tanto en la cabecera de
+    // mobile/tablet (donde el historial es una lista plana bajo el título)
+    // como dentro de la propia tarjeta de "Historial" en desktop (donde vive
+    // junto al conteo, ver más abajo). Patrón de "filtro maestro" (igual que
+    // Dashboard Directivo/Personal/Auditoría/Odontograma): botón ☰ solo-ícono
+    // → picker de categorías (Estado/Fecha, sin sus opciones) → tags cian con
+    // dropdown propio → "+ Filtro". Sin "Quitar filtros": cada tag se quita
+    // con su propia X.
+    const filtroButton = <FilterCategoryPicker variant="icon" categories={FILTER_CATEGORIES} activeKeys={activeFilterTags} onToggle={toggleFilterTag} />;
+    const filtroTagsRow = activeFilterTags.size > 0 && (
+      <div className="flex items-center gap-2 flex-wrap">
+        {activeFilterTags.has("estado") && (
+          <TagDropdown
+            icon="check_circle"
+            label={`Estado: ${filterTipo ? TIPO_OPTIONS.find((o) => o.value === filterTipo)?.label : "Todos"}`}
+            onRemove={() => removeFilterTag("estado")}
+          >
+            {(close) => (
+              <>
+                <button
+                  type="button"
+                  onMouseDown={() => { setFilterTipo(""); close(); }}
+ className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] rounded-md hover:bg-slate-50 ${filterTipo === "" ? "text-cyan-700 font-semibold" : "text-slate-600"}`}
+                >
+                  Todos
+                </button>
+                {TIPO_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onMouseDown={() => { setFilterTipo(o.value); close(); }}
+ className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] rounded-md hover:bg-slate-50 ${o.value === filterTipo ? "text-cyan-700 font-semibold" : "text-slate-600"}`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </>
+            )}
+          </TagDropdown>
+        )}
+        {activeFilterTags.has("fecha") && (
+          <TagDropdown
+            icon="calendar_today"
+            label={`Fecha: ${filterFecha || "Todas"}`}
+            onRemove={() => removeFilterTag("fecha")}
+ panelClassName="bg-white border border-slate-200 rounded-lg shadow-lg p-3"
+          >
+            {(close) => (
+              <DatePicker value={filterFecha} onChange={(v) => { setFilterFecha(v); close(); }} />
+            )}
+          </TagDropdown>
+        )}
+        <FilterCategoryPicker variant="chip" categories={FILTER_CATEGORIES} activeKeys={activeFilterTags} onToggle={toggleFilterTag} />
+      </div>
+    );
+
+    // ── Cabecera — misma en TODOS los breakpoints. Sticky, pegada al navbar
+    // de tabs, mismo fondo blanco y sin espacio entre ambos (el separador
+    // gris queda abajo, entre este bloque y el contenido scrolleable). En
+    // desktop el botón de filtro ya no vive acá — se movió a la tarjeta de
+    // "Historial" (junto al título y el conteo), como en Odontograma; en
+    // mobile/tablet (lista plana, sin tarjeta propia) se queda acá. Sticky
+    // solo desde md — en mobile no queda fija, se desplaza con el contenido;
+    // la descripción también se oculta en mobile, solo el título.
     const header = (
-      <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-4 mb-3 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+ <div className="static md:sticky md:top-0 md:z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-4 mb-3 bg-white border-b border-slate-100 flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="text-[15px] font-bold text-slate-800 dark:text-slate-100">Diagnóstico</h2>
-            <p className="text-[12px] text-slate-400 dark:text-slate-500 mt-0.5 leading-snug">Registro clínico del diagnóstico activo del paciente</p>
+ <h2 className="text-[15px] font-bold text-slate-800">Diagnóstico</h2>
+ <p className="hidden md:block text-[12px] text-slate-400 mt-0.5 leading-snug">Registro clínico del diagnóstico activo del paciente</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* El panel de filtros se despliega en un dropdown anclado debajo
-                del ícono (no inline a su lado): así nunca compite por espacio
-                con el título/descripción, ni en mobile ni en tablet. */}
-            <div ref={filterRef} className="relative">
-              <button
-                onClick={() => setFilterOpen((o) => !o)}
-                title="Filtrar"
-                className={`shrink-0 w-9 h-9 rounded-lg border flex items-center justify-center transition-colors ${
-                  filterOpen || hasFilter ? "bg-cyan-50 dark:bg-cyan-900/30 border-cyan-300 dark:border-cyan-700 text-cyan-600 dark:text-cyan-400" : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
-                }`}
-              >
-                <Icon name="filter_lines" size={18} />
-              </button>
-              {filterOpen && (
-                <div className="absolute top-[calc(100%+8px)] right-0 z-30 flex flex-col gap-2 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg w-[200px]">
-                  <Select value={filterTipo} onChange={setFilterTipo} placeholder="Tipo" options={TIPO_OPTIONS} />
-                  <DatePicker value={filterFecha} onChange={setFilterFecha} placeholder="Fecha…" />
-                  {hasFilter && (
-                    <button
-                      onClick={() => { setFilterFecha(""); setFilterTipo(""); }}
-                      className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-slate-200 dark:border-slate-700 text-[12px] font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                    >
-                      <Icon name="close" size={14} /> Quitar filtros
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          {isCompact && filtroButton}
         </div>
+
+        {isCompact && filtroTagsRow}
       </div>
     );
 
     const detalleContent = (
-      <div className="flex flex-col gap-2 min-w-0">
-        <div style={isCompact ? undefined : { maxHeight: LIST_MAX_H }} className="overflow-y-auto no-scrollbar flex flex-col gap-4 pr-1 pb-4">
+      <div className={`flex flex-col gap-2 min-w-0 ${isCompact ? "" : "lg:h-full lg:min-h-0"}`}>
+        <div className={`overflow-y-auto no-scrollbar flex flex-col gap-4 pr-1 pb-4 ${isCompact ? "" : "lg:flex-1 lg:min-h-0"}`}>
           {seleccionado ? (
             <>
               <DiagnosticoCard
@@ -367,14 +474,14 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                 </>
               ) : (
                 <div className="py-6 flex justify-center">
-                  <div className="w-6 h-6 rounded-full border-2 border-slate-200 dark:border-slate-700 border-t-cyan-500 animate-spin" />
+ <div className="w-6 h-6 rounded-full border-2 border-slate-200 border-t-cyan-500 animate-spin"/>
                 </div>
               )}
             </>
           ) : (
-            <div className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3">
-              <Icon name="info" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
-              <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Este paciente no tiene diagnósticos registrados.</p>
+ <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+ <Icon name="info" size={16} className="text-slate-400 shrink-0"/>
+ <p className="text-[12.5px] text-slate-500">Este paciente no tiene diagnósticos registrados.</p>
             </div>
           )}
         </div>
@@ -389,13 +496,13 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
       return (
         <>
           {header}
-          <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-700">
+ <div className={isMobile ? "flex flex-col gap-3 px-3 pt-3 bg-slate-50" : "flex flex-col divide-y divide-slate-100"}>
             {historialFiltrado.length === 0 ? (
-              <p className="text-[12px] text-slate-400 dark:text-slate-500 text-center py-8">
+ <p className="text-[12px] text-slate-400 text-center py-8">
                 {filterFecha ? "Sin diagnósticos en esta fecha." : "Este paciente no tiene diagnósticos registrados."}
               </p>
             ) : (
-              historialFiltrado.map((d) => (
+              historialMobilePag.map((d) => (
                 <DiagnosticoHistorialRow
                   key={d.id}
                   d={d}
@@ -403,10 +510,43 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                   tratCount={detalleMap[String(d.id)]?.tratamientos.length ?? 0}
                   recCount={detalleMap[String(d.id)]?.recetas.length ?? 0}
                   onClick={() => { setSelectedId(String(d.id)); setShowDetalleModal(true); }}
+                  isMobile={isMobile}
                 />
               ))
             )}
           </div>
+
+          {/* Paginación mobile — píldora flotante, igual que en las vistas
+              de asistente (Turnos de Caja, Personal, etc.). Solo en mobile:
+              en tablet (md-lg, dentro de isCompact) no se muestra. */}
+          {mobileTotalPages > 1 && (
+ <div className="md:hidden mt-3 sticky bottom-3 self-center z-10 flex items-center gap-1 bg-white/70 backdrop-blur-md border border-slate-200 rounded-full shadow-lg px-1.5 py-1.5 mx-auto w-fit">
+              <button
+                disabled={mobilePage === 1}
+                onClick={() => setMobilePage(p => p - 1)}
+ className="w-7 h-7 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors border-0 bg-transparent"
+              >
+                <Icon name="chevron_left" size={16} />
+              </button>
+              {getMobilePageWindow(mobilePage, mobileTotalPages).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setMobilePage(p)}
+ className={`w-7 h-7 rounded-full text-[12px] font-semibold transition-colors border-0 ${p === mobilePage ? "bg-cyan-600 text-white" : "bg-transparent text-slate-600 hover:bg-slate-100"}`}
+                >
+                  {p}
+                </button>
+              ))}
+              <button
+                disabled={mobilePage === mobileTotalPages}
+                onClick={() => setMobilePage(p => p + 1)}
+ className="w-7 h-7 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors border-0 bg-transparent"
+              >
+                <Icon name="chevron_right" size={16} />
+              </button>
+            </div>
+          )}
+
           <AnimatePresence>
             {showDetalleModal && (
               <ResponsiveSheet onClose={() => setShowDetalleModal(false)} title="Diagnóstico">
@@ -418,41 +558,48 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
       );
     }
 
+    // Desktop: la vista no tiene scroll propio — su alto lo da el contenedor
+    // de la pestaña (misma cadena lg:h-full / lg:flex-1 / lg:min-h-0 que usa
+    // Odontograma). "Detalle" e "Historial" quedan del mismo alto (grid con
+    // stretch, sin items-start) y cada uno scrollea por su cuenta, por dentro.
     return (
-      <>
+      <div className="flex flex-col w-full lg:h-full">
         {header}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:flex-1 lg:min-h-0">
           {detalleContent}
-          <div className="flex flex-col gap-2 min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Historial</h2>
-              <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[10.5px] font-bold flex items-center justify-center">
-                {historialPaciente.length}
-              </span>
+ <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col min-w-0 lg:h-full lg:min-h-0">
+            <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-3 shrink-0">
+              <div className="flex items-center gap-2">
+ <h2 className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Historial</h2>
+ <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-[10.5px] font-bold flex items-center justify-center">
+                  {historialPaciente.length}
+                </span>
+              </div>
+              {filtroButton}
             </div>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-              {historialFiltrado.length === 0 ? (
-                <p className="text-[12px] text-slate-400 dark:text-slate-500 text-center py-8">
-                  {hasFilter ? "Sin diagnósticos con este filtro." : "Sin diagnósticos"}
-                </p>
-              ) : (
-                <div style={{ maxHeight: LIST_MAX_H }} className="overflow-y-auto no-scrollbar divide-y divide-slate-100 dark:divide-slate-700">
-                  {historialFiltrado.map((d) => (
-                    <DiagnosticoHistorialRow
-                      key={d.id}
-                      d={d}
-                      active={String(d.id) === selectedId}
-                      tratCount={detalleMap[String(d.id)]?.tratamientos.length ?? 0}
-                      recCount={detalleMap[String(d.id)]?.recetas.length ?? 0}
-                      onClick={() => setSelectedId(String(d.id))}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+            {filtroTagsRow && <div className="px-4 pb-3 shrink-0">{filtroTagsRow}</div>}
+            {historialFiltrado.length === 0 ? (
+ <p className="text-[12px] text-slate-400 text-center py-8">
+                {hasFilter ? "Sin diagnósticos con este filtro." : "Sin diagnósticos"}
+              </p>
+            ) : (
+ <div className="lg:flex-1 lg:min-h-0 overflow-y-auto no-scrollbar divide-y divide-slate-100 border-t border-slate-100">
+                {historialFiltrado.map((d) => (
+                  <DiagnosticoHistorialRow
+                    key={d.id}
+                    d={d}
+                    active={String(d.id) === selectedId}
+                    tratCount={detalleMap[String(d.id)]?.tratamientos.length ?? 0}
+                    recCount={detalleMap[String(d.id)]?.recetas.length ?? 0}
+                    onClick={() => setSelectedId(String(d.id))}
+                    isMobile={false}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
@@ -509,7 +656,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
           rápido y dejar ver el contenido de abajo un instante. Sacarlo del
           scroll de raíz lo evita de plano. El resumen registrado ya no vive
           aquí: se muestra en el modal de confirmación al Finalizar. */}
-      <div className="shrink-0 bg-slate-50 dark:bg-slate-900 -mx-3 px-3 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6 pb-2">
+ <div className="shrink-0 bg-slate-50 -mx-3 px-3 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6 pb-2">
         <ConsultaStepper step={step} done={done} onStepClick={goStep} />
       </div>
 
@@ -522,15 +669,15 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
             arriba, al lado del título. */}
         <div className="flex items-start justify-between gap-3 px-1">
           <div className="min-w-0">
-            <p className="text-[10.5px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-widest mb-1">Paso {step + 1} de {WIZARD_STEPS.length}</p>
-            <h3 className="text-[17px] font-bold text-slate-900 dark:text-slate-100">{WIZARD_STEPS[step].titulo}</h3>
+ <p className="text-[10.5px] font-bold text-cyan-600 uppercase tracking-widest mb-1">Paso {step + 1} de {WIZARD_STEPS.length}</p>
+ <h3 className="text-[17px] font-bold text-slate-900">{WIZARD_STEPS[step].titulo}</h3>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => goStep(step - 1)}
               disabled={step === 0}
               aria-label="Paso anterior"
-              className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-0 disabled:pointer-events-none transition-colors"
+ className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-0 disabled:pointer-events-none transition-colors"
             >
               <Icon name="chevron_left" size={18} />
             </button>
@@ -567,16 +714,16 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                   onItemsChange={() => refetch()}
                 />
                 {(totalFases > 0 || presupuestoTotal != null) && (
-                  <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between gap-4">
+ <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Presupuesto estimado</p>
-                      <p className="text-[15px] font-bold text-slate-900 dark:text-slate-100">
+ <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Presupuesto estimado</p>
+ <p className="text-[15px] font-bold text-slate-900">
                         {presupuestoTotal != null ? `S/ ${presupuestoTotal.toFixed(2)}` : "—"}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Progreso total</p>
-                      <p className="text-[15px] font-bold text-cyan-700 dark:text-cyan-400">{totalFases > 0 ? `${pct}%` : "—"}</p>
+ <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Progreso total</p>
+ <p className="text-[15px] font-bold text-cyan-700">{totalFases > 0 ?`${pct}%`:"—"}</p>
                     </div>
                   </div>
                 )}
@@ -636,7 +783,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
           }
         >
           <div className="flex flex-col gap-4 py-1">
-            <p className="text-[12.5px] text-slate-500 dark:text-slate-400">Revisa lo registrado en esta consulta antes de finalizar.</p>
+ <p className="text-[12.5px] text-slate-500">Revisa lo registrado en esta consulta antes de finalizar.</p>
             <ResumenRegistrado done={done} detalles={detalles} />
             <label className="flex items-start gap-2.5 cursor-pointer">
               <input
@@ -645,7 +792,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                 onChange={(e) => setConfirmado(e.target.checked)}
                 className="mt-0.5 w-4 h-4 accent-cyan-600 shrink-0"
               />
-              <span className="text-[12.5px] text-slate-600 dark:text-slate-300">Confirmo que la información registrada es correcta.</span>
+ <span className="text-[12.5px] text-slate-600">Confirmo que la información registrada es correcta.</span>
             </label>
           </div>
         </ResponsiveSheet>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { SmartPopover } from "@/components/ui/SmartPopover";
 import { Select } from "@/components/ui/Select";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { registrarMovimientoLibreAction, searchProveedoresAction, searchClientesPagoAction } from "../caja.actions";
@@ -143,7 +144,7 @@ export function MovimientoLibreSheet({
       footer={
         <div className="flex flex-col gap-2">
           {error && (
-            <p className="text-[11.5px] text-red-600 dark:text-red-400 font-medium flex items-center gap-1.5">
+ <p className="text-[11.5px] text-red-600 font-medium flex items-center gap-1.5">
               <Icon name="warning" size={13} /> {error}
             </p>
           )}
@@ -151,14 +152,14 @@ export function MovimientoLibreSheet({
             <button
               onClick={onClose}
               disabled={saving}
-              className="flex-1 h-11 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+ className="flex-1 h-11 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
             >
               Cancelar
             </button>
             <button
               onClick={handleGuardar}
               disabled={saving}
-              className={`flex-1 h-11 flex items-center justify-center gap-2 rounded-xl text-white text-[13px] font-semibold transition-colors disabled:opacity-50 ${tipo === "E" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
+              className={`flex-1 h-11 flex items-center justify-center gap-2 rounded-xl text-white text-[13px] font-semibold transition-colors disabled:opacity-50 ${tipo === "E" ? "bg-red-600 hover:bg-red-700" : "bg-cyan-600 hover:bg-cyan-700"}`}
             >
               <Icon name={tipo === "E" ? "remove_circle_outline" : "add_circle_outline"} size={15} />
               {saving ? "Guardando…" : (tipo === "E" ? "Registrar Egreso" : "Registrar Ingreso")}
@@ -168,16 +169,16 @@ export function MovimientoLibreSheet({
       }
     >
       <div className="flex flex-col gap-4 py-2">
-        <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+ <div className="flex rounded-xl border border-slate-200 overflow-hidden">
           <button
             onClick={() => setTipo("E")}
-            className={`flex-1 py-1.5 text-[13px] font-semibold rounded-lg transition-colors ${tipo === "E" ? "bg-white dark:bg-slate-700 text-red-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            className={`flex-1 py-2 text-[13px] font-semibold transition-colors ${tipo === "E" ? "bg-cyan-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
           >
             Egreso (Salida)
           </button>
           <button
             onClick={() => setTipo("I")}
-            className={`flex-1 py-1.5 text-[13px] font-semibold rounded-lg transition-colors ${tipo === "I" ? "bg-white dark:bg-slate-700 text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            className={`flex-1 py-2 text-[13px] font-semibold transition-colors border-l border-slate-200 ${tipo === "I" ? "bg-cyan-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}
           >
             Ingreso Libre
           </button>
@@ -185,19 +186,19 @@ export function MovimientoLibreSheet({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Monto</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Monto</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-slate-400">S/</span>
               <input
                 type="number" step="0.01" min="0"
                 value={monto}
                 onChange={e => setMonto(e.target.value)}
-                className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl pl-8 pr-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+ className="w-full border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
               />
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Moneda</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Moneda</label>
             <Select
               value={monedaId}
               onChange={setMonedaId}
@@ -208,7 +209,7 @@ export function MovimientoLibreSheet({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Categoría</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Categoría</label>
             <Select
               value={categoriaId}
               onChange={setCategoriaId}
@@ -216,7 +217,7 @@ export function MovimientoLibreSheet({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Medio de Pago</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Medio de Pago</label>
             <Select
               value={medioPagoId}
               onChange={setMedioPagoId}
@@ -227,135 +228,119 @@ export function MovimientoLibreSheet({
 
         {/* Tipo de Comprobante */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Tipo de Comprobante</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Tipo de Comprobante</label>
           <div className="grid grid-cols-3 gap-2">
-            {tipo === "I" ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setTipoComprobante("boleta")}
-                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "boleta" ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
-                >
-                  Boleta
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTipoComprobante("factura")}
-                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "factura" ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
-                >
-                  Factura
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTipoComprobante("ticket_interno")}
-                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "ticket_interno" ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
-                >
-                  Ticket Interno
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setTipoComprobante("recibo")}
-                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "recibo" ? "border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
-                >
-                  Recibo Egreso
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTipoComprobante("factura")}
-                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "factura" ? "border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
-                >
-                  Factura
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTipoComprobante("ticket_interno")}
-                  className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${tipoComprobante === "ticket_interno" ? "border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"}`}
-                >
-                  Ticket Interno
-                </button>
-              </>
-            )}
+            {(tipo === "I" ? [
+              { value: "boleta", label: "Boleta" },
+              { value: "factura", label: "Factura" },
+              { value: "ticket_interno", label: "Ticket Interno" },
+            ] : [
+              { value: "recibo", label: "Recibo Egreso" },
+              { value: "factura", label: "Factura" },
+              { value: "ticket_interno", label: "Ticket Interno" },
+            ]).map((op) => (
+              <button
+                key={op.value}
+                type="button"
+                onClick={() => setTipoComprobante(op.value)}
+                className={`py-2 text-[12px] font-semibold rounded-xl border transition-colors ${
+                  tipoComprobante === op.value
+                    ? "border-cyan-500/40 bg-cyan-500/5 text-cyan-600"
+                    : "border-transparent bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
+              >
+                {op.label}
+              </button>
+            ))}
           </div>
         </div>
 
         {tipo === "E" && (
-          <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+ <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-200 bg-slate-50/50">
             <div className="flex justify-between items-center mb-1">
               <label className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wide">Proveedor (Opcional)</label>
               {!selectedProveedor && !isNewProveedor && (
-                <button onClick={() => setIsNewProveedor(true)} className="text-[10.5px] font-semibold text-cyan-600 hover:text-cyan-700 flex items-center gap-1">
+                <button onClick={() => setIsNewProveedor(true)} className="text-[11.5px] font-semibold text-cyan-600 hover:text-cyan-700 flex items-center gap-1">
                   <Icon name="add" size={12} /> Nuevo Proveedor
                 </button>
               )}
               {(selectedProveedor || isNewProveedor) && (
-                <button onClick={() => { setSelectedProveedor(null); setIsNewProveedor(false); setProveedorSearch(""); }} className="text-[10.5px] font-semibold text-red-500 hover:text-red-600">
-                  Descartar / Cambiar
+                <button
+                  onClick={() => { setSelectedProveedor(null); setIsNewProveedor(false); setProveedorSearch(""); }}
+                  title="Descartar / Cambiar"
+                  aria-label="Descartar / Cambiar"
+                  className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <Icon name="close" size={14} />
                 </button>
               )}
             </div>
 
             {!selectedProveedor && !isNewProveedor ? (
-              <div className="relative">
-                <input
-                  placeholder="Buscar por Nombre o RUC..."
-                  value={proveedorSearch}
-                  onChange={e => setProveedorSearch(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 pl-8 text-[13px] outline-none focus:border-cyan-400"
-                />
-                <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                {searchingProv && <Icon name="progress_activity" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
-                
-                {proveedoresOptions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-10 overflow-hidden">
-                    {proveedoresOptions.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          setSelectedProveedor({ id: p.id, nombre: p.nombre, ruc: p.ruc });
-                          setProveedorSearch(p.nombre);
-                          setProveedoresOptions([]);
-                        }}
-                        className="w-full text-left px-3 py-2 text-[12.5px] hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700 last:border-0"
-                      >
-                        <p className="font-semibold">{p.nombre}</p>
-                        {p.ruc && <p className="text-[10.5px] text-slate-500">RUC: {p.ruc}</p>}
-                      </button>
-                    ))}
+              <SmartPopover
+                open={proveedoresOptions.length > 0}
+                onClose={() => setProveedoresOptions([])}
+                placement="bottom-start"
+                matchWidth
+                renderTrigger={(ref) => (
+                  <div ref={ref} className="relative">
+                    <input
+                      placeholder="Buscar por Nombre o RUC..."
+                      value={proveedorSearch}
+                      onChange={e => setProveedorSearch(e.target.value)}
+ className="w-full border border-slate-200 rounded-xl px-3 py-2 pl-8 text-[13px] outline-none focus:border-cyan-400"
+                    />
+                    <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    {searchingProv && <Icon name="progress_activity" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
                   </div>
                 )}
-              </div>
+              >
+ <div className="bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                  {proveedoresOptions.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        setSelectedProveedor({ id: p.id, nombre: p.nombre, ruc: p.ruc });
+                        setProveedorSearch(p.nombre);
+                        setProveedoresOptions([]);
+                      }}
+ className="w-full text-left px-3 py-2 text-[12.5px] hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                    >
+                      <p className="font-semibold">{p.nombre}</p>
+                      {p.ruc && <p className="text-[10.5px] text-slate-500">RUC: {p.ruc}</p>}
+                    </button>
+                  ))}
+                </div>
+              </SmartPopover>
             ) : isNewProveedor ? (
               <div className="grid grid-cols-2 gap-3 mt-1">
                 <input
                   placeholder="Razón Social / Empresa *"
                   value={selectedProveedor?.nombre || ""}
                   onChange={e => setSelectedProveedor(prev => ({ ...prev, nombre: e.target.value }))}
-                  className="col-span-2 border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
+ className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
                 <input
                   placeholder="RUC"
                   value={selectedProveedor?.ruc || ""}
                   onChange={e => setSelectedProveedor(prev => ({ ...prev, ruc: e.target.value, nombre: prev?.nombre || "" }))}
-                  className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
+ className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
                 <input
                   placeholder="Teléfono"
                   value={selectedProveedor?.telefono || ""}
                   onChange={e => setSelectedProveedor(prev => ({ ...prev, telefono: e.target.value, nombre: prev?.nombre || "" }))}
-                  className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
+ className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
                 <input
                   placeholder="Email"
                   value={selectedProveedor?.email || ""}
                   onChange={e => setSelectedProveedor(prev => ({ ...prev, email: e.target.value, nombre: prev?.nombre || "" }))}
-                  className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
+ className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
               </div>
             ) : (
-              <div className="px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center gap-2">
+ <div className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl flex items-center gap-2">
                 <Icon name="check_circle" size={16} className="text-emerald-500" />
                 <div>
                   <p className="text-[13px] font-semibold">{selectedProveedor?.nombre}</p>
@@ -367,57 +352,68 @@ export function MovimientoLibreSheet({
         )}
 
         {tipo === "I" && (
-          <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
+ <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-200 bg-slate-50/50">
             <div className="flex justify-between items-center mb-1">
               <label className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wide">Cliente (Opcional)</label>
               {!selectedCliente && !isNewCliente && (
-                <button onClick={() => { setIsNewCliente(true); setSelectedCliente({ nombres: "", apellidos: "", tipo_documento: "DNI", numero_documento: "" }); }} className="text-[10.5px] font-semibold text-cyan-600 hover:text-cyan-700 flex items-center gap-1">
+                <button onClick={() => { setIsNewCliente(true); setSelectedCliente({ nombres: "", apellidos: "", tipo_documento: "DNI", numero_documento: "" }); }} className="text-[11.5px] font-semibold text-cyan-600 hover:text-cyan-700 flex items-center gap-1">
                   <Icon name="add" size={12} /> Nuevo Cliente
                 </button>
               )}
               {(selectedCliente || isNewCliente) && (
-                <button onClick={() => { setSelectedCliente(null); setIsNewCliente(false); setClienteSearch(""); }} className="text-[10.5px] font-semibold text-red-500 hover:text-red-600">
-                  Descartar / Cambiar
+                <button
+                  onClick={() => { setSelectedCliente(null); setIsNewCliente(false); setClienteSearch(""); }}
+                  title="Descartar / Cambiar"
+                  aria-label="Descartar / Cambiar"
+                  className="w-6 h-6 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <Icon name="close" size={14} />
                 </button>
               )}
             </div>
 
             {!selectedCliente && !isNewCliente ? (
-              <div className="relative">
-                <input
-                  placeholder="Buscar por Nombre, Apellidos o Documento..."
-                  value={clienteSearch}
-                  onChange={e => setClienteSearch(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 pl-8 text-[13px] outline-none focus:border-cyan-400"
-                />
-                <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                {searchingCli && <Icon name="progress_activity" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
-                
-                {clientesOptions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-10 overflow-hidden">
-                    {clientesOptions.map(c => (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          setSelectedCliente({ 
-                            id: c.id, 
-                            nombres: c.nombre, 
-                            apellidos: c.apellidos, 
-                            tipo_documento: c.dni ? "DNI" : c.pasaporte ? "Pasaporte" : c.carnet_extranjeria ? "CE" : "DNI",
-                            numero_documento: c.dni || c.pasaporte || c.carnet_extranjeria || ""
-                          });
-                          setClienteSearch(`${c.nombre} ${c.apellidos}`);
-                          setClientesOptions([]);
-                        }}
-                        className="w-full text-left px-3 py-2 text-[12.5px] hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700 last:border-0"
-                      >
-                        <p className="font-semibold">{c.nombre} {c.apellidos}</p>
-                        {(c.dni || c.pasaporte || c.carnet_extranjeria) && <p className="text-[10.5px] text-slate-500">Doc: {c.dni || c.pasaporte || c.carnet_extranjeria}</p>}
-                      </button>
-                    ))}
+              <SmartPopover
+                open={clientesOptions.length > 0}
+                onClose={() => setClientesOptions([])}
+                placement="bottom-start"
+                matchWidth
+                renderTrigger={(ref) => (
+                  <div ref={ref} className="relative">
+                    <input
+                      placeholder="Buscar por Nombre, Apellidos o Documento..."
+                      value={clienteSearch}
+                      onChange={e => setClienteSearch(e.target.value)}
+ className="w-full border border-slate-200 rounded-xl px-3 py-2 pl-8 text-[13px] outline-none focus:border-cyan-400"
+                    />
+                    <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    {searchingCli && <Icon name="progress_activity" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
                   </div>
                 )}
-              </div>
+              >
+ <div className="bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                  {clientesOptions.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCliente({
+                          id: c.id,
+                          nombres: c.nombre,
+                          apellidos: c.apellidos,
+                          tipo_documento: c.dni ? "DNI" : c.pasaporte ? "Pasaporte" : c.carnet_extranjeria ? "CE" : "DNI",
+                          numero_documento: c.dni || c.pasaporte || c.carnet_extranjeria || ""
+                        });
+                        setClienteSearch(`${c.nombre} ${c.apellidos}`);
+                        setClientesOptions([]);
+                      }}
+ className="w-full text-left px-3 py-2 text-[12.5px] hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                    >
+                      <p className="font-semibold">{c.nombre} {c.apellidos}</p>
+                      {(c.dni || c.pasaporte || c.carnet_extranjeria) && <p className="text-[10.5px] text-slate-500">Doc: {c.dni || c.pasaporte || c.carnet_extranjeria}</p>}
+                    </button>
+                  ))}
+                </div>
+              </SmartPopover>
             ) : isNewCliente ? (
               <div className="grid grid-cols-2 gap-3 mt-1">
                 <div className="col-span-2 grid grid-cols-3 gap-3">
@@ -434,24 +430,24 @@ export function MovimientoLibreSheet({
                     placeholder="Nro. Documento"
                     value={selectedCliente?.numero_documento || ""}
                     onChange={e => setSelectedCliente(prev => ({ ...prev!, numero_documento: e.target.value }))}
-                    className="col-span-2 border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
+ className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                   />
                 </div>
                 <input
                   placeholder="Nombres *"
                   value={selectedCliente?.nombres || ""}
                   onChange={e => setSelectedCliente(prev => ({ ...prev!, nombres: e.target.value }))}
-                  className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
+ className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
                 <input
                   placeholder="Apellidos *"
                   value={selectedCliente?.apellidos || ""}
                   onChange={e => setSelectedCliente(prev => ({ ...prev!, apellidos: e.target.value }))}
-                  className="border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
+ className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
               </div>
             ) : (
-              <div className="px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center gap-2">
+ <div className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl flex items-center gap-2">
                 <Icon name="check_circle" size={16} className="text-emerald-500" />
                 <div>
                   <p className="text-[13px] font-semibold">{selectedCliente?.nombres} {selectedCliente?.apellidos}</p>
@@ -463,23 +459,23 @@ export function MovimientoLibreSheet({
         )}
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Referencia</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Referencia</label>
           <input
             value={referencia}
             onChange={e => setReferencia(e.target.value)}
             placeholder="Nro. operación, comprobante..."
-            className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
+ className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Observaciones / Concepto</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Observaciones / Concepto</label>
           <textarea
             rows={2}
             value={observacion}
             onChange={e => setObservacion(e.target.value)}
             placeholder="Detalle o descripción del movimiento..."
-            className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 resize-none"
+ className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 resize-none"
           />
         </div>
         

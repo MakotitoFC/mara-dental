@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import html2canvas from "html2canvas";
 import { Icon } from "@/components/ui/Icon";
+import { RotateDevicePrompt } from "@/components/ui/RotateDevicePrompt";
 import { fadeIn, slideUp } from "@/lib/animations";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
@@ -108,7 +109,7 @@ function buildReportHtml(opts: {
   relacionados: { nombre: string; categoria: string }[];
 }): string {
   const row = (label: string, value?: string | null) =>
-    value ? `<div style="margin-bottom:12px;"><div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">${esc(label)}</div><div style="font-size:12.5px;color:#1e293b;font-weight:600;">${esc(value)}</div></div>` : "";
+    value ? `<div style="margin-bottom:12px;"><div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;">${esc(label)}</div><div style="font-size:12.5px;color:#212E3D;font-weight:600;">${esc(value)}</div></div>` : "";
 
   const docCode = `Archivo #${shortCode(opts.archivoId)}`;
   const header = buildLetterheadHeader({
@@ -136,7 +137,7 @@ function buildReportHtml(opts: {
     <div style="display:flex;padding:24px 28px 0;gap:24px;">
       <div style="flex:1;min-width:0;">
         ${sectionLabel("Imagen clínica")}
-        <div style="position:relative;border-radius:10px;overflow:hidden;background:#0f172a;min-height:320px;display:flex;align-items:center;justify-content:center;">
+        <div style="position:relative;border-radius:10px;overflow:hidden;background:#1A1A2E;min-height:320px;display:flex;align-items:center;justify-content:center;">
           <img src="${opts.imagenSrc}" style="max-width:100%;max-height:460px;object-fit:contain;" crossorigin="anonymous" />
           <span style="position:absolute;top:12px;right:12px;padding:3px 9px;border-radius:6px;background:rgba(15,23,42,0.75);color:#fff;font-size:10px;font-weight:700;">${esc(docCode)}</span>
         </div>
@@ -150,9 +151,9 @@ function buildReportHtml(opts: {
         ${row("Tipo", opts.tipoArchivo)}
         ${row("Fecha", opts.fechaSubida)}
         ${opts.doctorNombre ? `
-          <div style="margin-top:6px;padding-top:14px;border-top:1px solid #e2e8f0;">
-            <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Atendido por</div>
-            <div style="font-size:12.5px;color:#1e293b;font-weight:700;">Dr. ${esc(opts.doctorNombre)}</div>
+          <div style="margin-top:6px;padding-top:14px;border-top:1px solid #EDF0F4;">
+            <div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Atendido por</div>
+            <div style="font-size:12.5px;color:#212E3D;font-weight:700;">Dr. ${esc(opts.doctorNombre)}</div>
             ${opts.doctorEspecialidad ? `<div style="font-size:10.5px;color:#0e7490;font-weight:600;">${esc(opts.doctorEspecialidad)}</div>` : ""}
           </div>
         ` : ""}
@@ -162,7 +163,7 @@ function buildReportHtml(opts: {
     ${opts.descripcion ? `
       <div style="padding:20px 28px 0;">
         ${sectionLabel("Observaciones clínicas")}
-        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;font-size:12px;color:#334155;line-height:1.65;">${esc(opts.descripcion)}</div>
+        <div style="background:#F7F8FA;border-radius:10px;padding:14px 16px;font-size:12px;color:#2C3E50;line-height:1.65;">${esc(opts.descripcion)}</div>
       </div>
     ` : ""}
 
@@ -174,41 +175,6 @@ function buildReportHtml(opts: {
   `;
 
   return wrapDocument(`${header}${body}${buildLetterheadFooter({ clinica: opts.clinica, pacienteNombre: opts.pacienteNombre, docCode })}`, 900);
-}
-
-/** Overlay de "gira tu dispositivo" — solo mobile, mientras se edita (fullscreen)
- * en vertical. Fondo negro traslúcido (no opaco) + ícono de teléfono animado
- * rotando entre vertical/horizontal, enmarcado por dos flechas curvas. Se
- * puede descartar tocando la pantalla (por si el usuario no quiere girarla). */
-function RotateDevicePrompt({ onDismiss }: { onDismiss: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 z-110 flex flex-col items-center justify-center gap-6 bg-black/60"
-      onClick={onDismiss}
-    >
-      <div className="relative w-30 h-30 flex items-center justify-center">
-        <svg viewBox="0 0 120 120" className="absolute inset-0 w-full h-full" fill="none">
-          <path d="M 60 6 A 54 54 0 0 1 111 45" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
-          <polygon points="111,45 102,36 118,32" fill="white" opacity="0.85" />
-          <path d="M 60 114 A 54 54 0 0 1 9 75" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
-          <polygon points="9,75 18,84 2,88" fill="white" opacity="0.85" />
-        </svg>
-        <motion.div
-          className="w-11 h-19 rounded-[10px] border-[3px] border-white flex items-start justify-center pt-1.5"
-          animate={{ rotate: [0, 90, 90, 0] }}
-          transition={{ duration: 2.4, repeat: Infinity, times: [0, 0.45, 0.85, 1], ease: "easeInOut" }}
-        >
-          <span className="w-3 h-0.5 rounded-full bg-white/90" />
-        </motion.div>
-      </div>
-      <div className="flex flex-col items-center gap-1.5 px-10">
-        <p className="text-white text-[13px] font-semibold text-center leading-relaxed">
-          Gira tu dispositivo para editar la imagen
-        </p>
-        <p className="text-white/60 text-[11px] text-center">Toca la pantalla para continuar sin girar</p>
-      </div>
-    </div>
-  );
 }
 
 function ToolButton({ icon, label, active, onClick, disabled }: {
@@ -501,7 +467,7 @@ export function VisorModal({
 
   async function deleteAnnotation(id: string) {
     const ok = await confirm({
-      title: "¿Borrar anotación?",
+      title: "¿Borrar anotación? ",
       message: "Esta acción eliminará el elemento seleccionado de forma permanente.",
       confirmLabel: "Sí, borrar",
     });
@@ -861,7 +827,7 @@ export function VisorModal({
       link.click();
       document.body.removeChild(link);
     } catch (e) {
-      console.error("Error generando reporte:", e);
+      console.error("Error generando reporte: ", e);
     } finally {
       setExportingReport(null);
     }
@@ -882,7 +848,7 @@ export function VisorModal({
         onClose();
       }, "image/png");
     } catch (e) {
-      console.error("Error generating telegram report:", e);
+      console.error("Error generating telegram report: ", e);
     } finally {
       setExportingReport(null);
     }
@@ -894,7 +860,7 @@ export function VisorModal({
       const html = await buildReportHtmlForCurrent();
       await downloadHtmlAsPaginatedPdf(html, `archivo_${pacienteSlug}_${a.nombre_archivo.replace(/\.[^.]+$/, "")}_reporte.pdf`, 900);
     } catch (e) {
-      console.error("Error convirtiendo a PDF:", e);
+      console.error("Error convirtiendo a PDF: ", e);
     } finally {
       setExportingReport(null);
     }
@@ -965,8 +931,8 @@ export function VisorModal({
         layout
         className={
           fullscreen
-            ? "fixed inset-0 w-full h-full max-h-none rounded-none bg-white dark:bg-slate-800 overflow-hidden flex flex-col shadow-2xl"
-            : "fixed inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl lg:relative lg:max-h-[min(92vh,calc(100dvh-96px))] lg:max-w-280 lg:rounded-2xl bg-white dark:bg-slate-800 overflow-hidden flex flex-col lg:flex-row shadow-2xl"
+ ? "fixed inset-0 w-full h-full max-h-none rounded-none bg-white overflow-hidden flex flex-col shadow-2xl"
+ :"fixed inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl lg:relative lg:max-h-[min(92vh,calc(100dvh-96px))] lg:max-w-280 lg:rounded-2xl bg-white overflow-hidden flex flex-col lg:flex-row shadow-2xl"
         }
         style={{ paddingBottom: "env(safe-area-inset-bottom)", y: drag.y }}
         onClick={(e) => e.stopPropagation()}
@@ -992,7 +958,7 @@ export function VisorModal({
             se ve como una franja de color distinto — se mezcla con el modal. */}
         <div
           ref={viewportRef}
-          className={`relative flex ${isImage ? "bg-white dark:bg-slate-800" : "bg-stone-50 dark:bg-slate-900/50"} ${fullscreen ? "flex-1 min-h-0" : "min-h-45 h-[60vh] lg:h-auto lg:flex-1"} ${zoom > 1 ? "overflow-auto items-start justify-start" : "overflow-hidden items-center justify-center"}`}
+ className={`relative flex ${isImage ? "bg-white" : "bg-stone-50"} ${fullscreen ? "flex-1 min-h-0" : "min-h-45 h-[60vh] lg:h-auto lg:flex-1"} ${zoom > 1 ? "overflow-auto items-start justify-start" : "overflow-hidden items-center justify-center"}`}
           style={{
             cursor: mode === "pin" || mode === "text" ? "crosshair" : mode === "pan" ? "grab" : mode === "view" && isImage && !fullscreen ? "zoom-in" : "default",
           }}
@@ -1082,7 +1048,7 @@ export function VisorModal({
                           top: ann.y > 70 ? "auto" : 0,
                           bottom: ann.y > 70 ? 0 : "auto",
                           width: 200,
-                          border: "1px solid #e2e8f0",
+                          border: "1px solid #EDF0F4",
                         }}
                       >
                         <div className="flex justify-between items-start mb-1">
@@ -1131,7 +1097,7 @@ export function VisorModal({
                       top: pendingPin.y > 65 ? "auto" : 0,
                       bottom: pendingPin.y > 65 ? 0 : "auto",
                       width: 220,
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid #EDF0F4",
                     }}
                   >
                     <div className="flex items-center gap-1.5 mb-2">
@@ -1212,7 +1178,7 @@ export function VisorModal({
                   style={{ left: `${pendingText.x}%`, top: `${pendingText.y}%`, transform: "translate(-50%, -50%)", zIndex: 20 }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="bg-white rounded-xl shadow-2xl p-2 flex items-center gap-1.5" style={{ border: "1px solid #e2e8f0", minWidth: 200 }}>
+                  <div className="bg-white rounded-xl shadow-2xl p-2 flex items-center gap-1.5" style={{ border: "1px solid #EDF0F4", minWidth: 200 }}>
                     <input
                       autoFocus
                       value={textValue}
@@ -1243,7 +1209,7 @@ export function VisorModal({
               ) : (
                 <>
                   <Icon name="description" size={40} className="text-slate-400" />
-                  <p className="text-slate-600 dark:text-slate-300 font-medium text-[13px]">{a.nombre_archivo}</p>
+ <p className="text-slate-600 font-medium text-[13px]">{a.nombre_archivo}</p>
                 </>
               )}
             </div>
@@ -1268,7 +1234,7 @@ export function VisorModal({
             </button>
           )}
 
-          <span className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-slate-400 dark:text-white/50" style={{ zIndex: 5 }}>
+ <span className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-slate-400" style={{ zIndex: 5 }}>
             {idx + 1} / {todos.length}
           </span>
 
@@ -1352,54 +1318,54 @@ export function VisorModal({
 
         {/* CONTROLES */}
         {!fullscreen && (
-        <div className="w-full lg:w-85 lg:shrink-0 flex flex-col border-t border-slate-100 dark:border-slate-700 lg:border-t-0 lg:border-l overflow-hidden flex-1 lg:flex-none">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700 gap-2">
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 uppercase bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+ <div className="w-full lg:w-85 lg:shrink-0 flex flex-col border-t border-slate-100 lg:border-t-0 lg:border-l overflow-hidden flex-1 lg:flex-none">
+ <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 gap-2">
+ <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 uppercase bg-slate-100 text-slate-600">
               {a.tipo_archivo}
             </span>
-            <button onClick={onClose} className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700">
+ <button onClick={onClose} className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-50">
               <Icon name="close" size={15} />
             </button>
           </div>
 
           <div className="flex-1 overflow-y-auto no-scrollbar p-4 flex flex-col gap-4">
             <div>
-              <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100">Detalle del Archivo</p>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 break-all mt-0.5">{a.nombre_archivo}</p>
+ <p className="text-[13px] font-bold text-slate-900">Detalle del Archivo</p>
+ <p className="text-[11px] text-slate-400 break-all mt-0.5">{a.nombre_archivo}</p>
             </div>
 
             <div className="flex flex-col gap-3.5">
               {a.fecha_subida && (
                 <div>
-                  <p className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Fecha</p>
-                  <p className="text-[12.5px] text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Icon name="calendar_today" size={13} className="text-slate-400 dark:text-slate-500" /> {fmtFecha(a.fecha_subida)}
+ <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wide mb-1">Fecha</p>
+ <p className="text-[12.5px] text-slate-700 flex items-center gap-1.5">
+ <Icon name="calendar_today" size={13} className="text-slate-400"/> {fmtFecha(a.fecha_subida)}
                   </p>
                 </div>
               )}
               <div>
-                <p className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Categoría</p>
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 px-2.5 py-1 rounded-full">
+ <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wide mb-1">Categoría</p>
+ <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-cyan-700 bg-cyan-50 px-2.5 py-1 rounded-full">
                   <Icon name="category" size={12} /> {a.categoria}
                 </span>
               </div>
               {a.descripcion && (
                 <div>
-                  <p className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Descripción</p>
-                  <p className="text-[12px] text-slate-600 dark:text-slate-300 leading-relaxed">{a.descripcion}</p>
+ <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wide mb-1">Descripción</p>
+ <p className="text-[12px] text-slate-600 leading-relaxed">{a.descripcion}</p>
                 </div>
               )}
               {a.personal && (
                 <div>
-                  <p className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1.5">Subido por</p>
-                  <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700">
-                    <div className="w-8 h-8 rounded-full bg-cyan-50 dark:bg-cyan-900/30 border-2 border-cyan-200 dark:border-cyan-800 flex items-center justify-center shrink-0">
-                      <span className="text-[10.5px] font-bold text-cyan-700 dark:text-cyan-400">{getInitials(a.personal.nombre, a.personal.apellido)}</span>
+ <p className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Subido por</p>
+ <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50 border border-slate-100">
+ <div className="w-8 h-8 rounded-full bg-cyan-50 border-2 border-cyan-200 flex items-center justify-center shrink-0">
+ <span className="text-[10.5px] font-bold text-cyan-700">{getInitials(a.personal.nombre, a.personal.apellido)}</span>
                     </div>
                     <div className="min-w-0 leading-tight">
-                      <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-100 truncate">Dr. {a.personal.nombre} {a.personal.apellido}</p>
+ <p className="text-[12px] font-semibold text-slate-800 truncate">Dr. {a.personal.nombre} {a.personal.apellido}</p>
                       {a.personal.especialidad?.especialidad && (
-                        <p className="text-[10.5px] text-slate-400 dark:text-slate-500 truncate">{a.personal.especialidad.especialidad}</p>
+ <p className="text-[10.5px] text-slate-400 truncate">{a.personal.especialidad.especialidad}</p>
                       )}
                     </div>
                   </div>
@@ -1409,7 +1375,7 @@ export function VisorModal({
 
             {pines.length > 0 && (
               <div>
-                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+ <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
                   Pines ({pines.length})
                 </p>
                 <div className="flex flex-col gap-1.5">
@@ -1418,7 +1384,7 @@ export function VisorModal({
                     return (
                       <div
                         key={ann.id}
-                        className="flex items-start gap-2 p-2.5 rounded-xl border transition-colors cursor-pointer dark:bg-slate-900/50"
+ className="flex items-start gap-2 p-2.5 rounded-xl border transition-colors cursor-pointer"
                         style={{ borderColor: isHov ? "#7dd3fc" : undefined, background: isHov ? "#0891b21a" : undefined }}
                         onMouseEnter={() => setHoveredAnn(ann.id)}
                         onMouseLeave={() => setHoveredAnn(null)}
@@ -1430,10 +1396,10 @@ export function VisorModal({
                           {i + 1}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-snug">{ann.nota}</p>
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{ann.fecha}</p>
+ <p className="text-[11px] text-slate-700 leading-snug">{ann.nota}</p>
+ <p className="text-[9px] text-slate-400 mt-0.5">{ann.fecha}</p>
                         </div>
-                        <button onClick={() => deleteAnnotation(ann.id)} className="text-red-400 dark:text-red-500 hover:text-red-600 dark:hover:text-red-400 opacity-50 hover:opacity-100">
+ <button onClick={() => deleteAnnotation(ann.id)} className="text-red-400 hover:text-red-600 opacity-50 hover:opacity-100">
                           <Icon name="delete" size={13} />
                         </button>
                       </div>
@@ -1445,14 +1411,14 @@ export function VisorModal({
 
             {textos.length > 0 && (
               <div>
-                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+ <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
                   Textos ({textos.length})
                 </p>
                 <div className="flex flex-col gap-1">
                   {textos.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between gap-2 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-700">
-                      <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate">{t.texto}</span>
-                      <button onClick={() => deleteAnnotation(t.id)} className="text-red-400 dark:text-red-500 hover:text-red-600 dark:hover:text-red-400 shrink-0">
+ <div key={t.id} className="flex items-center justify-between gap-2 p-2 bg-slate-50 rounded-lg border border-slate-100">
+ <span className="text-[11px] text-slate-600 truncate">{t.texto}</span>
+ <button onClick={() => deleteAnnotation(t.id)} className="text-red-400 hover:text-red-600 shrink-0">
                         <Icon name="delete" size={13} />
                       </button>
                     </div>
@@ -1463,14 +1429,14 @@ export function VisorModal({
 
             {arrows.length > 0 && (
               <div>
-                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+ <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
                   Flechas ({arrows.length})
                 </p>
                 <div className="flex flex-col gap-1">
                   {arrows.map((ar, i) => (
-                    <div key={ar.id} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-700">
-                      <span className="text-[11px] text-slate-600 dark:text-slate-300">Flecha #{i + 1}</span>
-                      <button onClick={() => deleteAnnotation(ar.id)} className="text-red-400 dark:text-red-500 hover:text-red-600 dark:hover:text-red-400">
+ <div key={ar.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100">
+ <span className="text-[11px] text-slate-600">Flecha #{i + 1}</span>
+ <button onClick={() => deleteAnnotation(ar.id)} className="text-red-400 hover:text-red-600">
                         <Icon name="delete" size={13} />
                       </button>
                     </div>
@@ -1481,14 +1447,14 @@ export function VisorModal({
 
             {draws.length > 0 && (
               <div>
-                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+ <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
                   Trazos de Dibujo ({draws.length})
                 </p>
                 <div className="flex flex-col gap-1">
                   {draws.map((d, i) => (
-                    <div key={d.id} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-700">
-                      <span className="text-[11px] text-slate-600 dark:text-slate-300">Trazo #{i + 1}</span>
-                      <button onClick={() => deleteAnnotation(d.id)} className="text-red-400 dark:text-red-500 hover:text-red-600 dark:hover:text-red-400">
+ <div key={d.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100">
+ <span className="text-[11px] text-slate-600">Trazo #{i + 1}</span>
+ <button onClick={() => deleteAnnotation(d.id)} className="text-red-400 hover:text-red-600">
                         <Icon name="delete" size={13} />
                       </button>
                     </div>
@@ -1498,7 +1464,7 @@ export function VisorModal({
             )}
           </div>
 
-          <div className="p-4 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-2.5">
+ <div className="p-4 border-t border-slate-100 flex flex-col gap-2.5">
             {isImage ? (
               <>
                 <div className="grid grid-cols-2 gap-2">
@@ -1508,19 +1474,19 @@ export function VisorModal({
                     {exportingReport === "png" ? "Generando…" : "PNG"}
                   </button>
                   <button onClick={handleSendTelegram} disabled={exportingReport !== null}
-                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors w-full">
+                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[color:var(--telegram-blue)] hover:bg-[color:var(--telegram-blue-hover)] disabled:opacity-50 text-white text-[12.5px] font-semibold transition-colors w-full">
                     <Icon name="send" size={15} />
                     {exportingReport === "telegram" ? "Preparando…" : "Telegram"}
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={handleDownloadPdf} disabled={exportingReport !== null}
-                    className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl border border-cyan-600 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 disabled:opacity-50 text-[12px] font-semibold transition-colors">
+ className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl border border-cyan-600 text-cyan-700 hover:bg-cyan-50 disabled:opacity-50 text-[12px] font-semibold transition-colors">
                     <Icon name="description" size={14} />
                     {exportingReport === "pdf" ? "Generando…" : "PDF"}
                   </button>
                   <button onClick={handlePrint} disabled={exportingReport !== null}
-                    className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 text-[12px] font-semibold transition-colors">
+ className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 text-[12px] font-semibold transition-colors">
                     <Icon name="print" size={14} />
                     {exportingReport === "print" ? "Preparando…" : "Imprimir"}
                   </button>
@@ -1532,7 +1498,7 @@ export function VisorModal({
                   <Icon name="download" size={14} />
                   Descargar
                 </button>
-                <button onClick={handlePrint} className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-[12px] font-semibold transition-colors">
+ <button onClick={handlePrint} className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-[12px] font-semibold transition-colors">
                   <Icon name="print" size={14} />
                   Imprimir
                 </button>
@@ -1543,7 +1509,7 @@ export function VisorModal({
         )}
       </motion.div>
 
-      {showRotatePrompt && <RotateDevicePrompt onDismiss={() => setRotateDismissed(true)} />}
+      {showRotatePrompt && <RotateDevicePrompt onDismiss={() => setRotateDismissed(true)} message="Gira tu dispositivo para editar la imagen" />}
     </div>,
     document.body
   );

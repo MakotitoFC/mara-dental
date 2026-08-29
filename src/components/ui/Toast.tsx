@@ -105,7 +105,7 @@ function ToastCard({ toast, onClose }: { toast: ToastItem; onClose: () => void }
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 60, transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } }}
       transition={{ duration: 0.3, ease: [0, 0, 0.2, 1] }}
-      className="pointer-events-auto flex items-start gap-3 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-3.5 pr-3"
+ className="pointer-events-auto flex items-start gap-3 bg-white rounded-xl shadow-lg border border-slate-200 p-3.5 pr-3"
       style={{ borderLeftWidth: 3, borderLeftColor: cfg.accent }}
       role="alert"
     >
@@ -116,13 +116,13 @@ function ToastCard({ toast, onClose }: { toast: ToastItem; onClose: () => void }
         <Icon name={cfg.icon} size={17} />
       </div>
       <div className="flex-1 min-w-0 pt-0.5">
-        {toast.title && <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 leading-snug">{toast.title}</p>}
-        <p className="text-[12.5px] text-slate-600 dark:text-slate-300 leading-snug">{toast.message}</p>
+ {toast.title && <p className="text-[13px] font-bold text-slate-900 leading-snug">{toast.title}</p>}
+ <p className="text-[12.5px] text-slate-600 leading-snug">{toast.message}</p>
       </div>
       <button
         onClick={onClose}
         aria-label="Cerrar notificación"
-        className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0"
+ className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
       >
         <Icon name="close" size={13} />
       </button>

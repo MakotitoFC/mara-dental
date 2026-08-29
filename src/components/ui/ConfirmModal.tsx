@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "./Icon";
 
 export interface ConfirmOptions {
-  /** Por defecto "¿Estás seguro?" */
+  /** Por defecto "¿Estás seguro? " */
   title?: string;
   /** Mensaje explicativo de las consecuencias de la acción. */
   message: string;
@@ -67,36 +67,36 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 8 }}
               transition={{ duration: 0.18 }}
-              className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-5 max-w-sm w-full border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center"
+ className="bg-white rounded-2xl shadow-2xl p-5 max-w-sm w-full border border-slate-100 flex flex-col items-center text-center"
               onClick={(e) => e.stopPropagation()}
             >
               <div
                 className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
                   danger
-                    ? "bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400"
-                    : "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400"
+ ? "bg-red-50 text-red-500"
+ :"bg-cyan-50 text-cyan-600"
                 }`}
               >
                 <Icon name={danger ? "warning" : "help"} size={24} />
               </div>
-              <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 mb-1">
-                {pending.title ?? "¿Estás seguro?"}
+ <h3 className="text-[16px] font-bold text-slate-800 mb-1">
+                {pending.title ?? "¿Estás seguro? "}
               </h3>
-              <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+ <p className="text-[13px] text-slate-500 mb-4 leading-relaxed">
                 {pending.message}
               </p>
 
               {requireText && (
                 <div className="w-full mb-4 text-left">
-                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                    Escribe <span className="font-bold text-slate-700 dark:text-slate-200">{requireText}</span> para confirmar
+ <label className="block text-[11px] font-semibold text-slate-500 mb-1.5">
+ Escribe <span className="font-bold text-slate-700">{requireText}</span> para confirmar
                   </label>
                   <input
                     autoFocus
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && canConfirm) close(true); }}
-                    className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-900/40"
+ className="w-full border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
                     placeholder={requireText}
                   />
                 </div>
@@ -105,7 +105,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               <div className="grid grid-cols-2 gap-2 w-full">
                 <button
                   onClick={() => close(false)}
-                  className="py-2.5 rounded-xl text-[12px] font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+ className="py-2.5 rounded-xl text-[12px] font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
                 >
                   {pending.cancelLabel ?? "Cancelar"}
                 </button>
@@ -113,7 +113,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                   onClick={() => close(true)}
                   disabled={!canConfirm}
                   className={`flex items-center justify-center gap-1 py-2.5 px-1 rounded-xl text-[12px] font-semibold text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap ${
-                    danger ? "bg-red-500 hover:bg-red-600" : "bg-cyan-600 hover:bg-cyan-700"
+                    danger ? "bg-red-600 hover:bg-red-700" : "bg-cyan-600 hover:bg-cyan-700"
                   }`}
                 >
                   {danger && <Icon name="delete" size={13} />}

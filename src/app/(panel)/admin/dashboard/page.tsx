@@ -58,7 +58,7 @@ export default async function AdminDashboardPage({
   return (
     <>
       <Header title="Dashboard Directivo" />
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+ <div className="min-h-screen bg-slate-50">
         <DashboardCharts
           data={data}
           options={options}

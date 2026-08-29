@@ -1,22 +1,23 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { Cita } from "@/types/agenda";
+import type { Cita, EstadoCita } from "@/types/agenda";
 import { staggerContainer, staggerItem } from "@/lib/animations";
+import { estadoCitaVars, ESTADO_CITA_LABEL } from "@/lib/colors";
 import { DAY_SHORT, MONTHS_L, getMonthGrid, toDateStr } from "./agendaUtils";
 
-// Escala de intensidad — una sola familia de color (cyan) a distinta
-// opacidad, en vez del punto de color por tipo de consulta que usa
-// YearView.tsx. No hay datos de festivos en la BD, así que a diferencia del
-// mockup de referencia no se resaltan feriados.
-const NIVELES = ["transparent", "#0891b226", "#0891b255", "#0891b28c", "#0891b2"];
+// Prioridad cuando un día tiene citas en más de un estado: Cancelada primero
+// (necesita atención), luego Hecho, y por último Programada. Mismos colores
+// que ya usa el resto del calendario (estadoCitaVars, en DayView/WeekView/
+// AppointmentDetailSheet) — no se inventan colores nuevos acá.
+const ESTADO_PRIORIDAD: EstadoCita[] = ["cancelada", "hecho", "programada"];
 
-function nivelPorConteo(count: number): string {
-  if (count === 0) return NIVELES[0];
-  if (count <= 2) return NIVELES[1];
-  if (count <= 4) return NIVELES[2];
-  if (count <= 6) return NIVELES[3];
-  return NIVELES[4];
+function estadoDominante(citasDelDia: Cita[]): EstadoCita | null {
+  if (citasDelDia.length === 0) return null;
+  for (const estado of ESTADO_PRIORIDAD) {
+    if (citasDelDia.some((c) => c.estado === estado)) return estado;
+  }
+  return null;
 }
 
 export function YearHeatmapView({
@@ -30,9 +31,11 @@ export function YearHeatmapView({
 }) {
   const todayStr = toDateStr(today);
 
-  const countByDay = new Map<string, number>();
+  const citasByDay = new Map<string, Cita[]>();
   for (const c of citas) {
-    countByDay.set(c.fecha, (countByDay.get(c.fecha) ?? 0) + 1);
+    const list = citasByDay.get(c.fecha);
+    if (list) list.push(c);
+    else citasByDay.set(c.fecha, [c]);
   }
 
   return (
@@ -42,15 +45,14 @@ export function YearHeatmapView({
       animate="visible"
       className="h-full overflow-y-auto no-scrollbar p-3 md:p-5 flex flex-col gap-3"
     >
-      {/* Leyenda de intensidad */}
-      <div className="flex items-center gap-2 self-start bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-3 py-1.5">
-        <span className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500">Baja</span>
-        <div className="flex items-center gap-0.5">
-          {NIVELES.map((n, i) => (
-            <span key={i} className="w-3.5 h-3.5 rounded-sm border border-slate-100 dark:border-slate-700" style={{ background: n }} />
-          ))}
-        </div>
-        <span className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500">Alta</span>
+      {/* Leyenda por estado — mismos colores que Día/Semana/Cronograma */}
+ <div className="flex items-center gap-3 self-start bg-white border border-slate-200 rounded-full px-3 py-1.5">
+        {ESTADO_PRIORIDAD.map((estado) => (
+          <span key={estado} className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: estadoCitaVars(estado).solid }} />
+ <span className="text-[10.5px] font-semibold text-slate-500">{ESTADO_CITA_LABEL[estado]}</span>
+          </span>
+        ))}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
@@ -66,17 +68,17 @@ export function YearHeatmapView({
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onMonthClick(month); }}
-              className={`text-left bg-white dark:bg-slate-800 rounded-xl border p-3 cursor-pointer hover:border-cyan-300 dark:hover:border-cyan-700 hover:shadow-sm transition-all ${
-                isCurrentMonth ? "border-cyan-400 dark:border-cyan-600 ring-1 ring-cyan-100 dark:ring-cyan-900/40" : "border-slate-200 dark:border-slate-700"
+ className={`text-left bg-white rounded-xl border p-3 cursor-pointer hover:border-cyan-300 hover:shadow-sm transition-all ${
+ isCurrentMonth ? "border-cyan-400 ring-1 ring-cyan-100" : "border-slate-200"
               }`}
             >
-              <p className={`text-[12.5px] font-bold mb-2 capitalize ${isCurrentMonth ? "text-cyan-700 dark:text-cyan-400" : "text-slate-800 dark:text-slate-100"}`}>
+ <p className={`text-[12.5px] font-bold mb-2 capitalize ${isCurrentMonth ? "text-cyan-700" : "text-slate-800"}`}>
                 {monthLabel}
               </p>
 
               <div className="grid grid-cols-7 gap-y-0.5">
                 {DAY_SHORT.map((d) => (
-                  <span key={d} className="text-[8px] font-medium text-slate-300 dark:text-slate-600 text-center">
+ <span key={d} className="text-[8px] font-medium text-slate-300 text-center">
                     {d[0]}
                   </span>
                 ))}
@@ -84,22 +86,36 @@ export function YearHeatmapView({
                   const ds = toDateStr(day);
                   const inMonth = day.getMonth() === month;
                   const isToday = ds === todayStr;
-                  const count = countByDay.get(ds) ?? 0;
+                  const citasDelDia = inMonth ? citasByDay.get(ds) ?? [] : [];
+                  const estado = estadoDominante(citasDelDia);
+                  const vars = estado ? estadoCitaVars(estado) : null;
+
+                  const tooltip = citasDelDia.length === 0
+                    ? undefined
+                    : ESTADO_PRIORIDAD
+                        .map((e) => {
+                          const n = citasDelDia.filter((c) => c.estado === e).length;
+                          return n > 0 ? `${n} ${ESTADO_CITA_LABEL[e].toLowerCase()}${n !== 1 ? "s" : ""}` : null;
+                        })
+                        .filter(Boolean)
+                        .join(" · ");
 
                   return (
                     <button
                       key={i}
                       onClick={(e) => { e.stopPropagation(); if (inMonth) onDayClick(day); }}
                       disabled={!inMonth}
-                      title={inMonth && count > 0 ? `${count} cita${count !== 1 ? "s" : ""}` : undefined}
-                      className={`relative flex items-center justify-center aspect-square rounded-[3px] text-[9px] leading-none transition-colors ${
+                      title={tooltip}
+                      className={`relative flex items-center justify-center aspect-square rounded-[3px] text-[9px] leading-none border-0 shadow-none transition-colors ${
                         !inMonth
                           ? "text-transparent cursor-default"
                           : isToday
                           ? "bg-cyan-600 text-white font-bold rounded-full"
-                          : "text-slate-600 dark:text-slate-300 hover:ring-1 hover:ring-cyan-300 dark:hover:ring-cyan-700"
+                          : vars
+                          ? "font-semibold"
+ :"text-slate-600 hover:ring-1 hover:ring-cyan-300"
                       }`}
-                      style={inMonth && !isToday ? { background: nivelPorConteo(count) } : undefined}
+                      style={inMonth && !isToday && vars ? { background: vars.bg, color: vars.text } : undefined}
                     >
                       {inMonth ? day.getDate() : ""}
                     </button>

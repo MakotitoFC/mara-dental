@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { SmartPopover } from "@/components/ui/SmartPopover";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { TimePicker } from "@/components/ui/TimePicker";
 import { Select } from "@/components/ui/Select";
@@ -182,15 +183,15 @@ export function CitaFormSheet({
       footer={
         <div className="flex flex-col gap-2">
           {error && (
-            <div className="rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900 px-3 py-2 flex flex-col gap-2">
-              <p className="text-[11.5px] text-red-600 dark:text-red-400 font-medium flex items-start gap-1.5">
+ <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2 flex flex-col gap-2">
+ <p className="text-[11.5px] text-red-600 font-medium flex items-start gap-1.5">
                 <Icon name="warning" size={13} className="shrink-0 mt-0.5" /> {error}
               </p>
               {needsConfirm && (
                 <button
                   onClick={() => handleSave(true)}
                   disabled={saving}
-                  className="self-end bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 text-red-700 dark:text-red-400 px-3 py-1.5 rounded-md text-[11.5px] font-semibold transition-colors"
+ className="self-end bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-md text-[11.5px] font-semibold transition-colors"
                 >
                   Confirmar excepción
                 </button>
@@ -201,7 +202,7 @@ export function CitaFormSheet({
             <button
               onClick={onClose}
               disabled={saving}
-              className="flex-1 h-11 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+ className="flex-1 h-11 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
             >
               Cancelar
             </button>
@@ -219,14 +220,14 @@ export function CitaFormSheet({
     >
       <div className="flex flex-col gap-4 pt-1 pb-2">
         {!isEdit && state.doctorNombre && (
-          <div className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 px-3 py-2">
-            <Icon name="stethoscope" size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
-            <span className="text-[12px] text-slate-500 dark:text-slate-400">Cita para <span className="font-semibold text-slate-700 dark:text-slate-300">Dr. {state.doctorNombre}</span></span>
+ <div className="flex items-center gap-2 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">
+ <Icon name="stethoscope" size={14} className="text-slate-400 shrink-0"/>
+ <span className="text-[12px] text-slate-500">Cita para <span className="font-semibold text-slate-700">Dr. {state.doctorNombre}</span></span>
           </div>
         )}
         {necesitaElegirDoctor && (
           <div className="flex flex-col gap-2">
-            <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Médico</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Médico</label>
             <Select
               value={selectedDoctorId}
               onChange={setSelectedDoctorId}
@@ -237,45 +238,66 @@ export function CitaFormSheet({
         )}
         {/* Paciente */}
         {isEdit ? (
-          <div className="flex items-center gap-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-3 py-2.5">
-            <Icon name="person" size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
-            <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300 truncate">{state.cita.paciente_nombre}</span>
+ <div className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+ <Icon name="person" size={16} className="text-slate-400 shrink-0"/>
+ <span className="text-[13px] font-medium text-slate-700 truncate">{state.cita.paciente_nombre}</span>
           </div>
         ) : (
           <div className="relative">
             {selectedPatient ? (
-              <div className="flex items-center justify-between border border-cyan-400 dark:border-cyan-600 bg-cyan-50 dark:bg-cyan-900/30 rounded-lg px-3 py-2.5">
-                <span className="text-[13px] font-semibold text-cyan-900 dark:text-cyan-300 truncate">{selectedPatient.nombre} {selectedPatient.apellido}</span>
-                <button onClick={() => { setSelectedPatient(null); setQuery(""); }} className="text-cyan-500 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 shrink-0">
+ <div className="flex items-center justify-between border border-cyan-400 bg-cyan-50 rounded-lg px-3 py-2.5">
+ <span className="text-[13px] font-semibold text-cyan-900 truncate">{selectedPatient.nombre} {selectedPatient.apellido}</span>
+ <button onClick={() => { setSelectedPatient(null); setQuery(""); }} className="text-cyan-500 hover:text-cyan-700 shrink-0">
                   <Icon name="close" size={14} />
                 </button>
               </div>
             ) : (
               <>
-                <div className="flex gap-2 mb-2">
-                  <div className="relative flex-1">
-                    <input
-                      ref={inputRef}
-                      value={query}
-                      onChange={e => setQuery(e.target.value)}
-                      placeholder="Buscar por nombre o DNI…"
-                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-lg px-3 py-2.5 text-[13px] pr-8 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
-                    />
-                    <Icon name="search" size={15} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                <SmartPopover
+                  open={patients.length > 0}
+                  onClose={() => setPatients([])}
+                  placement="bottom-start"
+                  matchWidth
+                  renderTrigger={(ref) => (
+                    <div ref={ref} className="flex gap-2 mb-2">
+                      <div className="relative flex-1">
+                        <input
+                          ref={inputRef}
+                          value={query}
+                          onChange={e => setQuery(e.target.value)}
+                          placeholder="Buscar por nombre o DNI…"
+ className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-[13px] pr-8 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                        />
+ <Icon name="search" size={15} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"/>
+                      </div>
+                      <button
+                        onClick={() => setShowNewPatientForm(true)}
+ className="flex items-center gap-1.5 px-3 rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 text-[12px] font-semibold hover:bg-cyan-100 transition-colors shrink-0"
+                      >
+                        <Icon name="person_add" size={15} /> Nuevo
+                      </button>
+                    </div>
+                  )}
+                >
+ <div className="bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto no-scrollbar">
+                    {patients.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => { setSelectedPatient(p); setPatients([]); setQuery(""); }}
+ className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                      >
+ <p className="text-[12.5px] font-medium text-slate-800">{p.nombre} {p.apellido}</p>
+ {p.dni && <p className="text-[10.5px] text-slate-400">DNI: {p.dni}</p>}
+                      </button>
+                    ))}
                   </div>
-                  <button
-                    onClick={() => setShowNewPatientForm(true)}
-                    className="flex items-center gap-1.5 px-3 rounded-lg border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400 text-[12px] font-semibold hover:bg-cyan-100 dark:hover:bg-cyan-800/50 transition-colors shrink-0"
-                  >
-                    <Icon name="person_add" size={15} /> Nuevo
-                  </button>
-                </div>
-                
+                </SmartPopover>
+
                 {showNewPatientForm && (
-                  <div className="mb-4 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+ <div className="mb-4 p-3 rounded-xl border border-slate-200 bg-slate-50">
                     <div className="flex items-center justify-between mb-3">
-                      <p className="text-[12.5px] font-bold text-slate-800 dark:text-slate-200">Creación rápida de paciente</p>
-                      <button onClick={() => setShowNewPatientForm(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+ <p className="text-[12.5px] font-bold text-slate-800">Creación rápida de paciente</p>
+ <button onClick={() => setShowNewPatientForm(false)} className="text-slate-400 hover:text-slate-600">
                         <Icon name="close" size={16} />
                       </button>
                     </div>
@@ -285,13 +307,13 @@ export function CitaFormSheet({
                           placeholder="Nombre(s) *"
                           value={newPatientData.nombre}
                           onChange={e => setNewPatientData({...newPatientData, nombre: e.target.value})}
-                          className="flex-1 w-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
+ className="flex-1 w-0 border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
                         />
                         <input
                           placeholder="Apellidos *"
                           value={newPatientData.apellido}
                           onChange={e => setNewPatientData({...newPatientData, apellido: e.target.value})}
-                          className="flex-1 w-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
+ className="flex-1 w-0 border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
                         />
                       </div>
                       <div className="flex gap-2">
@@ -300,13 +322,13 @@ export function CitaFormSheet({
                           maxLength={15}
                           value={newPatientData.dni}
                           onChange={e => setNewPatientData({...newPatientData, dni: e.target.value})}
-                          className="flex-1 w-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
+ className="flex-1 w-0 border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
                         />
                         <input
                           placeholder="Teléfono *"
                           value={newPatientData.telefono}
                           onChange={e => setNewPatientData({...newPatientData, telefono: e.target.value})}
-                          className="flex-1 w-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
+ className="flex-1 w-0 border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
                         />
                       </div>
                       <div className="flex items-center gap-2">
@@ -328,42 +350,28 @@ export function CitaFormSheet({
                     </form>
                   </div>
                 )}
-                {patients.length > 0 && (
-                  <div className="absolute z-10 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg mt-1 shadow-lg max-h-40 overflow-y-auto no-scrollbar">
-                    {patients.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => { setSelectedPatient(p); setPatients([]); setQuery(""); }}
-                        className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700 last:border-0"
-                      >
-                        <p className="text-[12.5px] font-medium text-slate-800 dark:text-slate-100">{p.nombre} {p.apellido}</p>
-                        {p.dni && <p className="text-[10.5px] text-slate-400 dark:text-slate-500">DNI: {p.dni}</p>}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </>
             )}
           </div>
         )}
 
         {mostrarContextoClinico && selectedPatient && (cargandoContexto || contexto) && (
-          <div className="flex items-start gap-2.5 rounded-lg bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-100 dark:border-cyan-800 px-3 py-2.5">
-            <Icon name="history_edu" size={15} className="text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5" />
+ <div className="flex items-start gap-2.5 rounded-lg bg-cyan-50 border border-cyan-100 px-3 py-2.5">
+ <Icon name="history_edu" size={15} className="text-cyan-600 shrink-0 mt-0.5"/>
             <div className="min-w-0">
-              <p className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wide">
+ <p className="text-[10px] font-bold text-cyan-600 uppercase tracking-wide">
                 Contexto clínico
               </p>
               {cargandoContexto ? (
-                <p className="text-[12px] text-cyan-700 dark:text-cyan-400">Buscando tratamiento activo…</p>
+ <p className="text-[12px] text-cyan-700">Buscando tratamiento activo…</p>
               ) : (
                 <>
-                  <p className="text-[12px] text-cyan-900 dark:text-cyan-200 leading-snug">
+ <p className="text-[12px] text-cyan-900 leading-snug">
                     {contexto!.tipo === "fase" ? "Próxima fase: " : contexto!.tipo === "tratamiento" ? "Tratamiento en curso: " : "Diagnóstico activo: "}
                     <span className="font-semibold">{contexto!.texto}</span>
                   </p>
                   {contextoAplicado && (
-                    <p className="text-[10.5px] text-cyan-600 dark:text-cyan-500 mt-0.5">Se agregó a las notas — puedes editarlo.</p>
+ <p className="text-[10.5px] text-cyan-600 mt-0.5">Se agregó a las notas — puedes editarlo.</p>
                   )}
                 </>
               )}
@@ -373,7 +381,7 @@ export function CitaFormSheet({
 
         {/* Fecha / hora inicio (la hora de fin se calcula automáticamente) */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Fecha y hora</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Fecha y hora</label>
           <div className="flex gap-2 flex-wrap">
             <DatePicker value={fecha} onChange={setFecha} className="flex-1 min-w-[160px]" />
             <TimePicker
@@ -385,7 +393,7 @@ export function CitaFormSheet({
             />
           </div>
           {fecha && horaInicio && (
-            <p className="flex items-center gap-1.5 text-[11.5px] text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 rounded-lg px-2.5 py-1.5">
+ <p className="flex items-center gap-1.5 text-[11.5px] text-cyan-700 bg-cyan-50 rounded-lg px-2.5 py-1.5">
               <Icon name="event_available" size={13} className="shrink-0" />
               {fmtFechaLarga(fecha)} · {fmtHora12(horaInicio)} – {fmtHora12(horaFin)}
             </p>
@@ -394,7 +402,7 @@ export function CitaFormSheet({
 
         {/* Tipo de consulta */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Tipo de consulta</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Tipo de consulta</label>
           <div className="flex gap-2 flex-wrap">
             {tipos.map(t => {
               const v = getVars(t.id);
@@ -417,7 +425,7 @@ export function CitaFormSheet({
 
         {/* Estado */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Estado</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Estado</label>
           <div className="flex gap-2 flex-wrap">
             {estadoOptions.map(e => {
               const v = estadoCitaVars(e);
@@ -439,13 +447,13 @@ export function CitaFormSheet({
 
         {/* Notas */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Notas internas</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Notas internas</label>
           <textarea
             rows={3}
             value={notas}
             onChange={e => setNotas(e.target.value)}
             placeholder="Observaciones previas al tratamiento…"
-            className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-lg px-3 py-2.5 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
+ className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 resize-none"
           />
         </div>
       </div>

@@ -1,20 +1,38 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, cloneElement, isValidElement } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { FilterTag } from "@/components/ui/FilterTag";
+import { SmartPopover } from "@/components/ui/SmartPopover";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { RotateDevicePrompt } from "@/components/ui/RotateDevicePrompt";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, ComposedChart, AreaChart, Area, Cell
 } from "recharts";
 
-const COLORS = ["#0891b2", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#3b82f6", "#ec4899", "#14b8a6", "#f97316"];
+const COLORS = ["#0A8EA0", "#0D7377", "#5D6D7E", "#1D95A0", "#073D42", "#F39C12"];
 const POS_COLOR = "#10b981";
 const NEG_COLOR = "#ef4444";
+
+function renderLegend({ payload }: any) {
+  return (
+    <div className="flex items-center justify-center flex-wrap gap-4 pt-2.5">
+      {payload.map((entry: any, index: number) => (
+        <div key={`legend-${index}`} className="flex items-center gap-1.5">
+          <span className="inline-block rounded-[3px]" style={{ width: 12, height: 12, backgroundColor: entry.color }} />
+          <span style={{ color: "#64748b", fontSize: 12 }}>{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -22,6 +40,149 @@ const MESES = [
 ];
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 6 }, (_, i) => CURRENT_YEAR - i);
+
+/** Panel flotante compartido — sin trigger propio, así lo reutilizan tanto
+    el botón maestro de filtro como "+ Filtro" (mismo contenido completo) y
+    cada tag individual (solo su propio campo). `relative` para poder anclar
+    la "X" de cierre manual (ver TagDropdown) en la esquina superior derecha. */
+function FilterPanel({ children, onClose }: { children: React.ReactNode; onClose?: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15 }}
+ className="relative min-w-[240px] max-w-[280px] bg-white border border-slate-200 rounded-lg shadow-lg p-3 flex flex-col gap-3"
+    >
+      {onClose && (
+        <button
+          onClick={onClose}
+          aria-label="Cerrar"
+ className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+        >
+          <Icon name="close" size={16} />
+        </button>
+      )}
+      {children}
+    </motion.div>
+  );
+}
+
+type TagKey = "periodo" | "agrupacion" | "financieros";
+
+const TAG_META: Record<TagKey, { label: string; icon: string }> = {
+  periodo: { label: "Período", icon: "calendar_month" },
+  agrupacion: { label: "Agrupar", icon: "analytics" },
+  financieros: { label: "Financieros", icon: "payments" },
+};
+
+/** Paso 1 del flujo (mismo patrón que FiltroPickerButton del Calendario):
+    lista simple de las 3 categorías, SIN sus selects internos — elegir una
+    solo la agrega/quita de `activeKeys` (aparece/desaparece su tag). Los
+    campos reales (Mes/Año/Moneda/etc.) viven en el dropdown propio de cada
+    tag (ver TagDropdown más abajo), no acá. variant "icon": botón maestro
+    (fila de presets). variant "chip": "+ Filtro" al final de la fila de tags. */
+function FilterCategoryPicker({
+  variant, activeKeys, onToggle,
+}: {
+  variant: "icon" | "chip";
+  activeKeys: Set<TagKey>;
+  onToggle: (k: TagKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const KEYS: TagKey[] = ["periodo", "agrupacion", "financieros"];
+
+  return (
+    <SmartPopover
+      open={open}
+      onClose={() => setOpen(false)}
+      placement="bottom-start"
+      renderTrigger={(ref) =>
+        variant === "icon" ? (
+          <button
+            ref={ref}
+            onClick={() => setOpen((o) => !o)}
+            title="Filtros"
+            aria-label="Filtros"
+            className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors shrink-0 ${
+              open || activeKeys.size > 0 ? "bg-cyan-50 text-cyan-600" : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+            }`}
+          >
+            <Icon name="filter_lines" size={17} />
+          </button>
+        ) : (
+          <button
+            ref={ref}
+            onClick={() => setOpen((o) => !o)}
+            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full text-xs font-medium bg-cyan-500/5 text-cyan-600 border border-cyan-500/40 hover:bg-cyan-500/10 transition-colors shrink-0"
+          >
+            <Icon name="add" size={14} className="shrink-0" />
+            Filtro
+          </button>
+        )
+      }
+    >
+      <motion.div
+        initial={{ opacity: 0, y: -4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.15 }}
+ className="min-w-[180px] bg-white border border-slate-200 rounded-lg shadow-lg py-1.5"
+      >
+        {KEYS.map((k) => {
+          const active = activeKeys.has(k);
+          return (
+            <button
+              key={k}
+              onMouseDown={() => { onToggle(k); setOpen(false); }}
+ className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] hover:bg-slate-50 ${active ? "text-cyan-700 font-semibold" : "text-slate-600"}`}
+            >
+ <Icon name={TAG_META[k].icon} size={15} className={active ? "text-cyan-600" : "text-slate-400"} />
+              <span className="flex-1">{TAG_META[k].label}</span>
+ {active && <Icon name="check" size={14} className="text-cyan-600"/>}
+            </button>
+          );
+        })}
+      </motion.div>
+    </SmartPopover>
+  );
+}
+
+/** Tag de filtro activo CON dropdown propio: clic en el tag (o su chevron)
+    reabre un panel para cambiar solo esa selección, sin borrar el tag; su
+    "X" (siempre visible aparte, afuera del tag) lo elimina del todo. Mismo
+    patrón dual que TipoFiltroSelector/DoctorFiltroSelector del Calendario
+    (FilterTag como trigger de un SmartPopover propio).
+
+    Regla general: cierra solo al hacer click/tap AFUERA (vía SmartPopover
+    → useClickOutside), sin botón de cierre dentro del panel. EXCEPCIÓN:
+    "Período" y "Financieros" son selects compuestos (varios campos
+    encadenados dentro del mismo panel) — ahí NO se cierra con click afuera,
+    para no cortar al usuario a mitad de una selección de varios pasos;
+    en su lugar llevan una "X" propia dentro del panel (`manualClose`). */
+function TagDropdown({
+  icon, label, onRemove, children, manualClose = false,
+}: {
+  icon: string;
+  label: string;
+  onRemove: () => void;
+  children: React.ReactNode;
+  manualClose?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <SmartPopover
+      open={open}
+      onClose={manualClose ? undefined : () => setOpen(false)}
+      placement="bottom-start"
+      renderTrigger={(ref) => (
+        <FilterTag ref={ref as any} onClick={() => setOpen((o) => !o)} onRemove={onRemove} icon={icon} label={label} />
+      )}
+    >
+      <FilterPanel onClose={manualClose ? () => setOpen(false) : undefined}>
+        {children}
+      </FilterPanel>
+    </SmartPopover>
+  );
+}
 
 interface DashboardChartsProps {
   data: any;
@@ -64,9 +225,25 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
   }, [data.tasaMedicos]);
 
   const [dateInput, setDateInput] = useState(currentFecha);
-  const [subFiltrosOpen, setSubFiltrosOpen] = useState(false);
+  // Tags de "filtros activos": SOLO aparecen cuando el usuario los agrega a
+  // mano desde el picker de 2 pasos (botón maestro o "+ Filtro" → elige
+  // categoría → aparece el tag); no reflejan el valor "de fábrica" con el
+  // que abre el dashboard, así la fila de tags puede estar vacía al entrar.
+  const [activeTags, setActiveTags] = useState<Set<TagKey>>(new Set());
+  const toggleTag = (key: TagKey) => {
+    setActiveTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+  const removeTag = (key: TagKey) => {
+    setActiveTags((prev) => { const next = new Set(prev); next.delete(key); return next; });
+    if (key === "periodo") updateParams({ filtro: "todos", fecha: null });
+    else if (key === "agrupacion") updateParams({ agrupacion: "dia" });
+    else if (key === "financieros") updateParams({ monedaId: null, medioPagoId: null });
+  };
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [activeZoomedKey, setActiveZoomedKey] = useState<string | null>(null);
   const [selectedKpis, setSelectedKpis] = useState({
     finanzas: true,
     ticket: true,
@@ -79,32 +256,128 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
     topTratamientos: true,
   });
 
-  useEffect(() => {
-    try {
-      if (activeZoomedKey) {
-        if (typeof screen !== "undefined" && screen.orientation && (screen.orientation as any).lock) {
-          const res = (screen.orientation as any).lock("landscape");
-          if (res && typeof res.catch === "function") {
-            res.catch(() => {});
-          }
-        }
-      } else {
-        if (typeof screen !== "undefined" && screen.orientation && (screen.orientation as any).unlock) {
-          (screen.orientation as any).unlock();
-        }
-      }
-    } catch {
-      // Ignorar si la API de orientación no es soportada en este entorno
-    }
-  }, [activeZoomedKey]);
 
   const handleApplyDate = (filtro: string, fecha: string) => {
     let agrup = currentAgrupacion;
     if (filtro === 'dia') agrup = 'dia';
-    if (filtro === 'mes' && agrup === 'anio') agrup = 'dia'; 
-    if (filtro === 'anio' && agrup === 'anio') agrup = 'mes'; 
+    if (filtro === 'mes' && agrup === 'anio') agrup = 'dia';
+    if (filtro === 'anio' && agrup === 'anio') agrup = 'mes';
     updateParams({ filtro, fecha, agrupacion: agrup });
   };
+
+  // Campos reales de cada categoría — SOLO viven dentro del dropdown propio
+  // de cada tag (paso 2 del flujo). El picker de paso 1 (FilterCategoryPicker)
+  // no los muestra, solo la lista de 3 nombres de categoría.
+  function renderPeriodoFields() {
+    return (
+      <>
+        <div className="flex flex-col gap-1">
+ <label className="text-[11px] font-semibold text-slate-500">Tipo de filtro</label>
+          <Select
+            value={currentFiltro}
+            onChange={(f) => handleApplyDate(f, dateInput)}
+            options={[
+              { value: "dia", label: "Por Día Específico" },
+              { value: "mes", label: "Por Mes Específico" },
+              { value: "anio", label: "Por Año Específico" },
+              { value: "todos", label: "Histórico (Sin límite)" },
+            ]}
+          />
+        </div>
+        {currentFiltro === "dia" && (
+          <div className="flex flex-col gap-1">
+ <label className="text-[11px] font-semibold text-slate-500">Fecha</label>
+            <DatePicker
+              value={dateInput}
+              onChange={(v) => { setDateInput(v); handleApplyDate('dia', v); }}
+            />
+          </div>
+        )}
+        {currentFiltro === "mes" && (
+          <>
+            <div className="flex flex-col gap-1">
+ <label className="text-[11px] font-semibold text-slate-500">Mes</label>
+              <Select
+                value={String(Number(dateInput.slice(5, 7)) || 1)}
+                onChange={(v) => {
+                  const y = dateInput.slice(0, 4) || String(CURRENT_YEAR);
+                  const full = `${y}-${v.padStart(2, "0")}-01`;
+                  setDateInput(full);
+                  handleApplyDate('mes', full);
+                }}
+                options={MESES.map((m, i) => ({ value: String(i + 1), label: m }))}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+ <label className="text-[11px] font-semibold text-slate-500">Año</label>
+              <Select
+                value={dateInput.slice(0, 4) || String(CURRENT_YEAR)}
+                onChange={(v) => {
+                  const m = dateInput.slice(5, 7) || "01";
+                  const full = `${v}-${m}-01`;
+                  setDateInput(full);
+                  handleApplyDate('mes', full);
+                }}
+                options={YEARS.map((y) => ({ value: String(y), label: String(y) }))}
+              />
+            </div>
+          </>
+        )}
+        {currentFiltro === "anio" && (
+          <div className="flex flex-col gap-1">
+ <label className="text-[11px] font-semibold text-slate-500">Año</label>
+            <Select
+              value={dateInput.slice(0, 4) || String(CURRENT_YEAR)}
+              onChange={(v) => { const full = `${v}-01-01`; setDateInput(full); handleApplyDate('anio', full); }}
+              options={YEARS.map((y) => ({ value: String(y), label: String(y) }))}
+            />
+          </div>
+        )}
+      </>
+    );
+  }
+
+  function renderAgrupacionField() {
+    return (
+      <div className="flex flex-col gap-1">
+ <label className="text-[11px] font-semibold text-slate-500">Agrupar por</label>
+        <Select
+          value={currentAgrupacion}
+          onChange={(v) => updateParams({ agrupacion: v })}
+          options={[
+            { value: "dia", label: "Día", icon: "today" },
+            { value: "mes", label: "Mes", icon: "calendar_month" },
+          ]}
+        />
+      </div>
+    );
+  }
+
+  function renderFinancierosFields() {
+    return (
+      <>
+        <div className="flex flex-col gap-1">
+ <label className="text-[11px] font-semibold text-slate-500">Moneda</label>
+          <Select
+            value={String(currentMoneda)}
+            onChange={(v) => updateParams({ monedaId: v })}
+            options={options.monedas.map((m: any) => ({ value: String(m.id), label: m.moneda }))}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+ <label className="text-[11px] font-semibold text-slate-500">Medio de Pago</label>
+          <Select
+            value={currentMedioPago}
+            onChange={(v) => updateParams({ medioPagoId: v === "all" ? null : v })}
+            options={[
+              { value: "all", label: "Todos los medios" },
+              ...options.mediosPago.map((m: any) => ({ value: String(m.id), label: m.nombre })),
+            ]}
+          />
+        </div>
+      </>
+    );
+  }
 
   const KPI_META: Record<string, { label: string; icon: string }> = {
     finanzas: { label: "Finanzas", icon: "account_balance" },
@@ -170,252 +443,116 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
           <header> fijo (bg-white, solo border-b, sin rounded ni sombra),
           fuera del área que scrollea. Solo el navbar superior global
           (Header.tsx) es sticky — este encabezado no lo es. */}
-      <header className="shrink-0 flex flex-col gap-3 sm:gap-4 lg:gap-5 bg-white dark:bg-slate-900 px-4 sm:px-6 py-4 sm:py-6 border-b border-slate-200 dark:border-slate-800 print:hidden">
+ <header className="shrink-0 flex flex-col gap-3 sm:gap-4 lg:gap-5 bg-white px-4 sm:px-6 py-4 sm:py-6 border-b border-slate-200 print:hidden">
         {/* Top Header Row — título+botón siempre en la misma línea (incluso
             en tablet/mobile); el selector de sede (superadmin) va en su
             propia fila debajo cuando aplica, para no forzar el salto de
             línea del botón principal. */}
-        <div className="flex flex-col gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+ <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
           <div className="flex items-center justify-between gap-3">
             {/* En mobile solo el título — ícono y descripción se ocultan
                 (hidden sm:flex / hidden sm:block) para que el encabezado no
                 ocupe tanto alto, igual que en las capturas. */}
             <div className="flex items-center gap-3 min-w-0">
-              <div className="hidden sm:flex w-10 h-10 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 items-center justify-center text-cyan-600 dark:text-cyan-400 shrink-0">
-                <Icon name="space_dashboard" size={24} />
-              </div>
               <div className="min-w-0">
-                <h1 className="text-[15px] md:text-base font-bold text-slate-800 dark:text-slate-100">Dashboard Directivo</h1>
-                <p className="hidden sm:block text-[13px] md:text-sm text-slate-500 dark:text-slate-400 mt-0.5">Análisis de rendimiento, finanzas y operaciones.</p>
+ <h1 className="text-[15px] md:text-base font-bold text-slate-800">Dashboard Directivo</h1>
+ <p className="hidden sm:block text-[13px] md:text-sm text-slate-500 mt-0.5">Análisis de rendimiento, finanzas y operaciones.</p>
               </div>
             </div>
 
-            <button onClick={() => setIsPrintModalOpen(true)} className="flex items-center justify-center gap-1.5 bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-medium transition-colors text-[13px] md:text-sm shadow-sm shrink-0">
+            <button onClick={() => setIsPrintModalOpen(true)} className="flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors shrink-0">
               <Icon name="print" size={16} className="sm:hidden" />
               <Icon name="print" size={18} className="hidden sm:inline" />
-              <span className="sm:hidden">Reporte</span>
-              <span className="hidden sm:inline">Generar Reporte</span>
+              <span>Reporte</span>
             </button>
           </div>
 
         </div>
 
-        {/* Filter Controls Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 items-start">
-          {/* Bloque 1: Rango de Tiempo & Presets (7 cols) */}
-          <div className="lg:col-span-7 flex flex-col gap-2 sm:gap-3 bg-slate-50 dark:bg-slate-800/50 p-2.5 sm:p-3 lg:p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] md:text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                <Icon name="calendar_month" size={16} className="text-cyan-600" />
-                Período de Análisis
-              </span>
-              <span className="text-[11px] md:text-xs text-slate-400 font-medium">Selecciona un preset o personaliza</span>
-            </div>
+        {/* Presets rápidos de período + botón maestro de filtro, en la MISMA
+            fila: en tablet/desktop el filtro va pegado justo después de los
+            presets (a la izquierda, no al extremo opuesto); en mobile sí se
+            separa al extremo derecho (justify-between). Sin cambios
+            funcionales en los presets. */}
+        <div className="flex items-center justify-between sm:justify-start gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              { id: "hoy", label: "Hoy", filtro: "dia", agrupacion: "dia" },
+              { id: "mes_actual", label: "Este Mes", filtro: "mes", agrupacion: "dia" },
+              { id: "anio_actual", label: "Este Año", filtro: "anio", agrupacion: "mes" },
+              { id: "todos", label: "Histórico (Todo)", filtro: "todos", agrupacion: "mes" },
+            ].map((p) => {
+              const todayStr = new Date().toISOString().split("T")[0];
+              const isSelected = currentFiltro === p.filtro && currentFecha === todayStr;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    setDateInput(todayStr);
+                    updateParams({ filtro: p.filtro, fecha: todayStr, agrupacion: p.agrupacion });
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] md:text-xs font-semibold transition-all ${
+                    isSelected
+                      ? "bg-cyan-600 text-white shadow-sm"
+ :"bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
 
-            {/* Presets Rápidos + botón de filtro (tablet/mobile) en la misma
-                fila — antes el ícono de filtro quedaba suelto debajo, en su
-                propia línea, desperdiciando espacio vertical. */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {[
-                  { id: "hoy", label: "Hoy", filtro: "dia", agrupacion: "dia" },
-                  { id: "mes_actual", label: "Este Mes", filtro: "mes", agrupacion: "dia" },
-                  { id: "anio_actual", label: "Este Año", filtro: "anio", agrupacion: "mes" },
-                  { id: "todos", label: "Histórico (Todo)", filtro: "todos", agrupacion: "mes" },
-                ].map((p) => {
-                  const todayStr = new Date().toISOString().split("T")[0];
-                  const isSelected = currentFiltro === p.filtro && currentFecha === todayStr;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => {
-                        setDateInput(todayStr);
-                        updateParams({ filtro: p.filtro, fecha: todayStr, agrupacion: p.agrupacion });
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] md:text-xs font-semibold transition-all ${
-                        isSelected
-                          ? "bg-cyan-600 text-white shadow-sm"
-                          : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
+          {/* Botón maestro — paso 1: SOLO lista Período/Agrupar/Financieros,
+              sin sus selects internos. Elegir una categoría la agrega como
+              tag; los campos reales viven en el dropdown propio de cada tag. */}
+          <FilterCategoryPicker variant="icon" activeKeys={activeTags} onToggle={toggleTag} />
+        </div>
 
-              {/* Mismo botón cuadrado de ícono que en la vista de Personal
-                  (no un botón de texto completo) para tablet/mobile. */}
-              <button
-                type="button"
-                onClick={() => setSubFiltrosOpen((o) => !o)}
-                className={`lg:hidden relative shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-lg border flex items-center justify-center transition-colors ${
-                  subFiltrosOpen ? "bg-cyan-50 border-cyan-300 text-cyan-600" : "border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700"
-                }`}
-                title="Filtro, Fecha y Agrupación"
+        {/* Filtros activos — paso 2: cada tag es interactivo, clic en él (o
+            su chevron) abre SU dropdown con los campos reales de esa
+            categoría; su X lo elimina del todo. "+ Filtro" al final reabre
+            el mismo picker de paso 1 (para agregar o quitar categorías). Sin
+            "Limpiar todo". Si no hay ningún tag, la fila entera no se
+            renderiza (el botón maestro de arriba sigue siendo la vía para
+            agregar filtros). */}
+        {activeTags.size > 0 && (
+ <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-slate-100">
+            {activeTags.has("periodo") && (
+              <TagDropdown
+                icon="calendar_month"
+                label={`Período: ${currentFiltro === "dia" ? `Día (${dateInput})` : currentFiltro === "mes" ? `Mes (${MESES[Number(dateInput.slice(5, 7)) - 1] || ""} ${dateInput.slice(0, 4)})` : currentFiltro === "anio" ? `Año (${dateInput.slice(0, 4)})` : "Histórico Completo"}`}
+                onRemove={() => removeTag("periodo")}
+                manualClose
               >
-                <Icon name="filter_lines" size={18} />
-              </button>
-            </div>
-
-            {/* Sub-controles Personalizados — grilla de 3 controles (Filtro,
-                Fecha, Agrupar por) que nunca deja al selector de Filtro solo
-                en su fila. Desktop (lg+): los 3 en una fila (Filtro con más
-                ancho, 2fr), siempre visibles. Tablet y mobile: colapsan
-                detrás del ícono de filtro de arriba. */}
-            <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/60">
-              <div className={`grid-cols-1 lg:grid-cols-[1.3fr_1fr_1.1fr] gap-2 ${subFiltrosOpen ? "grid mt-2" : "hidden"} lg:grid lg:mt-0`}>
-                <div className="flex items-center gap-2 min-w-[170px]">
-                  <span className="text-[11px] md:text-xs text-slate-400 font-medium shrink-0">Filtro:</span>
-                  <Select
-                    value={currentFiltro}
-                    onChange={(f) => handleApplyDate(f, dateInput)}
-                    options={[
-                      { value: "dia", label: "Por Día Específico" },
-                      { value: "mes", label: "Por Mes Específico" },
-                      { value: "anio", label: "Por Año Específico" },
-                      { value: "todos", label: "Histórico (Sin límite)" },
-                    ]}
-                    className="flex-1 min-w-0"
-                  />
-                </div>
-
-                {/* Selector individual según la granularidad elegida en
-                    "Filtro" — el diseño de calendario combinado (día+mes+año
-                    en un solo widget) solo tiene sentido para "Día
-                    Específico"; para "Mes"/"Año" son selects simples e
-                    independientes (Mes+Año, o solo Año). Este contenedor
-                    siempre ocupa la 2da columna del grid (aunque quede
-                    vacío en "Histórico") para que "Agrupar por" no se
-                    desplace de la 3ra columna. */}
-                <div className="min-w-[140px]">
-                  {currentFiltro === 'dia' && (
-                    <DatePicker
-                      value={dateInput}
-                      onChange={(v) => { setDateInput(v); handleApplyDate('dia', v); }}
-                    />
-                  )}
-                  {currentFiltro === 'mes' && (
-                    <div className="flex items-center gap-1.5">
-                      <Select
-                        value={String(Number(dateInput.slice(5, 7)) || 1)}
-                        onChange={(v) => {
-                          const y = dateInput.slice(0, 4) || String(CURRENT_YEAR);
-                          const full = `${y}-${v.padStart(2, "0")}-01`;
-                          setDateInput(full);
-                          handleApplyDate('mes', full);
-                        }}
-                        options={MESES.map((m, i) => ({ value: String(i + 1), label: m }))}
-                        className="flex-[1.4] min-w-0"
-                      />
-                      <Select
-                        value={dateInput.slice(0, 4) || String(CURRENT_YEAR)}
-                        onChange={(v) => {
-                          const m = dateInput.slice(5, 7) || "01";
-                          const full = `${v}-${m}-01`;
-                          setDateInput(full);
-                          handleApplyDate('mes', full);
-                        }}
-                        options={YEARS.map((y) => ({ value: String(y), label: String(y) }))}
-                        className="flex-1 min-w-0"
-                      />
-                    </div>
-                  )}
-                  {currentFiltro === 'anio' && (
-                    <Select
-                      value={dateInput.slice(0, 4) || String(CURRENT_YEAR)}
-                      onChange={(v) => { const full = `${v}-01-01`; setDateInput(full); handleApplyDate('anio', full); }}
-                      options={YEARS.map((y) => ({ value: String(y), label: String(y) }))}
-                    />
-                  )}
-                </div>
-
-                {/* Granularidad / Agrupar Por — mismo componente Select que
-                    usamos en todo el sistema, con íconos alusivos a
-                    Día/Mes/Año en cada opción. Las combinaciones no válidas
-                    para el Filtro actual (ej. agrupar por Día en un rango
-                    Histórico) simplemente no aparecen en la lista. Este
-                    bloque siempre vive en la 3ra columna del grid — fijo,
-                    no se desplaza aunque el selector de fecha cambie. */}
-                <div className="flex items-center gap-2 min-w-[150px]">
-                  <span className="text-[11px] md:text-xs text-slate-400 font-medium shrink-0">Agrupar por:</span>
-                  <Select
-                    value={currentAgrupacion}
-                    onChange={(v) => updateParams({ agrupacion: v })}
-                    options={[
-                      { value: "dia", label: "Día", icon: "today", allowed: currentFiltro !== "anio" && currentFiltro !== "todos" },
-                      { value: "mes", label: "Mes", icon: "calendar_month", allowed: currentFiltro !== "dia" },
-                      { value: "anio", label: "Año", icon: "calendar_range", allowed: currentFiltro !== "dia" && currentFiltro !== "mes" },
-                    ].filter((g) => g.allowed)}
-                    className="flex-1 min-w-0"
-                  />
-                </div>
-              </div>
-            </div>
+                {renderPeriodoFields()}
+              </TagDropdown>
+            )}
+            {activeTags.has("agrupacion") && (
+              <TagDropdown
+                icon="analytics"
+                label={`Agrupación: ${currentAgrupacion === "dia" ? "Por Día" : currentAgrupacion === "mes" ? "Por Mes" : "Por Año"}`}
+                onRemove={() => removeTag("agrupacion")}
+              >
+                {renderAgrupacionField()}
+              </TagDropdown>
+            )}
+            {activeTags.has("financieros") && (
+              <TagDropdown
+                icon="payments"
+                label={`Financieros: ${options.monedas.find((m: any) => m.id === currentMoneda)?.moneda || "PEN"}${currentMedioPago !== "all" ? ` · ${options.mediosPago.find((m: any) => String(m.id) === String(currentMedioPago))?.nombre || "Todos"}` : ""}`}
+                onRemove={() => removeTag("financieros")}
+                manualClose
+              >
+                {renderFinancierosFields()}
+              </TagDropdown>
+            )}
+            <FilterCategoryPicker variant="chip" activeKeys={activeTags} onToggle={toggleTag} />
           </div>
-
-          {/* Bloque 2: Filtros Financieros (5 cols) */}
-          <div className="lg:col-span-5 flex flex-col gap-2 sm:gap-3 bg-slate-50 dark:bg-slate-800/50 p-2.5 sm:p-3 lg:p-3.5 rounded-xl border border-slate-200 dark:border-slate-700/60">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] md:text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                <Icon name="payments" size={16} className="text-amber-500" />
-                Filtros Financieros
-              </span>
-              <span className="text-[10px] md:text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
-                Afecta: Finanzas, Egresos, Ticket Promedio
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] md:text-xs font-medium text-slate-400">Moneda</label>
-                <Select
-                  value={String(currentMoneda)}
-                  onChange={(v) => updateParams({ monedaId: v })}
-                  options={options.monedas.map((m: any) => ({ value: String(m.id), label: m.moneda }))}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] md:text-xs font-medium text-slate-400">Medio de Pago</label>
-                <Select
-                  value={currentMedioPago}
-                  onChange={(v) => updateParams({ medioPagoId: v === "all" ? null : v })}
-                  options={[
-                    { value: "all", label: "Todos los medios" },
-                    ...options.mediosPago.map((m: any) => ({ value: String(m.id), label: m.nombre })),
-                  ]}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Resumen de Filtros Activos (Chips Bar) */}
-        <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-slate-100 dark:border-slate-800 text-[10px] md:text-[11px]">
-          <span className="font-bold text-slate-400 mr-1 flex items-center gap-1">
-            <Icon name="filter_alt" size={14} /> Filtros Activos:
-          </span>
-          <span className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-full font-semibold border border-slate-200 dark:border-slate-700">
-            <Icon name="calendar_month" size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
-            Período: {currentFiltro === "dia" ? `Día (${dateInput})` : currentFiltro === "mes" ? `Mes (${MESES[Number(dateInput.slice(5, 7)) - 1] || ""} ${dateInput.slice(0, 4)})` : currentFiltro === "anio" ? `Año (${dateInput.slice(0, 4)})` : "Histórico Completo"}
-          </span>
-          <span className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-full font-semibold border border-slate-200 dark:border-slate-700">
-            <Icon name="analytics" size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
-            Agrupación: {currentAgrupacion === "dia" ? "Por Día" : currentAgrupacion === "mes" ? "Por Mes" : "Por Año"}
-          </span>
-          <span className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-full font-semibold border border-slate-200 dark:border-slate-700">
-            <Icon name="price_check" size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
-            Moneda: {options.monedas.find((m: any) => m.id === currentMoneda)?.moneda || "PEN"}
-          </span>
-          <span className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-full font-semibold border border-slate-200 dark:border-slate-700">
-            <Icon name="payments" size={12} className="text-slate-400 dark:text-slate-500 shrink-0" />
-            Medio de Pago: {currentMedioPago === "all" ? "Todos los medios" : options.mediosPago.find((m: any) => String(m.id) === String(currentMedioPago))?.nombre || "Todos"}
-          </span>
-        </div>
+        )}
       </header>
 
-      <main className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4 sm:p-6 pb-10 print:p-0 print:overflow-visible">
+      <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar p-4 sm:p-6 pb-10 print:p-0 print:overflow-visible">
 
       {/* HEADER DE IMPRESIÓN (PÁGINA 1 DEL PDF) — mismo lenguaje de membrete
           que Receta/Presupuesto/Archivo Clínico/Historia Clínica
@@ -522,14 +659,14 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         
         {/* 4. Finanzas */}
         <div className={`print-page-chart ${!selectedKpis.finanzas ? 'print:hidden' : ''}`}>
-          <ChartCard title="Balance Financiero (Ingresos/Egresos/Ganancias)" icon="account_balance" onExpand={() => setActiveZoomedKey("finanzas")}>
+          <ChartCard title="Balance Financiero (Ingresos/Egresos/Ganancias)" icon="account_balance">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.finanzas}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${v/1000}k`} />
-                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
+                <Legend content={renderLegend} />
                 <Bar dataKey="ingresos" name="Ingresos" fill="#3b82f6" radius={[4,4,0,0]} barSize={15} />
                 <Bar dataKey="egresos" name="Egresos" fill="#ef4444" radius={[4,4,0,0]} barSize={15} />
                 <Bar dataKey="ganancias" name="Ganancias" fill="#10b981" radius={[4,4,0,0]} barSize={15} />
@@ -540,16 +677,16 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
         {/* 8. Ticket promedio */}
         <div className={`print-page-chart ${!selectedKpis.ticket ? 'print:hidden' : ''}`}>
-          <ChartCard title="Ticket Promedio y Volumen de Ingresos" icon="point_of_sale" onExpand={() => setActiveZoomedKey("ticket")}>
+          <ChartCard title="Ticket Promedio y Volumen de Ingresos" icon="point_of_sale">
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart data={data.ticketPromedio}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${v/1000}k`} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                <Bar yAxisId="left" dataKey="ingreso_total" name="Ingreso Total" fill="#8b5cf6" radius={[4,4,0,0]} barSize={30} />
+                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
+                <Legend content={renderLegend} />
+                <Bar yAxisId="left" dataKey="ingreso_total" name="Ingreso Total" fill="#0A8EA0" radius={[4,4,0,0]} barSize={30} />
                 <Line yAxisId="right" type="monotone" dataKey="ticket_promedio" name="Ticket Promedio" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
               </ComposedChart>
             </ResponsiveContainer>
@@ -558,15 +695,15 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
         {/* 7. Tasa de conversión */}
         <div className={`print-page-chart ${!selectedKpis.conversion ? 'print:hidden' : ''}`}>
-          <ChartCard title="Conversión de Presupuestos (% Aprobación)" icon="price_check" onExpand={() => setActiveZoomedKey("conversion")}>
+          <ChartCard title="Conversión de Presupuestos (% Aprobación)" icon="price_check">
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart data={data.tasaAprobacion}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v*100).toFixed(0)}%`} />
-                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} />
+                <Legend content={renderLegend} />
                 <Bar yAxisId="left" dataKey="total_presupuestos" name="Total Emitidos" fill="#94a3b8" radius={[4,4,0,0]} barSize={20} />
                 <Bar yAxisId="left" dataKey="total_aprobados" name="Aprobados" fill="#3b82f6" radius={[4,4,0,0]} barSize={20} />
                 <Line yAxisId="right" type="monotone" dataKey="tasa_aprobacion" name="% Aprobación" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
@@ -577,14 +714,14 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
         {/* 5. Gastos por categoría */}
         <div className={`print-page-chart ${!selectedKpis.egresos ? 'print:hidden' : ''}`}>
-          <ChartCard title="Distribución de Egresos por Categoría" icon="receipt_long" onExpand={() => setActiveZoomedKey("egresos")}>
+          <ChartCard title="Distribución de Egresos por Categoría" icon="receipt_long">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.egresos} layout="vertical" margin={{ left: 50, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="categoria" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
-                <Bar dataKey="total_gastado" name="Gastado" fill="#f97316" radius={[0,4,4,0]} barSize={20}>
+                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
+                <Bar dataKey="total_gastado" name="Gastado" fill="#5D6D7E" radius={[0,4,4,0]} barSize={20}>
                    {data.egresos.map((e:any, i:number) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
                 </Bar>
               </BarChart>
@@ -594,7 +731,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
         {/* 3. Pacientes nuevos */}
         <div className={`print-page-chart ${!selectedKpis.nuevos ? 'print:hidden' : ''}`}>
-          <ChartCard title="Captación de Pacientes (Nuevos por periodo)" icon="group_add" onExpand={() => setActiveZoomedKey("nuevos")}>
+          <ChartCard title="Captación de Pacientes (Nuevos por periodo)" icon="group_add">
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={data.pacientesNuevos}>
                 <defs>
@@ -606,7 +743,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ stroke: "#e2e8f0", strokeWidth: 2 }} contentStyle={{ borderRadius: "8px" }} />
+                <Tooltip cursor={{ stroke: "#e2e8f0", strokeWidth: 2 }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} />
                 <Area type="monotone" dataKey="cantidad_nuevos" name="Nuevos Pacientes" stroke="#0891b2" strokeWidth={3} fillOpacity={1} fill="url(#colorNuevos)" />
               </AreaChart>
             </ResponsiveContainer>
@@ -615,14 +752,14 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
         {/* 2. Tasas de sede */}
         <div className={`print-page-chart ${!selectedKpis.tasasSede ? 'print:hidden' : ''}`}>
-          <ChartCard title="Evolución de Tasas de Atención de la Sede" icon="timeline" onExpand={() => setActiveZoomedKey("tasasSede")}>
+          <ChartCard title="Evolución de Tasas de Atención de la Sede" icon="timeline">
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={data.tasaSede}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v*100).toFixed(0)}%`} />
-                <Tooltip cursor={{ stroke: "#e2e8f0", strokeWidth: 2 }} contentStyle={{ borderRadius: "8px" }} formatter={(val: any) => typeof val === "number" ? `${(val*100).toFixed(0)}%` : String(val)} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                <Tooltip cursor={{ stroke: "#e2e8f0", strokeWidth: 2 }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => typeof val === "number" ? `${(val*100).toFixed(0)}%` : String(val)} />
+                <Legend content={renderLegend} />
                 <Line type="monotone" dataKey="tasa_hecho" name="Hecho" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 <Line type="monotone" dataKey="tasa_programada" name="Programada" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 <Line type="monotone" dataKey="tasa_cancelada" name="Cancelada" stroke="#ef4444" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
@@ -633,14 +770,14 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
         {/* 1. Tasas medicos */}
         <div className={`print-page-chart ${!selectedKpis.rankingMedicos ? 'print:hidden' : ''}`}>
-          <ChartCard title="Ranking de Atención por Médico" icon="how_to_reg" onExpand={() => setActiveZoomedKey("rankingMedicos")}>
-            <ResponsiveContainer width="100%" height={300}>
+          <ChartCard title="Ranking de Atención por Médico" icon="how_to_reg">
+            <ResponsiveContainer width="100%" height={380}>
               <BarChart data={chartTasaMedicos} layout="vertical" margin={{ left: 40, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} formatter={(val: any) => typeof val === "number" ? `${val.toFixed(0)}%` : String(val)} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => typeof val === "number" ? `${val.toFixed(0)}%` : String(val)} />
+                <Legend content={renderLegend} />
                 <Bar dataKey="Hecho" stackId="a" fill="#10b981" barSize={20} radius={[0,0,0,0]} />
                 <Bar dataKey="Programada" stackId="a" fill="#f59e0b" />
                 <Bar dataKey="Cancelada" stackId="a" fill="#ef4444" radius={[0,4,4,0]} />
@@ -651,8 +788,8 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
         {/* 9. Ocupación médico */}
         <div className={`print-page-chart ${!selectedKpis.ocupacion ? 'print:hidden' : ''}`}>
-          <ChartCard title="Ocupación por Médico" icon="event_available" onExpand={() => setActiveZoomedKey("ocupacion")}>
-            <ResponsiveContainer width="100%" height={340}>
+          <ChartCard title="Ocupación por Médico" icon="event_available">
+            <ResponsiveContainer width="100%" height={380}>
               <BarChart data={data.ocupacion} margin={{ bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis
@@ -662,12 +799,12 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
                   tickLine={false}
                   angle={-35}
                   textAnchor="end"
-                  height={75}
+                  height={110}
                 />
                 <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }} />
-                <Bar dataKey="horas_reservadas" name="Hrs. Reservadas" stackId="a" fill="#14b8a6" radius={[0,0,0,0]} barSize={30} />
+                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} />
+                <Legend content={renderLegend} />
+                <Bar dataKey="horas_reservadas" name="Hrs. Reservadas" stackId="a" fill="#0D7377" radius={[0,0,0,0]} barSize={30} />
                 <Bar dataKey="horas_capacidad" name="Hrs. Libres" stackId="a" fill="#e2e8f0" radius={[4,4,0,0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -676,13 +813,13 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
         {/* 6. Top 5 Tratamientos */}
         <div className={`print-page-chart lg:col-span-2 ${!selectedKpis.topTratamientos ? 'print:hidden' : ''}`}>
-          <ChartCard title="Top 5 Tratamientos (Más y Menos Frecuentes)" icon="medical_services" onExpand={() => setActiveZoomedKey("topTratamientos")}>
+          <ChartCard title="Top 5 Tratamientos (Más y Menos Frecuentes)" icon="medical_services">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.tratamientos} layout="vertical" margin={{ left: 50, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="nombre_tratamiento" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} width={150} />
-                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} />
+                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} />
                 <Bar dataKey="cantidad" name="Cantidad" radius={[0,4,4,0]} barSize={20}>
                   {data.tratamientos.map((entry: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.clasificacion === "Más Frecuentes" ? POS_COLOR : NEG_COLOR} />
@@ -695,211 +832,8 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
       </div>
       </main>
-
-      {/* MODAL FULLSCREEN DE ZOOM DE GRÁFICO */}
-      {activeZoomedKey && (
-        <div 
-          className="fixed inset-0 z-[150] bg-slate-950/90 backdrop-blur-md p-3 sm:p-6 flex flex-col justify-between animate-in fade-in duration-200 print:hidden"
-          onClick={() => setActiveZoomedKey(null)}
-        >
-          <div className="w-full flex flex-col h-full max-w-[1600px] mx-auto" onClick={e => e.stopPropagation()}>
-            {/* Top Bar Modal — tipografía alineada a la escala del sistema
-                (antes text-xl era un tamaño aislado, sin relación al resto
-                de la UI). El banner "Modo Ampliado" (pensado para sugerir
-                rotar el celular) se quitó de acá: no aplica en tablet/desktop
-                y quedaba confuso — el hint de rotación real vive abajo,
-                solo en mobile. */}
-            <div className="flex items-center justify-between gap-3 bg-slate-900/90 p-4 rounded-xl border border-slate-800 mb-3 shadow-lg">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2 bg-cyan-500/20 text-cyan-400 rounded-lg shrink-0">
-                  <Icon name="space_dashboard" size={24} />
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-[15px] md:text-base font-bold text-white truncate">
-                    {getChartTitle(activeZoomedKey)}
-                  </h2>
-                  <p className="text-[13px] md:text-sm text-slate-400 hidden sm:block">Vista en pantalla completa — Haz clic en X para cerrar</p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setActiveZoomedKey(null)}
-                className="shrink-0 p-2.5 bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white rounded-xl transition-all shadow-md flex items-center justify-center gap-2 font-semibold text-[13px] md:text-sm"
-                title="Cerrar vista ampliada"
-              >
-                <Icon name="close" size={22} />
-                <span className="hidden sm:inline">Cerrar</span>
-              </button>
-            </div>
-
-            {/* Hint Móvil para pantalla chica — único aviso adicional del
-                modal, solo en mobile real. */}
-            <div className="sm:hidden mb-2 text-center text-[11px] md:text-xs font-medium text-amber-300 bg-amber-950/80 p-2 rounded-lg border border-amber-800/60 flex items-center justify-center gap-2">
-              <Icon name="screen_rotation" size={16} />
-              <span>Gira tu celular en modo horizontal para ver los datos más cómodamente</span>
-            </div>
-
-            {/* Canvas de gráfico ampliado */}
-            <div className="flex-1 w-full bg-slate-900/80 p-4 sm:p-8 rounded-2xl border border-slate-800 overflow-hidden flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                {renderZoomedChart(activeZoomedKey, data, chartTasaMedicos)}
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
-}
-
-function getChartTitle(key: string): string {
-  switch (key) {
-    case "finanzas": return "Balance Financiero (Ingresos / Egresos / Ganancias)";
-    case "ticket": return "Ticket Promedio y Volumen de Ingresos";
-    case "conversion": return "Conversión de Presupuestos (% Aprobación)";
-    case "egresos": return "Distribución de Egresos por Categoría";
-    case "nuevos": return "Captación de Pacientes (Nuevos por periodo)";
-    case "tasasSede": return "Evolución de Tasas de Atención de la Sede";
-    case "rankingMedicos": return "Ranking de Atención por Médico";
-    case "ocupacion": return "Ocupación por Médico";
-    case "topTratamientos": return "Top 5 Tratamientos (Más y Menos Frecuentes)";
-    default: return "Detalle de Gráfico";
-  }
-}
-
-function renderZoomedChart(key: string, data: any, chartTasaMedicos: any) {
-  switch (key) {
-    case "finanzas":
-      return (
-        <BarChart data={data.finanzas} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
-          <XAxis dataKey="periodo" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} dy={10} />
-          <YAxis tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} tickFormatter={v => `${v/1000}k`} />
-          <Tooltip cursor={{ fill: "#1e293b" }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", color: "#fff" }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
-          <Legend iconType="circle" wrapperStyle={{ fontSize: '14px', paddingTop: '15px' }} />
-          <Bar dataKey="ingresos" name="Ingresos" fill="#3b82f6" radius={[6,6,0,0]} barSize={35} />
-          <Bar dataKey="egresos" name="Egresos" fill="#ef4444" radius={[6,6,0,0]} barSize={35} />
-          <Bar dataKey="ganancias" name="Ganancias" fill="#10b981" radius={[6,6,0,0]} barSize={35} />
-        </BarChart>
-      );
-    case "ticket":
-      return (
-        <ComposedChart data={data.ticketPromedio} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
-          <XAxis dataKey="periodo" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} dy={10} />
-          <YAxis yAxisId="left" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} tickFormatter={v => `${v/1000}k`} />
-          <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
-          <Tooltip cursor={{ fill: "#1e293b" }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", color: "#fff" }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
-          <Legend iconType="circle" wrapperStyle={{ fontSize: '14px', paddingTop: '15px' }} />
-          <Bar yAxisId="left" dataKey="ingreso_total" name="Ingreso Total" fill="#8b5cf6" radius={[6,6,0,0]} barSize={45} />
-          <Line yAxisId="right" type="monotone" dataKey="ticket_promedio" name="Ticket Promedio" stroke="#f59e0b" strokeWidth={4} dot={{ r: 6 }} activeDot={{ r: 8 }} />
-        </ComposedChart>
-      );
-    case "conversion":
-      return (
-        <ComposedChart data={data.tasaAprobacion} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
-          <XAxis dataKey="periodo" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} dy={10} />
-          <YAxis yAxisId="left" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
-          <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v*100).toFixed(0)}%`} />
-          <Tooltip cursor={{ fill: "#1e293b" }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", color: "#fff" }} />
-          <Legend iconType="circle" wrapperStyle={{ fontSize: '14px', paddingTop: '15px' }} />
-          <Bar yAxisId="left" dataKey="total_presupuestos" name="Total Emitidos" fill="#64748b" radius={[6,6,0,0]} barSize={35} />
-          <Bar yAxisId="left" dataKey="total_aprobados" name="Aprobados" fill="#3b82f6" radius={[6,6,0,0]} barSize={35} />
-          <Line yAxisId="right" type="monotone" dataKey="tasa_aprobacion" name="% Aprobación" stroke="#10b981" strokeWidth={4} dot={{ r: 6 }} activeDot={{ r: 8 }} />
-        </ComposedChart>
-      );
-    case "egresos":
-      return (
-        <BarChart data={data.egresos} layout="vertical" margin={{ left: 80, right: 30, top: 20, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#334155" />
-          <XAxis type="number" hide />
-          <YAxis type="category" dataKey="categoria" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
-          <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", color: "#fff" }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
-          <Bar dataKey="total_gastado" name="Gastado" fill="#f97316" radius={[0,6,6,0]} barSize={30}>
-             {data.egresos.map((e:any, i:number) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
-          </Bar>
-        </BarChart>
-      );
-    case "nuevos":
-      return (
-        <AreaChart data={data.pacientesNuevos} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-          <defs>
-            <linearGradient id="colorNuevosZoom" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#0891b2" stopOpacity={0.5}/>
-              <stop offset="95%" stopColor="#0891b2" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
-          <XAxis dataKey="periodo" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} dy={10} />
-          <YAxis tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
-          <Tooltip cursor={{ stroke: "#334155", strokeWidth: 2 }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", color: "#fff" }} />
-          <Area type="monotone" dataKey="cantidad_nuevos" name="Nuevos Pacientes" stroke="#0891b2" strokeWidth={4} fillOpacity={1} fill="url(#colorNuevosZoom)" />
-        </AreaChart>
-      );
-    case "tasasSede":
-      return (
-        <LineChart data={data.tasaSede} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
-          <XAxis dataKey="periodo" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} dy={10} />
-          <YAxis tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v*100).toFixed(0)}%`} />
-          <Tooltip cursor={{ stroke: "#334155", strokeWidth: 2 }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", color: "#fff" }} formatter={(val: any) => typeof val === "number" ? `${(val*100).toFixed(0)}%` : String(val)} />
-          <Legend iconType="circle" wrapperStyle={{ fontSize: '14px', paddingTop: '15px' }} />
-          <Line type="monotone" dataKey="tasa_hecho" name="Hecho" stroke="#10b981" strokeWidth={4} dot={{ r: 5 }} activeDot={{ r: 8 }} />
-          <Line type="monotone" dataKey="tasa_programada" name="Programada" stroke="#f59e0b" strokeWidth={4} dot={{ r: 5 }} activeDot={{ r: 8 }} />
-          <Line type="monotone" dataKey="tasa_cancelada" name="Cancelada" stroke="#ef4444" strokeWidth={4} dot={{ r: 5 }} activeDot={{ r: 8 }} />
-        </LineChart>
-      );
-    case "rankingMedicos":
-      return (
-        <BarChart data={chartTasaMedicos} layout="vertical" margin={{ left: 60, right: 30, top: 20, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#334155" />
-          <XAxis type="number" hide />
-          <YAxis type="category" dataKey="name" tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
-          <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", color: "#fff" }} formatter={(val: any) => typeof val === "number" ? `${val.toFixed(0)}%` : String(val)} />
-          <Legend iconType="circle" wrapperStyle={{ fontSize: '14px', paddingTop: '15px' }} />
-          <Bar dataKey="Hecho" stackId="a" fill="#10b981" barSize={30} radius={[0,0,0,0]} />
-          <Bar dataKey="Programada" stackId="a" fill="#f59e0b" />
-          <Bar dataKey="Cancelada" stackId="a" fill="#ef4444" radius={[0,6,6,0]} />
-        </BarChart>
-      );
-    case "ocupacion":
-      return (
-        <BarChart data={data.ocupacion} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
-          <XAxis
-            dataKey="medico"
-            tick={{ fontSize: 12, fill: "#cbd5e1" }}
-            axisLine={false}
-            tickLine={false}
-            angle={-30}
-            textAnchor="end"
-            height={80}
-          />
-          <YAxis tick={{ fontSize: 13, fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
-          <Tooltip cursor={{ fill: "#1e293b" }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", color: "#fff" }} />
-          <Legend iconType="circle" wrapperStyle={{ fontSize: '14px', paddingTop: '20px' }} />
-          <Bar dataKey="horas_reservadas" name="Hrs. Reservadas" stackId="a" fill="#14b8a6" radius={[0,0,0,0]} barSize={45} />
-          <Bar dataKey="horas_capacidad" name="Hrs. Libres" stackId="a" fill="#475569" radius={[6,6,0,0]} />
-        </BarChart>
-      );
-    case "topTratamientos":
-      return (
-        <BarChart data={data.tratamientos} layout="vertical" margin={{ left: 80, right: 30, top: 20, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#334155" />
-          <XAxis type="number" hide />
-          <YAxis type="category" dataKey="nombre_tratamiento" tick={{ fontSize: 12, fill: "#cbd5e1" }} axisLine={false} tickLine={false} width={180} />
-          <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "12px", color: "#fff" }} />
-          <Bar dataKey="cantidad" name="Cantidad" radius={[0,6,6,0]} barSize={25}>
-            {data.tratamientos.map((entry: any, index: number) => (
-              <Cell key={`cell-zoom-${index}`} fill={entry.clasificacion === "Más Frecuentes" ? POS_COLOR : NEG_COLOR} />
-            ))}
-          </Bar>
-        </BarChart>
-      );
-    default:
-      return null;
-  }
 }
 
 function ChartCard({
@@ -907,34 +841,78 @@ function ChartCard({
   icon,
   children,
   className = "",
-  onExpand
 }: {
   title: string;
   icon: string;
   children: React.ReactNode;
   className?: string;
-  onExpand?: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const isMobile = useIsMobile();
+
+  const [isPortrait, setIsPortrait] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(orientation: portrait)");
+    setIsPortrait(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsPortrait(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  const [rotateDismissed, setRotateDismissed] = useState(false);
+  useEffect(() => { if (!expanded || !isPortrait) setRotateDismissed(false); }, [expanded, isPortrait]);
+  const showRotatePrompt = isMobile && expanded && isPortrait && !rotateDismissed;
+
   return (
-    <div className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-5 flex flex-col group relative ${className} print:shadow-none print:border print:border-slate-300 print:rounded-none`}>
-      <div className="flex items-center justify-between mb-6">
-        <h2 onClick={onExpand} className="text-[13px] md:text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-          <Icon name={icon} size={18} className="text-slate-400 dark:text-slate-500" />
-          {title}
-        </h2>
-        {onExpand && (
+    <>
+      <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 flex flex-col group relative ${className} print:shadow-none print:border print:border-slate-300 print:rounded-none`}>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-[12px] md:text-[13px] font-medium text-[#64748b] flex items-center gap-2">
+            <Icon name={icon} size={18} className="text-slate-400"/>
+            {title}
+          </h2>
           <button
-            onClick={onExpand}
-            title="Ampliar gráfico a pantalla completa"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all opacity-80 group-hover:opacity-100 print:hidden"
+            type="button"
+            onClick={() => setExpanded(true)}
+            title="Ver gráfico completo"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-slate-100 transition-all opacity-80 group-hover:opacity-100 print:hidden"
           >
             <Icon name="fullscreen" size={20} />
           </button>
-        )}
+        </div>
+        <div className="flex-1 w-full min-h-[300px]">
+          {children}
+        </div>
       </div>
-      <div className="flex-1 w-full min-h-[300px] cursor-pointer" onClick={onExpand}>
-        {children}
-      </div>
-    </div>
+
+      {expanded && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[150] bg-white p-3 sm:p-6 flex flex-col print:hidden">
+          <div className="w-full flex flex-col h-full max-w-[1600px] mx-auto">
+            <div className="flex items-center justify-between gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-3 shrink-0">
+              <h2 className="text-[15px] md:text-base font-bold text-slate-800 flex items-center gap-2 min-w-0 truncate">
+                <Icon name={icon} size={20} className="text-cyan-600 shrink-0" />
+                <span className="truncate">{title}</span>
+              </h2>
+              <button
+                onClick={() => setExpanded(false)}
+                className="shrink-0 p-2.5 bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 rounded-xl transition-all flex items-center justify-center"
+                title="Cerrar vista ampliada"
+              >
+                <Icon name="close" size={22} />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 w-full bg-white p-4 sm:p-8 overflow-hidden">
+              {isValidElement(children) ? cloneElement(children as React.ReactElement<any>, { height: "100%" }) : children}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showRotatePrompt && createPortal(
+        <RotateDevicePrompt onDismiss={() => setRotateDismissed(true)} message="Gira tu dispositivo para ver el gráfico completo" />,
+        document.body
+      )}
+    </>
   );
 }

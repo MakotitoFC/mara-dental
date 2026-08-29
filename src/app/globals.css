@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -161,6 +160,20 @@ html.dark { color-scheme: dark; }
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
+/* Azul oficial de Telegram (marca de terceros, no forma parte de la paleta) */
+:root { --telegram-blue: #2AABEE; --telegram-blue-hover: #229ED9; }
+
+/* Ancho fijo de la columna lateral del dashboard del doctor (Acceso rápido +
+   Alertas). Clase manual en vez de `lg:w-72`: el JIT de Tailwind no estaba
+   generando esa variante para esta clase puntual (probado con reinicio
+   completo, borrado de caché y valores nunca usados — el mismo patrón
+   `w-full lg:w-N` sí compila en otros archivos), así que se evita depender
+   del escaneo para este caso. */
+.dashboard-sidebar-width { width: 100%; }
+@media (min-width: 1024px) {
+  .dashboard-sidebar-width { width: 18rem; }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50; }
@@ -185,10 +198,6 @@ html.dark { color-scheme: dark; }
   -ms-overflow-style: none;
 }
 
-/* Force Poppins globally (override any fallback or component-level fonts) */
-html, body, input, textarea, select, button {
-  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-}
 .scroll-x-touch::-webkit-scrollbar {
   display: none;
 }

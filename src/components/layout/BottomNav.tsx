@@ -20,8 +20,9 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/admin/auditoria", icon: "admin_panel_settings", label: "Auditoría" },
   { href: "/admin/catalogo", icon: "medical_information", label: "Catálogo" },
   { href: "/admin/configuracion-tipos", icon: "category", label: "Config. Tipos" },
-  { href: "/admin/personal", icon: "badge", label: "Personal" },
+  { href: "/admin/personal", icon: "person", label: "Personal" },
   { href: "/plantillas", icon: "article", label: "Plantillas" },
+  { href: "/admin/validaciones", icon: "verified", label: "Validaciones" },
   { href: "/configuracion", icon: "settings", label: "Config." },
 ];
 
@@ -85,9 +86,9 @@ export function BottomNav() {
           />
         )}
         <motion.div animate={{ scale: active ? 1.08 : 1 }} transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}>
-          <Icon name={item.icon} size={22} className={active ? "text-cyan-600 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500"} />
+ <Icon name={item.icon} size={22} className={active ? "text-cyan-600" : "text-slate-400"} />
         </motion.div>
-        <span className={`text-[10px] font-medium ${active ? "text-cyan-600 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500"}`}>
+ <span className={`text-[10px] font-medium ${active ? "text-cyan-600" : "text-slate-400"}`}>
           {item.label}
         </span>
       </GuardedLink>
@@ -97,7 +98,7 @@ export function BottomNav() {
   return (
     <>
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 print:hidden"
+ className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 print:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="flex">
@@ -119,8 +120,8 @@ export function BottomNav() {
                   transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                 />
               )}
-              <Icon name="more_horiz" size={22} className={isOverflowActive ? "text-cyan-600 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500"} />
-              <span className={`text-[10px] font-medium ${isOverflowActive ? "text-cyan-600 dark:text-cyan-400" : "text-slate-400 dark:text-slate-500"}`}>
+ <Icon name="more_horiz" size={22} className={isOverflowActive ? "text-cyan-600" : "text-slate-400"} />
+ <span className={`text-[10px] font-medium ${isOverflowActive ? "text-cyan-600" : "text-slate-400"}`}>
                 Más
               </span>
             </button>
@@ -141,8 +142,8 @@ export function BottomNav() {
                     onClick={() => setMoreOpen(false)}
                     className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border transition-colors ${
                       active
-                        ? "bg-cyan-50 border-cyan-200 text-cyan-700 dark:bg-cyan-900/30 dark:border-cyan-800 dark:text-cyan-400"
-                        : "bg-slate-50 border-slate-200 text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400"
+ ? "bg-cyan-50 border-cyan-200 text-cyan-700"
+ :"bg-slate-50 border-slate-200 text-slate-500"
                     }`}
                   >
                     <Icon name={item.icon} size={22} />

@@ -198,7 +198,7 @@ export function NuevoPacienteForm() {
                 value={cronicasInput}
                 chips={cronicas}
                 placeholder="Hipertensión, Diabetes… ↵ Enter"
-                chipClass="bg-rose-50 text-rose-700 border border-rose-100"
+                chipClass="bg-red-50 text-red-700 border border-red-100"
                 onChange={setCronicasInput}
                 onAdd={() => addChip(cronicasInput, cronicas, setCronicas, setCronicasInput)}
                 onRemove={v => removeChip(v, cronicas, setCronicas)}

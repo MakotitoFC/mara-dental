@@ -45,17 +45,17 @@ export function YearView({
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onMonthClick(month); }}
-              className={`text-left bg-white dark:bg-slate-800 rounded-xl border p-3 cursor-pointer hover:border-cyan-300 dark:hover:border-cyan-700 hover:shadow-sm transition-all ${
-                isCurrentMonth ? "border-cyan-400 dark:border-cyan-600 ring-1 ring-cyan-100 dark:ring-cyan-900/40" : "border-slate-200 dark:border-slate-700"
+ className={`text-left bg-white rounded-xl border p-3 cursor-pointer hover:border-cyan-300 hover:shadow-sm transition-all ${
+ isCurrentMonth ? "border-cyan-400 ring-1 ring-cyan-100" : "border-slate-200"
               }`}
             >
-              <p className={`text-[12.5px] font-bold mb-2 capitalize ${isCurrentMonth ? "text-cyan-700 dark:text-cyan-400" : "text-slate-800 dark:text-slate-100"}`}>
+ <p className={`text-[12.5px] font-bold mb-2 capitalize ${isCurrentMonth ? "text-cyan-700" : "text-slate-800"}`}>
                 {monthLabel}
               </p>
 
               <div className="grid grid-cols-7 gap-y-0.5">
                 {DAY_SHORT.map((d) => (
-                  <span key={d} className="text-[8px] font-medium text-slate-300 dark:text-slate-600 text-center">
+ <span key={d} className="text-[8px] font-medium text-slate-300 text-center">
                     {d[0]}
                   </span>
                 ))}
@@ -77,7 +77,7 @@ export function YearView({
                           ? "text-transparent cursor-default"
                           : isToday
                           ? "bg-cyan-600 text-white font-bold"
-                          : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+ :"text-slate-500 hover:bg-slate-100"
                       }`}
                     >
                       {inMonth ? day.getDate() : ""}

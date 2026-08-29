@@ -73,63 +73,63 @@ export function buildVoucherHtml(opts: VoucherHtmlParams): string {
   const body = `
     <div style="padding:24px 28px;">
       <!-- Tarjeta Principal del Monto y Medio de Pago -->
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:18px 22px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="background:#F7F8FA;border:1px solid #EDF0F4;border-radius:14px;padding:18px 22px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
         <div>
-          <div style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">
+          <div style="font-size:10px;font-weight:800;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">
             Monto Total Abonado
           </div>
           <div style="font-size:30px;font-weight:800;color:#059669;line-height:1.1;">
             ${esc(money(monto, moneda))}
           </div>
-          <div style="font-size:11px;font-weight:600;color:#475569;margin-top:4px;">
+          <div style="font-size:11px;font-weight:600;color:#3A4A5C;margin-top:4px;">
             Moneda: ${esc(moneda === "PEN" ? "Soles (PEN)" : moneda === "USD" ? "Dólares (USD)" : moneda)}
           </div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">
+          <div style="font-size:10px;font-weight:800;color:#5D6D7E;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">
             Medio de Pago
           </div>
-          <div style="font-size:15px;font-weight:800;color:#0f172a;">
+          <div style="font-size:15px;font-weight:800;color:#1A1A2E;">
             ${esc(medioPago)}
           </div>
-          ${referencia ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">Ref: ${esc(referencia)}</div>` : ""}
+          ${referencia ? `<div style="font-size:11px;color:#5D6D7E;margin-top:2px;">Ref: ${esc(referencia)}</div>` : ""}
         </div>
       </div>
 
       <!-- Datos del Paciente / Pagador -->
       <div style="margin-bottom:20px;">
-        <div style="font-size:11px;font-weight:800;color:#0e7490;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">
+        <div style="font-size:11px;font-weight:800;color:#0e7490;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;border-bottom:1px solid #EDF0F4;padding-bottom:4px;">
           Información del Titular / Pagador
         </div>
         <table style="width:100%;border-collapse:collapse;">
           ${pacienteNombre ? `
           <tr>
-            <td style="padding:6px 0;font-size:12px;color:#64748b;width:140px;">Paciente:</td>
-            <td style="padding:6px 0;font-size:12.5px;font-weight:700;color:#0f172a;">${esc(pacienteNombre)}</td>
+            <td style="padding:6px 0;font-size:12px;color:#5D6D7E;width:140px;">Paciente:</td>
+            <td style="padding:6px 0;font-size:12.5px;font-weight:700;color:#1A1A2E;">${esc(pacienteNombre)}</td>
           </tr>` : ""}
           ${esTercero && pagadorNombre ? `
-          <tr style="border-top:1px solid #f1f5f9;">
-            <td style="padding:6px 0;font-size:12px;color:#64748b;">Pagado por (Tercero):</td>
-            <td style="padding:6px 0;font-size:12.5px;font-weight:700;color:#0f172a;">
+          <tr style="border-top:1px solid #F1F3F6;">
+            <td style="padding:6px 0;font-size:12px;color:#5D6D7E;">Pagado por (Tercero):</td>
+            <td style="padding:6px 0;font-size:12.5px;font-weight:700;color:#1A1A2E;">
               ${esc(pagadorNombre)} ${pagadorDocumento ? `· Doc: ${esc(pagadorDocumento)}` : ""}
             </td>
           </tr>` : ""}
-          <tr style="border-top:1px solid #f1f5f9;">
-            <td style="padding:6px 0;font-size:12px;color:#64748b;">Sede de Atención:</td>
-            <td style="padding:6px 0;font-size:12.5px;font-weight:600;color:#334155;">
+          <tr style="border-top:1px solid #F1F3F6;">
+            <td style="padding:6px 0;font-size:12px;color:#5D6D7E;">Sede de Atención:</td>
+            <td style="padding:6px 0;font-size:12.5px;font-weight:600;color:#2C3E50;">
               ${esc(clinica?.nombre_clinica || "Sede MaraDental")} ${clinica?.direccion ? `(${esc(clinica.direccion)})` : ""}
             </td>
           </tr>
-          <tr style="border-top:1px solid #f1f5f9;">
-            <td style="padding:6px 0;font-size:12px;color:#64748b;">Fecha y Hora:</td>
-            <td style="padding:6px 0;font-size:12.5px;font-weight:600;color:#334155;">${esc(fecha)}</td>
+          <tr style="border-top:1px solid #F1F3F6;">
+            <td style="padding:6px 0;font-size:12px;color:#5D6D7E;">Fecha y Hora:</td>
+            <td style="padding:6px 0;font-size:12.5px;font-weight:600;color:#2C3E50;">${esc(fecha)}</td>
           </tr>
         </table>
       </div>
 
       <!-- Detalle del Pago: Cuota o Presupuesto -->
       <div style="margin-bottom:20px;">
-        <div style="font-size:11px;font-weight:800;color:#0e7490;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">
+        <div style="font-size:11px;font-weight:800;color:#0e7490;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;border-bottom:1px solid #EDF0F4;padding-bottom:4px;">
           Concepto y Detalle del Presupuesto
         </div>
         
@@ -155,18 +155,18 @@ export function buildVoucherHtml(opts: VoucherHtmlParams): string {
         ${presupuesto && presupuesto.tratamientos && presupuesto.tratamientos.length > 0 ? `
           <table style="width:100%;border-collapse:collapse;margin-top:8px;">
             <thead>
-              <tr style="background:#f1f5f9;">
-                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:#475569;text-align:left;border-radius:6px 0 0 6px;">Tratamiento / Servicio</th>
-                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:#475569;text-align:right;border-radius:0 6px 6px 0;">Referencia</th>
+              <tr style="background:#F1F3F6;">
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:#3A4A5C;text-align:left;border-radius:6px 0 0 6px;">Tratamiento / Servicio</th>
+                <th style="padding:8px 10px;font-size:11px;font-weight:700;color:#3A4A5C;text-align:right;border-radius:0 6px 6px 0;">Referencia</th>
               </tr>
             </thead>
             <tbody>
               ${presupuesto.tratamientos.map((t, idx) => `
-                <tr style="border-bottom:1px solid #f1f5f9;">
-                  <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#1e293b;">
+                <tr style="border-bottom:1px solid #F1F3F6;">
+                  <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#212E3D;">
                     ${idx + 1}. ${esc(t.nombre)}
                   </td>
-                  <td style="padding:8px 10px;font-size:12px;color:#64748b;text-align:right;">
+                  <td style="padding:8px 10px;font-size:12px;color:#5D6D7E;text-align:right;">
                     ${t.precio ? esc(money(t.precio, moneda)) : "Incluido"}
                   </td>
                 </tr>
@@ -176,31 +176,31 @@ export function buildVoucherHtml(opts: VoucherHtmlParams): string {
         ` : ""}
 
         ${observaciones ? `
-          <div style="margin-top:10px;padding:8px 12px;background:#f8fafc;border-radius:8px;font-size:11.5px;color:#475569;">
+          <div style="margin-top:10px;padding:8px 12px;background:#F7F8FA;border-radius:8px;font-size:11.5px;color:#3A4A5C;">
             <strong>Observaciones:</strong> ${esc(observaciones)}
           </div>
         ` : ""}
       </div>
 
       <!-- Resumen de Saldos -->
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;">
+      <div style="background:#F7F8FA;border:1px solid #EDF0F4;border-radius:12px;padding:14px 18px;">
         <table style="width:100%;border-collapse:collapse;">
           ${presupuesto && typeof presupuesto.total === "number" ? `
           <tr>
-            <td style="padding:4px 0;font-size:12px;color:#64748b;">Total del Presupuesto:</td>
-            <td style="padding:4px 0;font-size:12.5px;font-weight:700;color:#0f172a;text-align:right;">
+            <td style="padding:4px 0;font-size:12px;color:#5D6D7E;">Total del Presupuesto:</td>
+            <td style="padding:4px 0;font-size:12.5px;font-weight:700;color:#1A1A2E;text-align:right;">
               ${esc(money(presupuesto.total, moneda))}
             </td>
           </tr>` : ""}
           <tr>
-            <td style="padding:4px 0;font-size:12px;color:#64748b;">Monto Pagado en esta Operación:</td>
+            <td style="padding:4px 0;font-size:12px;color:#5D6D7E;">Monto Pagado en esta Operación:</td>
             <td style="padding:4px 0;font-size:13px;font-weight:800;color:#059669;text-align:right;">
               ${esc(money(monto, moneda))}
             </td>
           </tr>
           ${typeof saldoRestante === "number" ? `
-          <tr style="border-top:1px solid #e2e8f0;">
-            <td style="padding:6px 0 0;font-size:12px;font-weight:700;color:#475569;">Saldo Pendiente Actual:</td>
+          <tr style="border-top:1px solid #EDF0F4;">
+            <td style="padding:6px 0 0;font-size:12px;font-weight:700;color:#3A4A5C;">Saldo Pendiente Actual:</td>
             <td style="padding:6px 0 0;font-size:13px;font-weight:800;color:${saldoRestante > 0.009 ? "#d97706" : "#059669"};text-align:right;">
               ${saldoRestante > 0.009 ? esc(money(saldoRestante, moneda)) : "✓ Cancelado en su totalidad"}
             </td>
@@ -209,7 +209,7 @@ export function buildVoucherHtml(opts: VoucherHtmlParams): string {
       </div>
 
       <!-- Mensaje de validez -->
-      <div style="text-align:center;margin-top:24px;font-size:10.5px;color:#94a3b8;">
+      <div style="text-align:center;margin-top:24px;font-size:10.5px;color:#95A5A6;">
         Gracias por confiar en ${esc(clinica?.nombre_clinica || "MaraDental")}. Conserve este comprobante para cualquier consulta.
       </div>
     </div>

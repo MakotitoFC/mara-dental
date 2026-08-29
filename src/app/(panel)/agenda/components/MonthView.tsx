@@ -33,12 +33,12 @@ export function MonthView({
       .sort((a, b) => timeToMin(a.hora_inicio) - timeToMin(b.hora_inicio));
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto no-scrollbar bg-white dark:bg-slate-800">
+ <div className="flex flex-col h-full overflow-y-auto no-scrollbar bg-white">
       {/* Encabezado LUN..DOM — fijo arriba: la cuadrícula scrollea debajo */}
-      <div className="grid grid-cols-7 shrink-0 sticky top-0 z-10 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+ <div className="grid grid-cols-7 shrink-0 sticky top-0 z-10 bg-white border-b border-slate-100">
         {DAY_SHORT.map(d => (
           <div key={d} className="py-2.5 text-center">
-            <span className="text-[10.5px] md:text-[11px] font-medium text-slate-400 dark:text-slate-500 tracking-wide uppercase">{d}</span>
+ <span className="text-[10.5px] md:text-[11px] font-medium text-slate-400 tracking-wide uppercase">{d}</span>
           </div>
         ))}
       </div>
@@ -52,7 +52,7 @@ export function MonthView({
         variants={staggerContainer(0.03)}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-7 auto-rows-min md:auto-rows-fr md:flex-1 border-t border-l border-slate-100 dark:border-slate-700"
+ className="grid grid-cols-7 auto-rows-min md:auto-rows-fr md:flex-1 border-t border-l border-slate-100"
       >
         {grid.flat().map((day, i) => {
           const ds = toDateStr(day);
@@ -67,13 +67,13 @@ export function MonthView({
               key={i}
               variants={staggerItem}
               onClick={() => onDayClick(day)}
-              className={`text-left border-r border-b border-slate-100 dark:border-slate-700 transition-colors h-full min-h-[160px] md:min-h-[184px] flex flex-col gap-1 p-1.5 md:p-2 overflow-hidden hover:bg-slate-50 dark:hover:bg-slate-700 ${
-                inMonth ? "bg-white dark:bg-slate-800" : "bg-slate-50/60 dark:bg-slate-900/40"
+ className={`text-left border-r border-b border-slate-100 transition-colors h-full min-h-[160px] md:min-h-[184px] flex flex-col gap-1 p-1.5 md:p-2 overflow-hidden hover:bg-slate-50 ${
+ inMonth ? "bg-white" : "bg-slate-50/60"
               }`}
             >
               <span
                 className={`inline-flex items-center justify-center w-5 h-5 md:w-6 md:h-6 rounded-full text-[11px] md:text-[12px] font-semibold shrink-0 ${
-                  isToday ? "bg-cyan-600 text-white" : inMonth ? "text-slate-500 dark:text-slate-400" : "text-slate-300 dark:text-slate-600"
+ isToday ? "bg-cyan-600 text-white": inMonth ? "text-slate-500" : "text-slate-300"
                 }`}
               >
                 {day.getDate()}
@@ -98,7 +98,7 @@ export function MonthView({
                     );
                   })}
                   {overflow > 0 && (
-                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 px-1.5 shrink-0">+{overflow} más</span>
+ <span className="text-[10px] font-medium text-slate-400 px-1.5 shrink-0">+{overflow} más</span>
                   )}
                 </div>
               )}

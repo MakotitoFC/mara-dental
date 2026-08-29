@@ -21,7 +21,7 @@ function NowLine() {
   return (
     <div className="absolute left-0 right-0 z-10 pointer-events-none flex items-center" style={{ top }}>
       <span className="text-[9.5px] font-bold text-cyan-600 w-12 text-right pr-1.5 shrink-0 leading-none">{label}</span>
-      <span className="w-2.5 h-2.5 rounded-full bg-cyan-600 shrink-0 -ml-1.5 border-2 border-white dark:border-slate-800" />
+ <span className="w-2.5 h-2.5 rounded-full bg-cyan-600 shrink-0 -ml-1.5 border-2 border-white"/>
       <div className="flex-1 h-px bg-cyan-500/70" />
     </div>
   );
@@ -51,7 +51,7 @@ export function DayView({
     if (searchParams?.get("action") === "scroll-pending") {
       const firstPending = dayCitas.find(c => c.estado === "programada");
       if (firstPending) {
-        const hr = firstPending.hora_inicio.slice(0, 2) + ":00";
+        const hr = firstPending.hora_inicio.slice(0, 2) + " :00";
         setTimeout(() => {
           const el = document.getElementById(`hour-${hr}`);
           if (el) {
@@ -63,14 +63,14 @@ export function DayView({
   }, [searchParams, dayCitas]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-white dark:bg-slate-800">
-      <div className="shrink-0 px-4 md:px-6 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[17px] font-bold shrink-0 ${isToday ? "bg-cyan-600 text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100"}`}>
+ <div className="flex flex-col h-full overflow-hidden bg-white">
+ <div className="shrink-0 px-4 md:px-6 py-3 border-b border-slate-100 flex items-center gap-3">
+ <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[17px] font-bold shrink-0 ${isToday ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-800"}`}>
           {date.getDate()}
         </div>
         <div>
-          <p className="text-[14px] font-semibold text-slate-900 dark:text-slate-100 capitalize leading-tight">{dateLabel}</p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">{dayCitas.length} cita{dayCitas.length !== 1 ? "s" : ""}</p>
+ <p className="text-[14px] font-semibold text-slate-900 capitalize leading-tight">{dateLabel}</p>
+ <p className="text-[11px] text-slate-400">{dayCitas.length} cita{dayCitas.length !== 1 ? "s" : ""}</p>
         </div>
       </div>
 
@@ -80,13 +80,13 @@ export function DayView({
           {HOURS.map(hr => {
             const blocks = getSlotCitas(hr);
             return (
-              <div id={`hour-${hr}`} key={hr} className="flex border-b border-slate-100 dark:border-slate-700" style={{ height: SLOT_H }}>
+ <div id={`hour-${hr}`} key={hr} className="flex border-b border-slate-100" style={{ height: SLOT_H }}>
                 <div className="w-14 shrink-0 pt-1 pr-3 text-right">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{hr}</span>
+ <span className="text-[10px] text-slate-400 font-medium">{hr}</span>
                 </div>
                 <div
                   onClick={() => { if (blocks.length === 0) onCellClick(date, hr); }}
-                  className={`flex-1 p-1 overflow-hidden ${blocks.length === 0 ? "cursor-pointer hover:bg-cyan-50/40 dark:hover:bg-cyan-900/20" : ""}`}
+ className={`flex-1 p-1 overflow-hidden ${blocks.length === 0 ? "cursor-pointer hover:bg-cyan-50/40" : ""}`}
                 >
                   {blocks.map(c => {
                     const tipoVars = getVars(c.tipo_consulta_id);

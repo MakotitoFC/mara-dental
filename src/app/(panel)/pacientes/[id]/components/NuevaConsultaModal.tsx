@@ -169,21 +169,21 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
   return (
     <ResponsiveSheet
       onClose={onClose}
-      maxWidthDesktop="700px"
+      size="lg"
       header={
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shrink-0">
+ <div className="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600 shrink-0">
             <Icon name="medical_information" size={18} />
           </div>
           <div>
-            <p className="text-[14px] font-semibold text-slate-900 dark:text-slate-100">Nueva consulta</p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500">Registrar atención clínica</p>
+ <p className="text-[14px] font-semibold text-slate-900">Nueva consulta</p>
+ <p className="text-[11px] text-slate-400">Registrar atención clínica</p>
           </div>
         </div>
       }
       footer={
         <div className="flex items-center justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-[13px] font-medium border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+ <button onClick={onClose} className="px-4 py-2 text-[13px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
             Cancelar
           </button>
           <button onClick={handleGuardar} disabled={saving || !motivo.trim() || isLockedByCita}
@@ -199,18 +199,18 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
         {/* Caso Clínico (Nota) - Solo visible si no hay caso activo */}
         {!hasActiveCase && (
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-700">
-              <div className="w-7 h-7 rounded-lg bg-cyan-50 dark:bg-cyan-900/50 flex items-center justify-center">
-                <Icon name="folder_shared" size={15} className="text-cyan-600 dark:text-cyan-400" />
+ <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+ <div className="w-7 h-7 rounded-lg bg-cyan-50 flex items-center justify-center">
+ <Icon name="folder_shared" size={15} className="text-cyan-600"/>
               </div>
-              <h3 className="text-[14px] font-bold text-slate-800 dark:text-slate-100">Caso Clínico (Nota)</h3>
+ <h3 className="text-[14px] font-bold text-slate-800">Caso Clínico (Nota)</h3>
             </div>
             
             <div className="flex flex-col gap-2">
-              <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+ <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
                 Título del caso Clínico*
               </label>
-              <p className="text-[12px] text-slate-500 dark:text-slate-400">
+ <p className="text-[12px] text-slate-500">
                 Se creará un caso clínico automáticamente. Ingresa un título.
               </p>
               <input
@@ -218,7 +218,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
                 value={tituloCaso}
                 onChange={(e) => setTituloCaso(e.target.value)}
                 placeholder="Título del Caso Clínico (Opcional, Ej: Tratamiento Ortodoncia)"
-                className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[16px] sm:text-[13px] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all placeholder:text-slate-400"
+ className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[16px] sm:text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all placeholder:text-slate-400"
               />
             </div>
           </div>
@@ -227,7 +227,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
         {/* Selector de Cita Programada (Opcional) */}
         {citasSeleccionables.length > 0 && (
           <div className="flex flex-col gap-2">
-            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+ <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
               <Icon name="calendar_month" size={16} className="text-slate-400" />
               Asociar a una Cita Programada (Opcional)
             </label>
@@ -237,16 +237,16 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
                 onClick={() => setSelectedCitaId("")}
                 className={`shrink-0 snap-start px-4 py-3 border rounded-xl flex items-center gap-2 text-left transition-all ${
                   selectedCitaId === "" 
-                    ? "border-cyan-500 bg-cyan-50/50 dark:bg-cyan-900/20 ring-1 ring-cyan-500" 
-                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 opacity-60 hover:opacity-100"
+ ? "border-cyan-500 bg-cyan-50/50 ring-1 ring-cyan-500"
+ :"border-slate-200 bg-white opacity-60 hover:opacity-100"
                 }`}
               >
                 <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                  selectedCitaId === "" ? "border-cyan-600" : "border-slate-300 dark:border-slate-600"
+ selectedCitaId === "" ? "border-cyan-600" : "border-slate-300"
                 }`}>
                   {selectedCitaId === "" && <div className="w-2 h-2 rounded-full bg-cyan-600" />}
                 </div>
-                <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Ninguna (Solo consulta)</span>
+ <span className="text-[13px] font-medium text-slate-700">Ninguna (Solo consulta)</span>
               </button>
 
               {/* Lista de citas seleccionables (hoy + la preseleccionada si viene de otra fecha) */}
@@ -261,18 +261,18 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
                   }}
                   className={`shrink-0 snap-start px-4 py-3 border rounded-xl flex items-center gap-3 text-left transition-all ${
                     selectedCitaId === c.id 
-                      ? "border-cyan-500 bg-cyan-50/50 dark:bg-cyan-900/20 ring-1 ring-cyan-500" 
-                      : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300"
+ ? "border-cyan-500 bg-cyan-50/50 ring-1 ring-cyan-500"
+ :"border-slate-200 bg-white hover:border-slate-300"
                   }`}
                 >
                   <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
-                    selectedCitaId === c.id ? "border-cyan-600" : "border-slate-300 dark:border-slate-600"
+ selectedCitaId === c.id ? "border-cyan-600" : "border-slate-300"
                   }`}>
                     {selectedCitaId === c.id && <div className="w-2 h-2 rounded-full bg-cyan-600" />}
                   </div>
                   <div>
-                    <p className="text-[13px] font-bold text-slate-800 dark:text-slate-200">{fmtDate(`${c.fecha}T${c.hora_inicio}`)}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 max-w-37.5 truncate">{c.tipo_consulta?.tipo_consulta || c.notas || "Consulta programada"}</p>
+ <p className="text-[13px] font-bold text-slate-800">{fmtDate(`${c.fecha}T${c.hora_inicio}`)}</p>
+ <p className="text-[11px] text-slate-500 mt-0.5 max-w-37.5 truncate">{c.tipo_consulta?.tipo_consulta || c.notas ||"Consulta programada"}</p>
                   </div>
                 </button>
               ))}
@@ -283,7 +283,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
         {/* Campos de metadatos de la consulta */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-2">
-            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Tipo de consulta *</label>
+ <label className="text-[13px] font-semibold text-slate-700">Tipo de consulta *</label>
             <Select
               value={tipoConsultaId}
               onChange={setTipoConsultaId}
@@ -292,17 +292,17 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
             />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Fecha y Hora *</label>
+ <label className="text-[13px] font-semibold text-slate-700">Fecha y Hora *</label>
             <input
               type="datetime-local"
               value={fechaConsulta}
               onChange={e => setFechaConsulta(e.target.value)}
               disabled
-              className="w-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none cursor-not-allowed"
+ className="w-full border border-slate-200 bg-slate-50 text-slate-500 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none cursor-not-allowed"
             />
           </div>
           {isLockedByCita && (
-            <p className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+ <p className="flex items-center gap-1.5 text-[11px] text-slate-500">
               <Icon name="lock" size={12} className="shrink-0" />
               Se usa el tipo, fecha y hora de la cita seleccionada.
             </p>
@@ -310,9 +310,9 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
         </div>
 
         {/* Motivo y Observaciones */}
-        <div className="flex flex-col gap-4 pt-2 border-t border-slate-100 dark:border-slate-700">
+ <div className="flex flex-col gap-4 pt-2 border-t border-slate-100">
           <div className="flex flex-col gap-2">
-            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">
+ <label className="text-[13px] font-semibold text-slate-700">
               {selectedCasoId === "nuevo" ? "Motivo principal *" : "Motivo de la visita *"}
             </label>
             <textarea
@@ -320,33 +320,33 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
               value={motivo}
               onChange={e => setMotivo(e.target.value)}
               placeholder={selectedCasoId === "nuevo" ? "Ej: Tratamiento de ortodoncia, Dolor en molar inferior..." : "Motivo de revisión de hoy..."}
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
+ className="w-full border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 resize-none"
             />
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Observaciones de consulta</label>
+ <label className="text-[13px] font-semibold text-slate-700">Observaciones de consulta</label>
             <textarea
               rows={3}
               value={observaciones}
               onChange={e => setObservaciones(e.target.value)}
               placeholder="Notas de evolución, diagnóstico diferencial, comentarios..."
-              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40 resize-none"
+ className="w-full border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 resize-none"
             />
           </div>
         </div>
 
         {/* Archivos Adjuntos */}
-        <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-          <label className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+ <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
+ <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
             <Icon name="attach_file" size={16} className="text-slate-400" />
             Archivos Adjuntos (Opcional)
           </label>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
-              <label className="flex-1 flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl cursor-pointer hover:border-cyan-400 hover:bg-cyan-50/50 dark:hover:bg-cyan-900/20 transition-colors group">
+ <label className="flex-1 flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:border-cyan-400 hover:bg-cyan-50/50 transition-colors group">
                 <Icon name="cloud_upload" size={28} className="text-slate-400 group-hover:text-cyan-500 mb-2 transition-colors" />
-                <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Añadir Archivos</span>
+ <span className="text-[13px] font-semibold text-slate-700">Añadir Archivos</span>
                 <span className="text-[11px] text-slate-500 text-center mt-1">Imágenes o PDFs (Opcional)</span>
                 <input 
                   type="file" 
@@ -368,26 +368,26 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
                 {files.map((f, i) => {
                   const isImg = f.type.startsWith('image/');
                   return (
-                    <div key={i} className="border border-slate-200 dark:border-slate-700 rounded-xl flex flex-col relative bg-white dark:bg-slate-800">
-                      <div className="relative h-24 bg-slate-50 dark:bg-slate-900 flex items-center justify-center rounded-t-xl overflow-hidden border-b border-slate-100 dark:border-slate-700">
+ <div key={i} className="border border-slate-200 rounded-xl flex flex-col relative bg-white">
+ <div className="relative h-24 bg-slate-50 flex items-center justify-center rounded-t-xl overflow-hidden border-b border-slate-100">
                         {isImg ? (
                           <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
                         ) : (
-                          <Icon name="description" size={28} className="text-red-400 dark:text-red-500" />
+ <Icon name="description" size={28} className="text-red-400"/>
                         )}
                         <button 
                           type="button" 
                           onClick={() => {
                             setFiles(prev => prev.filter((_, idx) => idx !== i));
                           }} 
-                          className="absolute top-1.5 right-1.5 w-6 h-6 rounded-lg bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-700 text-red-500 dark:text-red-400 flex items-center justify-center shadow-sm"
+ className="absolute top-1.5 right-1.5 w-6 h-6 rounded-lg bg-white/90 hover:bg-white text-red-500 flex items-center justify-center shadow-sm"
                           title="Quitar archivo"
                         >
                           <Icon name="close" size={13} />
                         </button>
                       </div>
                       <div className="p-2.5 flex flex-col gap-2">
-                        <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate" title={f.name}>{f.name}</p>
+ <p className="text-[11px] font-medium text-slate-700 truncate" title={f.name}>{f.name}</p>
                         <Select
                           value={categorias[f.name] || (tiposArchivo.length > 0 ? String(tiposArchivo[0].id) : "")}
                           onChange={(v) => setCategorias(p => ({ ...p, [f.name]: v }))}
@@ -397,7 +397,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
                           placeholder="Descripción (opcional)..."
                           value={descripciones[f.name] || ""}
                           onChange={(e) => setDescripciones(p => ({ ...p, [f.name]: e.target.value }))}
-                          className="w-full text-[11px] p-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+ className="w-full text-[11px] p-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-800 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                           rows={2}
                         />
                       </div>
@@ -410,13 +410,13 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
         </div>
 
         {/* Examen físico dinámico */}
-        <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-          <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300">Examen físico (Hallazgos)</p>
+ <div className="flex flex-col gap-2 pt-2 border-t border-slate-100">
+ <p className="text-[13px] font-semibold text-slate-700">Examen físico (Hallazgos)</p>
 
           <div className="flex flex-wrap gap-2">
             {SUGERENCIAS.filter(s => !usadas.has(s.toLowerCase())).map(s => (
               <button key={s} type="button" onClick={() => add(s)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-full text-[12px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors min-h-9">
+ className="flex items-center gap-1.5 px-3 py-2 rounded-full text-[12px] font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors min-h-9">
                 <Icon name="add" size={13} /> {s}
               </button>
             ))}
@@ -429,29 +429,29 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
                   value={c.clave}
                   onChange={e => update(i, { clave: e.target.value })}
                   placeholder="Signo / hallazgo"
-                  className="sm:w-44 shrink-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+ className="sm:w-44 shrink-0 border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
                 />
                 <input
                   value={c.valor}
                   onChange={e => update(i, { valor: e.target.value })}
                   placeholder="Valor / descripción"
-                  className="flex-1 min-w-0 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 dark:focus:ring-cyan-900/40"
+ className="flex-1 min-w-0 border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
                 />
                 <button type="button" onClick={() => remove(i)}
-                  className="w-10 h-10 shrink-0 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors self-end sm:self-auto">
+ className="w-10 h-10 shrink-0 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors self-end sm:self-auto">
                   <Icon name="delete" size={18} />
                 </button>
               </motion.div>
             ))}
             <button type="button" onClick={() => add()}
-              className="flex items-center gap-1.5 px-3 py-2.5 w-fit text-[13px] font-medium text-cyan-600 dark:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 rounded-xl transition-colors min-h-10">
+ className="flex items-center gap-1.5 px-3 py-2.5 w-fit text-[13px] font-medium text-cyan-600 hover:bg-cyan-50 rounded-xl transition-colors min-h-10">
               <Icon name="add" size={16} /> Agregar campo
             </button>
           </motion.div>
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900 rounded-xl text-[13px] text-red-600 dark:text-red-400">
+ <div className="flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl text-[13px] text-red-600">
             <Icon name="warning" size={15} className="shrink-0" /> {error}
           </div>
         )}

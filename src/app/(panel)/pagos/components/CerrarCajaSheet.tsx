@@ -148,7 +148,7 @@ export function CerrarCajaSheet({
       footer={
         <div className="flex flex-col gap-2">
           {error && (
-            <p className="text-[11.5px] text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1.5">
+ <p className="text-[11.5px] text-red-600 font-medium flex items-center gap-1.5">
               <Icon name="warning" size={13} /> {error}
             </p>
           )}
@@ -156,7 +156,7 @@ export function CerrarCajaSheet({
             <button
               onClick={onClose}
               disabled={saving}
-              className="flex-1 h-11 rounded-xl border border-slate-200 dark:border-slate-700 text-[13px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+ className="flex-1 h-11 rounded-xl border border-slate-200 text-[13px] font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
             >
               Cancelar
             </button>
@@ -165,8 +165,7 @@ export function CerrarCajaSheet({
               disabled={saving || loading}
               className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white text-[13px] font-semibold transition-colors shadow-sm"
             >
-              <Icon name="point_of_sale" size={16} />
-              {saving ? "Cerrando turno…" : "Confirmar Cierre de Caja"}
+              {saving ? "Cerrando turno…" : "Confirmar"}
             </button>
           </div>
         </div>
@@ -182,14 +181,15 @@ export function CerrarCajaSheet({
           <p className="text-center py-10 text-slate-500 text-[13px]">No se pudo cargar la información de la caja.</p>
         ) : (
           <>
-            {/* Navegación por Pestañas */}
-            <div className="flex rounded-xl bg-slate-100 dark:bg-slate-900/60 p-1 border border-slate-200/80 dark:border-slate-800">
+            {/* Navegación por Pestañas — compuesto de botones sin padding/
+                margen entre sí, seleccionado en cian con texto blanco. */}
+            <div className="flex rounded-xl border border-slate-200 overflow-hidden">
               <button
                 onClick={() => setTab("cuadre")}
-                className={`flex-1 py-2 px-3 rounded-lg text-[12.5px] font-semibold flex items-center justify-center gap-2 transition-all ${
+                className={`flex-1 py-2 px-3 text-[12.5px] font-semibold flex items-center justify-center gap-2 transition-colors ${
                   tab === "cuadre"
-                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
+                    ? "bg-cyan-600 text-white"
+                    : "bg-white text-slate-500 hover:bg-slate-50"
                 }`}
               >
                 <Icon name="calculate" size={15} />
@@ -197,10 +197,10 @@ export function CerrarCajaSheet({
               </button>
               <button
                 onClick={() => setTab("conciliacion")}
-                className={`flex-1 py-2 px-3 rounded-lg text-[12.5px] font-semibold flex items-center justify-center gap-2 transition-all ${
+                className={`flex-1 py-2 px-3 text-[12.5px] font-semibold flex items-center justify-center gap-2 transition-colors border-l border-slate-200 ${
                   tab === "conciliacion"
-                    ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
+                    ? "bg-cyan-600 text-white"
+                    : "bg-white text-slate-500 hover:bg-slate-50"
                 }`}
               >
                 <Icon name="checklist" size={15} />
@@ -212,51 +212,51 @@ export function CerrarCajaSheet({
             {tab === "cuadre" && (
               <div className="flex flex-col gap-4">
                 {/* TARJETA PRINCIPAL DE EFECTIVO */}
-                <div className="bg-gradient-to-br from-emerald-50/70 to-teal-50/40 dark:from-emerald-950/30 dark:to-slate-800 border border-emerald-200/80 dark:border-emerald-800/60 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
+ <div className="bg-white border border-emerald-200/80 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-700 dark:text-emerald-300">
+ <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700">
                         <Icon name="payments" size={17} />
                       </div>
                       <div>
-                        <h3 className="text-[13.5px] font-bold text-slate-900 dark:text-slate-100">Efectivo Físico en Caja</h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Cuadre del cajón físico del turno</p>
+ <h3 className="text-[13.5px] font-bold text-slate-900">Efectivo Físico en Caja</h3>
+ <p className="text-[11px] text-slate-500">Cuadre del cajón físico del turno</p>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
+ <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-slate-300 text-slate-600">
                       Obligatorio
                     </span>
                   </div>
 
                   {/* Desglose Matemático */}
-                  <div className="grid grid-cols-3 gap-2 p-2.5 bg-white/80 dark:bg-slate-900/60 rounded-xl border border-emerald-100 dark:border-emerald-900/30 text-[11px]">
+ <div className="grid grid-cols-3 gap-2 p-2.5 bg-white/80 rounded-xl border border-emerald-100 text-[11px]">
                     <div>
                       <span className="text-slate-400 uppercase text-[9px] font-bold block">Fondo Apertura:</span>
-                      <strong className="text-slate-800 dark:text-slate-200">S/ {resumenEfectivo?.apertura.toFixed(2) || "0.00"}</strong>
+ <strong className="text-slate-800">S/ {resumenEfectivo?.apertura.toFixed(2) ||"0.00"}</strong>
                     </div>
                     <div>
-                      <span className="text-emerald-600 dark:text-emerald-400 uppercase text-[9px] font-bold block">(+) Cobros Efectivo:</span>
-                      <strong className="text-emerald-700 dark:text-emerald-300">S/ {resumenEfectivo?.ingresos.toFixed(2) || "0.00"}</strong>
+ <span className="text-slate-400 uppercase text-[9px] font-bold block">(+) Cobros Efectivo:</span>
+ <strong className="text-slate-800">S/ {resumenEfectivo?.ingresos.toFixed(2) ||"0.00"}</strong>
                     </div>
                     <div>
-                      <span className="text-rose-600 dark:text-rose-400 uppercase text-[9px] font-bold block">(-) Salidas/Dev.:</span>
-                      <strong className="text-rose-700 dark:text-rose-300">S/ {resumenEfectivo?.egresos.toFixed(2) || "0.00"}</strong>
+ <span className="text-slate-400 uppercase text-[9px] font-bold block">(-) Salidas/Dev.:</span>
+ <strong className="text-slate-800">S/ {resumenEfectivo?.egresos.toFixed(2) ||"0.00"}</strong>
                     </div>
                   </div>
 
                   {/* Saldo Esperado vs Contado */}
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
                     <div className="flex flex-col">
-                      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Efectivo Esperado en Caja:</span>
-                      <span className="text-[18px] font-black text-slate-900 dark:text-slate-100">
+ <span className="text-[11px] font-medium text-slate-500">Efectivo Esperado en Caja:</span>
+ <span className="text-[18px] font-black text-slate-900">
                         S/ {efectivoEsperado.toFixed(2)}
                       </span>
                     </div>
 
                     {/* Input Efectivo Real Contado */}
                     <div className="flex flex-col gap-1 sm:w-48">
-                      <label className="text-[10.5px] font-bold text-slate-700 dark:text-slate-300 uppercase">
-                        Monto Real Contado <span className="text-rose-500">*</span>
+ <label className="text-[10.5px] font-bold text-slate-700 uppercase">
+                        Monto Real Contado <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">S/</span>
@@ -272,7 +272,7 @@ export function CerrarCajaSheet({
                               [resumenEfectivo?.medio_pago_id ?? 1]: e.target.value,
                             }))
                           }
-                          className="w-full pl-8 pr-3 py-2 text-[14px] font-bold border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-900 rounded-xl outline-none focus:ring-2 focus:ring-emerald-400"
+ className="w-full pl-8 pr-3 py-2 text-[14px] font-bold border border-emerald-300 bg-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-400"
                         />
                       </div>
                     </div>
@@ -283,10 +283,10 @@ export function CerrarCajaSheet({
                     <div
                       className={`p-2.5 rounded-xl text-[12px] font-semibold flex items-center justify-between ${
                         Math.abs(diferenciaEfectivo) <= 0.009
-                          ? "bg-emerald-100/70 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+ ? "bg-emerald-100/70 text-emerald-800 border border-emerald-300"
                           : diferenciaEfectivo > 0
-                          ? "bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
-                          : "bg-rose-50 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+ ? "bg-blue-50 text-blue-800 border border-blue-200"
+ :"bg-red-50 text-red-800 border border-red-200"
                       }`}
                     >
                       <div className="flex items-center gap-1.5">
@@ -318,7 +318,7 @@ export function CerrarCajaSheet({
                 {/* MEDIOS DE PAGO DIGITALES */}
                 <div className="flex flex-col gap-2.5">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-[12.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+ <h3 className="text-[12.5px] font-bold text-slate-800 uppercase tracking-wide">
                       Medios Digitales y Bancarios (Ingresos del Turno)
                     </h3>
                     <span className="text-[11px] text-slate-400">Verifica con tus comprobantes/POS</span>
@@ -330,11 +330,11 @@ export function CerrarCajaSheet({
                       .map((r) => (
                         <div
                           key={r.medio_pago_id}
-                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-col gap-2 shadow-xs"
+ className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col gap-2 shadow-xs"
                         >
                           <div className="flex justify-between items-center">
-                            <span className="text-[12.5px] font-bold text-slate-800 dark:text-slate-100">{r.nombre}</span>
-                            <span className="text-[11.5px] font-bold text-cyan-600 dark:text-cyan-400">
+ <span className="text-[12.5px] font-bold text-slate-800">{r.nombre}</span>
+ <span className="text-[11.5px] font-bold text-cyan-600">
                               Total: S/ {r.esperado.toFixed(2)}
                             </span>
                           </div>
@@ -352,7 +352,7 @@ export function CerrarCajaSheet({
                                 }))
                               }
                               placeholder={r.esperado.toFixed(2)}
-                              className="w-full pl-7 pr-2.5 py-1.5 text-[12.5px] font-semibold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-lg outline-none focus:border-cyan-400"
+ className="w-full pl-7 pr-2.5 py-1.5 text-[12.5px] font-semibold border border-slate-200 bg-slate-50 rounded-lg outline-none focus:border-cyan-400"
                             />
                           </div>
                         </div>
@@ -362,7 +362,7 @@ export function CerrarCajaSheet({
 
                 {/* OBSERVACIONES DE CIERRE */}
                 <div className="flex flex-col gap-1">
-                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase">
+ <label className="text-[11px] font-semibold text-slate-600 uppercase">
                     Observaciones del Cierre de Turno (Opcional)
                   </label>
                   <textarea
@@ -370,7 +370,7 @@ export function CerrarCajaSheet({
                     value={observaciones}
                     onChange={(e) => setObservaciones(e.target.value)}
                     placeholder="Ej. Se entregó el efectivo a la administración sin incidencias..."
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-xl p-2.5 text-[12.5px] outline-none focus:border-cyan-400 resize-none"
+ className="w-full border border-slate-200 rounded-xl p-2.5 text-[12.5px] outline-none focus:border-cyan-400 resize-none"
                   />
                 </div>
               </div>
@@ -380,13 +380,13 @@ export function CerrarCajaSheet({
             {tab === "conciliacion" && (
               <div className="flex flex-col gap-3">
                 {/* Cabecera y botón conciliar todos */}
-                <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800">
+ <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
                   <div className="flex items-center gap-2">
-                    <span className="text-[12px] font-bold text-slate-800 dark:text-slate-200">
+ <span className="text-[12px] font-bold text-slate-800">
                       {detalle.total_conciliados} de {detalle.total_movimientos} revisados
                     </span>
                     {detalle.total_conciliados === detalle.total_movimientos && detalle.total_movimientos > 0 && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+ <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">
                         100% Conciliado
                       </span>
                     )}
@@ -394,21 +394,22 @@ export function CerrarCajaSheet({
                   <button
                     onClick={handleConciliarTodos}
                     disabled={saving}
-                    className="text-[11.5px] font-bold text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 flex items-center gap-1"
+ className="text-[11.5px] font-bold text-cyan-600 hover:text-cyan-700 flex items-center gap-1"
                   >
                     <Icon name="done_all" size={14} />
                     Conciliar Todos
                   </button>
                 </div>
 
-                {/* Filtros de Medio */}
+                {/* Filtros de Medio — por defecto gris fantasma, cian con
+                    texto blanco al seleccionar (mismo patrón en todos). */}
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
                   <button
                     onClick={() => setFiltroMedio("todos")}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold shrink-0 transition-colors ${
                       filtroMedio === "todos"
-                        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                        ? "bg-cyan-600 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
                     Todos ({detalle.movimientos.length})
@@ -417,8 +418,8 @@ export function CerrarCajaSheet({
                     onClick={() => setFiltroMedio("devoluciones")}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold shrink-0 transition-colors ${
                       filtroMedio === "devoluciones"
-                        ? "bg-rose-600 text-white"
-                        : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300"
+                        ? "bg-cyan-600 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
                     Devoluciones
@@ -428,8 +429,8 @@ export function CerrarCajaSheet({
                       onClick={() => setFiltroMedio("anulados")}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold shrink-0 transition-colors ${
                         filtroMedio === "anulados"
-                          ? "bg-slate-600 text-white"
-                          : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                          ? "bg-cyan-600 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
                     >
                       Anulados ({conteoAnulados})
@@ -441,8 +442,8 @@ export function CerrarCajaSheet({
                       onClick={() => setFiltroMedio(String(r.medio_pago_id))}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold shrink-0 transition-colors ${
                         filtroMedio === String(r.medio_pago_id)
-                          ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                          : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                          ? "bg-cyan-600 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
                     >
                       {r.nombre}
@@ -451,7 +452,7 @@ export function CerrarCajaSheet({
                 </div>
 
                 {/* Lista de Transacciones */}
-                <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pr-1">
+                <div className="flex flex-col gap-2 max-h-96 overflow-y-auto no-scrollbar pr-1">
                   {movimientosFiltrados.length === 0 ? (
                     <p className="text-center py-8 text-[12px] text-slate-400">No hay movimientos en este filtro.</p>
                   ) : (
@@ -464,10 +465,10 @@ export function CerrarCajaSheet({
                           key={m.id}
                           className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-colors ${
                             isAnulado
-                              ? "bg-slate-50 dark:bg-slate-800/40 border-slate-200/60 dark:border-slate-700/50 opacity-80"
+ ? "bg-slate-50 border-slate-200/60 opacity-80"
                               : m.conciliado
-                              ? "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                              : "bg-amber-50/40 dark:bg-amber-950/15 border-amber-200 dark:border-amber-800/40"
+ ? "bg-white border-slate-200"
+ :"bg-amber-50/40 border-amber-200"
                           }`}
                         >
                           <div className="min-w-0 flex-1">
@@ -475,19 +476,19 @@ export function CerrarCajaSheet({
                               <p
                                 className={`text-[12.5px] font-bold truncate ${
                                   isAnulado
-                                    ? "text-slate-500 dark:text-slate-400"
-                                    : "text-slate-900 dark:text-slate-100"
+ ? "text-slate-500"
+ :"text-slate-900"
                                 }`}
                               >
                                 {m.paciente_o_entidad}
                               </p>
                               {isAnulado && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+ <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 uppercase tracking-wide">
                                   Anulado
                                 </span>
                               )}
                               {m.es_devolucion && !isAnulado && (
-                                <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 uppercase">
+ <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-red-50 text-red-600 uppercase">
                                   Devolución
                                 </span>
                               )}
@@ -495,7 +496,7 @@ export function CerrarCajaSheet({
                                 {m.medio_pago_nombre} {m.referencia ? `· Ref: ${m.referencia}` : ""}
                               </span>
                             </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+ <p className="text-[11px] text-slate-500 truncate mt-0.5">
                               {m.descripcion} {isAnulado ? "· (Anulado - No suma al total)" : ""}
                             </p>
                           </div>
@@ -504,10 +505,10 @@ export function CerrarCajaSheet({
                             <span
                               className={`text-[13px] font-bold ${
                                 isAnulado
-                                  ? "line-through text-slate-400 dark:text-slate-500 font-semibold"
+ ? "line-through text-slate-400 font-semibold"
                                   : isEgreso
-                                  ? "text-rose-600 dark:text-rose-400"
-                                  : "text-emerald-600 dark:text-emerald-400"
+ ? "text-red-600"
+ :"text-emerald-600"
                               }`}
                             >
                               {isEgreso ? "-" : "+"}S/ {m.monto.toFixed(2)}
@@ -520,8 +521,8 @@ export function CerrarCajaSheet({
                               title={m.conciliado ? "Conciliado" : "Marcar como revisado"}
                               className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
                                 m.conciliado
-                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-                                  : "bg-slate-100 text-slate-400 dark:bg-slate-700 hover:text-cyan-600"
+                                  ? "bg-white border border-emerald-500 text-emerald-600"
+ :"bg-slate-100 text-slate-400 hover:text-cyan-600"
                               }`}
                             >
                               <Icon name={m.conciliado ? "check" : "circle"} size={14} />
