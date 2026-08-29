@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { calcEdad } from "@/lib/date-utils";
 import { getExpedienteCompletoAction } from "../actions";
+import { getCasosClinicosAction } from "../casos.actions";
 import {
   esc, fmtGenerado, buildLetterheadHeader, buildLetterheadFooter, sectionLabel, wrapDocument,
   downloadHtmlAsPaginatedPdf, printHtml, type ClinicaInfo,
@@ -20,12 +21,14 @@ type Secciones = {
   odontogramas: boolean;
 };
 
+type ModoNota = "todas" | "activa" | "especifica";
+
 const SECCION_OPTIONS: { key: keyof Secciones; label: string; icon: string }[] = [
-  { key: "resumenClinico", label: "Resumen clínico (alergias, antecedentes)", icon: "medical_information" },
+  { key: "resumenClinico", label: "Resumen clínico y contactos", icon: "medical_information" },
   { key: "tratamientos", label: "Tratamientos y plan de trabajo", icon: "medical_services" },
   { key: "recetas", label: "Recetas médicas", icon: "medication" },
   { key: "presupuestos", label: "Presupuestos y pagos", icon: "payments" },
-  { key: "archivos", label: "Archivos clínicos", icon: "photo_library" },
+  { key: "archivos", label: "Archivos clínicos y radiografías (con anotaciones)", icon: "photo_library" },
   { key: "odontogramas", label: "Odontogramas por visita", icon: "tooth" },
 ];
 
@@ -41,25 +44,18 @@ function Checkbox({ checked, onChange, icon, label }: { checked: boolean; onChan
     <button
       type="button"
       onClick={onChange}
-      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-left"
+      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
     >
       <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
-        checked ? "bg-cyan-600 border-cyan-600" : "border-slate-300"
+        checked ? "bg-cyan-600 border-cyan-600" : "border-slate-300 dark:border-slate-700"
       }`}>
         {checked && <Icon name="check" size={13} className="text-white" />}
       </span>
       <Icon name={icon} size={16} className="text-slate-400 shrink-0" />
-      <span className="text-[12.5px] text-slate-700 font-medium">{label}</span>
+      <span className="text-[12.5px] text-slate-700 dark:text-slate-200 font-medium">{label}</span>
     </button>
   );
 }
-
-// ─── Documento "Historia Clínica Odontológica" ─────────────────────────────
-// Reutiliza el mismo sistema de membrete/badges/firma que Receta, Presupuesto
-// y Archivo Clínico (src/lib/reportExport.ts) en vez del @react-pdf/renderer
-// que tenía antes ExpedientePDF.tsx — así los 4 documentos comparten un único
-// lenguaje visual. El paginado a PDF es automático (downloadHtmlAsPaginatedPdf),
-// por lo que el HTML se arma como un flujo continuo, no en "páginas" fijas.
 
 const fmtFechaCorta = (iso?: string | null) => {
   if (!iso) return "—";
@@ -82,13 +78,83 @@ const PLAN_STYLE: Record<string, { bg: string; fg: string }> = {
 const UPPER_TEETH = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
 const LOWER_TEETH = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
 
-/** Colores del odontograma a partir del nombre real de la condición registrada
- * (no hay un mapa fijo condición→color en BD; se infiere del texto). */
 function toothStyle(convention?: string) {
   const c = (convention || "").toLowerCase();
   if (c.includes("caries")) return { bg: "#dc2626", fg: "#fff" };
-  if (c.includes("obtur") || c.includes("restaur")) return { bg: "#b45309", fg: "#fff" };
+  if (c.includes("obtur") || c.includes("restaur")) return { bg: "#2563eb", fg: "#fff" };
+  if (c.includes("ausent") || c.includes("extrac") || c.includes("extra")) return { bg: "#475569", fg: "#fff" };
   return { bg: "#0891b2", fg: "#fff" };
+}
+
+function renderAnotacionesSvg(anotaciones?: any[]): string {
+  if (!anotaciones || !Array.isArray(anotaciones) || anotaciones.length === 0) return "";
+
+  const elements: string[] = [];
+
+  for (const a of anotaciones) {
+    const color = a.color || "#ef4444";
+
+    // 1. Pines
+    if (a.type === "pin") {
+      const px = a.x ?? 0;
+      const py = a.y ?? 0;
+      const txt = a.text || a.nota || "";
+      elements.push(`
+        <circle cx="${px}" cy="${py}" r="2.5" fill="${color}" stroke="#ffffff" stroke-width="0.6" />
+        ${txt ? `<text x="${px + 3}" y="${py + 1.2}" fill="${color}" font-size="3.8" font-weight="bold">${esc(txt)}</text>` : ""}
+      `);
+    }
+
+    // 2. Textos
+    if (a.type === "text") {
+      const px = a.x ?? 0;
+      const py = a.y ?? 0;
+      elements.push(`
+        <text x="${px}" y="${py}" fill="${color}" font-size="4" font-weight="bold">${esc(a.text || "")}</text>
+      `);
+    }
+
+    // 3. Flechas
+    if (a.type === "arrow") {
+      const x1 = a.x1 ?? a.from?.x ?? 0;
+      const y1 = a.y1 ?? a.from?.y ?? 0;
+      const x2 = a.x2 ?? a.to?.x ?? 0;
+      const y2 = a.y2 ?? a.to?.y ?? 0;
+      elements.push(`
+        <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1.6" stroke-linecap="round" />
+        <circle cx="${x2}" cy="${y2}" r="1.8" fill="${color}" />
+      `);
+    }
+
+    // 4. Dibujos / Trazos canvas (draws)
+    if (a.type === "draw") {
+      if (Array.isArray(a.strokes) && a.strokes.length > 0) {
+        for (const stroke of a.strokes) {
+          if (Array.isArray(stroke.points) && stroke.points.length > 1) {
+            const strokeColor = stroke.color || color;
+            const strokeWidth = (stroke.width || 3) * 0.35;
+            const pathData = stroke.points.map((p: any, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+            elements.push(`
+              <path d="${pathData}" stroke="${strokeColor}" stroke-width="${strokeWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+            `);
+          }
+        }
+      } else if (Array.isArray(a.points) && a.points.length > 1) {
+        const pathData = a.points.map((p: any, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+        elements.push(`
+          <path d="${pathData}" stroke="${color}" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        `);
+      }
+    }
+  }
+
+  if (elements.length === 0) return "";
+
+  return `
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;">
+      ${elements.join("")}
+    </svg>
+  `;
 }
 
 function buildOdontogramaHtml(entries: any[]): string {
@@ -97,36 +163,39 @@ function buildOdontogramaHtml(entries: any[]): string {
   const byTooth = new Map(allFindings.map((f: any) => [f.toothNumber, f]));
 
   const row = (teeth: number[]) => `
-    <div style="display:grid;grid-template-columns:repeat(16,1fr);gap:3px;margin-bottom:3px;">
+    <div style="display:grid;grid-template-columns:repeat(16,1fr);gap:4px;margin-bottom:4px;">
       ${teeth.map((n) => {
         const f = byTooth.get(n);
         const style = f ? toothStyle(f.isAll ? f.allConvention : f.surfaceConditions?.[0]?.convention) : null;
-        return `<div style="aspect-ratio:1;border:1px solid ${style ? style.bg : "#EDF0F4"};border-radius:4px;background:${style ? style.bg : "#F7F8FA"};color:${style ? style.fg : "#95A5A6"};display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;">${n}</div>`;
+        return `<div style="aspect-ratio:1;border:1.5px solid ${style ? style.bg : "#cbd5e1"};border-radius:5px;background:${style ? style.bg : "#f8fafc"};color:${style ? style.fg : "#64748b"};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;">${n}</div>`;
       }).join("")}
     </div>
   `;
 
   const findingLines = allFindings.map((f: any) => {
     const cond = f.isAll ? f.allConvention : (f.surfaceConditions || []).map((s: any) => `${s.surface}: ${s.convention}`).join(", ");
-    return `<div style="font-size:10px;color:#5D6D7E;margin-top:3px;"><b style="color:#212E3D;font-weight:700;">Pieza ${f.toothNumber}</b> — ${esc(cond)}${f.observaciones ? ` · ${esc(f.observaciones)}` : ""}</div>`;
+    return `<div style="font-size:10.5px;color:#475569;margin-top:4px;"><b style="color:#0f172a;font-weight:700;">Pieza ${f.toothNumber}</b> — ${esc(cond)}${f.observaciones ? ` · <i>${esc(f.observaciones)}</i>` : ""}</div>`;
   }).join("");
 
   return `
-    <div style="border:1px solid #EDF0F4;border-radius:10px;padding:14px 16px;margin-top:10px;">
+    <div style="border:1.5px solid #cbd5e1;border-radius:10px;padding:14px 16px;margin-top:10px;background:#ffffff;page-break-inside:avoid;break-inside:avoid;">
       ${row(UPPER_TEETH)}
       ${row(LOWER_TEETH)}
-      ${findingLines}
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;">
+        ${findingLines}
+      </div>
     </div>
   `;
 }
 
-function buildHistoriaClinicaHtml(data: any): string {
+function buildHistoriaClinicaHtml(data: any, secciones: Secciones): string {
   const p = data.paciente;
   const nombreCompleto = [p.nombre, p.apellido].filter(Boolean).join(" ") || "Paciente";
   const clinica: ClinicaInfo | null = data.sede;
   const hc = data.historiaClinica;
   const ant = p.antecedentes_estructurados || { cronicas: [], medicacion_habitual: [], quirurgicos: [] };
   const alergias: string[] = Array.isArray(p.alergias) ? p.alergias : [];
+  const contactos: any[] = Array.isArray(p.contactos) ? p.contactos : [];
   const docCode = hc?.codigo_historia || "Historia Clínica";
   const generado = fmtGenerado();
   const edad = p.fecha_nacimiento ? calcEdad(p.fecha_nacimiento) : null;
@@ -153,8 +222,9 @@ function buildHistoriaClinicaHtml(data: any): string {
     </div>
   `;
 
-  const patientPage = `
-    <table style="width:100%;border-collapse:collapse;margin-top:24px;"><tr>
+  // 1. Encabezado Obligatorio de Historia Clínica y Datos Generales del Paciente
+  const patientHeaderBlock = `
+    <table style="width:100%;border-collapse:collapse;margin-top:20px;border-bottom:2px solid #e2e8f0;padding-bottom:16px;page-break-inside:avoid;break-inside:avoid;"><tr>
       <td style="width:56px;padding:0 16px 0 28px;vertical-align:middle;">
         <table style="width:56px;height:56px;border-collapse:collapse;"><tr>
           <td style="width:56px;height:56px;border-radius:50%;background:linear-gradient(155deg,#0891b2,#0e7490);color:#fff;text-align:center;vertical-align:middle;font-size:18px;font-weight:800;">${esc(initials)}</td>
@@ -164,13 +234,13 @@ function buildHistoriaClinicaHtml(data: any): string {
         <div style="font-size:20px;font-weight:800;color:#212E3D;">${esc(nombreCompleto)}</div>
         <div style="font-size:11.5px;color:#5D6D7E;margin-top:3px;">DNI ${esc(p.dni || "—")} · ${esc(p.sexo || "—")}${edad != null ? ` · ${edad} años` : ""}</div>
         <div style="margin-top:8px;">
-          ${hc?.codigo_historia ? `<span style="display:inline-block;padding:4px 11px 3px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;background:#e3f4f6;color:#0e7490;">${esc(hc.codigo_historia)}</span>` : ""}
-          ${p.activo != null ? `<span style="display:inline-block;padding:4px 11px 3px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;margin-left:6px;background:${p.activo ? "#d1fae5" : "#F1F3F6"};color:${p.activo ? "#059669" : "#5D6D7E"};">${p.activo ? "Activo" : "Inactivo"}</span>` : ""}
+          ${hc?.codigo_historia ? `<span style="display:inline-block;padding:4px 11px 3px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;background:#e3f4f6;color:#0e7490;">Código HC: ${esc(hc.codigo_historia)}</span>` : ""}
+          ${hc?.fecha_creacion ? `<span style="display:inline-block;padding:4px 11px 3px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;margin-left:6px;background:#f1f5f9;color:#64748b;">Apertura: ${fmtFechaCorta(hc.fecha_creacion)}</span>` : ""}
         </div>
       </td>
     </tr></table>
 
-    <div style="padding:22px 28px 0;display:grid;grid-template-columns:repeat(2,1fr);gap:14px 28px;">
+    <div style="padding:18px 28px 0;display:grid;grid-template-columns:repeat(2,1fr);gap:12px 28px;page-break-inside:avoid;break-inside:avoid;">
       ${field("Fecha de nacimiento", fmtFechaCorta(p.fecha_nacimiento))}
       ${field("Sexo", p.sexo)}
       ${field("Grupo sanguíneo", p.grupo_sanguineo)}
@@ -179,203 +249,243 @@ function buildHistoriaClinicaHtml(data: any): string {
       ${field("Dirección", p.direccion || p.domicilio)}
     </div>
 
-    <div style="margin:20px 28px 0;padding:16px 18px;background:#F7F8FA;border:1px solid #EDF0F4;border-radius:10px;">
-      ${sectionLabel("Resumen clínico")}
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px 20px;margin-bottom:12px;">
-        ${infoItem("Ocupación", p.ocupacion)}
-        ${infoItem("Estado civil", p.estado_civil)}
-        ${infoItem("Instrucción", p.grado_instruccion)}
-        ${infoItem("Procedencia", p.lugar_procedencia)}
-        ${infoItem("Religión", p.religion)}
-        ${infoItem("Lugar de nacimiento", p.lugar_nacimiento)}
+    ${secciones.resumenClinico ? `
+      <div style="margin:16px 28px 0;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;page-break-inside:avoid;break-inside:avoid;">
+        ${sectionLabel("Resumen clínico y antecedentes del paciente")}
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px 16px;margin-bottom:10px;">
+          ${infoItem("Ocupación", p.ocupacion)}
+          ${infoItem("Estado civil", p.estado_civil)}
+          ${infoItem("Grado de instrucción", p.grado_instruccion)}
+          ${infoItem("Lugar de procedencia", p.lugar_procedencia)}
+          ${infoItem("Religión", p.religion)}
+          ${infoItem("Lugar de nacimiento", p.lugar_nacimiento)}
+          ${infoItem("Raza / Etnia", p.raza)}
+        </div>
+
+        <div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;">Alergias</div>
+        ${alergias.length > 0 ? pillRow(alergias, "#fee2e2", "#dc2626") : `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Ninguna registrada</div>`}
+        ${ant.cronicas?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-top:8px;">Enfermedades crónicas</div>${pillRow(ant.cronicas, "#fef3c7", "#b45309")}` : ""}
+        ${ant.medicacion_habitual?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-top:8px;">Medicación habitual</div>${pillRow(ant.medicacion_habitual, "#ede9fe", "#7c3aed")}` : ""}
+        ${ant.quirurgicos?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-top:8px;">Antecedentes quirúrgicos</div>${pillRow(ant.quirurgicos, "#e3f4f6", "#0e7490")}` : ""}
+        ${p.enfermedad_actual ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-top:8px;">Enfermedad actual</div><div style="font-size:11px;color:#1e293b;margin-top:2px;">${esc(p.enfermedad_actual)}</div>` : ""}
+        ${p.restricciones_clinicas && p.restricciones_clinicas.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-top:8px;">Restricciones clínicas</div>${pillRow(p.restricciones_clinicas, "#fee2e2", "#b91c1c")}` : ""}
+
+        <!-- Contacto de emergencia y representante legal -->
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">
+          <div style="font-size:9.5px;font-weight:800;color:#0e7490;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">
+            Contacto de Emergencia / Representante Legal
+          </div>
+          ${contactos.length > 0 ? contactos.map((c) => `
+            <div style="font-size:11px;color:#1e293b;margin-bottom:3px;">
+              <b style="color:#0e7490;">${c.tipo_contacto === 'representante_legal' ? 'Representante Legal' : 'Contacto de Emergencia'}:</b>
+              ${esc(c.nombre)} ${esc(c.apellido)} · DNI: ${esc(c.dni || "—")} · Teléfono: <b>${esc(c.telefono || "—")}</b>
+            </div>
+          `).join("") : `<div style="font-size:11px;color:#94a3b8;">Sin contactos de emergencia o representante legal registrados.</div>`}
+        </div>
       </div>
-      <div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;">Alergias</div>
-      ${alergias.length > 0 ? pillRow(alergias, "#fee2e2", "#dc2626") : `<div style="font-size:11px;color:#95A5A6;margin-top:3px;">Ninguna registrada</div>`}
-      ${ant.cronicas?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Enfermedades crónicas</div>${pillRow(ant.cronicas, "#fef3c7", "#b45309")}` : ""}
-      ${ant.medicacion_habitual?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Medicación habitual</div>${pillRow(ant.medicacion_habitual, "#ede9fe", "#7c3aed")}` : ""}
-      ${ant.quirurgicos?.length > 0 ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Antecedentes quirúrgicos</div>${pillRow(ant.quirurgicos, "#e3f4f6", "#0e7490")}` : ""}
-      ${p.enfermedad_actual ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-top:10px;">Enfermedad actual / restricciones</div><div style="font-size:11.5px;color:#212E3D;margin-top:3px;">${esc(p.enfermedad_actual)}</div>` : ""}
-    </div>
+    ` : ""}
   `;
 
-  const consultasHtml = data.consultas.length === 0
-    ? `<div style="padding:22px 28px 0;"><p style="font-size:11.5px;color:#95A5A6;">Sin consultas registradas en el rango seleccionado.</p></div>`
-    : data.consultas.map((c: any) => {
-      const diagnosticosRows = (c.diagnosticos || []).map((d: any) => `
-        <tr>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;font-weight:700;color:#0e7490;">${esc(d.cie10?.codigo || "—")}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#212E3D;">${esc(d.texto)}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;">
-            <span style="display:inline-flex;padding:3px 9px;border-radius:5px;font-size:10px;font-weight:700;background:${d.es_definitivo ? "#fee2e2" : "#fef3c7"};color:${d.es_definitivo ? "#dc2626" : "#b45309"};">${d.es_definitivo ? "Definitivo" : "Presuntivo"}</span>
-          </td>
-        </tr>
-      `).join("");
+  // 2. Secciones por Caso Clínico / Nota Clínica
+  const casosClinicos = data.casosClinicos || [];
 
-      const planItems = (c.diagnosticos || []).flatMap((d: any) => d.tratamientos || []);
-      const planRows = planItems.map((t: any) => `
-        <tr>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#212E3D;font-weight:600;">${esc(t.nombre)}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#5D6D7E;">${esc(t.notas || "—")}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#212E3D;text-align:right;">${t.precio > 0 ? `${t.moneda === "PEN" ? "S/" : t.moneda} ${Number(t.precio).toFixed(2)}` : "—"}</td>
-        </tr>
-      `).join("");
+  const casosHtml = casosClinicos.length === 0
+    ? `<div style="padding:20px 28px 0;"><p style="font-size:11.5px;color:#94a3b8;">Sin notas clínicas o consultas registradas según el filtro seleccionado.</p></div>`
+    : casosClinicos.map((caso: any) => {
+      const consultasHtml = (caso.consultas || []).map((c: any) => {
+        const diagnosticosRows = (c.diagnosticos || []).map((d: any) => `
+          <tr style="page-break-inside:avoid;break-inside:avoid;">
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:11px;font-weight:700;color:#0e7490;">${esc(d.cie10?.codigo || "—")}</td>
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#1e293b;">${esc(d.texto)}</td>
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;">
+              <span style="display:inline-flex;padding:2.5px 8px;border-radius:4px;font-size:9.5px;font-weight:700;background:${d.es_definitivo ? "#fee2e2" : "#fef3c7"};color:${d.es_definitivo ? "#dc2626" : "#b45309"};">${d.es_definitivo ? "Definitivo" : "Presuntivo"}</span>
+            </td>
+          </tr>
+        `).join("");
 
-      const faseItems = (c.diagnosticos || []).flatMap((d: any) => d.plan || []);
-      const faseRows = faseItems.map((f: any) => {
-        const st = PLAN_STYLE[f.estado] || PLAN_STYLE["No iniciado"];
-        return `
-        <tr>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#212E3D;font-weight:600;">${esc(f.etapa)}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#5D6D7E;">${esc(f.descripcion || "—")}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;"><span style="display:inline-flex;padding:3px 9px;border-radius:5px;font-size:10px;font-weight:700;background:${st.bg};color:${st.fg};">${esc(PLAN_LABEL[f.estado] || f.estado)}</span></td>
-        </tr>
-      `;}).join("");
+        const planItems = (c.diagnosticos || []).flatMap((d: any) => d.tratamientos || []);
+        const planRows = planItems.map((t: any) => `
+          <tr style="page-break-inside:avoid;break-inside:avoid;">
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#1e293b;font-weight:600;">${esc(t.nombre)}</td>
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:10.5px;color:#64748b;">${esc(t.notas || "—")}</td>
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#1e293b;text-align:right;">${t.precio > 0 ? `${t.moneda === "PEN" ? "S/" : t.moneda} ${Number(t.precio).toFixed(2)}` : "—"}</td>
+          </tr>
+        `).join("");
 
-      const medsItems = (c.diagnosticos || []).flatMap((d: any) => (d.recetas || []).flatMap((r: any) => r.medicamentos || []));
-      const medsRows = medsItems.map((m: any) => `
-        <tr>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#212E3D;font-weight:700;">${esc(m.nombre)}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#2C3E50;">${esc(m.dosis || "—")}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#2C3E50;">${esc(m.frecuencia || "—")}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#5D6D7E;">${esc(m.indicaciones || "—")}</td>
-        </tr>
-      `).join("");
+        const faseItems = (c.diagnosticos || []).flatMap((d: any) => d.plan || []);
+        const faseRows = faseItems.map((f: any) => {
+          const st = PLAN_STYLE[f.estado] || PLAN_STYLE["No iniciado"];
+          return `
+          <tr style="page-break-inside:avoid;break-inside:avoid;">
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#1e293b;font-weight:600;">${esc(f.etapa)}</td>
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:10.5px;color:#64748b;">${esc(f.descripcion || "—")}</td>
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;"><span style="display:inline-flex;padding:2.5px 8px;border-radius:4px;font-size:9.5px;font-weight:700;background:${st.bg};color:${st.fg};">${esc(PLAN_LABEL[f.estado] || f.estado)}</span></td>
+          </tr>
+        `;}).join("");
 
-      const presupuestosHtml = (c.presupuestos || []).map((p: any) => `
-        <table style="width:100%;border-collapse:collapse;border:1px solid #EDF0F4;border-radius:8px;margin-bottom:8px;">
-          <thead><tr>
-            <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Ítem</th>
-            <th style="text-align:center;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Cant.</th>
-            <th style="text-align:right;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Subtotal</th>
-          </tr></thead>
-          <tbody>
-            ${(p.items || []).map((it: any) => `
-              <tr>
-                <td style="padding:7px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#212E3D;">${esc(it.nombre)}</td>
-                <td style="padding:7px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#2C3E50;text-align:center;">${it.cantidad}</td>
-                <td style="padding:7px 10px;border-bottom:1px solid #F1F3F6;font-size:11px;color:#212E3D;text-align:right;">S/ ${Number(it.subtotal).toFixed(2)}</td>
+        const medsItems = (c.diagnosticos || []).flatMap((d: any) => (d.recetas || []).flatMap((r: any) => r.medicamentos || []));
+        const medsRows = medsItems.map((m: any) => `
+          <tr style="page-break-inside:avoid;break-inside:avoid;">
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#1e293b;font-weight:700;">${esc(m.nombre)}</td>
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:10.5px;color:#334155;">${esc(m.dosis || "—")}</td>
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:10.5px;color:#334155;">${esc(m.frecuencia || "—")}</td>
+            <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:10.5px;color:#64748b;">${esc(m.indicaciones || "—")}</td>
+          </tr>
+        `).join("");
+
+        const presupuestosHtml = (c.presupuestos || []).map((p: any) => `
+          <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;page-break-inside:avoid;break-inside:avoid;">
+            <thead><tr>
+              <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Ítem</th>
+              <th style="text-align:center;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Cant.</th>
+              <th style="text-align:right;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Subtotal</th>
+            </tr></thead>
+            <tbody>
+              ${(p.items || []).map((it: any) => `
+                <tr style="page-break-inside:avoid;break-inside:avoid;">
+                  <td style="padding:6px 9px;border-bottom:1px solid #f1f5f9;font-size:10.5px;color:#1e293b;">${esc(it.nombre)}</td>
+                  <td style="padding:6px 9px;border-bottom:1px solid #f1f5f9;font-size:10.5px;color:#334155;text-align:center;">${it.cantidad}</td>
+                  <td style="padding:6px 9px;border-bottom:1px solid #f1f5f9;font-size:10.5px;color:#1e293b;text-align:right;">S/ ${Number(it.subtotal).toFixed(2)}</td>
+                </tr>
+              `).join("")}
+              <tr style="page-break-inside:avoid;break-inside:avoid;">
+                <td style="padding:6px 9px;font-size:10.5px;font-weight:700;color:#1e293b;" colspan="2">Total neto / Pagado / Saldo</td>
+                <td style="padding:6px 9px;font-size:10.5px;font-weight:700;color:#0e7490;text-align:right;">S/ ${Number(p.neto).toFixed(2)} / S/ ${Number(p.pagado).toFixed(2)} / S/ ${Number(p.saldo).toFixed(2)}</td>
               </tr>
+            </tbody>
+          </table>
+        `).join("");
+
+        const odontoHtml = secciones.odontogramas ? buildOdontogramaHtml(c.odontogramaDetalle || []) : "";
+
+        const archivosHtml = (!secciones.archivos || (c.archivos || []).length === 0) ? "" : `
+          <div style="margin-bottom:6px;page-break-inside:avoid;break-inside:avoid;">${sectionLabel(`Archivos y Radiografías con anotaciones (${c.archivos.length})`)}</div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:12px;page-break-inside:avoid;break-inside:avoid;">
+            ${(c.archivos || []).map((a: any) => {
+              const isImg = /\.(jpe?g|png|gif|webp)$/i.test(a.nombre_archivo || "");
+              return `
+                <div style="border:1.5px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#ffffff;page-break-inside:avoid;break-inside:avoid;">
+                  <div style="position:relative;width:100%;height:200px;background:#0f172a;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                    ${isImg
+                      ? `<img src="${a.displayUrl}" style="width:100%;height:100%;object-fit:contain;" crossorigin="anonymous" />
+                         ${renderAnotacionesSvg(a.anotaciones)}`
+                      : `<svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" stroke="#94a3b8" stroke-width="1.6"/><path d="M14 2v5h5" stroke="#94a3b8" stroke-width="1.6"/></svg>`
+                    }
+                  </div>
+                  <div style="padding:8px 10px;background:#f8fafc;border-top:1px solid #e2e8f0;">
+                    <div style="font-size:10.5px;color:#0f172a;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.nombre_archivo)}</div>
+                    <div style="font-size:9px;color:#64748b;margin-top:2px;">${esc(a.categoria || a.tipo_archivo || "")} ${(a.anotaciones && a.anotaciones.length > 0) ? `· <b>${a.anotaciones.length} anotación(es)</b>` : ""}</div>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        `;
+
+        const recomendacionesHtml = (c.recomendaciones || []).length === 0 ? "" : `
+          <div style="margin:10px 0 4px;page-break-inside:avoid;break-inside:avoid;">${sectionLabel("Recomendaciones")}</div>
+          <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;page-break-inside:avoid;break-inside:avoid;">
+            ${(c.recomendaciones || []).map((r: any) => `
+              <div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:10.5px;color:#1e293b;line-height:1.4;">${esc(r.contenido)}</div>
             `).join("")}
-            <tr>
-              <td style="padding:7px 10px;font-size:11px;font-weight:700;color:#212E3D;" colspan="2">Total neto / Pagado / Saldo</td>
-              <td style="padding:7px 10px;font-size:11px;font-weight:700;color:#0e7490;text-align:right;">S/ ${Number(p.neto).toFixed(2)} / S/ ${Number(p.pagado).toFixed(2)} / S/ ${Number(p.saldo).toFixed(2)}</td>
-            </tr>
-          </tbody>
-        </table>
-      `).join("");
+          </div>
+        `;
 
-      const odontoHtml = buildOdontogramaHtml(c.odontogramaDetalle || []);
-
-      const archivosHtml = (c.archivos || []).length === 0 ? "" : `
-        <div style="margin-bottom:4px;">${sectionLabel(`Archivos de la visita (${c.archivos.length})`)}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
-          ${(c.archivos || []).map((a: any) => {
-            const isImg = /\.(jpe?g|png|gif|webp)$/i.test(a.nombre_archivo || "");
-            return `
-              <div style="width:120px;border:1px solid #EDF0F4;border-radius:8px;overflow:hidden;flex-shrink:0;">
-                <div style="height:84px;background:#F1F3F6;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-                  ${isImg
-                    ? `<img src="${a.displayUrl}" style="width:100%;height:100%;object-fit:cover;" crossorigin="anonymous" />`
-                    : `<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" stroke="#95A5A6" stroke-width="1.6"/><path d="M14 2v5h5" stroke="#95A5A6" stroke-width="1.6"/></svg>`
-                  }
-                </div>
-                <div style="padding:5px 7px;">
-                  <div style="font-size:9px;color:#2C3E50;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.nombre_archivo)}</div>
-                  <div style="font-size:8px;color:#95A5A6;margin-top:1px;">${esc(a.categoria || a.tipo_archivo || "")}</div>
-                </div>
+        return `
+          <div style="margin-top:14px;padding:14px 16px;border:1px solid #e2e8f0;border-radius:10px;background:#ffffff;page-break-inside:avoid;break-inside:avoid;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:10px;">
+              <div>
+                <div style="font-size:14px;font-weight:800;color:#1e293b;">${esc(c.motivo)}</div>
+                <div style="font-size:10.5px;color:#64748b;margin-top:2px;">Atendido por: <b>${esc(c.doctor)}</b>${c.doctorEspecialidad ? ` · ${esc(c.doctorEspecialidad)}` : ""}</div>
               </div>
-            `;
-          }).join("")}
-        </div>
-      `;
+              <div style="font-size:11.5px;font-weight:700;color:#0e7490;white-space:nowrap;">${esc(fmtFechaLarga(c.fecha))}</div>
+            </div>
 
-      const recomendacionesHtml = (c.recomendaciones || []).length === 0 ? "" : `
-        <div style="margin:14px 0 4px;">${sectionLabel("Recomendaciones")}</div>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;">
-          ${(c.recomendaciones || []).map((r: any) => `
-            <div style="border:1px solid #EDF0F4;border-radius:8px;padding:9px 12px;font-size:11px;color:#212E3D;line-height:1.5;">${esc(r.contenido)}</div>
-          `).join("")}
-        </div>
-      `;
+            ${c.observaciones ? `
+              <div style="border:1px solid #f1f5f9;background:#f8fafc;border-radius:8px;padding:10px 12px;margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;">
+                ${sectionLabel("Examen físico / Anamnesis / Observaciones")}
+                <div style="font-size:11px;color:#1e293b;line-height:1.5;">${esc(c.observaciones)}</div>
+              </div>
+            ` : ""}
+
+            ${diagnosticosRows ? `
+              <div style="margin-bottom:4px;page-break-inside:avoid;break-inside:avoid;">${sectionLabel("Diagnósticos clínicos")}</div>
+              <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;">
+                <thead><tr>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">CIE-10</th>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Diagnóstico</th>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Tipo</th>
+                </tr></thead>
+                <tbody>${diagnosticosRows}</tbody>
+              </table>
+            ` : ""}
+
+            ${archivosHtml}
+
+            ${odontoHtml ? `<div style="margin-bottom:4px;page-break-inside:avoid;break-inside:avoid;">${sectionLabel("Odontograma de la visita")}</div>${odontoHtml}` : ""}
+
+            ${(secciones.tratamientos && planRows) ? `
+              <div style="margin:10px 0 4px;page-break-inside:avoid;break-inside:avoid;">${sectionLabel("Tratamientos")}</div>
+              <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;">
+                <thead><tr>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Tratamiento</th>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Notas</th>
+                  <th style="text-align:right;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Costo</th>
+                </tr></thead>
+                <tbody>${planRows}</tbody>
+              </table>
+            ` : ""}
+
+            ${(secciones.tratamientos && faseRows) ? `
+              <div style="margin-bottom:4px;page-break-inside:avoid;break-inside:avoid;">${sectionLabel("Plan de trabajo y fases")}</div>
+              <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;page-break-inside:avoid;break-inside:avoid;">
+                <thead><tr>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Fase</th>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Descripción</th>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Estado</th>
+                </tr></thead>
+                <tbody>${faseRows}</tbody>
+              </table>
+            ` : ""}
+
+            ${recomendacionesHtml}
+
+            ${(secciones.recetas && medsRows) ? `
+              <div style="margin:10px 0 4px;page-break-inside:avoid;break-inside:avoid;">${sectionLabel("Receta médica — medicamentos prescritos")}</div>
+              <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;page-break-inside:avoid;break-inside:avoid;">
+                <thead><tr>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Medicamento</th>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Dosis</th>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Frecuencia</th>
+                  <th style="text-align:left;padding:6px 9px;font-size:9px;font-weight:800;color:#94a3b8;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;">Indicaciones</th>
+                </tr></thead>
+                <tbody>${medsRows}</tbody>
+              </table>
+            ` : ""}
+
+            ${(secciones.presupuestos && presupuestosHtml) ? `<div style="margin:10px 0 4px;page-break-inside:avoid;break-inside:avoid;">${sectionLabel("Presupuestos de la visita")}</div>${presupuestosHtml}` : ""}
+          </div>
+        `;
+      }).join("");
 
       return `
-        <div style="padding:26px 28px 0;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px;">
-            <div>
-              <div style="font-size:15px;font-weight:800;color:#212E3D;">${esc(c.motivo)}</div>
-              <div style="font-size:11px;color:#5D6D7E;margin-top:2px;">${esc(c.doctor)}${c.doctorEspecialidad ? ` · ${esc(c.doctorEspecialidad)}` : ""}</div>
+        <div style="margin:20px 28px 0;padding:16px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:12px;page-break-inside:avoid;break-inside:avoid;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-size:16px;font-weight:800;color:#0e7490;">
+              Caso Clínico: ${esc(caso.titulo_caso_clinico || "Consulta General")}
             </div>
-            <div style="font-size:12px;font-weight:700;color:#0e7490;white-space:nowrap;">${esc(fmtFechaLarga(c.fecha))}</div>
+            <span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:10.5px;font-weight:700;background:${caso.estado === 'De alta' ? '#f1f5f9' : '#e0f2fe'};color:${caso.estado === 'De alta' ? '#64748b' : '#0369a1'};">
+              Estado: ${esc(caso.estado)}
+            </span>
           </div>
+          <div style="font-size:10.5px;color:#64748b;margin-bottom:8px;">Apertura de caso: ${fmtFechaCorta(caso.created_at)}</div>
 
-          ${c.observaciones ? `
-            <div style="border:1px solid #EDF0F4;border-radius:10px;padding:12px 16px;margin-bottom:10px;">
-              ${sectionLabel("Anamnesis / Observaciones")}
-              <div style="font-size:11.5px;color:#212E3D;line-height:1.55;">${esc(c.observaciones)}</div>
-            </div>
-          ` : ""}
-
-          ${diagnosticosRows ? `
-            <table style="width:100%;border-collapse:collapse;border:1px solid #EDF0F4;border-radius:8px;margin-bottom:10px;">
-              <thead><tr>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">CIE-10</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Diagnóstico</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Tipo</th>
-              </tr></thead>
-              <tbody>${diagnosticosRows}</tbody>
-            </table>
-          ` : `<p style="font-size:11px;color:#95A5A6;margin-bottom:10px;">Sin diagnóstico registrado en esta consulta.</p>`}
-
-          ${archivosHtml}
-
-          ${odontoHtml ? `<div style="margin-bottom:4px;">${sectionLabel("Odontograma de la visita")}</div>${odontoHtml}` : ""}
-
-          ${planRows ? `
-            <div style="margin:14px 0 4px;">${sectionLabel("Tratamientos")}</div>
-            <table style="width:100%;border-collapse:collapse;border:1px solid #EDF0F4;border-radius:8px;margin-bottom:10px;">
-              <thead><tr>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Tratamiento</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Notas</th>
-                <th style="text-align:right;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Costo</th>
-              </tr></thead>
-              <tbody>${planRows}</tbody>
-            </table>
-          ` : ""}
-
-          ${faseRows ? `
-            <div style="margin-bottom:4px;">${sectionLabel("Fases del tratamiento")}</div>
-            <table style="width:100%;border-collapse:collapse;border:1px solid #EDF0F4;border-radius:8px;margin-bottom:10px;">
-              <thead><tr>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Fase</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Descripción</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Estado</th>
-              </tr></thead>
-              <tbody>${faseRows}</tbody>
-            </table>
-          ` : ""}
-
-          ${recomendacionesHtml}
-
-          ${medsRows ? `
-            <div style="margin:14px 0 4px;">${sectionLabel("Receta — medicamentos prescritos")}</div>
-            <table style="width:100%;border-collapse:collapse;border:1px solid #EDF0F4;border-radius:8px;margin-bottom:6px;">
-              <thead><tr>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Medicamento</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Dosis</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Frecuencia</th>
-                <th style="text-align:left;padding:7px 10px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;background:#F7F8FA;border-bottom:1px solid #EDF0F4;">Indicaciones</th>
-              </tr></thead>
-              <tbody>${medsRows}</tbody>
-            </table>
-          ` : ""}
-
-          ${presupuestosHtml ? `<div style="margin:14px 0 4px;">${sectionLabel("Presupuestos de la visita")}</div>${presupuestosHtml}` : ""}
+          ${consultasHtml || `<p style="font-size:11px;color:#94a3b8;margin-top:6px;">Sin consultas registradas en este caso clínico.</p>`}
         </div>
-        <div style="padding:0 28px 22px;border-bottom:1px solid #EDF0F4;"></div>
       `;
     }).join("");
 
-  const body = `${patientPage}${consultasHtml}`;
+  const body = `${patientHeaderBlock}${casosHtml}`;
   return wrapDocument(`${header}${body}${footer}`, 850);
 }
 
@@ -385,36 +495,33 @@ export function DescargarExpedienteModal({ paciente, onClose }: {
 }) {
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
+  const [modoNota, setModoNota] = useState<ModoNota>("todas");
+  const [notaEspecificaId, setNotaEspecificaId] = useState("");
+  const [casosLista, setCasosLista] = useState<any[]>([]);
+
   const [secciones, setSecciones] = useState<Secciones>({
     resumenClinico: true, tratamientos: true, recetas: true, presupuestos: true, archivos: true, odontogramas: true,
   });
   const [generando, setGenerando] = useState<"print" | "pdf" | null>(null);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    async function loadCasos() {
+      try {
+        const res = await getCasosClinicosAction(String(paciente.id));
+        setCasosLista(res.casos || []);
+        if (res.casos && res.casos.length > 0) {
+          setNotaEspecificaId(res.casos[0].id);
+        }
+      } catch (e) {
+        console.error("Error al cargar casos clínicos del paciente:", e);
+      }
+    }
+    loadCasos();
+  }, [paciente.id]);
+
   function toggle(key: keyof Secciones) {
     setSecciones((s) => ({ ...s, [key]: !s[key] }));
-  }
-
-  function aplicarSecciones(data: any) {
-    if (secciones.resumenClinico && secciones.tratamientos && secciones.recetas && secciones.presupuestos && secciones.archivos && secciones.odontogramas) {
-      return data;
-    }
-    return {
-      ...data,
-      paciente: secciones.resumenClinico ? data.paciente : { ...data.paciente, alergias: [], antecedentes_estructurados: null, enfermedad_actual: null },
-      consultas: data.consultas.map((c: any) => ({
-        ...c,
-        diagnosticos: (c.diagnosticos || []).map((d: any) => ({
-          ...d,
-          tratamientos: secciones.tratamientos ? d.tratamientos : [],
-          plan: secciones.tratamientos ? d.plan : [],
-          recetas: secciones.recetas ? d.recetas : [],
-        })),
-        presupuestos: secciones.presupuestos ? c.presupuestos : [],
-        archivos: secciones.archivos ? c.archivos : [],
-        odontogramaDetalle: secciones.odontogramas ? c.odontogramaDetalle : [],
-      })),
-    };
   }
 
   async function generar(mode: "print" | "pdf") {
@@ -424,11 +531,12 @@ export function DescargarExpedienteModal({ paciente, onClose }: {
       const data = await getExpedienteCompletoAction(String(paciente.id), {
         fechaDesde: fechaDesde || undefined,
         fechaHasta: fechaHasta || undefined,
+        notaClinicaModo: modoNota,
+        notaClinicaId: modoNota === "especifica" ? notaEspecificaId : undefined,
       });
       if (!data) { setError("No se pudo cargar el expediente del paciente."); return; }
 
-      const filtrado = aplicarSecciones(data);
-      const html = buildHistoriaClinicaHtml(filtrado);
+      const html = buildHistoriaClinicaHtml(data, secciones);
       const nombreCompleto = [paciente.nombre, paciente.apellido].filter(Boolean).join(" ") || "Paciente";
 
       if (mode === "print") {
@@ -465,7 +573,7 @@ export function DescargarExpedienteModal({ paciente, onClose }: {
             <button
               onClick={() => generar("print")}
               disabled={generando !== null}
-              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-600 rounded-xl text-[13px] font-semibold transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 text-slate-600 dark:text-slate-200 rounded-xl text-[13px] font-semibold transition-colors"
             >
               <Icon name="print" size={15} />
               {generando === "print" ? "Preparando…" : "Imprimir"}
@@ -483,24 +591,84 @@ export function DescargarExpedienteModal({ paciente, onClose }: {
       }
     >
       <div className="flex flex-col gap-4">
+        {/* Filtro por Caso Clínico / Nota Clínica */}
         <div>
-          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2">Rango de fechas (opcional)</p>
+          <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">Caso Clínico / Nota Clínica</p>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-200 cursor-pointer">
+              <input
+                type="radio"
+                name="modoNota"
+                checked={modoNota === "todas"}
+                onChange={() => setModoNota("todas")}
+                className="text-cyan-600 focus:ring-cyan-500"
+              />
+              <span>Todas las Notas Clínicas (Historial completo)</span>
+            </label>
+
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-200 cursor-pointer">
+              <input
+                type="radio"
+                name="modoNota"
+                checked={modoNota === "activa"}
+                onChange={() => setModoNota("activa")}
+                className="text-cyan-600 focus:ring-cyan-500"
+              />
+              <span>Solo la Nota Clínica Activa (En Consulta / Diagnosticado / En tratamiento)</span>
+            </label>
+
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-200 cursor-pointer">
+              <input
+                type="radio"
+                name="modoNota"
+                checked={modoNota === "especifica"}
+                onChange={() => setModoNota("especifica")}
+                className="text-cyan-600 focus:ring-cyan-500"
+              />
+              <span>Seleccionar una Nota Clínica específica</span>
+            </label>
+
+            {modoNota === "especifica" && (
+              <div className="pl-6 pt-1">
+                {casosLista.length === 0 ? (
+                  <p className="text-[11px] text-slate-400">Cargando lista de casos clínicos...</p>
+                ) : (
+                  <select
+                    value={notaEspecificaId}
+                    onChange={(e) => setNotaEspecificaId(e.target.value)}
+                    className="w-full text-xs p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-cyan-500"
+                  >
+                    {casosLista.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.titulo_caso_clinico || "Caso Clínico"} (Estado: {c.estado})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Rango de Fechas */}
+        <div>
+          <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">Rango de fechas (opcional)</p>
           <div className="grid grid-cols-2 gap-2">
             <DatePicker value={fechaDesde} onChange={setFechaDesde} placeholder="Desde" max={fechaHasta || undefined} />
             <DatePicker value={fechaHasta} onChange={setFechaHasta} placeholder="Hasta" min={fechaDesde || undefined} />
           </div>
-          <p className="text-[10.5px] text-slate-400 mt-1.5">Deja en blanco para incluir todo el historial.</p>
         </div>
 
+        {/* Secciones a incluir */}
         <div>
-          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2">Secciones a incluir</p>
+          <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">Secciones a incluir en cada consulta</p>
           <div className="flex flex-col gap-1.5">
             {SECCION_OPTIONS.map((opt) => (
               <Checkbox key={opt.key} icon={opt.icon} label={opt.label} checked={secciones[opt.key]} onChange={() => toggle(opt.key)} />
             ))}
           </div>
           <p className="text-[10.5px] text-slate-400 mt-1.5">
-            Datos personales, diagnósticos e historial de consultas siempre se incluyen.
+            La Historia Clínica con su código y fecha de apertura encabezará siempre el expediente.
           </p>
         </div>
       </div>

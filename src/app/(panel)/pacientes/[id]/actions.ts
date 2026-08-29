@@ -153,6 +153,11 @@ export async function getDetallePacienteAction(pacienteId: string) {
     };
   });
 
+  const { data: contactos } = await supabase
+    .from("contacto")
+    .select("id, nombre, apellido, dni, telefono, tipo_contacto")
+    .eq("paciente_id", pacienteId);
+
   const pFinal = {
     id: String(paciente.id),
     nombre:            toStr(paciente.nombre)             ?? "",
@@ -177,6 +182,7 @@ export async function getDetallePacienteAction(pacienteId: string) {
     alergias:          alergiasArr,
     antecedentes:      antArr,
     antecedentes_estructurados: antEstruct,
+    contactos:         contactos || [],
     activo:            paciente.activo,
     ultima_visita:     citasMap.length > 0 ? citasMap[0].fecha : undefined,
     proxima_cita:      citasMap.find((c: any) => c.estado === 'programada' || c.estado === 'confirmada')?.fecha
@@ -341,17 +347,15 @@ export async function crearNotaClinicaAction(pacienteId: string, data: any) {
 
 export async function getHistorialConsultasAction(
   pacienteId: string,
-  opts?: { fechaDesde?: string; fechaHasta?: string },
+  opts?: {
+    fechaDesde?: string;
+    fechaHasta?: string;
+    notaClinicaModo?: "todas" | "activa" | "especifica";
+    notaClinicaId?: string;
+  },
 ) {
   const supabase = await createClient();
 
-  // consultas no tiene FK directa a historia_clinica (confirmado por
-  // agregarConsultaAction, que crea cada consulta con nota_clinica_id) — la
-  // cadena real es historia_clinica → nota_clinica → consultas, resuelta en
-  // dos pasos. pacienteId se pasa como string (sin Number()): esa conversión
-  // era el bug real — hacía que el primer paso nunca encontrara la historia
-  // clínica, y como solo se desestructuraba `data` (nunca `error`), quedaba
-  // enmascarado como "sin historia clínica" en vez de un error visible.
   const { data: hc, error: hcError } = await supabase
     .from("historia_clinica")
     .select("id")
@@ -361,10 +365,18 @@ export async function getHistorialConsultasAction(
   if (hcError) console.error("Error getHistorialConsultasAction (historia_clinica):", hcError);
   if (!hc) return [];
 
-  const { data: notasClinicas, error: notasError } = await supabase
+  let notasQuery = supabase
     .from("nota_clinica")
-    .select("id")
+    .select("id, titulo_caso_clinico, estado, created_at, updated_at")
     .eq("historia_clinica_id", hc.id);
+
+  if (opts?.notaClinicaModo === "activa") {
+    notasQuery = notasQuery.in("estado", ["En Consulta", "Diagnosticado", "En tratamiento"]);
+  } else if (opts?.notaClinicaModo === "especifica" && opts?.notaClinicaId) {
+    notasQuery = notasQuery.eq("id", opts.notaClinicaId);
+  }
+
+  const { data: notasClinicas, error: notasError } = await notasQuery;
 
   if (notasError) console.error("Error getHistorialConsultasAction (nota_clinica):", notasError);
   const notaIds = (notasClinicas || []).map((n) => n.id);
@@ -373,7 +385,7 @@ export async function getHistorialConsultasAction(
   let consultasQuery = supabase
     .from("consultas")
     .select(`
-      id, fecha_consulta, motivo, observaciones, examen_fisico,
+      id, nota_clinica_id, tipo_consulta_id, fecha_consulta, motivo, observaciones, examen_fisico,
       usuarios ( personal ( nombre, apellido, url_firma_digital, especialidad ( especialidad ) ) ),
       recomendacion ( id, contenido ),
       diagnostico!consulta_origen_id (
@@ -420,12 +432,12 @@ export async function getHistorialConsultasAction(
   const [archivosPorConsultaRes, archivosPorDiagRes, odontogramasRes] = await Promise.all([
     consultaIds.length > 0
       ? supabase.from("archivos_clinicos")
-          .select("id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, consulta_id, tipo_archivo (id, tipo_archivo)")
+          .select("id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, consulta_id, anotaciones, tipo_archivo (id, tipo_archivo)")
           .in("consulta_id", consultaIds)
       : Promise.resolve({ data: [] as any[] }),
     todosDiagIds.length > 0
       ? supabase.from("archivos_clinicos")
-          .select("id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, diagnostico_id, tipo_archivo (id, tipo_archivo)")
+          .select("id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, diagnostico_id, anotaciones, tipo_archivo (id, tipo_archivo)")
           .in("diagnostico_id", todosDiagIds)
       : Promise.resolve({ data: [] as any[] }),
     consultaIds.length > 0
@@ -439,11 +451,7 @@ export async function getHistorialConsultasAction(
   for (const a of [...(archivosPorConsultaRes.data || []), ...(archivosPorDiagRes.data || [])]) {
     archivosPorId.set(a.id, a);
   }
-  // firmarUrls (consulta.actions.ts) firma primero contra R2 (donde realmente
-  // viven estos archivos) con fallback a Supabase Storage — la firma manual
-  // que había acá solo probaba Supabase Storage, así que cualquier archivo
-  // cuyo `url` ya viniera como URL completa de R2 (legado) quedaba sin firmar
-  // y la imagen nunca cargaba en el navegador.
+
   const archivosSignedList = await firmarUrls(supabase, Array.from(archivosPorId.values()));
 
   const archivosPorConsulta = new Map<number, any[]>();
@@ -470,7 +478,6 @@ export async function getHistorialConsultasAction(
     odontogramaPorConsulta.set(o.consulta_id, { piezas, tipo: o.tipo_tratamiento || null });
   }
 
-  // Presupuestos indexados por día (se asocian a la consulta del mismo día)
   const presuPorDia = new Map<string, any[]>();
   for (const p of presupuestosRes.data || []) {
     const dia = (p.fecha_emision || "").split("T")[0];
@@ -529,6 +536,8 @@ export async function getHistorialConsultasAction(
 
     return {
       id: String(c.id),
+      nota_clinica_id: String(c.nota_clinica_id),
+      tipo_consulta_id: c.tipo_consulta_id,
       fecha: c.fecha_consulta,
       motivo: c.motivo || "Consulta",
       observaciones: c.observaciones || "",
@@ -546,6 +555,7 @@ export async function getHistorialConsultasAction(
         tipo_archivo: a.tipo_archivo,
         fecha_subida: a.fecha_subida,
         displayUrl: a.displayUrl,
+        anotaciones: a.anotaciones || [],
       })),
       odontograma: odontogramaPorConsulta.get(c.id) || null,
     };
@@ -555,7 +565,10 @@ export async function getHistorialConsultasAction(
 // ─── Expediente clínico completo (para exportación PDF) ────────────────────────
 
 export async function getExpedienteCompletoAction(pacienteId: string, opts?: {
-  fechaDesde?: string; fechaHasta?: string;
+  fechaDesde?: string;
+  fechaHasta?: string;
+  notaClinicaModo?: "todas" | "activa" | "especifica";
+  notaClinicaId?: string;
 }) {
   const supabase = await createClient();
 
@@ -573,16 +586,26 @@ export async function getExpedienteCompletoAction(pacienteId: string, opts?: {
     .eq("paciente_id", pacienteId)
     .maybeSingle();
 
+  // Obtener casos/notas clínicas asociadas a esta historia
+  let notasQuery = supabase
+    .from("nota_clinica")
+    .select("id, titulo_caso_clinico, estado, created_at, updated_at")
+    .eq("historia_clinica_id", hc?.id || "00000000-0000-0000-0000-000000000000")
+    .order("created_at", { ascending: false });
+
+  if (opts?.notaClinicaModo === "activa") {
+    notasQuery = notasQuery.in("estado", ["En Consulta", "Diagnosticado", "En tratamiento"]);
+  } else if (opts?.notaClinicaModo === "especifica" && opts?.notaClinicaId) {
+    notasQuery = notasQuery.eq("id", opts.notaClinicaId);
+  }
+
+  const { data: notasClinicas } = await notasQuery;
+
   // Odontograma pieza por pieza, agrupado por consulta (real: odontograma.consulta_id).
-  const consultaIds = historial.map((c: any) => Number(c.id));
-  const odontogramasPorConsulta = new Map<number, any[]>();
+  const consultaIds = historial.map((c: any) => String(c.id));
+  const odontogramasPorConsulta = new Map<string, any[]>();
 
   if (consultaIds.length > 0) {
-    // odontograma_diente.condicion_id no tiene una FK declarada hacia
-    // `condicion` que PostgREST pueda auto-detectar — igual que
-    // getOdontogramasAction (odontograma.actions.ts), se trae el id crudo y
-    // se resuelve el nombre aparte contra el catálogo, en vez de un embed
-    // `condicion ( condicion )` que rompía toda la consulta con PGRST200.
     const [{ data: odontos, error: odontosError }, { data: condiciones }] = await Promise.all([
       supabase
         .from("odontograma")
@@ -617,21 +640,37 @@ export async function getExpedienteCompletoAction(pacienteId: string, opts?: {
       const odontoPersonal = (o.usuarios as any)?.personal ?? null;
       const doctor = odontoPersonal ? `${odontoPersonal.nombre} ${odontoPersonal.apellido}`.trim() : null;
       const entry = { id: o.id, tipo: o.tipo_tratamiento, doctor, findings: Array.from(grouped.values()) };
-      const list = odontogramasPorConsulta.get(o.consulta_id) || [];
+      const cid = String(o.consulta_id);
+      const list = odontogramasPorConsulta.get(cid) || [];
       list.push(entry);
-      odontogramasPorConsulta.set(o.consulta_id, list);
+      odontogramasPorConsulta.set(cid, list);
     }
   }
 
   const consultas = historial.map((c: any) => ({
     ...c,
-    odontogramaDetalle: odontogramasPorConsulta.get(Number(c.id)) || [],
+    odontogramaDetalle: odontogramasPorConsulta.get(String(c.id)) || [],
   }));
+
+  // Agrupar consultas por nota clínica
+  const consultasPorNota = new Map<string, any[]>();
+  for (const c of consultas) {
+    const nid = String(c.nota_clinica_id);
+    if (!consultasPorNota.has(nid)) consultasPorNota.set(nid, []);
+    consultasPorNota.get(nid)!.push(c);
+  }
+
+  // Ensamblar la lista de Casos Clínicos con sus consultas
+  const casosClinicos = (notasClinicas || []).map((n) => ({
+    ...n,
+    consultas: consultasPorNota.get(String(n.id)) || [],
+  })).filter((n) => n.consultas.length > 0 || (opts?.notaClinicaModo === "especifica" || opts?.notaClinicaModo === "activa"));
 
   return {
     paciente: detalle.paciente,
     historiaClinica: hc || null,
     sede,
+    casosClinicos,
     consultas,
   };
 }

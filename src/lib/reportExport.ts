@@ -203,28 +203,60 @@ export async function downloadHtmlAsPaginatedPdf(html: string, filename: string,
   const pageWidth = pageW - margin * 2;
   const pageHeight = pageH - margin * 2 - footerSpace;
   const pxPerPage = Math.floor((pageHeight * canvas.width) / pageWidth);
-  const totalPages = Math.max(1, Math.ceil(canvas.height / pxPerPage));
 
   let renderedPx = 0;
   let pageIndex = 0;
+  const fullCtx = canvas.getContext("2d");
+
   while (renderedPx < canvas.height) {
-    const sliceHeight = Math.min(pxPerPage, canvas.height - renderedPx);
+    let sliceHeight = Math.min(pxPerPage, canvas.height - renderedPx);
+
+    // Buscar una línea horizontal blanca hacia arriba si no es la última página para cortar limpiamente entre párrafos o filas
+    if (renderedPx + sliceHeight < canvas.height && fullCtx) {
+      const searchStart = sliceHeight;
+      const searchEnd = Math.max(20, sliceHeight - 80);
+      const imgData = fullCtx.getImageData(0, renderedPx, canvas.width, sliceHeight);
+      const data = imgData.data;
+
+      for (let y = searchStart - 1; y >= searchEnd; y--) {
+        let isWhiteRow = true;
+        for (let x = 0; x < canvas.width; x += 8) {
+          const idx = (y * canvas.width + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          if (r < 235 || g < 235 || b < 235) {
+            isWhiteRow = false;
+            break;
+          }
+        }
+        if (isWhiteRow) {
+          sliceHeight = y;
+          break;
+        }
+      }
+    }
+
     const slice = document.createElement("canvas");
     slice.width = canvas.width;
-    slice.height = sliceHeight;
+    slice.height = Math.max(10, sliceHeight);
     slice.getContext("2d")!.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
 
     if (pageIndex > 0) pdf.addPage();
     pdf.addImage(slice.toDataURL("image/jpeg", 0.95), "JPEG", margin, margin, pageWidth, (sliceHeight * pageWidth) / canvas.width);
 
-    if (totalPages > 1) {
-      pdf.setFontSize(8);
-      pdf.setTextColor(148, 163, 184);
-      pdf.text(`Página ${pageIndex + 1} de ${totalPages}`, pageW / 2, pageH - 10, { align: "center" });
-    }
-
     renderedPx += sliceHeight;
     pageIndex += 1;
+  }
+
+  const totalPages = pageIndex;
+  if (totalPages > 1) {
+    for (let i = 0; i < totalPages; i++) {
+      pdf.setPage(i + 1);
+      pdf.setFontSize(8);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text(`Página ${i + 1} de ${totalPages}`, pageW / 2, pageH - 10, { align: "center" });
+    }
   }
 
   pdf.save(filename);
