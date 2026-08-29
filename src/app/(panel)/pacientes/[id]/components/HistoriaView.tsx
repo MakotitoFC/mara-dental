@@ -459,7 +459,7 @@ export function HistoriaView({
           Visible en TODAS las pestañas (antes se ocultaba en info/timeline,
           lo que hacía parecer que la consulta se había cerrado ahí). ── */}
       {consultaId && (
-        <div className="flex items-center justify-between gap-3 px-3 sm:px-6 md:px-8 py-2 bg-cyan-600 shrink-0">
+        <div className="flex items-center justify-between gap-3 px-3 sm:px-6 md:px-8 py-2 mb-2 bg-cyan-600 shrink-0">
           <span className="flex items-center gap-1.5 text-[12px] font-semibold text-white">
             <Icon name="stethoscope" size={14} className="text-white" />
             Consulta en curso
@@ -470,11 +470,16 @@ export function HistoriaView({
         </div>
       )}
 
-      {/* ── Banner de Consulta en Curso Interrumpida (Reanudable dentro de 1 hora) ── */}
+      {/* ── Banner de Consulta en Curso Interrumpida (Reanudable dentro de 1 hora) ──
+          Colores/diseño planos, iguales al resto del sistema (tarjeta blanca
+          con borde, badge tipo pill amber-50/amber-700, botón sólido
+          cyan-600 igual que "Nuevo Caso / Consulta") — antes tenía fondos en
+          degradé y sombras de color que no calzaban con ningún otro
+          componente de la app. */}
       {reanudableConsulta && !consultaId && (
- <div className="mx-3 sm:mx-6 md:mx-8 mt-3 p-3.5 sm:p-4 rounded-2xl bg-linear-to-r from-amber-500/10 via-cyan-500/10 to-blue-500/10 border border-amber-400/40 flex flex-wrap items-center justify-between gap-3 shadow-sm animate-fadeIn shrink-0">
+ <div className="mx-3 sm:mx-6 md:mx-8 mt-3 p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
- <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0 shadow-inner">
+ <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
               <Icon name="history" size={22} />
             </div>
             <div className="min-w-0">
@@ -482,7 +487,7 @@ export function HistoriaView({
  <h4 className="text-[13.5px] font-bold text-slate-800">
                   Consulta en curso interrumpida
                 </h4>
- <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold border border-amber-300">
+ <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold border border-amber-200">
                   Iniciada hace {reanudableConsulta.minutosTranscurridos} min
                 </span>
               </div>
@@ -493,7 +498,7 @@ export function HistoriaView({
           </div>
           <button
             onClick={() => handleReanudarConsulta(reanudableConsulta.id)}
-            className="px-4 py-2 bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 text-white rounded-xl text-[12.5px] font-bold shadow-md shadow-cyan-600/20 flex items-center gap-2 transition-all cursor-pointer shrink-0"
+ className="shrink-0 flex items-center gap-1.5 px-3 lg:px-4 py-2 sm:py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] sm:text-[13px] font-semibold transition-colors shadow-sm"
           >
             <Icon name="play_arrow" size={16} /> Reanudar Consulta
           </button>

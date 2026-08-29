@@ -53,7 +53,7 @@ export function InfoTab({
  <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5">
  <h3 className="text-[13px] font-bold text-slate-900 mb-3">Resumen del paciente</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <StatTile icon="cake" label="Nacimiento" value={nacimiento ? nacimiento.split("/").slice(0, 2).join("/") : "—"} sub={edad !== null ? `${edad} años` : undefined} />
+            <StatTile icon="cake" label="Nacimiento" value={nacimiento || "—"} sub={edad !== null ? `${edad} años` : undefined} />
             <StatTile icon="person" label="Sexo" value={p.sexo || "—"} />
             <StatTile icon="bloodtype" label="Grupo sanguíneo" value={p.grupo_sanguineo || "—"} />
             <StatTile icon="badge" label="DNI" value={p.dni || "—"} />

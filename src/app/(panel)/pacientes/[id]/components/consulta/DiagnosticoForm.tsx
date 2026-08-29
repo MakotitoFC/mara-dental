@@ -159,29 +159,45 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
       <div>
         <div className="p-5 flex flex-col gap-5">
 
-          {/* Tipo */}
+          {/* Tipo — un switch individual por opción (no uno compartido entre
+              ambas), las dos en una sola fila compacta (no a lo ancho):
+              apagado sin color, prendido cian. Son mutuamente excluyentes
+              (el dato es un solo booleano), así que activar uno desactiva
+              el otro. */}
           <div className="flex flex-col gap-2">
  <label className="text-[12px] font-semibold text-slate-700">Tipo de diagnóstico *</label>
-            <div className="grid grid-cols-2 gap-2.5">
-              <button type="button" onClick={() => setEsDefinitivo(false)}
- className={`flex flex-col items-center gap-1.5 py-3.5 px-2 rounded-xl border-2 transition-all ${!esDefinitivo ? "border-amber-400 bg-amber-50" : "border-slate-200 bg-white hover:border-slate-300"}`}>
- <div className={`w-9 h-9 rounded-full flex items-center justify-center ${!esDefinitivo ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-400"}`}>
-                  <Icon name="pending" size={18} />
-                </div>
- <span className={`text-[13px] font-bold ${!esDefinitivo ? "text-amber-700" : "text-slate-600"}`}>Presuntivo</span>
- <span className="text-[10px] text-slate-400">Probable, sin confirmar</span>
-              </button>
-              <button type="button" onClick={() => setEsDefinitivo(true)}
- className={`flex flex-col items-center gap-1.5 py-3.5 px-2 rounded-xl border-2 transition-all ${esDefinitivo ? "border-emerald-400 bg-emerald-50" : "border-slate-200 bg-white hover:border-slate-300"}`}>
- <div className={`w-9 h-9 rounded-full flex items-center justify-center ${esDefinitivo ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
-                  <Icon name="verified" size={18} />
-                </div>
- <span className={`text-[13px] font-bold ${esDefinitivo ? "text-emerald-700" : "text-slate-600"}`}>Definitivo</span>
- <span className="text-[10px] text-slate-400">Causa confirmada</span>
-              </button>
+            <div className="flex items-center gap-5">
+ <div className="flex items-center gap-1.5">
+ <span className={`flex items-center gap-1 text-[13px] font-semibold ${!esDefinitivo ? "text-slate-800" : "text-slate-400"}`}>
+                  <Icon name="pending" size={15} /> Presuntivo
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={!esDefinitivo}
+                  onClick={() => setEsDefinitivo(false)}
+ className={`relative w-11 h-6 rounded-full shrink-0 border-0 transition-colors ${!esDefinitivo ? "bg-cyan-600" : "bg-slate-200"}`}
+                >
+ <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${!esDefinitivo ? "translate-x-5" : "translate-x-0"}`} />
+                </button>
+              </div>
+ <div className="flex items-center gap-1.5">
+ <span className={`flex items-center gap-1 text-[13px] font-semibold ${esDefinitivo ? "text-slate-800" : "text-slate-400"}`}>
+                  <Icon name="verified" size={15} /> Definitivo
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={esDefinitivo}
+                  onClick={() => setEsDefinitivo(true)}
+ className={`relative w-11 h-6 rounded-full shrink-0 border-0 transition-colors ${esDefinitivo ? "bg-cyan-600" : "bg-slate-200"}`}
+                >
+ <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${esDefinitivo ? "translate-x-5" : "translate-x-0"}`} />
+                </button>
+              </div>
             </div>
             {esDefinitivo && (
- <p className="text-[11px] text-emerald-600 flex items-center gap-1">
+ <p className="text-[11px] text-cyan-600 flex items-center gap-1">
                 <Icon name="info" size={13} /> Un diagnóstico definitivo debería sustentarse con imágenes/tomografías.
               </p>
             )}

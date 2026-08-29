@@ -7,8 +7,8 @@ import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { SmartPopover } from "@/components/ui/SmartPopover";
 import { fadeIn, scaleIn, slideUp, staggerContainer, staggerItem } from "@/lib/animations";
-import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
+import { useSnapDrag } from "@/lib/hooks/useSnapDrag";
 import { calcEdad } from "@/lib/date-utils";
 import {
   esc, buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, wrapDocument, fmtGenerado, shortCode,
@@ -425,7 +425,10 @@ function RecetaModal({
   diagnosticoTexto: string; onClose: () => void; onSaved?: () => void;
 }) {
   useBodyScrollLock();
-  const isMobile = useIsMobile();
+  // Sin snap points (alto natural según contenido, como el resto de sheets
+  // sin snapPoints en ResponsiveSheet) — solo habilita arrastrar el handle
+  // hacia abajo para cerrar.
+  const drag = useSnapDrag([], 0, onClose);
   const today = new Date().toISOString().split("T")[0];
   const [motivo, setMotivo] = useState(diagnosticoTexto || "");
   const [meds, setMeds] = useState<MedDraft[]>([emptyMed()]);
@@ -481,134 +484,169 @@ function RecetaModal({
   };
   const telegramLink = buildTelegramLink(previewData);
 
-  return createPortal(
-    <div className="fixed inset-0 z-[70] md:flex md:items-center md:justify-center md:p-6">
-      <motion.div
-        variants={fadeIn} initial="hidden" animate="visible" exit="exit"
-        className="absolute inset-0 bg-slate-900/50 md:backdrop-blur-[2px]"
-        onClick={onClose}
-      />
-      <motion.div
-        variants={isMobile ? slideUp : scaleIn}
-        initial="hidden" animate="visible" exit="exit"
- className="fixed inset-x-0 bottom-0 top-10 md:relative md:inset-auto rounded-t-2xl md:rounded-2xl bg-white w-full shadow-2xl overflow-hidden flex flex-col"
-        style={{ maxWidth: isMobile ? undefined : 900, maxHeight: isMobile ? undefined : "min(90vh, calc(100dvh - 96px))" }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
+  // Header/Body/Footer extraídos como variables — se reutilizan tal cual en
+  // las dos ramas de abajo (mobile y desktop), como ya hace ResponsiveSheet,
+  // en vez de un solo <motion.div> compartido con clases `md:` + un booleano
+  // `isMobile` en JS decidiendo estilos/variantes: con eso, el primer
+  // render (antes de que `useIsMobile` corra su efecto) podía quedar a
+  // medio camino entre ambos layouts. Acá cada rama es su propio elemento,
+  // mostrado/ocultado solo por CSS (`md:hidden` / `hidden md:flex`).
+  const headerBlock = (
  <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-          <div>
+      <div>
  <p className="text-[14px] font-semibold text-slate-900">Nueva receta electrónica</p>
  <p className="text-[11px] text-slate-400">{pacienteNombre} · {fmtFecha(today)}</p>
-          </div>
- <button onClick={onClose} className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-50">
-            <Icon name="close" size={16} />
-          </button>
-        </div>
+      </div>
+ <button onClick={onClose} aria-label="Cerrar" className="w-9 h-9 md:w-8 md:h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors shrink-0">
+        <Icon name="close" size={18} />
+      </button>
+    </div>
+  );
 
-        {/* Body */}
-        <div className="flex flex-col flex-1 overflow-hidden md:flex-row">
-          {/* Formulario */}
+  const bodyBlock = (
+    <div className="flex flex-col flex-1 overflow-hidden md:flex-row">
+      {/* Formulario */}
  <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-5 flex flex-col gap-4 md:border-r md:border-slate-100">
-            <Field label="Diagnóstico / motivo">
-              <input value={motivo} onChange={e => setMotivo(e.target.value)}
-                placeholder="Ej: Gingivitis crónica, infección post-extracción…"
+        <Field label="Diagnóstico / motivo">
+          <input value={motivo} onChange={e => setMotivo(e.target.value)}
+            placeholder="Ej: Gingivitis crónica, infección post-extracción…"
  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 bg-white"/>
-            </Field>
+        </Field>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
+        <div>
+          <div className="flex items-center justify-between mb-2">
  <p className="text-[11px] font-semibold text-slate-700 uppercase tracking-wide">Medicamentos</p>
-                <button onClick={addMed} className="flex items-center gap-1 text-[11px] text-cyan-600 hover:text-cyan-700 font-medium">
-                  <Icon name="add_circle" size={14} /> Agregar
-                </button>
-              </div>
+            <button onClick={addMed} className="flex items-center gap-1 text-[11px] text-cyan-600 hover:text-cyan-700 font-medium">
+              <Icon name="add_circle" size={14} /> Agregar
+            </button>
+          </div>
 
-              <div className="flex flex-col gap-3">
-                {meds.map((m, i) => (
+          <div className="flex flex-col gap-3">
+            {meds.map((m, i) => (
  <div key={i} className="border border-slate-200 rounded-xl p-3 flex flex-col gap-2">
-                    <div className="flex items-center gap-2 justify-between">
-                      <span className="text-[11px] font-bold text-cyan-600">#{i + 1}</span>
-                      {meds.length > 1 && (
+                <div className="flex items-center gap-2 justify-between">
+                  <span className="text-[11px] font-bold text-cyan-600">#{i + 1}</span>
+                  {meds.length > 1 && (
  <button onClick={() => removeMed(i)} className="text-slate-300 hover:text-red-400 transition-colors">
-                          <Icon name="close" size={14} />
-                        </button>
-                      )}
-                    </div>
-                    <SmartPopover
-                      open={activeIdx === i && searchResults.length > 0}
-                      onClose={() => { setSearchResults([]); setActiveIdx(null); }}
-                      placement="bottom-start"
-                      matchWidth
-                      renderTrigger={(ref) => (
-                        <Field label="Medicamento">
-                          <input ref={ref} value={m.medicamento_nombre} onChange={e => buscarMed(e.target.value, i)}
-                            placeholder="Amoxicilina, Ibuprofeno…"
+                      <Icon name="close" size={14} />
+                    </button>
+                  )}
+                </div>
+                <SmartPopover
+                  open={activeIdx === i && searchResults.length > 0}
+                  onClose={() => { setSearchResults([]); setActiveIdx(null); }}
+                  placement="bottom-start"
+                  matchWidth
+                  renderTrigger={(ref) => (
+                    <Field label="Medicamento">
+                      <input ref={ref} value={m.medicamento_nombre} onChange={e => buscarMed(e.target.value, i)}
+                        placeholder="Amoxicilina, Ibuprofeno…"
  className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
-                        </Field>
-                      )}
-                    >
+                    </Field>
+                  )}
+                >
  <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-44 overflow-y-auto no-scrollbar">
-                        {searchResults.map(r => (
-                          <button key={r.id} onClick={() => elegirMed(i, r)}
+                    {searchResults.map(r => (
+                      <button key={r.id} onClick={() => elegirMed(i, r)}
  className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0">
  <p className="text-[12px] font-semibold text-slate-800">{r.nombre_comercial || r.nombre_generico}</p>
  <p className="text-[10px] text-slate-500">{r.concentracion} - {r.forma_farmaceutica}</p>
-                          </button>
-                        ))}
-                      </div>
-                    </SmartPopover>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <Field label="Dosis">
-                        <input value={m.dosis} onChange={e => setField(i, "dosis", e.target.value)}
-                          placeholder="500mg, 15ml…"
- className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
-                      </Field>
-                      <Field label="Frecuencia">
-                        <Select value={m.frecuencia} onChange={(v) => setField(i, "frecuencia", v)} options={FRECUENCIA_OPTIONS} />
-                      </Field>
-                    </div>
-                    <Field label="Indicaciones">
-                      <input value={m.indicaciones} onChange={e => setField(i, "indicaciones", e.target.value)}
-                        placeholder="Tomar con alimentos, no mezclar con alcohol…"
- className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
-                    </Field>
+                      </button>
+                    ))}
                   </div>
-                ))}
+                </SmartPopover>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Field label="Dosis">
+                    <input value={m.dosis} onChange={e => setField(i, "dosis", e.target.value)}
+                      placeholder="500mg, 15ml…"
+ className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
+                  </Field>
+                  <Field label="Frecuencia">
+                    <Select value={m.frecuencia} onChange={(v) => setField(i, "frecuencia", v)} options={FRECUENCIA_OPTIONS} />
+                  </Field>
+                </div>
+                <Field label="Indicaciones">
+                  <input value={m.indicaciones} onChange={e => setField(i, "indicaciones", e.target.value)}
+                    placeholder="Tomar con alimentos, no mezclar con alcohol…"
+ className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
+                </Field>
               </div>
-            </div>
-            {error && <p className="text-[12px] text-red-500 px-1 flex items-center gap-1.5"><Icon name="warning" size={13} /> {error}</p>}
+            ))}
           </div>
+        </div>
+        {error && <p className="text-[12px] text-red-500 px-1 flex items-center gap-1.5"><Icon name="warning" size={13} /> {error}</p>}
+      </div>
 
-          {/* Vista previa */}
+      {/* Vista previa */}
  <div className="hidden md:block w-75 shrink-0 overflow-y-auto no-scrollbar p-5 bg-slate-50">
  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-3">Vista previa</p>
-            <RecetaPreview pacienteNombre={pacienteNombre} dni={dni} fecha={today} doctorNombre={doctorNombre} diagnostico={motivo} medicamentos={validMeds} />
-          </div>
-        </div>
+        <RecetaPreview pacienteNombre={pacienteNombre} dni={dni} fecha={today} doctorNombre={doctorNombre} diagnostico={motivo} medicamentos={validMeds} />
+      </div>
+    </div>
+  );
 
-        {/* Footer */}
- <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-slate-100 shrink-0" style={{ paddingBottom: isMobile ? "calc(0.75rem + env(safe-area-inset-bottom))": undefined }}>
+  const footerBlock = (
+ <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-slate-100 shrink-0" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
  <button onClick={onClose} className="px-4 py-2 text-[12px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
-            Cancelar
-          </button>
-          <div className="flex items-center flex-wrap gap-2">
-            <button onClick={guardarYCerrar} disabled={!canSave}
-              className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              <Icon name="save" size={14} /> {saving ? "Guardando…" : "Guardar"}
-            </button>
-            <button onClick={() => canSave && handlePrint(previewData)} disabled={!canSave}
+        Cancelar
+      </button>
+      <div className="flex items-center flex-wrap gap-2">
+        <button onClick={guardarYCerrar} disabled={!canSave}
+          className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          <Icon name="save" size={14} /> {saving ? "Guardando…" : "Guardar"}
+        </button>
+        <button onClick={() => canSave && handlePrint(previewData)} disabled={!canSave}
  className="hidden sm:flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              <Icon name="print" size={14} /> Imprimir PDF
-            </button>
-            <a href={canSave ? telegramLink : undefined} target="_blank" rel="noreferrer"
-              onClick={canSave ? (e) => { e.preventDefault(); guardar().then(ok => { if (ok) { window.open(telegramLink, "_blank"); onSaved?.(); onClose(); } }); } : (e) => e.preventDefault()}
+          <Icon name="print" size={14} /> Imprimir PDF
+        </button>
+        <a href={canSave ? telegramLink : undefined} target="_blank" rel="noreferrer"
+          onClick={canSave ? (e) => { e.preventDefault(); guardar().then(ok => { if (ok) { window.open(telegramLink, "_blank"); onSaved?.(); onClose(); } }); } : (e) => e.preventDefault()}
  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium transition-colors ${canSave ? "bg-[color:var(--telegram-blue)] hover:bg-[color:var(--telegram-blue-hover)] text-white" : "bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none"}`}>
-              <Icon name="send" size={14} /> Telegram
-            </a>
-          </div>
+          <Icon name="send" size={14} /> Telegram
+        </a>
+      </div>
+    </div>
+  );
+
+  return createPortal(
+    <div className="fixed inset-0 z-[70]">
+      <motion.div
+        variants={fadeIn} initial="hidden" animate="visible" exit="exit"
+ className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
+        onClick={onClose}
+      />
+
+      {/* Mobile — bottom sheet, igual patrón que ResponsiveSheet. */}
+      <motion.div
+        variants={slideUp} initial="hidden" animate="visible" exit="exit"
+ className="md:hidden absolute inset-x-0 bottom-0 max-h-[85vh] bg-white rounded-t-2xl shadow-2xl flex flex-col overflow-hidden"
+        style={{ y: drag.y }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Handle — mismo pill redondeado que el resto de bottom sheets del
+            sistema, con la misma funcionalidad de arrastre (sin snap
+            points: solo arrastrar hacia abajo para cerrar). */}
+ <div className="flex justify-center pt-2 pb-1 shrink-0 touch-none select-none" style={{ touchAction: "none" }} {...drag.handleDragProps}>
+ <div className="w-10 h-1.5 rounded-full bg-slate-300"/>
         </div>
+        {headerBlock}
+        {bodyBlock}
+        {footerBlock}
       </motion.div>
+
+      {/* Desktop — modal centrado. */}
+ <div className="hidden md:flex absolute inset-0 items-center justify-center p-6">
+        <motion.div
+          variants={scaleIn} initial="hidden" animate="visible" exit="exit"
+ className="bg-white rounded-2xl shadow-2xl w-full flex flex-col overflow-hidden"
+          style={{ maxWidth: 900, maxHeight: "min(90vh, calc(100dvh - 96px))" }}
+          onClick={e => e.stopPropagation()}
+        >
+          {headerBlock}
+          {bodyBlock}
+          {footerBlock}
+        </motion.div>
+      </div>
     </div>,
     document.body
   );

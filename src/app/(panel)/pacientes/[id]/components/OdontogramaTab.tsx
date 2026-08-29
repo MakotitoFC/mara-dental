@@ -1322,12 +1322,11 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                     <div className="flex items-center justify-between gap-2">
                       <button onClick={addRecords} disabled={readyTeeth.length === 0 || saving} className="h-10 shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-lg text-[12.5px] font-bold transition-colors border-0">
                         <Icon name="add" size={14} />
-                        {saving ? "Guardando..." : readyTeeth.length > 1 ? `Guardar ${readyTeeth.length} registros` : "Agregar registro"}
+                        {saving ? "Guardando..." : readyTeeth.length > 1 ? `Guardar ${readyTeeth.length} registros` : "Agregar"}
                       </button>
                       {onNavigateTab && (
-                        <button onClick={() => onNavigateTab("diagnosticos")} className="h-10 shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-4 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[12.5px] font-bold transition-colors border-0">
-                          Continuar a Diagnóstico
-                          <Icon name="chevron_right" size={14} />
+                        <button onClick={() => onNavigateTab("diagnosticos")} title="Continuar a Diagnóstico" aria-label="Continuar a Diagnóstico" className="h-10 w-10 shrink-0 flex items-center justify-center bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors border-0">
+                          <Icon name="chevron_right" size={18} />
                         </button>
                       )}
                     </div>
