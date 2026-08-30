@@ -21,6 +21,7 @@ import { pdf } from "@react-pdf/renderer";
 import html2canvas from "html2canvas";
 import { saveAs } from "file-saver";
 import { DashboardReportPDF, type ReportChart } from "./DashboardReportPDF";
+import { fetchDashboardData } from "./actions";
 
 const COLORS = ["#0A8EA0", "#0D7377", "#5D6D7E", "#1D95A0", "#073D42", "#F39C12"];
 const POS_COLOR = "#10b981";
@@ -308,6 +309,13 @@ interface DashboardChartsProps {
   userSedeId: number;
 }
 
+const TODAY_STR = new Date().toISOString().split("T")[0];
+const DEFAULT_FILTRO = "mes";
+const DEFAULT_FECHA = TODAY_STR;
+const DEFAULT_AGRUPACION = "dia";
+const DEFAULT_MONEDA = 1;
+const DEFAULT_MEDIO_PAGO = "all";
+
 export default function DashboardCharts({ data, options, userRole, userSedeId }: DashboardChartsProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -315,53 +323,147 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
   const toast = useToast();
   const [generatingMode, setGeneratingMode] = useState<"pdf" | "print" | null>(null);
 
-  const currentFiltro = searchParams.get("filtro") || "mes";
-  const currentFecha = searchParams.get("fecha") || new Date().toISOString().split("T")[0];
-  const currentAgrupacion = searchParams.get("agrupacion") || "dia";
-  const currentSedeId = searchParams.get("sedeId") ? Number(searchParams.get("sedeId")) : userSedeId;
-  const currentMoneda = searchParams.get("monedaId") ? Number(searchParams.get("monedaId")) : 1;
-  const currentMedioPago = searchParams.get("medioPagoId") || "all";
+  // Estado local para datos de los gráficos (permite actualización fluida sin congelar la UI)
+  const [chartData, setChartData] = useState(data);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
-  const updateParams = (newParams: Record<string, string | null>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    Object.keys(newParams).forEach(key => {
-      if (newParams[key] === null) {
-        params.delete(key);
+  // Estados locales inmediatos (0ms de retraso visual al interactuar)
+  const [filtro, setFiltro] = useState(searchParams.get("filtro") || DEFAULT_FILTRO);
+  const [fecha, setFecha] = useState(searchParams.get("fecha") || DEFAULT_FECHA);
+  const [agrupacion, setAgrupacion] = useState(searchParams.get("agrupacion") || DEFAULT_AGRUPACION);
+  const [monedaId, setMonedaId] = useState(searchParams.get("monedaId") ? Number(searchParams.get("monedaId")) : DEFAULT_MONEDA);
+  const [medioPagoId, setMedioPagoId] = useState<string | null>(searchParams.get("medioPagoId") || DEFAULT_MEDIO_PAGO);
+  const [sedeId, setSedeId] = useState(searchParams.get("sedeId") ? Number(searchParams.get("sedeId")) : userSedeId);
+  const [dateInput, setDateInput] = useState(searchParams.get("fecha") || DEFAULT_FECHA);
+
+  // Tags activos añadidos explícitamente
+  const [activeTags, setActiveTags] = useState<Set<TagKey>>(new Set());
+
+  // Rastreo del último ID de petición para evitar condiciones de carrera en clicks rápidos
+  const latestReqId = useState(() => ({ current: 0 }))[0];
+
+  // Sincronizar datos si cambian las props iniciales desde SSR
+  useEffect(() => {
+    setChartData(data);
+  }, [data]);
+
+  // Función unificada para aplicar filtros, respetar restricciones y solicitar datos
+  const applyFiltersAndFetch = (newFilters: {
+    filtro?: string;
+    fecha?: string;
+    agrupacion?: string;
+    monedaId?: number;
+    medioPagoId?: string | null;
+    sedeId?: number;
+  }) => {
+    const nextFiltro = newFilters.filtro !== undefined ? newFilters.filtro : filtro;
+    const nextFecha = newFilters.fecha !== undefined ? newFilters.fecha : fecha;
+    let nextAgrupacion = newFilters.agrupacion !== undefined ? newFilters.agrupacion : agrupacion;
+    const nextMonedaId = newFilters.monedaId !== undefined ? newFilters.monedaId : monedaId;
+    const nextMedioPagoId = newFilters.medioPagoId !== undefined ? newFilters.medioPagoId : medioPagoId;
+    const nextSedeId = newFilters.sedeId !== undefined ? newFilters.sedeId : sedeId;
+
+    // === RESTRICCIONES DE INTEGRIDAD ENTRE FILTRO TEMPORAL Y AGRUPACIÓN ===
+    if (nextFiltro === "dia") {
+      // Para un día específico, la única agrupación matemáticamente válida es por día
+      nextAgrupacion = "dia";
+    } else if (nextFiltro === "mes" && nextAgrupacion === "anio") {
+      // En un mes específico no se puede agrupar por año
+      nextAgrupacion = "dia";
+    } else if (nextFiltro === "anio" && nextAgrupacion === "anio") {
+      // En un año específico la agrupación por defecto es por mes
+      nextAgrupacion = "mes";
+    }
+
+    // 1. Actualización visual INSTANTÁNEA en React (0ms)
+    setFiltro(nextFiltro);
+    setFecha(nextFecha);
+    setDateInput(nextFecha);
+    setAgrupacion(nextAgrupacion);
+    setMonedaId(nextMonedaId);
+    setMedioPagoId(nextMedioPagoId);
+    setSedeId(nextSedeId);
+
+    // 2. Sincronizar URL limpia para mantener la ruta compartible sin recargar la página
+    const params = new URLSearchParams();
+    if (nextFiltro !== DEFAULT_FILTRO) params.set("filtro", nextFiltro);
+    if (nextFecha !== DEFAULT_FECHA) params.set("fecha", nextFecha);
+    if (nextAgrupacion !== DEFAULT_AGRUPACION) params.set("agrupacion", nextAgrupacion);
+    if (nextMonedaId !== DEFAULT_MONEDA) params.set("monedaId", String(nextMonedaId));
+    if (nextMedioPagoId && nextMedioPagoId !== "all") params.set("medioPagoId", nextMedioPagoId);
+    if (userRole === "superadmin" && nextSedeId !== userSedeId) params.set("sedeId", String(nextSedeId));
+
+    const newUrl = `${pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+    window.history.replaceState(null, "", newUrl);
+
+    // 3. Petición asíncrona de datos en segundo plano
+    const reqId = ++latestReqId.current;
+    setIsLoadingData(true);
+
+    fetchDashboardData({
+      sedeId: nextSedeId,
+      agrupacion: nextAgrupacion,
+      filtro: nextFiltro,
+      fecha: nextFecha,
+      monedaId: nextMonedaId,
+      medioPagoId: nextMedioPagoId === "all" || !nextMedioPagoId ? null : Number(nextMedioPagoId),
+    })
+      .then((freshData: any) => {
+        if (reqId === latestReqId.current) {
+          setChartData(freshData);
+          setIsLoadingData(false);
+        }
+      })
+      .catch((err: any) => {
+        console.error("Error al obtener datos del dashboard:", err);
+        if (reqId === latestReqId.current) {
+          setIsLoadingData(false);
+        }
+      });
+  };
+
+  // Manejo de eliminación / restauración a valores por defecto al pulsar "X"
+  const resetDimensionToDefault = (key: TagKey) => {
+    if (key === "periodo") {
+      applyFiltersAndFetch({ filtro: DEFAULT_FILTRO, fecha: DEFAULT_FECHA });
+    } else if (key === "agrupacion") {
+      applyFiltersAndFetch({ agrupacion: DEFAULT_AGRUPACION });
+    } else if (key === "financieros") {
+      applyFiltersAndFetch({ monedaId: DEFAULT_MONEDA, medioPagoId: DEFAULT_MEDIO_PAGO });
+    }
+  };
+
+  const toggleTag = (key: TagKey) => {
+    setActiveTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+        resetDimensionToDefault(key);
       } else {
-        params.set(key, newParams[key] as string);
+        next.add(key);
       }
+      return next;
     });
-    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const removeTag = (key: TagKey) => {
+    setActiveTags((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+    resetDimensionToDefault(key);
   };
 
   const chartTasaMedicos = useMemo(() => {
-    return data.tasaMedicos.map((d: any) => ({
+    return (chartData.tasaMedicos || []).map((d: any) => ({
       name: d.doctor,
       Hecho: Number(d.tasa_hecho) * 100,
       Programada: Number(d.tasa_programada) * 100,
       Cancelada: Number(d.tasa_cancelada) * 100,
     }));
-  }, [data.tasaMedicos]);
+  }, [chartData.tasaMedicos]);
 
-  const [dateInput, setDateInput] = useState(currentFecha);
-  // Tags de "filtros activos": SOLO aparecen cuando el usuario los agrega a
-  // mano desde el picker de 2 pasos (botón maestro o "+ Filtro" → elige
-  // categoría → aparece el tag); no reflejan el valor "de fábrica" con el
-  // que abre el dashboard, así la fila de tags puede estar vacía al entrar.
-  const [activeTags, setActiveTags] = useState<Set<TagKey>>(new Set());
-  const toggleTag = (key: TagKey) => {
-    setActiveTags((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
-  const removeTag = (key: TagKey) => {
-    setActiveTags((prev) => { const next = new Set(prev); next.delete(key); return next; });
-    if (key === "periodo") updateParams({ filtro: "todos", fecha: null });
-    else if (key === "agrupacion") updateParams({ agrupacion: "dia" });
-    else if (key === "financieros") updateParams({ monedaId: null, medioPagoId: null });
-  };
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [selectedKpis, setSelectedKpis] = useState({
     finanzas: true,
@@ -375,25 +477,18 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
     topTratamientos: true,
   });
 
-
-  const handleApplyDate = (filtro: string, fecha: string) => {
-    let agrup = currentAgrupacion;
-    if (filtro === 'dia') agrup = 'dia';
-    if (filtro === 'mes' && agrup === 'anio') agrup = 'dia';
-    if (filtro === 'anio' && agrup === 'anio') agrup = 'mes';
-    updateParams({ filtro, fecha, agrupacion: agrup });
+  const handleApplyDate = (newFiltro: string, newFecha: string) => {
+    applyFiltersAndFetch({ filtro: newFiltro, fecha: newFecha });
   };
 
-  // Campos reales de cada categoría — SOLO viven dentro del dropdown propio
-  // de cada tag (paso 2 del flujo). El picker de paso 1 (FilterCategoryPicker)
-  // no los muestra, solo la lista de 3 nombres de categoría.
+  // Campos de Período
   function renderPeriodoFields() {
     return (
       <>
         <div className="flex flex-col gap-1">
- <label className="text-[11px] font-semibold text-slate-500">Tipo de filtro</label>
+          <label className="text-[11px] font-semibold text-slate-500">Tipo de filtro</label>
           <Select
-            value={currentFiltro}
+            value={filtro}
             onChange={(f) => handleApplyDate(f, dateInput)}
             options={[
               { value: "dia", label: "Por Día Específico" },
@@ -403,51 +498,55 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
             ]}
           />
         </div>
-        {currentFiltro === "dia" && (
+        {filtro === "dia" && (
           <div className="flex flex-col gap-1">
- <label className="text-[11px] font-semibold text-slate-500">Fecha</label>
+            <label className="text-[11px] font-semibold text-slate-500">Fecha</label>
             <DatePicker
               value={dateInput}
-              onChange={(v) => { setDateInput(v); handleApplyDate('dia', v); }}
+              onChange={(v) => { setDateInput(v); handleApplyDate("dia", v); }}
             />
           </div>
         )}
-        {currentFiltro === "mes" && (
+        {filtro === "mes" && (
           <>
             <div className="flex flex-col gap-1">
- <label className="text-[11px] font-semibold text-slate-500">Mes</label>
+              <label className="text-[11px] font-semibold text-slate-500">Mes</label>
               <Select
                 value={String(Number(dateInput.slice(5, 7)) || 1)}
                 onChange={(v) => {
                   const y = dateInput.slice(0, 4) || String(CURRENT_YEAR);
                   const full = `${y}-${v.padStart(2, "0")}-01`;
                   setDateInput(full);
-                  handleApplyDate('mes', full);
+                  handleApplyDate("mes", full);
                 }}
                 options={MESES.map((m, i) => ({ value: String(i + 1), label: m }))}
               />
             </div>
             <div className="flex flex-col gap-1">
- <label className="text-[11px] font-semibold text-slate-500">Año</label>
+              <label className="text-[11px] font-semibold text-slate-500">Año</label>
               <Select
                 value={dateInput.slice(0, 4) || String(CURRENT_YEAR)}
                 onChange={(v) => {
                   const m = dateInput.slice(5, 7) || "01";
                   const full = `${v}-${m}-01`;
                   setDateInput(full);
-                  handleApplyDate('mes', full);
+                  handleApplyDate("mes", full);
                 }}
                 options={YEARS.map((y) => ({ value: String(y), label: String(y) }))}
               />
             </div>
           </>
         )}
-        {currentFiltro === "anio" && (
+        {filtro === "anio" && (
           <div className="flex flex-col gap-1">
- <label className="text-[11px] font-semibold text-slate-500">Año</label>
+            <label className="text-[11px] font-semibold text-slate-500">Año</label>
             <Select
               value={dateInput.slice(0, 4) || String(CURRENT_YEAR)}
-              onChange={(v) => { const full = `${v}-01-01`; setDateInput(full); handleApplyDate('anio', full); }}
+              onChange={(v) => {
+                const full = `${v}-01-01`;
+                setDateInput(full);
+                handleApplyDate("anio", full);
+              }}
               options={YEARS.map((y) => ({ value: String(y), label: String(y) }))}
             />
           </div>
@@ -456,38 +555,58 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
     );
   }
 
+  // Campos de Agrupación con respeto a restricciones
   function renderAgrupacionField() {
+    const agrupOptions = [];
+    if (filtro === "dia") {
+      agrupOptions.push({ value: "dia", label: "Día (Fijo para vista por día)", icon: "today" });
+    } else if (filtro === "mes") {
+      agrupOptions.push({ value: "dia", label: "Por Día", icon: "today" });
+      agrupOptions.push({ value: "mes", label: "Por Mes", icon: "calendar_month" });
+    } else if (filtro === "anio") {
+      agrupOptions.push({ value: "mes", label: "Por Mes", icon: "calendar_month" });
+      agrupOptions.push({ value: "dia", label: "Por Día", icon: "today" });
+    } else {
+      // todos
+      agrupOptions.push({ value: "mes", label: "Por Mes", icon: "calendar_month" });
+      agrupOptions.push({ value: "dia", label: "Por Día", icon: "today" });
+      agrupOptions.push({ value: "anio", label: "Por Año", icon: "event" });
+    }
+
     return (
       <div className="flex flex-col gap-1">
- <label className="text-[11px] font-semibold text-slate-500">Agrupar por</label>
+        <label className="text-[11px] font-semibold text-slate-500">Agrupar por</label>
         <Select
-          value={currentAgrupacion}
-          onChange={(v) => updateParams({ agrupacion: v })}
-          options={[
-            { value: "dia", label: "Día", icon: "today" },
-            { value: "mes", label: "Mes", icon: "calendar_month" },
-          ]}
+          value={agrupacion}
+          onChange={(v) => applyFiltersAndFetch({ agrupacion: v })}
+          options={agrupOptions}
         />
+        {filtro === "dia" && (
+          <p className="text-[10px] text-amber-600 font-medium mt-0.5">
+            Nota: Al filtrar por un día específico, la evolución se visualiza por día.
+          </p>
+        )}
       </div>
     );
   }
 
+  // Campos Financieros
   function renderFinancierosFields() {
     return (
       <>
         <div className="flex flex-col gap-1">
- <label className="text-[11px] font-semibold text-slate-500">Moneda</label>
+          <label className="text-[11px] font-semibold text-slate-500">Moneda</label>
           <Select
-            value={String(currentMoneda)}
-            onChange={(v) => updateParams({ monedaId: v })}
+            value={String(monedaId)}
+            onChange={(v) => applyFiltersAndFetch({ monedaId: Number(v) })}
             options={options.monedas.map((m: any) => ({ value: String(m.id), label: m.moneda }))}
           />
         </div>
         <div className="flex flex-col gap-1">
- <label className="text-[11px] font-semibold text-slate-500">Medio de Pago</label>
+          <label className="text-[11px] font-semibold text-slate-500">Medio de Pago</label>
           <Select
-            value={currentMedioPago}
-            onChange={(v) => updateParams({ medioPagoId: v === "all" ? null : v })}
+            value={medioPagoId || "all"}
+            onChange={(v) => applyFiltersAndFetch({ medioPagoId: v })}
             options={[
               { value: "all", label: "Todos los medios" },
               ...options.mediosPago.map((m: any) => ({ value: String(m.id), label: m.nombre })),
@@ -529,7 +648,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
   // capturado como imagen desde el propio DOM) y devuelve el Blob — no decide
   // qué hacer con él, eso lo resuelve cada botón (descargar vs. abrir para imprimir).
   async function generarReportePDF(): Promise<Blob> {
-    const moneda = options.monedas.find((m: any) => m.id === currentMoneda)?.moneda || "PEN";
+    const moneda = options.monedas.find((m: any) => m.id === monedaId)?.moneda || "PEN";
     const selectedKeys = Object.keys(selectedKpis).filter((k) => (selectedKpis as any)[k]);
     const charts: ReportChart[] = [];
     for (const key of selectedKeys) {
@@ -540,22 +659,22 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         key,
         title: CHART_TITLES[key] || key,
         image: canvas.toDataURL("image/png"),
-        stats: computeChartStats(key, data, moneda),
+        stats: computeChartStats(key, chartData, moneda),
       });
     }
 
-    const sedeActual = options.sedes.find((s: any) => s.id === currentSedeId);
-    const periodo = currentFiltro === "dia"
+    const sedeActual = options.sedes.find((s: any) => s.id === sedeId);
+    const periodo = filtro === "dia"
       ? `Día Específico (${dateInput})`
-      : currentFiltro === "mes"
+      : filtro === "mes"
       ? `Mes Específico (${MESES[Number(dateInput.slice(5, 7)) - 1] || ""} ${dateInput.slice(0, 4)})`
-      : currentFiltro === "anio"
+      : filtro === "anio"
       ? `Año Específico (${dateInput.slice(0, 4)})`
       : "Histórico Completo (Sin límite)";
-    const granularidad = currentAgrupacion === "dia" ? "Por Día" : currentAgrupacion === "mes" ? "Por Mes" : "Por Año";
-    const medioPago = currentMedioPago === "all"
+    const granularidad = agrupacion === "dia" ? "Por Día" : agrupacion === "mes" ? "Por Mes" : "Por Año";
+    const medioPago = medioPagoId === "all"
       ? "Todos los medios de pago"
-      : options.mediosPago.find((m: any) => String(m.id) === String(currentMedioPago))?.nombre || "Todos";
+      : options.mediosPago.find((m: any) => String(m.id) === String(medioPagoId))?.nombre || "Todos";
 
     return await pdf(
       <DashboardReportPDF
@@ -570,7 +689,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
     setGeneratingMode("pdf");
     try {
       const blob = await generarReportePDF();
-      const sedeNombre = options.sedes.find((s: any) => s.id === currentSedeId)?.nombre_clinica || "MaraDental";
+      const sedeNombre = options.sedes.find((s: any) => s.id === sedeId)?.nombre_clinica || "MaraDental";
       const slug = sedeNombre.toLowerCase().replace(/[^a-z0-9]+/g, "_");
       const fecha = new Date().toISOString().slice(0, 16).replace(/[-T:]/g, "").replace(/(\d{8})(\d{4})/, "$1_$2");
       saveAs(blob, `Reporte_Directivo_${slug}_${fecha}.pdf`);
@@ -644,24 +763,26 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         )}
       </AnimatePresence>
 
-      {/* HEADER & FILTERS — mismo esqueleto que ConfiguracionTiposClient.tsx:
-          <header> fijo (bg-white, solo border-b, sin rounded ni sombra),
-          fuera del área que scrollea. Solo el navbar superior global
-          (Header.tsx) es sticky — este encabezado no lo es. */}
- <header className="shrink-0 flex flex-col gap-3 sm:gap-4 lg:gap-5 bg-white px-4 sm:px-6 py-4 sm:py-6 border-b border-slate-200 print:hidden">
-        {/* Top Header Row — título+botón siempre en la misma línea (incluso
-            en tablet/mobile); el selector de sede (superadmin) va en su
-            propia fila debajo cuando aplica, para no forzar el salto de
-            línea del botón principal. */}
- <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
+      {/* HEADER & FILTERS */}
+      <header className="shrink-0 flex flex-col gap-3 sm:gap-4 lg:gap-5 bg-white px-4 sm:px-6 py-4 sm:py-6 border-b border-slate-200 print:hidden">
+        {/* Top Header Row */}
+        <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
           <div className="flex items-center justify-between gap-3">
             {/* En mobile solo el título — ícono y descripción se ocultan
                 (hidden sm:flex / hidden sm:block) para que el encabezado no
                 ocupe tanto alto, igual que en las capturas. */}
             <div className="flex items-center gap-3 min-w-0">
               <div className="min-w-0">
- <h1 className="text-[15px] md:text-base font-bold text-slate-800">Dashboard Directivo</h1>
- <p className="hidden sm:block text-[13px] md:text-sm text-slate-500 mt-0.5">Análisis de rendimiento, finanzas y operaciones.</p>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-[15px] md:text-base font-bold text-slate-800">Dashboard Directivo</h1>
+                  {isLoadingData && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-cyan-50 text-cyan-700 animate-pulse">
+                      <Icon name="refresh" size={11} className="animate-spin text-cyan-600" />
+                      Cargando datos...
+                    </span>
+                  )}
+                </div>
+                <p className="hidden sm:block text-[13px] md:text-sm text-slate-500 mt-0.5">Análisis de rendimiento, finanzas y operaciones.</p>
               </div>
             </div>
 
@@ -672,6 +793,31 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
             </button>
           </div>
 
+          {/* Selector de Sede para SuperAdmin */}
+          {userRole === "superadmin" && options.sedes && options.sedes.length > 1 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pt-1 no-scrollbar">
+              <span className="text-[12px] font-semibold text-slate-500 mr-1 flex items-center gap-1 shrink-0">
+                <Icon name="location_on" size={14} className="text-cyan-600" /> Sede:
+              </span>
+              {options.sedes.map((s: any) => {
+                const isSelected = sedeId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => applyFiltersAndFetch({ sedeId: s.id })}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold shrink-0 transition-all ${
+                      isSelected
+                        ? "bg-cyan-600 text-white shadow-sm"
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {s.nombre_clinica}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Presets rápidos de período + botón maestro de filtro, en la MISMA
@@ -687,19 +833,18 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
               { id: "anio_actual", label: "Este Año", filtro: "anio", agrupacion: "mes" },
               { id: "todos", label: "Histórico (Todo)", filtro: "todos", agrupacion: "mes" },
             ].map((p) => {
-              const todayStr = new Date().toISOString().split("T")[0];
-              const isSelected = currentFiltro === p.filtro && currentFecha === todayStr;
+              const isSelected = filtro === p.filtro && fecha === TODAY_STR;
               return (
                 <button
                   key={p.id}
                   onClick={() => {
-                    setDateInput(todayStr);
-                    updateParams({ filtro: p.filtro, fecha: todayStr, agrupacion: p.agrupacion });
+                    setDateInput(TODAY_STR);
+                    applyFiltersAndFetch({ filtro: p.filtro, fecha: TODAY_STR, agrupacion: p.agrupacion });
                   }}
                   className={`px-3 py-1.5 rounded-lg text-[11px] md:text-xs font-semibold transition-all ${
                     isSelected
                       ? "bg-cyan-600 text-white shadow-sm"
- :"bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
                   }`}
                 >
                   {p.label}
@@ -716,17 +861,13 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
         {/* Filtros activos — paso 2: cada tag es interactivo, clic en él (o
             su chevron) abre SU dropdown con los campos reales de esa
-            categoría; su X lo elimina del todo. "+ Filtro" al final reabre
-            el mismo picker de paso 1 (para agregar o quitar categorías). Sin
-            "Limpiar todo". Si no hay ningún tag, la fila entera no se
-            renderiza (el botón maestro de arriba sigue siendo la vía para
-            agregar filtros). */}
+            categoría; su X lo elimina del todo y restaura su valor por defecto. */}
         {activeTags.size > 0 && (
- <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-slate-100">
+          <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-slate-100">
             {activeTags.has("periodo") && (
               <TagDropdown
                 icon="calendar_month"
-                label={`Período: ${currentFiltro === "dia" ? `Día (${dateInput})` : currentFiltro === "mes" ? `Mes (${MESES[Number(dateInput.slice(5, 7)) - 1] || ""} ${dateInput.slice(0, 4)})` : currentFiltro === "anio" ? `Año (${dateInput.slice(0, 4)})` : "Histórico Completo"}`}
+                label={`Período: ${filtro === "dia" ? `Día (${dateInput})` : filtro === "mes" ? `Mes (${MESES[Number(dateInput.slice(5, 7)) - 1] || ""} ${dateInput.slice(0, 4)})` : filtro === "anio" ? `Año (${dateInput.slice(0, 4)})` : "Histórico Completo"}`}
                 onRemove={() => removeTag("periodo")}
                 manualClose
               >
@@ -736,7 +877,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
             {activeTags.has("agrupacion") && (
               <TagDropdown
                 icon="analytics"
-                label={`Agrupación: ${currentAgrupacion === "dia" ? "Por Día" : currentAgrupacion === "mes" ? "Por Mes" : "Por Año"}`}
+                label={`Agrupación: ${agrupacion === "dia" ? "Por Día" : agrupacion === "mes" ? "Por Mes" : "Por Año"}`}
                 onRemove={() => removeTag("agrupacion")}
               >
                 {renderAgrupacionField()}
@@ -745,7 +886,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
             {activeTags.has("financieros") && (
               <TagDropdown
                 icon="payments"
-                label={`Financieros: ${options.monedas.find((m: any) => m.id === currentMoneda)?.moneda || "PEN"}${currentMedioPago !== "all" ? ` · ${options.mediosPago.find((m: any) => String(m.id) === String(currentMedioPago))?.nombre || "Todos"}` : ""}`}
+                label={`Financieros: ${options.monedas.find((m: any) => m.id === monedaId)?.moneda || "PEN"}${medioPagoId !== "all" ? ` · ${options.mediosPago.find((m: any) => String(m.id) === String(medioPagoId))?.nombre || "Todos"}` : ""}`}
                 onRemove={() => removeTag("financieros")}
                 manualClose
               >
@@ -759,14 +900,109 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
       <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar p-4 sm:p-6 pb-10 print:p-0 print:overflow-visible">
 
+      {/* HEADER DE IMPRESIÓN (PÁGINA 1 DEL PDF) */}
+      <div className="hidden print:block mb-6 print:break-after-always rounded-xl overflow-hidden border border-slate-200">
+        <div className="h-[5px] bg-gradient-to-r from-cyan-600 to-cyan-700" />
+        <div className="bg-white px-6 py-5">
+          <div className="flex justify-between items-start pb-4 mb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600 shrink-0">
+                <Icon name="space_dashboard" size={22} />
+              </div>
+              <div>
+                <p className="text-[15px] font-bold text-slate-900">
+                  {options.sedes.find((s: any) => s.id === sedeId)?.nombre_clinica || "Todas las sedes"}
+                </p>
+                <p className="text-[11px] text-slate-400">Mara Dental — Reporte directivo</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-cyan-600">Reporte de Gestión Directiva</p>
+              <p suppressHydrationWarning className="text-[19px] font-bold text-slate-900 mt-0.5">
+                {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" })}
+              </p>
+              <p suppressHydrationWarning className="text-[10px] text-slate-400 mt-1">Generado: {new Date().toLocaleString("es-PE")}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6 text-sm">
+            <div className="flex flex-col gap-2">
+              <h3 className="text-[10px] font-bold text-cyan-600 uppercase tracking-wide border-b border-slate-100 pb-1">Parámetros de Tiempo y Granularidad</h3>
+              <p><span className="font-semibold text-slate-700">Período de Análisis:</span> {filtro === "dia" ? `Día Específico (${dateInput})` : filtro === "mes" ? `Mes Específico (${MESES[Number(dateInput.slice(5, 7)) - 1] || ""} ${dateInput.slice(0, 4)})` : filtro === "anio" ? `Año Específico (${dateInput.slice(0, 4)})` : "Histórico Completo (Sin límite)"}</p>
+              <p><span className="font-semibold text-slate-700">Granularidad (Agrupar por):</span> {agrupacion === "dia" ? "Por Día" : agrupacion === "mes" ? "Por Mes" : "Por Año"}</p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <h3 className="text-[10px] font-bold text-cyan-600 uppercase tracking-wide border-b border-slate-100 pb-1">Filtros Financieros Activos</h3>
+              <p><span className="font-semibold text-slate-700">Moneda de Análisis:</span> {options.monedas.find((m: any) => m.id === monedaId)?.moneda || "PEN"}</p>
+              <p><span className="font-semibold text-slate-700">Medio de Pago:</span> {medioPagoId === "all" ? "Todos los medios de pago" : options.mediosPago.find((m: any) => String(m.id) === String(medioPagoId))?.nombre || "Todos"}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 pt-4 border-t border-slate-100">
+            <h3 className="text-[10px] font-bold text-cyan-600 uppercase tracking-wide mb-2">KPIs y Gráficos Incluidos en este Informe</h3>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {selectedKpis.finanzas && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Balance Financiero</span>}
+              {selectedKpis.ticket && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Ticket Promedio</span>}
+              {selectedKpis.conversion && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Conversión Presupuestos</span>}
+              {selectedKpis.egresos && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Distribución Egresos</span>}
+              {selectedKpis.nuevos && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Captación Pacientes</span>}
+              {selectedKpis.tasasSede && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Tasas de Sede</span>}
+              {selectedKpis.rankingMedicos && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Ranking por Médico</span>}
+              {selectedKpis.ocupacion && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Ocupación Médica</span>}
+              {selectedKpis.topTratamientos && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Top 5 Tratamientos</span>}
+            </div>
+          </div>
+        </div>
+        <div className="h-[5px] bg-gradient-to-r from-cyan-600 to-cyan-700" />
+      </div>
+
+      {/* PRINT MEDIA STYLES FOR LANDSCAPE AND FULL PAGE CHARTS */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: landscape !important;
+            margin: 0.4cm !important;
+          }
+          body, html, main {
+            background: white !important;
+            color: black !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .print\:hidden, nav, header, aside, button, [role="navigation"] {
+            display: none !important;
+          }
+          .print-page-chart {
+            page-break-before: always !important;
+            break-before: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            height: 90vh !important;
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            margin-bottom: 0 !important;
+            padding: 1.5rem !important;
+            box-shadow: none !important;
+            border: 1px solid #cbd5e1 !important;
+          }
+          .print-page-chart:first-child {
+            page-break-before: auto !important;
+            break-before: auto !important;
+          }
+        }
+      `}</style>
+
       {/* CHARTS GRID (Requested Order) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:block print:w-full">
+      <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 print:block print:w-full transition-opacity duration-200 ${isLoadingData ? "opacity-60" : "opacity-100"}`}>
         
         {/* 4. Finanzas */}
         <div id="chart-finanzas" className={`print-page-chart ${!selectedKpis.finanzas ? 'print:hidden' : ''}`}>
           <ChartCard title="Balance Financiero (Ingresos/Egresos/Ganancias)" icon="account_balance">
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.finanzas}>
+              <BarChart data={chartData.finanzas}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${v/1000}k`} />
@@ -784,7 +1020,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         <div id="chart-ticket" className={`print-page-chart ${!selectedKpis.ticket ? 'print:hidden' : ''}`}>
           <ChartCard title="Ticket Promedio y Volumen de Ingresos" icon="point_of_sale">
             <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={data.ticketPromedio}>
+              <ComposedChart data={chartData.ticketPromedio}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${v/1000}k`} />
@@ -802,7 +1038,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         <div id="chart-conversion" className={`print-page-chart ${!selectedKpis.conversion ? 'print:hidden' : ''}`}>
           <ChartCard title="Conversión de Presupuestos (% Aprobación)" icon="price_check">
             <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={data.tasaAprobacion}>
+              <ComposedChart data={chartData.tasaAprobacion}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
@@ -821,13 +1057,13 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         <div id="chart-egresos" className={`print-page-chart ${!selectedKpis.egresos ? 'print:hidden' : ''}`}>
           <ChartCard title="Distribución de Egresos por Categoría" icon="receipt_long">
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.egresos} layout="vertical" margin={{ left: 50, right: 20 }}>
+              <BarChart data={chartData.egresos} layout="vertical" margin={{ left: 50, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="categoria" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
                 <Bar dataKey="total_gastado" name="Gastado" fill="#5D6D7E" radius={[0,4,4,0]} barSize={20}>
-                   {data.egresos.map((e:any, i:number) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
+                   {chartData.egresos.map((e:any, i:number) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -838,7 +1074,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         <div id="chart-nuevos" className={`print-page-chart ${!selectedKpis.nuevos ? 'print:hidden' : ''}`}>
           <ChartCard title="Captación de Pacientes (Nuevos por periodo)" icon="group_add">
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={data.pacientesNuevos}>
+              <AreaChart data={chartData.pacientesNuevos}>
                 <defs>
                   <linearGradient id="colorNuevos" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0891b2" stopOpacity={0.3}/>
@@ -859,7 +1095,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         <div id="chart-tasasSede" className={`print-page-chart ${!selectedKpis.tasasSede ? 'print:hidden' : ''}`}>
           <ChartCard title="Evolución de Tasas de Atención de la Sede" icon="timeline">
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.tasaSede}>
+              <LineChart data={chartData.tasaSede}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
                 <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v*100).toFixed(0)}%`} />
@@ -895,7 +1131,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         <div id="chart-ocupacion" className={`print-page-chart ${!selectedKpis.ocupacion ? 'print:hidden' : ''}`}>
           <ChartCard title="Ocupación por Médico" icon="event_available">
             <ResponsiveContainer width="100%" height={380}>
-              <BarChart data={data.ocupacion} margin={{ bottom: 20 }}>
+              <BarChart data={chartData.ocupacion} margin={{ bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis
                   dataKey="medico"
@@ -920,13 +1156,13 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         <div id="chart-topTratamientos" className={`print-page-chart lg:col-span-2 ${!selectedKpis.topTratamientos ? 'print:hidden' : ''}`}>
           <ChartCard title="Top 5 Tratamientos (Más y Menos Frecuentes)" icon="medical_services">
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.tratamientos} layout="vertical" margin={{ left: 50, right: 20 }}>
+              <BarChart data={chartData.tratamientos} layout="vertical" margin={{ left: 50, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="nombre_tratamiento" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} width={150} />
                 <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} />
                 <Bar dataKey="cantidad" name="Cantidad" radius={[0,4,4,0]} barSize={20}>
-                  {data.tratamientos.map((entry: any, index: number) => (
+                  {chartData.tratamientos.map((entry: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.clasificacion === "Más Frecuentes" ? POS_COLOR : NEG_COLOR} />
                   ))}
                 </Bar>

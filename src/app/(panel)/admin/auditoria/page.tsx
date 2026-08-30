@@ -171,42 +171,52 @@ export default function AdminAuditoriaPage() {
   const [filterAccion, setFilterAccion] = useState("");
   const [filterTabla, setFilterTabla] = useState("");
   const [filterUsuario, setFilterUsuario] = useState("");
-  const [filterFecha, setFilterFecha] = useState(new Date().toISOString().split("T")[0]);
+  const [filterFecha, setFilterFecha] = useState("");
 
   const [page, setPage] = useState(1);
-  // Tags de "filtros activos": solo aparecen cuando el usuario los agrega a
-  // mano desde el picker de 2 pasos (botón maestro o "+ Filtro" → elige
-  // categoría → aparece el tag) — mismo patrón que Calendario/Dashboard
-  // Directivo/Personal.
   const [activeTags, setActiveTags] = useState<Set<TagKey>>(new Set());
-  const toggleTag = (key: TagKey) => {
+
+  const removeTag = (key: TagKey) => {
     setActiveTags((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
+      next.delete(key);
       return next;
     });
-  };
-  const removeTag = (key: TagKey) => {
-    setActiveTags((prev) => { const next = new Set(prev); next.delete(key); return next; });
     setPage(1);
     if (key === "accion") setFilterAccion("");
     else if (key === "tabla") setFilterTabla("");
-    else if (key === "fecha") setFilterFecha(new Date().toISOString().split("T")[0]);
+    else if (key === "fecha") setFilterFecha("");
+  };
+
+  const toggleTag = (key: TagKey) => {
+    if (activeTags.has(key)) {
+      removeTag(key);
+    } else {
+      setActiveTags((prev) => {
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+      setPage(1);
+      if (key === "fecha" && !filterFecha) {
+        setFilterFecha(new Date().toISOString().split("T")[0]);
+      }
+    }
   };
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
     const result = await getAuditoriaLogsAction({
-      accion: filterAccion,
-      tabla: filterTabla,
-      usuario: filterUsuario,
-      fecha: filterFecha,
+      accion: activeTags.has("accion") && filterAccion ? filterAccion : undefined,
+      tabla: activeTags.has("tabla") && filterTabla ? filterTabla : undefined,
+      usuario: filterUsuario.trim() ? filterUsuario.trim() : undefined,
+      fecha: activeTags.has("fecha") && filterFecha ? filterFecha : undefined,
       page: page
     });
     setLogs(result.data);
     setTotalCount(result.count);
     setLoading(false);
-  }, [filterAccion, filterTabla, filterUsuario, filterFecha, page]);
+  }, [activeTags, filterAccion, filterTabla, filterUsuario, filterFecha, page]);
 
   useEffect(() => {
     loadLogs();
@@ -219,8 +229,7 @@ export default function AdminAuditoriaPage() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "logs_auditoria" },
-        (payload) => {
-          // Recargar logs cuando haya una nueva entrada (ej. en pacientes u otra tabla auditada)
+        () => {
           loadLogs();
         }
       )
@@ -242,13 +251,8 @@ export default function AdminAuditoriaPage() {
   return (
     <>
       <Header title="Auditoría" />
-      {/* Mismo esqueleto que ConfiguracionTiposClient.tsx: <header> fijo
-          (bg-white, solo border-b, sin rounded ni sombra) con título y
-          filtros — nada de esto scrollea. La tabla vive en su propia card
-          dentro de <main>, que sí scrollea. */}
       <div className="flex flex-col flex-1 min-h-0 bg-slate-50">
       <header className="shrink-0 flex flex-col gap-4 px-4 sm:px-6 py-4 sm:py-6 bg-white border-b border-slate-200">
-      {/* En mobile solo el título — ícono y descripción se ocultan. */}
       <div className="flex items-center gap-3">
         <div>
           <h1 className="text-[15px] md:text-base font-bold text-slate-800">Auditoría y Control Operacional</h1>
@@ -257,28 +261,34 @@ export default function AdminAuditoriaPage() {
       </div>
 
       <form onSubmit={handleSearchSubmit} className="flex flex-col gap-3">
-        {/* Búsqueda + botón maestro de filtro (mismo patrón que
-            Calendario/Dashboard Directivo/Personal): un solo ícono
-            reemplaza los 3 selects sueltos + el botón "Filtrar" que había
-            antes. Los filtros ya aplican en vivo (loadLogs corre en un
-            useEffect atado al estado), así que no hace falta un submit
-            explícito para ellos. */}
         <div className="flex items-center gap-2">
-          {/* Mismo diseño y ancho que el buscador de Catálogo/Personal. */}
           <div className="flex-1 min-w-0 sm:max-w-xs lg:max-w-md relative">
             <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <TextInput
               type="text"
-              placeholder="Buscar por usuario..."
+              placeholder="Buscar por usuario (ej. nombre, apellido)..."
               value={filterUsuario}
-              onChange={(e) => setFilterUsuario(e.target.value)}
+              onChange={(e) => {
+                setFilterUsuario(e.target.value);
+                setPage(1);
+              }}
               className="pl-9 pr-3"
             />
+            {filterUsuario && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterUsuario("");
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                title="Limpiar búsqueda"
+              >
+                <Icon name="close" size={14} />
+              </button>
+            )}
           </div>
 
-          {/* Paso 1 — lista simple de categorías, sin sus opciones internas.
-              justify-between (arriba) lo empuja al extremo derecho de la
-              fila, separado del buscador en vez de pegado a su lado. */}
           <FilterCategoryPicker variant="icon" activeKeys={activeTags} onToggle={toggleTag} />
         </div>
 
@@ -349,22 +359,13 @@ export default function AdminAuditoriaPage() {
             {activeTags.has("fecha") && (
               <TagDropdown
                 icon={TAG_META.fecha.icon}
-                label={`Fecha: ${filterFecha}`}
+                label={`Fecha: ${filterFecha || "Hoy"}`}
                 onRemove={() => removeTag("fecha")}
                 panelClassName="bg-white border border-slate-200 rounded-lg shadow-lg p-3"
               >
                 {(close) => (
-                  // Mismo DatePicker que usa el resto del sistema — calendario
-                  // mensual con navegación por chevrons, y ya detecta bordes de
-                  // pantalla solo (flip()/shift() de floating-ui, dentro de
-                  // SmartPopover). Al elegir el día se completa la fecha
-                  // (día+mes+año, según en qué mes/año esté parado el
-                  // calendario) y se cierra ESTE tag (close()) en el mismo
-                  // evento, sin depender de un click afuera. Sin botones
-                  // "Hoy"/"Borrar": el valor por defecto ya es hoy, y "Borrar"
-                  // duplicaba la X del propio tag.
                   <DatePicker
-                    value={filterFecha}
+                    value={filterFecha || new Date().toISOString().split("T")[0]}
                     onChange={(v) => { setFilterFecha(v); setPage(1); close(); }}
                   />
                 )}

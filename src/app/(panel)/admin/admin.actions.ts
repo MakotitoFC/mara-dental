@@ -42,6 +42,14 @@ export async function getDashboardMetricsAction(rangoFechas: { inicio?: string; 
 
 
 
+function normalizeText(text: string): string {
+  return (text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export async function getAuditoriaLogsAction({
   accion,
   usuario,
@@ -58,21 +66,73 @@ export async function getAuditoriaLogsAction({
   const supabase = await createClient();
   let query = supabase
     .from("logs_auditoria")
-    .select(`*, usuarios!inner(personal(nombre, apellido, email))`, { count: "exact" })
+    .select(`*, usuarios(personal(nombre, apellido, email))`, { count: "exact" })
     .order("fecha", { ascending: false });
 
-  if (accion) query = query.ilike("accion", `%${accion}%`);
-  if (tabla) query = query.ilike("tabla_afectada", `%${tabla}%`);
-  if (usuario) {
-    const u = `%${usuario}%`;
-    query = query.or(`personal.nombre.ilike.${u},personal.apellido.ilike.${u}`, { referencedTable: "usuarios" });
+  if (accion && accion.trim()) {
+    query = query.eq("accion", accion.trim());
+  }
+
+  if (tabla && tabla.trim()) {
+    query = query.ilike("tabla_afectada", `%${tabla.trim()}%`);
+  }
+
+  if (usuario && usuario.trim()) {
+    const qNorm = normalizeText(usuario);
+    const rawTerms = qNorm.split(/\s+/).filter(Boolean);
+
+    // Obtenemos el personal para comparar insensible a mayúsculas y tildes (nombre+apellido, apellido+nombre, email)
+    const { data: allPersonal } = await supabase
+      .from("personal")
+      .select("usuario_id, nombre, apellido, email");
+
+    const matchedPersonal = (allPersonal || []).filter((p: any) => {
+      const nom = normalizeText(p.nombre);
+      const ape = normalizeText(p.apellido);
+      const mail = normalizeText(p.email);
+
+      const nombreApellido = `${nom} ${ape}`.trim();
+      const apellidoNombre = `${ape} ${nom}`.trim();
+
+      // 1. Coincidencia directa con frase completa
+      if (
+        nombreApellido.includes(qNorm) ||
+        apellidoNombre.includes(qNorm) ||
+        mail.includes(qNorm)
+      ) {
+        return true;
+      }
+
+      // 2. Coincidencia si todos los términos buscados están contenidos en nombre+apellido o email
+      if (
+        rawTerms.length > 0 &&
+        rawTerms.every((term) => nombreApellido.includes(term) || mail.includes(term))
+      ) {
+        return true;
+      }
+
+      return false;
+    });
+
+    const userIds = matchedPersonal.map((p: any) => p.usuario_id);
+
+    if (userIds.length === 0) {
+      return { data: [], count: 0 };
+    }
+
+    query = query.in("usuario_id", userIds);
   }
   
-  if (fecha) {
-    if (fecha.length === 4) { // Es un año (e.g. "2026")
-      query = query.gte("fecha", `${fecha}-01-01`).lt("fecha", `${Number(fecha) + 1}-01-01`);
+  if (fecha && fecha.trim()) {
+    const f = fecha.trim();
+    if (f.length === 4) { // Es un año (e.g. "2026")
+      query = query
+        .gte("fecha", `${f}-01-01T00:00:00-05:00`)
+        .lt("fecha", `${Number(f) + 1}-01-01T00:00:00-05:00`);
     } else { // Fecha específica "YYYY-MM-DD"
-      query = query.gte("fecha", `${fecha} 00:00:00`).lt("fecha", `${fecha} 23:59:59`);
+      query = query
+        .gte("fecha", `${f}T00:00:00-05:00`)
+        .lte("fecha", `${f}T23:59:59.999-05:00`);
     }
   }
 
