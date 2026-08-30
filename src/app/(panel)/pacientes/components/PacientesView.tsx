@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { TextInput } from "@/components/ui/TextInput";
 import { calcEdad, fmtFecha } from "@/lib/date-utils";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import type { EstadoPaciente } from "@/types/paciente";
@@ -127,11 +128,11 @@ export function PacientesView({ initialData }: { initialData: any[] }) {
         <div className="flex items-center gap-3">
           <div className="relative w-full max-w-[280px]">
             <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
+            <TextInput
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por nombre o DNI…"
- className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 outline-none focus:border-cyan-500 focus:bg-white focus:ring-2 focus:ring-cyan-100 transition-colors text-[16px] sm:text-[13px]"
+              className="pl-8 pr-3"
             />
           </div>
           <button

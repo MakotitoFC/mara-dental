@@ -45,7 +45,7 @@ test.js
 supabase/*
 database.sqlite
 .sqlite
-dashboard*
-test-*
-check*
-plan_*
+/dashboard*
+/test-*
+/check*
+/plan_*

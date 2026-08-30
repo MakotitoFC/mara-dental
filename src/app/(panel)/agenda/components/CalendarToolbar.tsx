@@ -211,8 +211,8 @@ function DoctorFiltroSelector({ doctores, value, onChange, onRemove }: { doctore
             onMouseDown={() => { onChange("todos"); setOpen(false); }}
  className={`w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] hover:bg-slate-50 ${allSelected ? "text-cyan-700 font-semibold" : "text-slate-600"}`}
           >
- <span className={`w-3.5 h-3.5 rounded shrink-0 border-2 flex items-center justify-center ${allSelected ? "bg-cyan-600 border-cyan-600" : "border-slate-300"}`}>
-              {allSelected && <Icon name="check" size={10} className="text-white" />}
+ <span className={`w-5 h-5 rounded-md shrink-0 border-2 flex items-center justify-center ${allSelected ? "bg-cyan-600 border-cyan-600" : "border-slate-300"}`}>
+              {allSelected && <Icon name="check" size={13} className="text-white" />}
             </span>
             Todos los médicos
           </button>
@@ -227,10 +227,10 @@ function DoctorFiltroSelector({ doctores, value, onChange, onRemove }: { doctore
  className="w-full flex items-center gap-2 text-left px-3 py-2 text-[13px] hover:bg-slate-50 text-slate-600"
               >
                 <span
- className={`w-3.5 h-3.5 rounded shrink-0 border-2 flex items-center justify-center ${checked ? "" : "border-slate-300"}`}
+ className={`w-5 h-5 rounded-md shrink-0 border-2 flex items-center justify-center ${checked ? "" : "border-slate-300"}`}
                   style={checked ? { background: vars.solid, borderColor: vars.solid } : undefined}
                 >
-                  {checked && <Icon name="check" size={10} className="text-white" />}
+                  {checked && <Icon name="check" size={13} className="text-white" />}
                 </span>
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: vars.solid }} />
                 <span className="truncate">Dr. {doc.apellido}</span>

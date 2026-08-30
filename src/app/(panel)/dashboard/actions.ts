@@ -311,7 +311,7 @@ export async function getDashboardAsistenteDataAction(): Promise<DashboardAsiste
 }
 
 /** Envía un saludo de cumpleaños por Telegram — mismo patrón que
- * enviarVoucherPagoAction en pagos/actions.ts (llamada directa a la Bot API
+ * enviarVoucherPdfPagoAction en pagos/actions.ts (llamada directa a la Bot API
  * + registro en mensajes_telegram), pero con su propio tipo_mensaje. */
 export async function enviarSaludoCumpleañosAction(pacienteId: string, chatId: string | null, texto: string) {
   if (!chatId) return { error: "Paciente sin Telegram configurado" };

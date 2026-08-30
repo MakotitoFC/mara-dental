@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Textarea } from "@/components/ui/TextInput";
 import { responderValidacionAction, getValidacionesPendientesAction } from "@/app/(panel)/validaciones/actions";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -223,11 +224,12 @@ export function ValidacionesView({ validaciones, sedeId }: { validaciones: any[]
                 El solicitante necesita saber por qué se rechaza esta acción.
               </p>
 
-              <textarea
+              <Textarea
+                variant="red"
                 value={comentario}
                 onChange={(e) => setComentario(e.target.value)}
                 placeholder="Ej. La devolución no procede porque el tratamiento ya se inició..."
- className="w-full border border-slate-200 bg-slate-50 text-slate-900 rounded-xl p-3 text-[13px] outline-none focus:border-red-400 mb-2 min-h-[80px]"
+                className="text-slate-900 p-3 mb-2 min-h-[80px]"
               />
               
               {errorMsg && <p className="text-[12px] text-red-500 font-medium mb-3">{errorMsg}</p>}

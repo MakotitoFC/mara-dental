@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { FilterTag } from "@/components/ui/FilterTag";
 import { SmartPopover } from "@/components/ui/SmartPopover";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { TextInput } from "@/components/ui/TextInput";
 import { Header } from "@/components/layout/Header";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { getAuditoriaLogsAction } from "../admin.actions";
@@ -266,12 +267,12 @@ export default function AdminAuditoriaPage() {
           {/* Mismo diseño y ancho que el buscador de Catálogo/Personal. */}
           <div className="flex-1 min-w-0 sm:max-w-xs lg:max-w-md relative">
             <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
+            <TextInput
               type="text"
               placeholder="Buscar por usuario..."
               value={filterUsuario}
               onChange={(e) => setFilterUsuario(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors"
+              className="pl-9 pr-3"
             />
           </div>
 

@@ -6,6 +6,8 @@ import { Icon } from "@/components/ui/Icon";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
+import { Checkbox } from "@/components/ui/Checkbox";
 import {
   getTiposConsultaAction,
   createTipoConsultaAction,
@@ -851,13 +853,12 @@ export default function ConfiguracionTiposClient({
             <form id="consulta-form" onSubmit={handleSaveConsulta} className="flex flex-col gap-5">
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-500 mb-1">Nombre del Tipo</label>
-                <input
+                <TextInput
                   type="text"
                   required
                   autoFocus
                   value={consultaForm.tipo_consulta}
                   onChange={(e) => setConsultaForm({...consultaForm, tipo_consulta: e.target.value})}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] md:text-sm font-medium outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all"
                   placeholder="Ej. Control de Ortodoncia"
                 />
               </div>
@@ -887,11 +888,11 @@ export default function ConfiguracionTiposClient({
                     onChange={(e) => setConsultaForm({...consultaForm, color: e.target.value})}
                     className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent p-0"
                   />
-                  <input
+                  <TextInput
                     type="text"
                     value={consultaForm.color.toUpperCase()}
                     onChange={(e) => setConsultaForm({...consultaForm, color: e.target.value})}
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] md:text-sm font-medium uppercase outline-none focus:border-cyan-400"
+                    className="flex-1 uppercase"
                     pattern="^#+([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$"
                     placeholder="#FFFFFF"
                   />
@@ -920,13 +921,13 @@ export default function ConfiguracionTiposClient({
             <form id="condicion-form" onSubmit={handleSaveCondicion} className="flex flex-col gap-5">
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-500 mb-1">Nombre de la Condición</label>
-                <input
+                <TextInput
                   type="text"
                   required
                   autoFocus
                   value={condicionForm.condicion}
                   onChange={(e) => setCondicionForm({...condicionForm, condicion: e.target.value})}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] md:text-sm font-medium outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all uppercase"
+                  className="uppercase"
                   placeholder="Ej. CARIES, RESINA, CORONA..."
                 />
               </div>
@@ -954,11 +955,11 @@ export default function ConfiguracionTiposClient({
                     onChange={(e) => setCondicionForm({...condicionForm, color: e.target.value})}
                     className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent p-0"
                   />
-                  <input
+                  <TextInput
                     type="text"
                     value={condicionForm.color.toUpperCase()}
                     onChange={(e) => setCondicionForm({...condicionForm, color: e.target.value})}
-                    className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] md:text-sm font-medium uppercase outline-none focus:border-cyan-400"
+                    className="flex-1 uppercase"
                     pattern="^#+([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$"
                     placeholder="#FFFFFF"
                   />
@@ -985,13 +986,13 @@ export default function ConfiguracionTiposClient({
             <form id="archivo-form" onSubmit={handleSaveArchivo} className="flex flex-col gap-4">
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-500 mb-1">Nombre / Extensión</label>
-                <input
+                <TextInput
                   type="text"
                   required
                   autoFocus
                   value={archivoForm.tipo_archivo}
                   onChange={(e) => setArchivoForm({...archivoForm, tipo_archivo: e.target.value})}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] md:text-sm font-medium outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all uppercase"
+                  className="uppercase"
                   placeholder="Ej. RADIOGRAFIA_PANORAMICA o PDF"
                 />
               </div>
@@ -1021,11 +1022,11 @@ export default function ConfiguracionTiposClient({
             <form id="cie10-form" onSubmit={handleSaveCie10} className="flex flex-col gap-4">
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-700 mb-1">Código</label>
-                <input
+                <TextInput
                   type="text"
                   required
                   placeholder="Ej. K02.1"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-[13px] md:text-sm uppercase"
+                  className="uppercase"
                   value={cie10Form.codigo}
                   onChange={(e) => setCie10Form({...cie10Form, codigo: e.target.value.toUpperCase()})}
                 />
@@ -1033,13 +1034,13 @@ export default function ConfiguracionTiposClient({
 
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-700 mb-1">Descripción</label>
-                <textarea
+                <Textarea
                   required
                   rows={3}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-[13px] md:text-sm resize-none"
+                  className="resize-none"
                   value={cie10Form.descripcion}
                   onChange={(e) => setCie10Form({...cie10Form, descripcion: e.target.value})}
-                ></textarea>
+                />
               </div>
             </form>
           </ResponsiveSheet>
@@ -1066,34 +1067,28 @@ export default function ConfiguracionTiposClient({
             <form id="rol-form" onSubmit={handleSaveRol} className="flex flex-col gap-5">
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-700 mb-1">Nombre del Rol</label>
-                <input
+                <TextInput
                   type="text"
                   required
                   autoFocus
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-[13px] md:text-sm"
                   value={rolForm.rol}
                   onChange={(e) => setRolForm({...rolForm, rol: e.target.value})}
                 />
               </div>
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-700 mb-1">Descripción</label>
-                <textarea
+                <Textarea
                   rows={3}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-[13px] md:text-sm resize-none"
+                  className="resize-none"
                   value={rolForm.descripcion}
                   onChange={(e) => setRolForm({...rolForm, descripcion: e.target.value})}
-                ></textarea>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="rol_estado"
-                  checked={rolForm.estado}
-                  onChange={(e) => setRolForm({...rolForm, estado: e.target.checked})}
-                  className="w-4 h-4 text-cyan-600 border-slate-300 rounded focus:ring-cyan-500"
                 />
-                <label htmlFor="rol_estado" className="text-[11px] md:text-xs font-semibold text-slate-700">Activo (Visible en el sistema)</label>
               </div>
+              <Checkbox
+                checked={rolForm.estado}
+                onChange={() => setRolForm({...rolForm, estado: !rolForm.estado})}
+                label="Activo (Visible en el sistema)"
+              />
             </form>
           </ResponsiveSheet>
         )}
@@ -1120,34 +1115,28 @@ export default function ConfiguracionTiposClient({
             <form id="puesto-form" onSubmit={handleSavePuesto} className="flex flex-col gap-5">
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-700 mb-1">Nombre del Puesto</label>
-                <input
+                <TextInput
                   type="text"
                   required
                   autoFocus
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-[13px] md:text-sm"
                   value={puestoForm.puesto}
                   onChange={(e) => setPuestoForm({...puestoForm, puesto: e.target.value})}
                 />
               </div>
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-700 mb-1">Descripción</label>
-                <textarea
+                <Textarea
                   rows={3}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-[13px] md:text-sm resize-none"
+                  className="resize-none"
                   value={puestoForm.descripcion}
                   onChange={(e) => setPuestoForm({...puestoForm, descripcion: e.target.value})}
-                ></textarea>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="puesto_estado"
-                  checked={puestoForm.estado}
-                  onChange={(e) => setPuestoForm({...puestoForm, estado: e.target.checked})}
-                  className="w-4 h-4 text-cyan-600 border-slate-300 rounded focus:ring-cyan-500"
                 />
-                <label htmlFor="puesto_estado" className="text-[11px] md:text-xs font-semibold text-slate-700">Activo (Visible en el sistema)</label>
               </div>
+              <Checkbox
+                checked={puestoForm.estado}
+                onChange={() => setPuestoForm({...puestoForm, estado: !puestoForm.estado})}
+                label="Activo (Visible en el sistema)"
+              />
             </form>
           </ResponsiveSheet>
         )}
@@ -1174,34 +1163,28 @@ export default function ConfiguracionTiposClient({
             <form id="especialidad-form" onSubmit={handleSaveEspecialidad} className="flex flex-col gap-5">
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-700 mb-1">Nombre de la Especialidad</label>
-                <input
+                <TextInput
                   type="text"
                   required
                   autoFocus
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-[13px] md:text-sm"
                   value={especialidadForm.especialidad}
                   onChange={(e) => setEspecialidadForm({...especialidadForm, especialidad: e.target.value})}
                 />
               </div>
               <div>
                 <label className="block text-[11px] md:text-xs font-semibold text-slate-700 mb-1">Descripción</label>
-                <textarea
+                <Textarea
                   rows={3}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-cyan-500 text-[13px] md:text-sm resize-none"
+                  className="resize-none"
                   value={especialidadForm.descripcion}
                   onChange={(e) => setEspecialidadForm({...especialidadForm, descripcion: e.target.value})}
-                ></textarea>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="especialidad_estado"
-                  checked={especialidadForm.estado}
-                  onChange={(e) => setEspecialidadForm({...especialidadForm, estado: e.target.checked})}
-                  className="w-4 h-4 text-cyan-600 border-slate-300 rounded focus:ring-cyan-500"
                 />
-                <label htmlFor="especialidad_estado" className="text-[11px] md:text-xs font-semibold text-slate-700">Activa (Visible en el sistema)</label>
               </div>
+              <Checkbox
+                checked={especialidadForm.estado}
+                onChange={() => setEspecialidadForm({...especialidadForm, estado: !especialidadForm.estado})}
+                label="Activa (Visible en el sistema)"
+              />
             </form>
           </ResponsiveSheet>
         )}

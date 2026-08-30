@@ -8,6 +8,8 @@ import { DatePicker } from "@/components/ui/DatePicker";
 import { FilterTag } from "@/components/ui/FilterTag";
 import { SmartPopover } from "@/components/ui/SmartPopover";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { TextInput } from "@/components/ui/TextInput";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
 import { createEmpleadoAction, editEmpleadoAction, softDeleteEmpleadoAction, toggleEmpleadoEstadoAction } from "./personal.actions";
@@ -411,12 +413,12 @@ export default function PersonalClient({
           <div className="flex items-center gap-2">
             <form onSubmit={handleSearch} className="flex-1 min-w-0 sm:max-w-xs lg:max-w-md relative">
               <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
+              <TextInput
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar por nombre o apellido..."
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors"
+                className="pl-9 pr-3"
               />
               <button type="submit" className="hidden" />
             </form>
@@ -756,11 +758,11 @@ export default function PersonalClient({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[13px] md:text-sm font-medium text-slate-700 mb-1">Nombre</label>
-                      <input name="nombre" defaultValue={editingPersonal?.nombre} required className="w-full h-9 sm:h-10 border border-slate-200 rounded-lg px-3 text-[16px] sm:text-[13px] focus:ring-2 focus:ring-cyan-500 outline-none" />
+                      <TextInput name="nombre" defaultValue={editingPersonal?.nombre} required className="h-9 sm:h-10" />
                     </div>
                     <div>
                       <label className="block text-[13px] md:text-sm font-medium text-slate-700 mb-1">Apellido</label>
-                      <input name="apellido" defaultValue={editingPersonal?.apellido} required className="w-full h-9 sm:h-10 border border-slate-200 rounded-lg px-3 text-[16px] sm:text-[13px] focus:ring-2 focus:ring-cyan-500 outline-none" />
+                      <TextInput name="apellido" defaultValue={editingPersonal?.apellido} required className="h-9 sm:h-10" />
                     </div>
                   </div>
 
@@ -768,11 +770,11 @@ export default function PersonalClient({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[13px] md:text-sm font-medium text-slate-700 mb-1">Email</label>
-                        <input name="email" type="email" required className="w-full h-9 sm:h-10 border border-slate-200 rounded-lg px-3 text-[16px] sm:text-[13px] focus:ring-2 focus:ring-cyan-500 outline-none" />
+                        <TextInput name="email" type="email" required className="h-9 sm:h-10" />
                       </div>
                       <div>
                         <label className="block text-[13px] md:text-sm font-medium text-slate-700 mb-1">Contraseña</label>
-                        <input name="password" type="password" required className="w-full h-9 sm:h-10 border border-slate-200 rounded-lg px-3 text-[16px] sm:text-[13px] focus:ring-2 focus:ring-cyan-500 outline-none" />
+                        <TextInput name="password" type="password" required className="h-9 sm:h-10" />
                       </div>
                     </div>
                   )}
@@ -780,7 +782,7 @@ export default function PersonalClient({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[13px] md:text-sm font-medium text-slate-700 mb-1">Teléfono</label>
-                      <input name="telefono" defaultValue={editingPersonal?.telefono} className="w-full h-9 sm:h-10 border border-slate-200 rounded-lg px-3 text-[16px] sm:text-[13px] focus:ring-2 focus:ring-cyan-500 outline-none" />
+                      <TextInput name="telefono" defaultValue={editingPersonal?.telefono} className="h-9 sm:h-10" />
                     </div>
                     <div>
                       <label className="block text-[13px] md:text-sm font-medium text-slate-700 mb-1">Fecha Nacimiento</label>
@@ -819,21 +821,18 @@ export default function PersonalClient({
                   )}
 
                   {editingPersonal && (
-                    <div className="flex items-center gap-3">
-                      <label className="text-[13px] font-semibold text-slate-700">Estado del Empleado:</label>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="hidden" name="activo" value={isActivo ? "true" : "false"} />
-                        <input
-                          type="checkbox"
-                          checked={isActivo}
-                          onChange={(e) => setIsActivo(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600"></div>
-                        <span className={`ml-2.5 text-[12.5px] font-medium ${isActivo ? "text-cyan-600" : "text-amber-600"}`}>
-                          {isActivo ? "Activo en el sistema" : "Inactivo / Desactivado"}
-                        </span>
-                      </label>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[13px] font-semibold text-slate-700">Estado del Empleado</label>
+                      <input type="hidden" name="activo" value={isActivo ? "true" : "false"} />
+                      <Checkbox
+                        checked={isActivo}
+                        onChange={() => setIsActivo(v => !v)}
+                        label={
+                          <span className={`font-medium ${isActivo ? "text-cyan-600" : "text-amber-600"}`}>
+                            {isActivo ? "Activo en el sistema" : "Inactivo / Desactivado"}
+                          </span>
+                        }
+                      />
                     </div>
                   )}
 
@@ -863,7 +862,7 @@ export default function PersonalClient({
                   {selectedRol === "1" && (
                     <div>
                       <label className="block text-[13px] md:text-sm font-medium text-slate-700 mb-1">N° Colegiatura (Opcional)</label>
-                      <input name="num_colegiatura" defaultValue={editingPersonal?.num_colegiatura} className="w-full h-9 sm:h-10 border border-slate-200 rounded-lg px-3 text-[16px] sm:text-[13px] focus:ring-2 focus:ring-cyan-500 outline-none" />
+                      <TextInput name="num_colegiatura" defaultValue={editingPersonal?.num_colegiatura} className="h-9 sm:h-10" />
                     </div>
                   )}
             </form>

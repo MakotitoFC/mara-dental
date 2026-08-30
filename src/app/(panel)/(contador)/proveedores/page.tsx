@@ -7,6 +7,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { useToast } from "@/components/ui/Toast";
 import { Header } from "@/components/layout/Header";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { TextInput } from "@/components/ui/TextInput";
 import { getProveedoresAction, saveProveedorAction, toggleProveedorActivoAction } from "../contador.actions";
 
 /** Ventana de números de página con elipsis — mismo patrón que Personal
@@ -374,48 +375,44 @@ export default function ProveedoresPage() {
             <form id="proveedor-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
                 <label className="block text-[13px] font-semibold text-slate-700 mb-1">Nombre / Razón Social <span className="text-red-500">*</span></label>
-                <input
+                <TextInput
                   type="text" required
                   value={formData.nombre} onChange={e => setFormData(p => ({...p, nombre: e.target.value}))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors"
                 />
               </div>
 
               <div>
                 <label className="block text-[13px] font-semibold text-slate-700 mb-1">RUC</label>
-                <input
+                <TextInput
                   type="text" maxLength={11} pattern="\d*"
                   value={formData.ruc} onChange={e => setFormData(p => ({...p, ruc: e.target.value.replace(/\D/g, '')}))}
                   placeholder="11 dígitos"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors font-mono"
+                  className="font-mono"
                 />
               </div>
 
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1">Teléfono</label>
-                  <input
+                  <TextInput
                     type="text"
                     value={formData.telefono} onChange={e => setFormData(p => ({...p, telefono: e.target.value}))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors"
                   />
                 </div>
                 <div className="flex-1">
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1">Email</label>
-                  <input
+                  <TextInput
                     type="email"
                     value={formData.email} onChange={e => setFormData(p => ({...p, email: e.target.value}))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-[13px] font-semibold text-slate-700 mb-1">Dirección</label>
-                <input
+                <TextInput
                   type="text"
                   value={formData.direccion} onChange={e => setFormData(p => ({...p, direccion: e.target.value}))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors"
                 />
               </div>
 

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { useToast } from "@/components/ui/Toast";
 import { Header } from "@/components/layout/Header";
@@ -430,28 +432,27 @@ export default function CatalogoTratamientosPage() {
             <form id="tratamiento-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
                 <label className="block text-[13px] font-semibold text-slate-700 mb-1">Nombre del Tratamiento <span className="text-red-500">*</span></label>
-                <input
+                <TextInput
                   type="text" required
                   value={formData.nombre} onChange={e => setFormData(p => ({...p, nombre: e.target.value}))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors"
                 />
               </div>
 
               <div>
                 <label className="block text-[13px] font-semibold text-slate-700 mb-1">Descripción</label>
-                <textarea
+                <Textarea
                   value={formData.descripcion} onChange={e => setFormData(p => ({...p, descripcion: e.target.value}))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors resize-none h-20"
+                  className="resize-none h-20"
                 />
               </div>
 
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1">Precio Base <span className="text-red-500">*</span></label>
-                  <input
+                  <TextInput
                     type="number" step="0.01" min="0" required
                     value={formData.precio} onChange={e => setFormData(p => ({...p, precio: Number(e.target.value)}))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors font-mono"
+                    className="font-mono"
                   />
                 </div>
                 <div className="w-1/3">
@@ -467,18 +468,12 @@ export default function CatalogoTratamientosPage() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setFormData(p => ({ ...p, activo: !p.activo }))}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 mt-2 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-left"
-              >
-                <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
-                  formData.activo ? "bg-cyan-600 border-cyan-600" : "border-slate-300"
-                }`}>
-                  {formData.activo && <Icon name="check" size={13} className="text-white" />}
-                </span>
-                <span className="text-[13px] text-slate-700 font-medium">Tratamiento Activo</span>
-              </button>
+              <Checkbox
+                checked={formData.activo}
+                onChange={() => setFormData(p => ({ ...p, activo: !p.activo }))}
+                label="Tratamiento Activo"
+                className="mt-2"
+              />
             </form>
           </ResponsiveSheet>
         )}

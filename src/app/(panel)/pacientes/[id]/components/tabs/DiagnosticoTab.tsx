@@ -20,6 +20,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { FilterCategoryPicker, type FilterCategoryMeta } from "@/components/ui/FilterCategoryPicker";
 import { TagDropdown } from "@/components/ui/TagDropdown";
+import { Checkbox } from "@/components/ui/Checkbox";
 
 const TIPO_OPTIONS = [
   { value: "definitivo", label: "Definitivo" },
@@ -59,11 +60,11 @@ function getMobilePageWindow(current: number, total: number): number[] {
 /** Fila del historial — fecha + tipo (presuntivo/definitivo), el detalle
  * clínico (texto del diagnóstico) y, aparte, tags de si tiene
  * tratamiento/recetas. El seleccionado se resalta en gris neutro (no con el
- * color del estado (badge), sino con los mismos colores que resaltan un
- * ítem activo en el navbar lateral (bg-cyan-50 + texto cyan-700). Alto
- * variable (ya no fijo) porque el texto del diagnóstico puede ocupar 1 o 2
- * líneas según el registro. En mobile (`isMobile`) usa en cambio el mismo
- * diseño de tarjeta que "Catálogo de Tratamientos" (admin/catalogo). */
+ * color del estado/badge) — mismo esquema que `HistorialRow` en
+ * PresupuestoTab.tsx (bg-slate-100 + border-l-slate-400). Alto variable (ya
+ * no fijo) porque el texto del diagnóstico puede ocupar 1 o 2 líneas según
+ * el registro. En mobile (`isMobile`) usa en cambio el mismo diseño de
+ * tarjeta que "Catálogo de Tratamientos" (admin/catalogo). */
 function DiagnosticoHistorialRow({ d, active, tratCount, recCount, onClick, isMobile }: {
   d: any; active: boolean; tratCount: number; recCount: number; onClick: () => void; isMobile: boolean;
 }) {
@@ -121,14 +122,14 @@ function DiagnosticoHistorialRow({ d, active, tratCount, recCount, onClick, isMo
       onClick={onClick}
       className={`w-full text-left flex items-start gap-3 px-3 py-3 border-l-2 transition-colors border-0 ${
         active
- ? "bg-cyan-50 border-l-cyan-600"
+ ? "bg-slate-100 border-l-slate-400"
  :"border-l-transparent hover:bg-slate-50"
       }`}
     >
       <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${cfg.dot}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
- <p className={`text-[13px] font-medium ${active ? "text-cyan-700" : "text-slate-800"}`}>{fmtFecha(d.fecha_deteccion)}</p>
+ <p className="text-[13px] font-medium text-slate-800">{fmtFecha(d.fecha_deteccion)}</p>
  <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold border shrink-0 ${cfg.badge}`}>{cfg.label}</span>
         </div>
         {d.diagnostico_texto && (
@@ -785,15 +786,11 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
           <div className="flex flex-col gap-4 py-1">
  <p className="text-[12.5px] text-slate-500">Revisa lo registrado en esta consulta antes de finalizar.</p>
             <ResumenRegistrado done={done} detalles={detalles} />
-            <label className="flex items-start gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={confirmado}
-                onChange={(e) => setConfirmado(e.target.checked)}
-                className="mt-0.5 w-4 h-4 accent-cyan-600 shrink-0"
-              />
- <span className="text-[12.5px] text-slate-600">Confirmo que la información registrada es correcta.</span>
-            </label>
+            <Checkbox
+              checked={confirmado}
+              onChange={() => setConfirmado(v => !v)}
+              label={<span className="text-[12.5px] text-slate-600">Confirmo que la información registrada es correcta.</span>}
+            />
           </div>
         </ResponsiveSheet>
       )}

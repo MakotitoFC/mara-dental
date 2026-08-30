@@ -6,6 +6,7 @@ import { SmartPopover } from "@/components/ui/SmartPopover";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { TimePicker } from "@/components/ui/TimePicker";
 import { Select } from "@/components/ui/Select";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
 import type { Cita, EstadoCita } from "@/types/agenda";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { searchPatients, createCitaAction, updateCitaAction, createPacienteRapidoAction } from "../actions";
@@ -261,12 +262,12 @@ export function CitaFormSheet({
                   renderTrigger={(ref) => (
                     <div ref={ref} className="flex gap-2 mb-2">
                       <div className="relative flex-1">
-                        <input
+                        <TextInput
                           ref={inputRef}
                           value={query}
                           onChange={e => setQuery(e.target.value)}
                           placeholder="Buscar por nombre o DNI…"
- className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-[13px] pr-8 outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                          className="pr-8"
                         />
  <Icon name="search" size={15} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"/>
                       </div>
@@ -303,32 +304,32 @@ export function CitaFormSheet({
                     </div>
                     <form onSubmit={handleCreatePatient} className="flex flex-col gap-2.5">
                       <div className="flex gap-2">
-                        <input
+                        <TextInput
                           placeholder="Nombre(s) *"
                           value={newPatientData.nombre}
                           onChange={e => setNewPatientData({...newPatientData, nombre: e.target.value})}
- className="flex-1 w-0 border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
+                          className="flex-1 w-0 text-[12.5px]"
                         />
-                        <input
+                        <TextInput
                           placeholder="Apellidos *"
                           value={newPatientData.apellido}
                           onChange={e => setNewPatientData({...newPatientData, apellido: e.target.value})}
- className="flex-1 w-0 border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
+                          className="flex-1 w-0 text-[12.5px]"
                         />
                       </div>
                       <div className="flex gap-2">
-                        <input
+                        <TextInput
                           placeholder="DNI *"
                           maxLength={15}
                           value={newPatientData.dni}
                           onChange={e => setNewPatientData({...newPatientData, dni: e.target.value})}
- className="flex-1 w-0 border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
+                          className="flex-1 w-0 text-[12.5px]"
                         />
-                        <input
+                        <TextInput
                           placeholder="Teléfono *"
                           value={newPatientData.telefono}
                           onChange={e => setNewPatientData({...newPatientData, telefono: e.target.value})}
- className="flex-1 w-0 border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-400"
+                          className="flex-1 w-0 text-[12.5px]"
                         />
                       </div>
                       <div className="flex items-center gap-2">
@@ -448,12 +449,12 @@ export function CitaFormSheet({
         {/* Notas */}
         <div className="flex flex-col gap-2">
  <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Notas internas</label>
-          <textarea
+          <Textarea
             rows={3}
             value={notas}
             onChange={e => setNotas(e.target.value)}
             placeholder="Observaciones previas al tratamiento…"
- className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 resize-none"
+            className="resize-none"
           />
         </div>
       </div>

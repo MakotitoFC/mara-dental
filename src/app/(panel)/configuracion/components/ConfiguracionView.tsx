@@ -9,6 +9,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { TimePicker } from "@/components/ui/TimePicker";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { Select } from "@/components/ui/Select";
+import { TextInput } from "@/components/ui/TextInput";
 import {
   updateFirmaDigitalAction,
   saveHorarioDiaAction,
@@ -739,11 +740,11 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
 
             <div className="relative mt-3">
  <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-              <input
+              <TextInput
                 value={horarioSearch}
                 onChange={(e) => setHorarioSearch(e.target.value)}
                 placeholder="Buscar doctor o especialidad..."
- className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-[13px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="pl-9 pr-3"
               />
             </div>
           </div>
@@ -958,38 +959,34 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
               <form id="form-personal-asistente" onSubmit={handleSavePersonal} className="flex flex-col gap-3.5 py-1">
                 <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Nombre</span>
-                  <input
+                  <TextInput
                     value={personalForm.nombre}
                     onChange={(e) => setPersonalForm((f) => ({ ...f, nombre: e.target.value }))}
                     required
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Apellido</span>
-                  <input
+                  <TextInput
                     value={personalForm.apellido}
                     onChange={(e) => setPersonalForm((f) => ({ ...f, apellido: e.target.value }))}
                     required
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Email</span>
-                  <input
+                  <TextInput
                     type="email"
                     value={personalForm.email}
                     onChange={(e) => setPersonalForm((f) => ({ ...f, email: e.target.value }))}
                     required
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Teléfono</span>
-                  <input
+                  <TextInput
                     value={personalForm.telefono}
                     onChange={(e) => setPersonalForm((f) => ({ ...f, telefono: e.target.value }))}
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -1438,38 +1435,34 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
             <form id="form-personal-admin" onSubmit={handleSavePersonal} className="flex flex-col gap-3.5 py-1">
               <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Nombre</span>
-                <input
+                <TextInput
                   value={personalForm.nombre}
                   onChange={(e) => setPersonalForm((f) => ({ ...f, nombre: e.target.value }))}
                   required
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Apellido</span>
-                <input
+                <TextInput
                   value={personalForm.apellido}
                   onChange={(e) => setPersonalForm((f) => ({ ...f, apellido: e.target.value }))}
                   required
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Email</span>
-                <input
+                <TextInput
                   type="email"
                   value={personalForm.email}
                   onChange={(e) => setPersonalForm((f) => ({ ...f, email: e.target.value }))}
                   required
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Teléfono</span>
-                <input
+                <TextInput
                   value={personalForm.telefono}
                   onChange={(e) => setPersonalForm((f) => ({ ...f, telefono: e.target.value }))}
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <label className="flex flex-col gap-1">
@@ -1517,55 +1510,49 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
             <form id="form-sede" onSubmit={handleSaveSede} className="flex flex-col gap-3.5 py-1">
               <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Nombre de la clínica</span>
-                <input
+                <TextInput
                   value={sedeForm.nombre_clinica}
                   onChange={(e) => setSedeForm((f) => ({ ...f, nombre_clinica: e.target.value }))}
                   required
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Teléfono</span>
-                  <input
+                  <TextInput
                     value={sedeForm.telefono}
                     onChange={(e) => setSedeForm((f) => ({ ...f, telefono: e.target.value }))}
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Email institucional</span>
-                  <input
+                  <TextInput
                     type="email"
                     value={sedeForm.email_contacto}
                     onChange={(e) => setSedeForm((f) => ({ ...f, email_contacto: e.target.value }))}
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
               </div>
               <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Dirección</span>
-                <input
+                <TextInput
                   value={sedeForm.direccion}
                   onChange={(e) => setSedeForm((f) => ({ ...f, direccion: e.target.value }))}
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Business WhatsApp / Phone</span>
-                  <input
+                  <TextInput
                     value={sedeForm.business_phone}
                     onChange={(e) => setSedeForm((f) => ({ ...f, business_phone: e.target.value }))}
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Telegram Bot</span>
-                  <input
+                  <TextInput
                     value={sedeForm.telegram_bot}
                     onChange={(e) => setSedeForm((f) => ({ ...f, telegram_bot: e.target.value }))}
- className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[13.5px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </label>
               </div>

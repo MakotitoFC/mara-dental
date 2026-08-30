@@ -12,10 +12,15 @@ import { SmartPopover } from "@/components/ui/SmartPopover";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { RotateDevicePrompt } from "@/components/ui/RotateDevicePrompt";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
+import { useToast } from "@/components/ui/Toast";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, ComposedChart, AreaChart, Area, Cell
 } from "recharts";
+import { pdf } from "@react-pdf/renderer";
+import html2canvas from "html2canvas";
+import { saveAs } from "file-saver";
+import { DashboardReportPDF, type ReportChart } from "./DashboardReportPDF";
 
 const COLORS = ["#0A8EA0", "#0D7377", "#5D6D7E", "#1D95A0", "#073D42", "#F39C12"];
 const POS_COLOR = "#10b981";
@@ -184,6 +189,118 @@ function TagDropdown({
   );
 }
 
+function fmtMoneda(v: number, moneda: string) {
+  const simbolo = moneda === "PEN" ? "S/" : moneda;
+  return `${simbolo} ${v.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Mini-resúmenes numéricos que acompañan cada gráfico del reporte PDF —
+ * agregados simples (suma/promedio/% directo) sobre los mismos datos que ya
+ * alimentan el gráfico, nada calculado fuera de lo que la RPC ya devuelve. */
+function computeChartStats(key: string, data: any, moneda: string): { label: string; value: string }[] {
+  switch (key) {
+    case "finanzas": {
+      const rows = data.finanzas || [];
+      const ingresos = rows.reduce((s: number, r: any) => s + Number(r.ingresos || 0), 0);
+      const egresos = rows.reduce((s: number, r: any) => s + Number(r.egresos || 0), 0);
+      const ganancias = rows.reduce((s: number, r: any) => s + Number(r.ganancias || 0), 0);
+      return [
+        { label: "Ingresos", value: fmtMoneda(ingresos, moneda) },
+        { label: "Egresos", value: fmtMoneda(egresos, moneda) },
+        { label: "Ganancia", value: fmtMoneda(ganancias, moneda) },
+      ];
+    }
+    case "ticket": {
+      const rows = data.ticketPromedio || [];
+      const ingresoTotal = rows.reduce((s: number, r: any) => s + Number(r.ingreso_total || 0), 0);
+      const promedios = rows.map((r: any) => Number(r.ticket_promedio || 0)).filter((v: number) => v > 0);
+      const ticketProm = promedios.length ? promedios.reduce((a: number, b: number) => a + b, 0) / promedios.length : 0;
+      const stats = [
+        { label: "Ticket Promedio", value: fmtMoneda(ticketProm, moneda) },
+        { label: "Ingreso Total", value: fmtMoneda(ingresoTotal, moneda) },
+      ];
+      if (promedios.length >= 2 && promedios[0] > 0) {
+        const variacion = ((promedios[promedios.length - 1] - promedios[0]) / promedios[0]) * 100;
+        stats.push({ label: "Variación", value: `${variacion >= 0 ? "+" : ""}${variacion.toFixed(0)}%` });
+      }
+      return stats;
+    }
+    case "conversion": {
+      const rows = data.tasaAprobacion || [];
+      const emitidos = rows.reduce((s: number, r: any) => s + Number(r.total_presupuestos || 0), 0);
+      const aprobados = rows.reduce((s: number, r: any) => s + Number(r.total_aprobados || 0), 0);
+      const tasa = emitidos > 0 ? (aprobados / emitidos) * 100 : 0;
+      return [
+        { label: "Tasa de Aprobación", value: `${tasa.toFixed(0)}%` },
+        { label: "Emitidos", value: String(emitidos) },
+        { label: "Aprobados", value: String(aprobados) },
+      ];
+    }
+    case "egresos": {
+      const rows = data.egresos || [];
+      const total = rows.reduce((s: number, r: any) => s + Number(r.total_gastado || 0), 0);
+      const principal = rows.reduce((max: any, r: any) => (Number(r.total_gastado || 0) > Number(max?.total_gastado || 0) ? r : max), null);
+      return [
+        { label: "Total Gastado", value: fmtMoneda(total, moneda) },
+        { label: "Categorías", value: String(rows.length) },
+        { label: "Principal", value: principal ? String(principal.categoria) : "—" },
+      ];
+    }
+    case "nuevos": {
+      const rows = data.pacientesNuevos || [];
+      const total = rows.reduce((s: number, r: any) => s + Number(r.cantidad_nuevos || 0), 0);
+      const promedio = rows.length ? total / rows.length : 0;
+      return [
+        { label: "Nuevos Pacientes", value: String(total) },
+        { label: "Promedio/Periodo", value: promedio.toFixed(1) },
+        { label: "Periodos", value: String(rows.length) },
+      ];
+    }
+    case "tasasSede": {
+      const rows = data.tasaSede || [];
+      const avg = (field: string) => (rows.length ? (rows.reduce((s: number, r: any) => s + Number(r[field] || 0), 0) / rows.length) * 100 : 0);
+      return [
+        { label: "Hecho (prom.)", value: `${avg("tasa_hecho").toFixed(0)}%` },
+        { label: "Programada (prom.)", value: `${avg("tasa_programada").toFixed(0)}%` },
+        { label: "Cancelada (prom.)", value: `${avg("tasa_cancelada").toFixed(0)}%` },
+      ];
+    }
+    case "rankingMedicos": {
+      const rows = data.tasaMedicos || [];
+      const mejor = rows.reduce((max: any, r: any) => (Number(r.tasa_hecho || 0) > Number(max?.tasa_hecho || 0) ? r : max), null);
+      const avgHecho = rows.length ? (rows.reduce((s: number, r: any) => s + Number(r.tasa_hecho || 0), 0) / rows.length) * 100 : 0;
+      return [
+        { label: "Médicos", value: String(rows.length) },
+        { label: "Mejor Tasa (Hecho)", value: mejor ? `${mejor.doctor} (${(Number(mejor.tasa_hecho) * 100).toFixed(0)}%)` : "—" },
+        { label: "Promedio Hecho", value: `${avgHecho.toFixed(0)}%` },
+      ];
+    }
+    case "ocupacion": {
+      const rows = data.ocupacion || [];
+      const reservadas = rows.reduce((s: number, r: any) => s + Number(r.horas_reservadas || 0), 0);
+      const capacidad = rows.reduce((s: number, r: any) => s + Number(r.horas_capacidad || 0), 0);
+      const pct = reservadas + capacidad > 0 ? (reservadas / (reservadas + capacidad)) * 100 : 0;
+      return [
+        { label: "Hrs. Reservadas", value: reservadas.toFixed(0) },
+        { label: "Hrs. Disponibles", value: capacidad.toFixed(0) },
+        { label: "Ocupación", value: `${pct.toFixed(0)}%` },
+      ];
+    }
+    case "topTratamientos": {
+      const rows = data.tratamientos || [];
+      const masFrecuente = [...rows].filter((r: any) => r.clasificacion === "Más Frecuentes").sort((a: any, b: any) => Number(b.cantidad) - Number(a.cantidad))[0];
+      const menosFrecuente = [...rows].filter((r: any) => r.clasificacion === "Menos Frecuentes").sort((a: any, b: any) => Number(a.cantidad) - Number(b.cantidad))[0];
+      return [
+        { label: "Más Frecuente", value: masFrecuente ? `${masFrecuente.nombre_tratamiento} (${masFrecuente.cantidad})` : "—" },
+        { label: "Menos Frecuente", value: menosFrecuente ? `${menosFrecuente.nombre_tratamiento} (${menosFrecuente.cantidad})` : "—" },
+        { label: "Total Registros", value: String(rows.length) },
+      ];
+    }
+    default:
+      return [];
+  }
+}
+
 interface DashboardChartsProps {
   data: any;
   options: any;
@@ -195,6 +312,8 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const toast = useToast();
+  const [generatingMode, setGeneratingMode] = useState<"pdf" | "print" | null>(null);
 
   const currentFiltro = searchParams.get("filtro") || "mes";
   const currentFecha = searchParams.get("fecha") || new Date().toISOString().split("T")[0];
@@ -391,12 +510,93 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
     topTratamientos: { label: "Top Tratamientos", icon: "medical_services" },
   };
 
-  const handlePrint = () => {
-    setIsPrintModalOpen(false);
-    setTimeout(() => {
-      window.print();
-    }, 300);
+  // Mismo texto que ya recibe cada <ChartCard title="..."> — se reutiliza acá
+  // como título de página del PDF y como etiqueta del checklist de la
+  // portada, para no duplicar los strings ni arriesgar que se desincronicen.
+  const CHART_TITLES: Record<string, string> = {
+    finanzas: "Balance Financiero (Ingresos/Egresos/Ganancias)",
+    ticket: "Ticket Promedio y Volumen de Ingresos",
+    conversion: "Conversión de Presupuestos (% Aprobación)",
+    egresos: "Distribución de Egresos por Categoría",
+    nuevos: "Captación de Pacientes (Nuevos por periodo)",
+    tasasSede: "Evolución de Tasas de Atención de la Sede",
+    rankingMedicos: "Ranking de Atención por Médico",
+    ocupacion: "Ocupación por Médico",
+    topTratamientos: "Top 5 Tratamientos (Más y Menos Frecuentes)",
   };
+
+  // Genera el PDF (portada con membrete + una página por gráfico seleccionado,
+  // capturado como imagen desde el propio DOM) y devuelve el Blob — no decide
+  // qué hacer con él, eso lo resuelve cada botón (descargar vs. abrir para imprimir).
+  async function generarReportePDF(): Promise<Blob> {
+    const moneda = options.monedas.find((m: any) => m.id === currentMoneda)?.moneda || "PEN";
+    const selectedKeys = Object.keys(selectedKpis).filter((k) => (selectedKpis as any)[k]);
+    const charts: ReportChart[] = [];
+    for (const key of selectedKeys) {
+      const el = document.getElementById(`chart-${key}`);
+      if (!el) continue;
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
+      charts.push({
+        key,
+        title: CHART_TITLES[key] || key,
+        image: canvas.toDataURL("image/png"),
+        stats: computeChartStats(key, data, moneda),
+      });
+    }
+
+    const sedeActual = options.sedes.find((s: any) => s.id === currentSedeId);
+    const periodo = currentFiltro === "dia"
+      ? `Día Específico (${dateInput})`
+      : currentFiltro === "mes"
+      ? `Mes Específico (${MESES[Number(dateInput.slice(5, 7)) - 1] || ""} ${dateInput.slice(0, 4)})`
+      : currentFiltro === "anio"
+      ? `Año Específico (${dateInput.slice(0, 4)})`
+      : "Histórico Completo (Sin límite)";
+    const granularidad = currentAgrupacion === "dia" ? "Por Día" : currentAgrupacion === "mes" ? "Por Mes" : "Por Año";
+    const medioPago = currentMedioPago === "all"
+      ? "Todos los medios de pago"
+      : options.mediosPago.find((m: any) => String(m.id) === String(currentMedioPago))?.nombre || "Todos";
+
+    return await pdf(
+      <DashboardReportPDF
+        sede={sedeActual}
+        filtros={{ periodo, granularidad, moneda, medioPago, kpisIncluidos: charts.map((c) => c.title) }}
+        charts={charts}
+      />
+    ).toBlob();
+  }
+
+  async function handleDescargarPdf() {
+    setGeneratingMode("pdf");
+    try {
+      const blob = await generarReportePDF();
+      const sedeNombre = options.sedes.find((s: any) => s.id === currentSedeId)?.nombre_clinica || "MaraDental";
+      const slug = sedeNombre.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+      const fecha = new Date().toISOString().slice(0, 16).replace(/[-T:]/g, "").replace(/(\d{8})(\d{4})/, "$1_$2");
+      saveAs(blob, `Reporte_Directivo_${slug}_${fecha}.pdf`);
+      setIsPrintModalOpen(false);
+    } catch (e) {
+      console.error(e);
+      toast.error("No se pudo generar el PDF. Intenta nuevamente.");
+    } finally {
+      setGeneratingMode(null);
+    }
+  }
+
+  async function handleImprimirPdf() {
+    setGeneratingMode("print");
+    try {
+      const blob = await generarReportePDF();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setIsPrintModalOpen(false);
+    } catch (e) {
+      console.error(e);
+      toast.error("No se pudo generar el PDF. Intenta nuevamente.");
+    } finally {
+      setGeneratingMode(null);
+    }
+  }
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-slate-50 relative">
@@ -405,11 +605,16 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         {isPrintModalOpen && (
           <ResponsiveSheet
             onClose={() => setIsPrintModalOpen(false)}
-            title="Seleccionar KPIs para imprimir"
+            title="Seleccionar KPIs para el reporte"
             footer={
               <div className="flex gap-3 justify-end">
-                <button onClick={() => setIsPrintModalOpen(false)} className="px-5 py-2 text-[13px] font-semibold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">Cancelar</button>
-                <button onClick={handlePrint} className="px-5 py-2 text-[13px] font-semibold bg-cyan-600 hover:bg-cyan-700 transition-colors text-white rounded-xl shadow-sm">Imprimir</button>
+                <button onClick={() => setIsPrintModalOpen(false)} disabled={generatingMode !== null} className="px-5 py-2 text-[13px] font-semibold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-colors">Cancelar</button>
+                <button onClick={handleImprimirPdf} disabled={generatingMode === "print"} className="flex items-center gap-1.5 px-5 py-2 text-[13px] font-semibold text-cyan-700 border border-cyan-200 bg-cyan-50 hover:bg-cyan-100 disabled:opacity-50 transition-colors rounded-xl">
+                  <Icon name="print" size={16} /> {generatingMode === "print" ? "Generando..." : "Imprimir"}
+                </button>
+                <button onClick={handleDescargarPdf} disabled={generatingMode === "pdf"} className="flex items-center gap-1.5 px-5 py-2 text-[13px] font-semibold bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 transition-colors text-white rounded-xl shadow-sm">
+                  <Icon name="picture_as_pdf" size={16} /> {generatingMode === "pdf" ? "Generando..." : "PDF"}
+                </button>
               </div>
             }
           >
@@ -554,111 +759,11 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
 
       <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar p-4 sm:p-6 pb-10 print:p-0 print:overflow-visible">
 
-      {/* HEADER DE IMPRESIÓN (PÁGINA 1 DEL PDF) — mismo lenguaje de membrete
-          que Receta/Presupuesto/Archivo Clínico/Historia Clínica
-          (src/lib/reportExport.ts): barra cian arriba/abajo, logo + sede a la
-          izquierda, etiqueta de documento + código + fecha de generación a la
-          derecha. Antes era un recuadro negro/gris sin relación visual con el
-          resto de los documentos del sistema. */}
-      <div className="hidden print:block mb-6 print:break-after-always rounded-xl overflow-hidden border border-slate-200">
-        <div className="h-[5px] bg-gradient-to-r from-cyan-600 to-cyan-700" />
-        <div className="bg-white px-6 py-5">
-          <div className="flex justify-between items-start pb-4 mb-4 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600 shrink-0">
-                <Icon name="space_dashboard" size={22} />
-              </div>
-              <div>
-                <p className="text-[15px] font-bold text-slate-900">
-                  {options.sedes.find((s: any) => s.id === currentSedeId)?.nombre_clinica || "Todas las sedes"}
-                </p>
-                <p className="text-[11px] text-slate-400">Mara Dental — Reporte multi-sede</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-cyan-600">Reporte de Gestión Directiva</p>
-              <p suppressHydrationWarning className="text-[19px] font-bold text-slate-900 mt-0.5">
-                {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" })}
-              </p>
-              <p suppressHydrationWarning className="text-[10px] text-slate-400 mt-1">Generado: {new Date().toLocaleString("es-PE")}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6 text-sm">
-            <div className="flex flex-col gap-2">
-              <h3 className="text-[10px] font-bold text-cyan-600 uppercase tracking-wide border-b border-slate-100 pb-1">Parámetros de Tiempo y Granularidad</h3>
-              <p><span className="font-semibold text-slate-700">Período de Análisis:</span> {currentFiltro === "dia" ? `Día Específico (${dateInput})` : currentFiltro === "mes" ? `Mes Específico (${MESES[Number(dateInput.slice(5, 7)) - 1] || ""} ${dateInput.slice(0, 4)})` : currentFiltro === "anio" ? `Año Específico (${dateInput.slice(0, 4)})` : "Histórico Completo (Sin límite)"}</p>
-              <p><span className="font-semibold text-slate-700">Granularidad (Agrupar por):</span> {currentAgrupacion === "dia" ? "Por Día" : currentAgrupacion === "mes" ? "Por Mes" : "Por Año"}</p>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <h3 className="text-[10px] font-bold text-cyan-600 uppercase tracking-wide border-b border-slate-100 pb-1">Filtros Financieros Activos</h3>
-              <p><span className="font-semibold text-slate-700">Moneda de Análisis:</span> {options.monedas.find((m: any) => m.id === currentMoneda)?.moneda || "PEN"}</p>
-              <p><span className="font-semibold text-slate-700">Medio de Pago:</span> {currentMedioPago === "all" ? "Todos los medios de pago" : options.mediosPago.find((m: any) => String(m.id) === String(currentMedioPago))?.nombre || "Todos"}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 pt-4 border-t border-slate-100">
-            <h3 className="text-[10px] font-bold text-cyan-600 uppercase tracking-wide mb-2">KPIs y Gráficos Incluidos en este Informe</h3>
-            <div className="flex flex-wrap gap-2 text-xs">
-              {selectedKpis.finanzas && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Balance Financiero</span>}
-              {selectedKpis.ticket && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Ticket Promedio</span>}
-              {selectedKpis.conversion && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Conversión Presupuestos</span>}
-              {selectedKpis.egresos && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Distribución Egresos</span>}
-              {selectedKpis.nuevos && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Captación Pacientes</span>}
-              {selectedKpis.tasasSede && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Tasas de Sede</span>}
-              {selectedKpis.rankingMedicos && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Ranking por Médico</span>}
-              {selectedKpis.ocupacion && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Ocupación Médica</span>}
-              {selectedKpis.topTratamientos && <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full font-semibold border border-cyan-100">✓ Top 5 Tratamientos</span>}
-            </div>
-          </div>
-        </div>
-        <div className="h-[5px] bg-gradient-to-r from-cyan-600 to-cyan-700" />
-      </div>
-
-      {/* PRINT MEDIA STYLES FOR LANDSCAPE AND FULL PAGE CHARTS */}
-      <style jsx global>{`
-        @media print {
-          @page {
-            size: landscape !important;
-            margin: 0.4cm !important;
-          }
-          body, html, main {
-            background: white !important;
-            color: black !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
-          .print\:hidden, nav, header, aside, button, [role="navigation"] {
-            display: none !important;
-          }
-          .print-page-chart {
-            page-break-before: always !important;
-            break-before: page !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            height: 90vh !important;
-            width: 100% !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
-            margin-bottom: 0 !important;
-            padding: 1.5rem !important;
-            box-shadow: none !important;
-            border: 1px solid #cbd5e1 !important;
-          }
-          .print-page-chart:first-child {
-            page-break-before: auto !important;
-            break-before: auto !important;
-          }
-        }
-      `}</style>
-
       {/* CHARTS GRID (Requested Order) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:block print:w-full">
         
         {/* 4. Finanzas */}
-        <div className={`print-page-chart ${!selectedKpis.finanzas ? 'print:hidden' : ''}`}>
+        <div id="chart-finanzas" className={`print-page-chart ${!selectedKpis.finanzas ? 'print:hidden' : ''}`}>
           <ChartCard title="Balance Financiero (Ingresos/Egresos/Ganancias)" icon="account_balance">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.finanzas}>
@@ -676,7 +781,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         </div>
 
         {/* 8. Ticket promedio */}
-        <div className={`print-page-chart ${!selectedKpis.ticket ? 'print:hidden' : ''}`}>
+        <div id="chart-ticket" className={`print-page-chart ${!selectedKpis.ticket ? 'print:hidden' : ''}`}>
           <ChartCard title="Ticket Promedio y Volumen de Ingresos" icon="point_of_sale">
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart data={data.ticketPromedio}>
@@ -694,7 +799,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         </div>
 
         {/* 7. Tasa de conversión */}
-        <div className={`print-page-chart ${!selectedKpis.conversion ? 'print:hidden' : ''}`}>
+        <div id="chart-conversion" className={`print-page-chart ${!selectedKpis.conversion ? 'print:hidden' : ''}`}>
           <ChartCard title="Conversión de Presupuestos (% Aprobación)" icon="price_check">
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart data={data.tasaAprobacion}>
@@ -713,7 +818,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         </div>
 
         {/* 5. Gastos por categoría */}
-        <div className={`print-page-chart ${!selectedKpis.egresos ? 'print:hidden' : ''}`}>
+        <div id="chart-egresos" className={`print-page-chart ${!selectedKpis.egresos ? 'print:hidden' : ''}`}>
           <ChartCard title="Distribución de Egresos por Categoría" icon="receipt_long">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.egresos} layout="vertical" margin={{ left: 50, right: 20 }}>
@@ -730,7 +835,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         </div>
 
         {/* 3. Pacientes nuevos */}
-        <div className={`print-page-chart ${!selectedKpis.nuevos ? 'print:hidden' : ''}`}>
+        <div id="chart-nuevos" className={`print-page-chart ${!selectedKpis.nuevos ? 'print:hidden' : ''}`}>
           <ChartCard title="Captación de Pacientes (Nuevos por periodo)" icon="group_add">
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={data.pacientesNuevos}>
@@ -751,7 +856,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         </div>
 
         {/* 2. Tasas de sede */}
-        <div className={`print-page-chart ${!selectedKpis.tasasSede ? 'print:hidden' : ''}`}>
+        <div id="chart-tasasSede" className={`print-page-chart ${!selectedKpis.tasasSede ? 'print:hidden' : ''}`}>
           <ChartCard title="Evolución de Tasas de Atención de la Sede" icon="timeline">
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={data.tasaSede}>
@@ -769,7 +874,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         </div>
 
         {/* 1. Tasas medicos */}
-        <div className={`print-page-chart ${!selectedKpis.rankingMedicos ? 'print:hidden' : ''}`}>
+        <div id="chart-rankingMedicos" className={`print-page-chart ${!selectedKpis.rankingMedicos ? 'print:hidden' : ''}`}>
           <ChartCard title="Ranking de Atención por Médico" icon="how_to_reg">
             <ResponsiveContainer width="100%" height={380}>
               <BarChart data={chartTasaMedicos} layout="vertical" margin={{ left: 40, right: 20 }}>
@@ -787,7 +892,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         </div>
 
         {/* 9. Ocupación médico */}
-        <div className={`print-page-chart ${!selectedKpis.ocupacion ? 'print:hidden' : ''}`}>
+        <div id="chart-ocupacion" className={`print-page-chart ${!selectedKpis.ocupacion ? 'print:hidden' : ''}`}>
           <ChartCard title="Ocupación por Médico" icon="event_available">
             <ResponsiveContainer width="100%" height={380}>
               <BarChart data={data.ocupacion} margin={{ bottom: 20 }}>
@@ -812,7 +917,7 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         </div>
 
         {/* 6. Top 5 Tratamientos */}
-        <div className={`print-page-chart lg:col-span-2 ${!selectedKpis.topTratamientos ? 'print:hidden' : ''}`}>
+        <div id="chart-topTratamientos" className={`print-page-chart lg:col-span-2 ${!selectedKpis.topTratamientos ? 'print:hidden' : ''}`}>
           <ChartCard title="Top 5 Tratamientos (Más y Menos Frecuentes)" icon="medical_services">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.tratamientos} layout="vertical" margin={{ left: 50, right: 20 }}>

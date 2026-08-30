@@ -8,7 +8,7 @@ import { calcEdad } from "@/lib/date-utils";
 import { getExpedienteCompletoAction } from "../actions";
 import { getCasosClinicosAction } from "../casos.actions";
 import {
-  esc, fmtGenerado, buildLetterheadHeader, buildLetterheadFooter, sectionLabel, wrapDocument,
+  esc, fmtGenerado, buildLetterheadHeader, sectionLabel, wrapDocument,
   downloadHtmlAsPaginatedPdf, printHtml, type ClinicaInfo,
 } from "@/lib/reportExport";
 
@@ -202,7 +202,6 @@ function buildHistoriaClinicaHtml(data: any, secciones: Secciones): string {
   const initials = [p.nombre, p.apellido].filter(Boolean).map((s: string) => s[0]).join("").toUpperCase().slice(0, 2) || "PA";
 
   const header = buildLetterheadHeader({ clinica, docLabel: "Historia Clínica Odontológica", docCode, pacienteNombre: nombreCompleto, generado });
-  const footer = buildLetterheadFooter({ clinica, pacienteNombre: nombreCompleto, docCode });
 
   const field = (label: string, value?: string | null) => `
     <div style="padding-left:11px;border-left:2px solid #d3edf1;">
@@ -486,7 +485,7 @@ function buildHistoriaClinicaHtml(data: any, secciones: Secciones): string {
     }).join("");
 
   const body = `${patientHeaderBlock}${casosHtml}`;
-  return wrapDocument(`${header}${body}${footer}`, 850);
+  return wrapDocument(`${header}${body}`, 850);
 }
 
 export function DescargarExpedienteModal({ paciente, onClose }: {
@@ -546,7 +545,7 @@ export function DescargarExpedienteModal({ paciente, onClose }: {
         const apellido = slugify(paciente.apellido || data.paciente?.apellido || "PACIENTE");
         const fecha = new Date().toISOString().split("T")[0];
         const filename = `HC-${codigo}-${apellido}-${fecha}.pdf`;
-        await downloadHtmlAsPaginatedPdf(html, filename, 850);
+        await downloadHtmlAsPaginatedPdf(html, filename, 850, { clinica: data.sede, docLabel: "Historia Clínica Odontológica" });
       }
       onClose();
     } catch (err) {

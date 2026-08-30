@@ -186,25 +186,37 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
   };
 }
 
-/** Envía el comprobante de pago por Telegram (llamada directa a la Bot API,
- * mismo TELEGRAM_TOKEN que usa src/app/api/telegram/route.ts) y deja
- * registro en `mensajes_telegram` para el historial de Comunicaciones del
- * admin. Nunca lanza — si el paciente no tiene Telegram configurado o el
- * envío falla, devuelve un error informativo sin afectar el pago ya guardado. */
-export async function enviarVoucherPagoAction(pacienteId: string, chatId: string | null, texto: string) {
+/** Envía el comprobante de pago como PDF adjunto por Telegram (`sendDocument`
+ * de la Bot API, mismo TELEGRAM_TOKEN que usa src/app/api/telegram/route.ts)
+ * con un texto corto de éxito como `caption`, y deja registro en
+ * `mensajes_telegram` para el historial de Comunicaciones del admin — antes
+ * se enviaba solo el detalle textual completo (`sendMessage`), ahora va el
+ * PDF real del comprobante (generado en el cliente con
+ * `generatePaginatedPdfBlob`, ya que ese pipeline usa html2canvas y solo
+ * puede correr en el navegador). Nunca lanza — si el paciente no tiene
+ * Telegram configurado o el envío falla, devuelve un error informativo sin
+ * afectar el pago ya guardado. */
+export async function enviarVoucherPdfPagoAction(pacienteId: string, chatId: string | null, caption: string, formData: FormData) {
   if (!chatId) return { error: "Paciente sin Telegram configurado" };
 
   const token = process.env.TELEGRAM_TOKEN;
   if (!token) return { error: "Falta configurar TELEGRAM_TOKEN en el backend" };
 
+  const file = formData.get("document");
+  if (!(file instanceof File)) return { error: "No se generó el PDF del comprobante" };
+
   let enviado = false;
   let telegramError: string | null = null;
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const tgForm = new FormData();
+    tgForm.append("chat_id", chatId);
+    tgForm.append("caption", caption);
+    tgForm.append("document", file, file.name);
+
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: texto }),
+      body: tgForm,
     });
     const data = await response.json();
     if (!data.ok) throw new Error(data.description || "Error al enviar el comprobante a Telegram");
@@ -218,7 +230,7 @@ export async function enviarVoucherPagoAction(pacienteId: string, chatId: string
     await supabase.from("mensajes_telegram").insert({
       paciente_id: pacienteId,
       tipo_mensaje: "voucher_pago",
-      mensaje: texto,
+      mensaje: caption,
       estado_envio: enviado ? "enviado" : "fallido",
       fecha_envio: new Date().toISOString(),
       chat_id: chatId,

@@ -6,6 +6,8 @@ import { uploadPlantillaAction, deletePlantillaAction } from "./plantillas.actio
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface Plantilla {
@@ -128,6 +130,7 @@ export default function PlantillasClient({ plantillas, userRole }: PlantillasCli
   const [isUploading, setIsUploading] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [visorPlantilla, setVisorPlantilla] = useState<Plantilla | null>(null);
+  const [isGlobal, setIsGlobal] = useState(false);
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -150,6 +153,7 @@ export default function PlantillasClient({ plantillas, userRole }: PlantillasCli
       await uploadPlantillaAction(formData);
       toast.success("Plantilla subida con éxito");
       form.reset();
+      setIsGlobal(false);
       setIsUploadModalOpen(false);
     } catch (err: any) {
       toast.error(err.message || "Error al subir la plantilla");
@@ -176,29 +180,30 @@ export default function PlantillasClient({ plantillas, userRole }: PlantillasCli
 
         <div>
           <label className="block text-[11px] md:text-xs font-semibold text-slate-500 mb-1">Descripción corta</label>
-          <input
+          <TextInput
             type="text"
             name="descripcion"
             placeholder="Ej: Consentimiento Informado General"
- className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] md:text-sm outline-none focus:border-cyan-500 transition-colors"
           />
         </div>
 
         <div>
           <label className="block text-[11px] md:text-xs font-semibold text-slate-500 mb-1">Anotaciones (opcional)</label>
-          <textarea
+          <Textarea
             name="anotaciones"
             rows={2}
             placeholder="Instrucciones sobre cuándo usar este formato..."
- className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] md:text-sm outline-none focus:border-cyan-500 transition-colors resize-none"
-          ></textarea>
+            className="resize-none"
+          />
         </div>
 
         <div>
- <label className="flex items-center gap-2 text-[13px] md:text-sm text-slate-700 font-medium cursor-pointer bg-slate-50 p-2 rounded-lg border border-slate-200">
-            <input type="checkbox" name="isGlobal" value="true" className="w-4 h-4 text-cyan-600 rounded" />
-            Hacer visible para TODAS las sedes (Global)
-          </label>
+          <input type="hidden" name="isGlobal" value={isGlobal ? "true" : "false"} />
+          <Checkbox
+            checked={isGlobal}
+            onChange={() => setIsGlobal(v => !v)}
+            label="Hacer visible para TODAS las sedes (Global)"
+          />
           <p className="text-[10px] md:text-[11px] text-slate-400 mt-1 pl-1">Si no se marca, solo será visible para tu sede.</p>
         </div>
 

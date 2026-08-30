@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { SmartPopover } from "@/components/ui/SmartPopover";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
 import { ESTADO_PRESUPUESTO_CFG } from "@/lib/estadoConfig";
 import { Badge } from "@/components/ui/Badge";
@@ -58,6 +59,7 @@ function buildPresupuestoHtml(opts: {
   totalNeto: number;
   moneda: string;
   pagosValidos: PresupuestoData["pagos"];
+  includeFooter?: boolean;
 }): string {
   const { presupuesto, totalNeto, moneda, pagosValidos } = opts;
   const pagado = pagosValidos.reduce((acc, p) => acc + p.monto, 0);
@@ -181,7 +183,8 @@ function buildPresupuestoHtml(opts: {
     </div>
   `;
 
-  return wrapDocument(`${header}${body}${buildLetterheadFooter({ clinica: opts.clinica, pacienteNombre: opts.pacienteNombre, docCode })}`, 850);
+  const footer = opts.includeFooter ? buildLetterheadFooter({ clinica: opts.clinica, pacienteNombre: opts.pacienteNombre, docCode }) : "";
+  return wrapDocument(`${header}${body}${footer}`, 850);
 }
 
 export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto, mediosPago, onSaved, onCancel, onNavigateTab, fillHeight }: {
@@ -404,9 +407,9 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
  className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50"><Icon name="add" size={14} /></button>
               </div>
               <div className="w-24 text-right shrink-0">
-                <input type="number" value={l.precio_unitario} min={0} step="0.01"
+                <TextInput type="number" value={l.precio_unitario} min={0} step="0.01"
                   onChange={e => setLineas(prev => prev.map((x, idx) => idx === i ? { ...x, precio_unitario: Number(e.target.value) } : x))}
- className="w-full border border-slate-200 rounded-lg px-2 py-1 text-[16px] sm:text-[13px] text-right outline-none focus:border-cyan-500 bg-white"/>
+                  className="rounded-lg px-2 py-1 text-right"/>
               </div>
  <span className="w-24 text-right text-[13px] font-semibold text-slate-800 shrink-0">{money(l.cantidad * l.precio_unitario, l.moneda)}</span>
               <button onClick={() => setLineas(prev => prev.filter((_, idx) => idx !== i))}
@@ -427,9 +430,9 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
  <span className="text-slate-500 flex items-center gap-2">
               Descuento
               <span className="flex items-center gap-1">
-                <input type="number" value={descuento} min={0} max={100}
+                <TextInput type="number" value={descuento} min={0} max={100}
                   onChange={e => setDescuento(Math.min(100, Math.max(0, Number(e.target.value))))}
- className="w-16 border border-slate-200 rounded-lg px-2 py-0.5 text-[16px] sm:text-[13px] text-right outline-none focus:border-cyan-500 bg-white"/>
+                  className="w-16 rounded-lg px-2 py-0.5 text-right"/>
  <span className="text-slate-400">%</span>
               </span>
             </span>
@@ -444,9 +447,9 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
 
       <div className="flex flex-col gap-1.5">
  <label className="text-[12px] font-semibold text-slate-700">Notas (opcional)</label>
-        <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2}
+        <Textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2}
           placeholder="Notas adicionales u observaciones..."
- className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-500 bg-slate-50 resize-none"/>
+          className="bg-slate-50 resize-none"/>
       </div>
 
       {error && (
@@ -516,10 +519,10 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
   async function handleExportar(mode: "print" | "pdf" | "telegram") {
     setExportando(mode);
     try {
-      const html = buildPresupuestoHtml({ clinica: sede, pacienteNombre: paciente?.nombre_completo, pacienteDni: paciente?.dni, presupuesto, totalNeto, moneda, pagosValidos });
+      const html = buildPresupuestoHtml({ clinica: sede, pacienteNombre: paciente?.nombre_completo, pacienteDni: paciente?.dni, presupuesto, totalNeto, moneda, pagosValidos, includeFooter: mode !== "pdf" });
       const pacienteSlug = (paciente?.nombre_completo || "paciente").replace(/\s+/g, "_");
       if (mode === "print") await printHtml(html, `Presupuesto · ${paciente?.nombre_completo || ""}`);
-      else if (mode === "pdf") await downloadHtmlAsPaginatedPdf(html, `presupuesto_${pacienteSlug}_${shortCode(presupuesto.id)}.pdf`, 850);
+      else if (mode === "pdf") await downloadHtmlAsPaginatedPdf(html, `presupuesto_${pacienteSlug}_${shortCode(presupuesto.id)}.pdf`, 850, { clinica: sede, docLabel: "Presupuesto de Tratamiento" });
       else if (mode === "telegram") {
         const canvas = await exportHtmlAsCanvas(html);
         canvas.toBlob((blob) => {

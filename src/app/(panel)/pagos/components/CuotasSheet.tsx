@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { TextInput } from "@/components/ui/TextInput";
 import { generarCuotasAction, eliminarCuotasAction, solicitarValidacionAction, getSolicitudValidacionAction } from "../cuotas.actions";
 import type { PresupuestoPendiente } from "../actions";
 import { createClient } from "@/lib/supabase/client";
@@ -221,7 +222,7 @@ export function CuotasSheet({
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-semibold text-slate-500 uppercase">Cantidad</label>
- <input type="number" min="2" max="24" value={numCuotas} onChange={e => setNumCuotas(Number(e.target.value))} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px]"/>
+ <TextInput type="number" min="2" max="24" value={numCuotas} onChange={e => setNumCuotas(Number(e.target.value))} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-semibold text-slate-500 uppercase">Frecuencia</label>
@@ -236,7 +237,7 @@ export function CuotasSheet({
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold text-slate-500 uppercase">Inicio de pagos</label>
- <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px]"/>
+ <TextInput type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} />
             </div>
 
             <button onClick={handleGenerar} disabled={loading} className="w-full h-11 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl font-semibold text-[13px] flex items-center justify-center gap-2 mt-2">

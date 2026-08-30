@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { Textarea } from "@/components/ui/TextInput";
 import { solicitarDevolucionPresupuestoAction, type PresupuestoPendiente } from "../actions";
 
 export function SolicitarDevolucionSheet({
@@ -128,12 +129,13 @@ export function SolicitarDevolucionSheet({
  <label className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
               Motivo de la devolución y anulación <span className="text-red-500">*</span>
             </label>
-            <textarea
+            <Textarea
               rows={3}
+              variant="red"
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
               placeholder="Ejemplo: Paciente desiste del tratamiento por motivos personales / viaje y solicita la devolución total..."
- className="w-full border border-slate-200 rounded-xl p-3 text-[13px] outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 resize-none"
+              className="p-3 resize-none"
             />
           </div>
         </div>

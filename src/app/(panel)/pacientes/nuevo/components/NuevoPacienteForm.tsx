@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
 import { createPacienteAction } from "../../actions";
 
 const GRUPOS_SANGUINEOS = ["A+", "A−", "B+", "B−", "AB+", "AB−", "O+", "O−"];
@@ -122,13 +123,13 @@ export function NuevoPacienteForm() {
           {/* ── Columna 1: Información general ── */}
           <FormCard title="Información general" icon="person">
             <FormField label="Nombre(s) *">
-              <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="María" className="inp" />
+              <TextInput value={nombre} onChange={e => setNombre(e.target.value)} placeholder="María" />
             </FormField>
             <FormField label="Apellidos *">
-              <input value={apellido} onChange={e => setApellido(e.target.value)} placeholder="González López" className="inp" />
+              <TextInput value={apellido} onChange={e => setApellido(e.target.value)} placeholder="González López" />
             </FormField>
             <FormField label="DNI / Cédula *">
-              <input value={dni} onChange={e => setDni(e.target.value)} placeholder="12345678" className="inp" />
+              <TextInput value={dni} onChange={e => setDni(e.target.value)} placeholder="12345678" />
             </FormField>
             <FormField label="Fecha de nacimiento *">
               <DatePicker value={fechaNac} max={hoy} onChange={setFechaNac} />
@@ -140,32 +141,32 @@ export function NuevoPacienteForm() {
               <Select value={estadoCivil} onChange={setEstadoCivil} options={ESTADO_CIVIL_OPTIONS} placeholder="— Seleccionar —" />
             </FormField>
             <FormField label="Religión">
-              <input value={religion} onChange={e => setReligion(e.target.value)} placeholder="Católica, Evangélica…" className="inp" />
+              <TextInput value={religion} onChange={e => setReligion(e.target.value)} placeholder="Católica, Evangélica…" />
             </FormField>
           </FormCard>
 
           {/* ── Columna 2: Contacto ── */}
           <FormCard title="Contacto y domicilio" icon="home">
             <FormField label="Teléfono *">
-              <input value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="+51 987 000 000" className="inp" />
+              <TextInput value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="+51 987 000 000" />
             </FormField>
             <FormField label="Correo electrónico">
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="paciente@email.com" className="inp" />
+              <TextInput type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="paciente@email.com" />
             </FormField>
             <FormField label="Dirección">
-              <input value={direccion} onChange={e => setDireccion(e.target.value)} placeholder="Av. Principal 123" className="inp" />
+              <TextInput value={direccion} onChange={e => setDireccion(e.target.value)} placeholder="Av. Principal 123" />
             </FormField>
             <FormField label="Domicilio">
-              <input value={domicilio} onChange={e => setDomicilio(e.target.value)} placeholder="Urb. Los Pinos Mz. A Lt. 5" className="inp" />
+              <TextInput value={domicilio} onChange={e => setDomicilio(e.target.value)} placeholder="Urb. Los Pinos Mz. A Lt. 5" />
             </FormField>
             <FormField label="Lugar de procedencia">
-              <input value={lugarProc} onChange={e => setLugarProc(e.target.value)} placeholder="Lima, Cusco…" className="inp" />
+              <TextInput value={lugarProc} onChange={e => setLugarProc(e.target.value)} placeholder="Lima, Cusco…" />
             </FormField>
             <FormField label="Lugar de nacimiento">
-              <input value={lugarNac} onChange={e => setLugarNac(e.target.value)} placeholder="Arequipa…" className="inp" />
+              <TextInput value={lugarNac} onChange={e => setLugarNac(e.target.value)} placeholder="Arequipa…" />
             </FormField>
             <FormField label="Raza / Etnia">
-              <input value={raza} onChange={e => setRaza(e.target.value)} placeholder="Mestizo/a…" className="inp" />
+              <TextInput value={raza} onChange={e => setRaza(e.target.value)} placeholder="Mestizo/a…" />
             </FormField>
           </FormCard>
 
@@ -175,7 +176,7 @@ export function NuevoPacienteForm() {
               <Select value={grupoSanguineo} onChange={setGrupo} options={GRUPO_OPTIONS} placeholder="— No especificado —" />
             </FormField>
             <FormField label="Ocupación">
-              <input value={ocupacion} onChange={e => setOcupacion(e.target.value)} placeholder="Docente, Ingeniero…" className="inp" />
+              <TextInput value={ocupacion} onChange={e => setOcupacion(e.target.value)} placeholder="Docente, Ingeniero…" />
             </FormField>
             <FormField label="Grado de instrucción">
               <Select value={gradoInst} onChange={setGradoInst} options={GRADO_INST_OPTIONS} placeholder="— Seleccionar —" />
@@ -230,12 +231,12 @@ export function NuevoPacienteForm() {
             </FormField>
 
             <FormField label="Enfermedad actual">
-              <textarea
+              <Textarea
                 value={enfermedadActual}
                 onChange={e => setEnfermedad(e.target.value)}
                 placeholder="Describa la enfermedad o motivo de consulta actual…"
                 rows={3}
-                className="inp resize-none"
+                className="resize-none"
               />
             </FormField>
           </FormCard>
@@ -269,28 +270,6 @@ export function NuevoPacienteForm() {
           </div>
         </div>
       </div>
-
-      <style>{`
-        .inp {
-          width: 100%;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          padding: 8px 12px;
-          font-size: 16px;
-          outline: none;
-          background: white;
-          color: #1e293b;
-          transition: border-color 0.15s, box-shadow 0.15s;
-        }
-        @media (min-width: 640px) {
-          .inp { font-size: 13px; }
-        }
-        .inp:focus {
-          border-color: #06b6d4;
-          box-shadow: 0 0 0 3px rgba(6,182,212,0.12);
-        }
-        .inp::placeholder { color: #94a3b8; }
-      `}</style>
     </div>
   );
 }
@@ -327,12 +306,12 @@ function ChipInput({ value, chips, placeholder, chipClass, onChange, onAdd, onRe
   return (
     <div className="flex flex-col gap-2">
       <div className="flex gap-2">
-        <input
+        <TextInput
           value={value}
           onChange={e => onChange(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onAdd(); } }}
           placeholder={placeholder}
-          className="inp flex-1"
+          className="flex-1"
         />
         <button
           type="button"

@@ -1,4 +1,4 @@
-import { esc, fmtGenerado, buildLetterheadHeader, buildLetterheadFooter, wrapDocument, type ClinicaInfo } from "@/lib/reportExport";
+import { esc, fmtGenerado, buildLetterheadHeader, wrapDocument, type ClinicaInfo } from "@/lib/reportExport";
 
 const money = (n: number, m = "PEN") => `${m === "PEN" ? "S/" : m} ${n.toFixed(2)}`;
 
@@ -30,6 +30,20 @@ export interface VoucherHtmlParams {
   } | null;
 }
 
+const COMPROBANTE_DOC_LABEL_MAP: Record<string, string> = {
+  boleta: "Boleta de Venta",
+  factura: "Factura",
+  recibo: "Recibo de Egreso",
+  ticket_interno: "Ticket de Pago Interno",
+};
+
+/** Etiqueta del tipo de comprobante — se expone aparte para que el llamador
+ * (PagosView.tsx, RegistrarPagoSheet.tsx) pueda pasarla como `docLabel` a
+ * `downloadHtmlAsPaginatedPdf` sin duplicar el mapeo. */
+export function comprobanteDocLabel(tipoComprobante?: string): string {
+  return COMPROBANTE_DOC_LABEL_MAP[tipoComprobante || "boleta"] || "Comprobante de Pago";
+}
+
 /** Comprobante de pago con membrete oficial de MaraDental (logo + datos de la sede,
  * detalle del paciente/pagador, desglose de presupuesto o cuota abonada y resumen financiero). */
 export function buildVoucherHtml(opts: VoucherHtmlParams): string {
@@ -52,14 +66,7 @@ export function buildVoucherHtml(opts: VoucherHtmlParams): string {
     presupuesto
   } = opts;
 
-  const docLabelMap: Record<string, string> = {
-    boleta: "Boleta de Venta",
-    factura: "Factura",
-    recibo: "Recibo de Egreso",
-    ticket_interno: "Ticket de Pago Interno",
-  };
-
-  const labelDoc = docLabelMap[tipoComprobante] || "Comprobante de Pago";
+  const labelDoc = comprobanteDocLabel(tipoComprobante);
   const docCode = `N° ${numeroComprobante.length > 8 ? numeroComprobante.slice(0, 8).toUpperCase() : numeroComprobante}`;
 
   const header = buildLetterheadHeader({
@@ -215,28 +222,21 @@ export function buildVoucherHtml(opts: VoucherHtmlParams): string {
     </div>
   `;
 
-  return wrapDocument(`${header}${body}${buildLetterheadFooter({ clinica, pacienteNombre: pacienteNombre || pagadorNombre, docCode })}`, 680);
+  return wrapDocument(`${header}${body}`, 680);
 }
 
-// Comprobante de pago enviado por Telegram
-export function buildVoucherTexto(params: {
-  clinica: string;
+/** Texto corto que acompaña al PDF del comprobante en Telegram (`caption` de
+ * `sendDocument`) — el detalle completo (monto, medio de pago, desglose) ya
+ * va en el PDF adjunto, así que acá solo confirma el éxito del pago y, si
+ * corresponde, que el presupuesto quedó totalmente cancelado. */
+export function buildVoucherCaption(params: {
   pacienteNombre: string;
-  monto: number;
-  medioPago: string;
-  fecha: string;
   saldoRestante: number;
   moneda: string;
 }): string {
-  const { clinica, pacienteNombre, monto, medioPago, fecha, saldoRestante, moneda } = params;
+  const { pacienteNombre, saldoRestante, moneda } = params;
   const fmt = (n: number) => `${moneda === "PEN" ? "S/" : moneda} ${n.toFixed(2)}`;
-  return [
-    `🧾 ${clinica}`,
-    ``,
-    `Hola ${pacienteNombre}, registramos tu pago con éxito:`,
-    `Monto: ${fmt(monto)}`,
-    `Medio de pago: ${medioPago}`,
-    `Fecha: ${fecha}`,
-    saldoRestante > 0.009 ? `Saldo pendiente: ${fmt(saldoRestante)}` : `Tu presupuesto quedó totalmente cancelado. ¡Muchas gracias!`,
-  ].join("\n");
+  return saldoRestante > 0.009
+    ? `✅ Hola ${pacienteNombre}, registramos tu pago con éxito. Saldo pendiente: ${fmt(saldoRestante)}. Adjuntamos tu comprobante.`
+    : `✅ Hola ${pacienteNombre}, registramos tu pago con éxito. Tu presupuesto quedó totalmente cancelado. ¡Muchas gracias! Adjuntamos tu comprobante.`;
 }

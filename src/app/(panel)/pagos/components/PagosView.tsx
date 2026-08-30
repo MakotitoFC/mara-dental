@@ -80,30 +80,9 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
     setDashboard(initialDashboard);
   }, [initialDashboard]);
 
-  // Pendientes de Cobro: por defecto se muestran TODOS los pendientes de la
-  // sede (antes solo aparecían al buscar). La búsqueda sigue funcionando
-  // igual (debounce + acción server-side), pero cuando el campo está vacío
-  // usamos este listado completo en vez de un array vacío.
-  const [allPendientes, setAllPendientes] = useState<PresupuestoPendiente[]>([]);
-  const [loadingPendientes, setLoadingPendientes] = useState(true);
-
-  async function loadAllPendientes() {
-    setLoadingPendientes(true);
-    try {
-      const { getPendientesCobroSedeAction } = await import("../actions");
-      const res = await getPendientesCobroSedeAction();
-      setAllPendientes(res);
-    } catch (err) {
-      console.error("Error cargando pendientes de cobro: ", err);
-    } finally {
-      setLoadingPendientes(false);
-    }
-  }
-
-  useEffect(() => {
-    loadAllPendientes();
-  }, []);
-
+  // Pendientes de Cobro: la tabla queda vacía hasta que el usuario busca un
+  // paciente (debounce + acción server-side, ver el efecto de `query` más
+  // abajo) — no se precarga nada al entrar a la vista.
   function updatePendienteLocal(presupuestoId: string, updater: (p: PresupuestoPendiente) => PresupuestoPendiente | null) {
     const apply = (prev: PresupuestoPendiente[]) =>
       prev.reduce<PresupuestoPendiente[]>((acc, p) => {
@@ -112,7 +91,6 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
         if (next) acc.push(next);
         return acc;
       }, []);
-    setAllPendientes(apply);
     setPendientesBuscados(apply);
   }
 
@@ -148,7 +126,6 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
             if (fresh) setDashboard(fresh);
           });
         });
-        loadAllPendientes();
       })
       .subscribe();
 
@@ -185,7 +162,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
     return () => clearTimeout(timeoutId);
   }, [query]);
 
-  const pendientesFiltrados = query.trim() ? pendientesBuscados : allPendientes;
+  const pendientesFiltrados = pendientesBuscados;
 
   function handlePagoRegistrado(presupuestoId: string, nuevoSaldo: number, montoPagado: number, medioNombre: string) {
     const pacienteNombre = activo?.paciente_nombre || "Paciente";
@@ -284,11 +261,12 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
         return;
       }
 
-      const { buildVoucherHtml } = await import("../voucherText");
+      const { buildVoucherHtml, comprobanteDocLabel } = await import("../voucherText");
       const { printHtml, downloadHtmlAsPaginatedPdf } = await import("@/lib/reportExport");
+      const clinica = detalle.sede || sede;
 
       const html = buildVoucherHtml({
-        clinica: detalle.sede || sede,
+        clinica,
         numeroComprobante: detalle.comprobante_id || detalle.id,
         tipoComprobante: detalle.tipo_comprobante,
         pacienteNombre: detalle.paciente_nombre,
@@ -308,7 +286,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
       if (mode === "print") {
         await printHtml(html, `Comprobante #${detalle.comprobante_id}`);
       } else {
-        await downloadHtmlAsPaginatedPdf(html, `comprobante_${detalle.comprobante_id}.pdf`, 800);
+        await downloadHtmlAsPaginatedPdf(html, `comprobante_${detalle.comprobante_id}.pdf`, 800, { clinica, docLabel: comprobanteDocLabel(detalle.tipo_comprobante) });
       }
     } catch (err) {
       console.error("Error exportando comprobante: ", err);
@@ -374,13 +352,13 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
               </span>
             </div>
 
-            {(isSearching || (loadingPendientes && !query.trim())) ? (
+            {isSearching ? (
  <div className="py-12 text-center text-slate-400">
                 <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                <p className="text-[12.5px]">{isSearching ? "Buscando pacientes..." : "Cargando pendientes..."}</p>
+                <p className="text-[12.5px]">Buscando pacientes...</p>
               </div>
             ) : pendientesFiltrados.length === 0 ? (
-              <EmptyState icon="search" title={!query.trim() ? "No hay pendientes de cobro" : "Sin resultados para tu búsqueda"} size="sm" />
+              <EmptyState icon="search" title={!query.trim() ? "Busca un paciente para ver sus pendientes de cobro" : "Sin resultados para tu búsqueda"} size="sm" />
             ) : (
               <>
                 {/* Desktop/Tablet — tabla, mismo diseño que Personal. Crece

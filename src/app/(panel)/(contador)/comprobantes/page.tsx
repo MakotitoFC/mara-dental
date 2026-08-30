@@ -11,6 +11,7 @@ import { useConfirm } from "@/components/ui/ConfirmModal";
 import { getComprobantesAction, anularComprobanteAction } from "../contador.actions";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { Textarea } from "@/components/ui/TextInput";
 
 /** Ventana de números de página con elipsis — mismo patrón que Personal
  * ("1 2 3 ... 8 9 10"). */
@@ -577,10 +578,10 @@ export default function ComprobantesPage() {
               </div>
               <div>
                 <label className="block text-[13px] font-semibold text-slate-700 mb-1">Motivo de Anulación <span className="text-red-500">*</span></label>
-                <textarea
+                <Textarea
                   required
                   value={motivoAnulacion} onChange={e => setMotivoAnulacion(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors h-24 resize-none"
+                  className="h-24 resize-none"
                   placeholder="Explica brevemente por qué se anula..."
                 />
               </div>

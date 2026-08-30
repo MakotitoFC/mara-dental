@@ -4,10 +4,11 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import {
-  Mail, Lock, Eye, EyeOff, ArrowRight,
+  Mail, Lock, Eye, EyeOff,
   CheckCircle2, AlertCircle, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { loginAction } from "./actions";
 
 const fadeUp: Variants = {
@@ -167,10 +168,13 @@ function LoginPageContent() {
 
             <motion.div custom={3} initial="hidden" animate="visible" variants={fadeUp}>
               <div className="flex items-center justify-between pt-0.5">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input type="checkbox" name="remember" checked={isRemember} onChange={() => setIsRemember(!isRemember)} className="h-4 w-4 rounded border-slate-300 accent-cyan-600 cursor-pointer" />
-                  <span className="text-sm text-slate-600">Recordarme</span>
-                </label>
+                <input type="hidden" name="remember" value={isRemember ? "true" : ""} />
+                <Checkbox
+                  checked={isRemember}
+                  onChange={() => setIsRemember(!isRemember)}
+                  label={<span className="text-sm text-slate-600">Recordarme</span>}
+                  className="w-auto border-0 p-0 hover:bg-transparent"
+                />
                 <a href="#" className="text-sm text-cyan-600 hover:text-cyan-700 transition-colors">
                   ¿Olvidaste tu contraseña?
                 </a>
@@ -200,9 +204,7 @@ function LoginPageContent() {
                 disabled={loading}
                 className="w-full bg-cyan-600 hover:bg-cyan-700 disabled:opacity-70 text-white rounded-xl h-10 text-sm font-semibold gap-2 transition-all shadow-sm shadow-cyan-200/60 cursor-pointer"
               >
-                {loading ? <Loader2 size={15} className="animate-spin" /> : (
-                  <>Iniciar sesión <ArrowRight size={15} /></>
-                )}
+                {loading ? <Loader2 size={15} className="animate-spin" /> : "Iniciar sesión"}
               </Button>
             </motion.div>
           </form>

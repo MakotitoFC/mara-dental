@@ -65,7 +65,7 @@ export async function fetchSelectOptions() {
     { data: monedas },
     { data: mediosPago }
   ] = await Promise.all([
-    supabase.from('sede').select('id, nombre_clinica'),
+    supabase.from('sede').select('id, nombre_clinica, logo_url, telefono, email_contacto, direccion'),
     supabase.from('tipo_moneda').select('id, moneda'),
     supabase.from('medio_pago').select('id, nombre')
   ]);

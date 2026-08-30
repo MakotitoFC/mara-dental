@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { TextInput } from "@/components/ui/TextInput";
 import { VisorModal } from "@/app/(panel)/pacientes/[id]/components/consulta/VisorModal";
 import { getArchivosGlobalAction, type ArchivoGlobal } from "../actions";
 
@@ -81,11 +82,12 @@ export function ArchivosView() {
       {/* Buscador */}
       <div className="relative">
  <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-        <input
+        <TextInput
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar por nombre, paciente o descripción…"
- className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-800 text-[12px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"/>
+          className="pl-9 pr-4 text-[12px]"
+        />
       </div>
 
       {/* Filtros */}

@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { SmartPopover } from "@/components/ui/SmartPopover";
+import { TextInput } from "@/components/ui/TextInput";
 import { fadeIn, scaleIn, slideUp, staggerContainer, staggerItem } from "@/lib/animations";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 import { useSnapDrag } from "@/lib/hooks/useSnapDrag";
@@ -335,7 +336,7 @@ export function RecetaDetailModal({ data, dni, onClose }: { data: DocData; dni?:
   );
 }
 
-function buildRecetaHtml(opts: DocData): string {
+function buildRecetaHtml(opts: DocData, includeFooter = false): string {
   const docCode = opts.recetaId != null ? `Receta #${shortCode(opts.recetaId)}` : "Receta médica";
   const header = buildLetterheadHeader({
     clinica: opts.clinica ?? null,
@@ -403,12 +404,14 @@ function buildRecetaHtml(opts: DocData): string {
     </div>
   `;
 
-  return wrapDocument(`${header}${body}${buildLetterheadFooter({ clinica: opts.clinica ?? null, pacienteNombre: opts.pacienteNombre, docCode })}`, 800);
+  const footer = includeFooter ? buildLetterheadFooter({ clinica: opts.clinica ?? null, pacienteNombre: opts.pacienteNombre, docCode }) : "";
+  return wrapDocument(`${header}${body}${footer}`, 800);
 }
 
 export async function handleDownloadPdf(d: DocData, sede: ClinicaInfo | null) {
-  const html = buildRecetaHtml({ ...d, clinica: d.clinica ?? sede });
-  await downloadHtmlAsPaginatedPdf(html, `receta_${d.pacienteNombre.replace(/\s+/g, "_")}_${d.fecha}.pdf`, 800);
+  const clinica = d.clinica ?? sede;
+  const html = buildRecetaHtml({ ...d, clinica });
+  await downloadHtmlAsPaginatedPdf(html, `receta_${d.pacienteNombre.replace(/\s+/g, "_")}_${d.fecha}.pdf`, 800, { clinica, docLabel: "Receta Médica Odontológica" });
 }
 
 // ─── Modal "Nueva receta electrónica" (dos paneles + vista previa) ─────────────
@@ -508,9 +511,8 @@ function RecetaModal({
       {/* Formulario */}
  <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-5 flex flex-col gap-4 md:border-r md:border-slate-100">
         <Field label="Diagnóstico / motivo">
-          <input value={motivo} onChange={e => setMotivo(e.target.value)}
-            placeholder="Ej: Gingivitis crónica, infección post-extracción…"
- className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 bg-white"/>
+          <TextInput value={motivo} onChange={e => setMotivo(e.target.value)}
+            placeholder="Ej: Gingivitis crónica, infección post-extracción…"/>
         </Field>
 
         <div>
@@ -539,9 +541,9 @@ function RecetaModal({
                   matchWidth
                   renderTrigger={(ref) => (
                     <Field label="Medicamento">
-                      <input ref={ref} value={m.medicamento_nombre} onChange={e => buscarMed(e.target.value, i)}
+                      <TextInput ref={ref} value={m.medicamento_nombre} onChange={e => buscarMed(e.target.value, i)}
                         placeholder="Amoxicilina, Ibuprofeno…"
- className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
+                        className="rounded-lg px-2.5 py-1.5"/>
                     </Field>
                   )}
                 >
@@ -557,18 +559,18 @@ function RecetaModal({
                 </SmartPopover>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Field label="Dosis">
-                    <input value={m.dosis} onChange={e => setField(i, "dosis", e.target.value)}
+                    <TextInput value={m.dosis} onChange={e => setField(i, "dosis", e.target.value)}
                       placeholder="500mg, 15ml…"
- className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
+                      className="rounded-lg px-2.5 py-1.5"/>
                   </Field>
                   <Field label="Frecuencia">
                     <Select value={m.frecuencia} onChange={(v) => setField(i, "frecuencia", v)} options={FRECUENCIA_OPTIONS} />
                   </Field>
                 </div>
                 <Field label="Indicaciones">
-                  <input value={m.indicaciones} onChange={e => setField(i, "indicaciones", e.target.value)}
+                  <TextInput value={m.indicaciones} onChange={e => setField(i, "indicaciones", e.target.value)}
                     placeholder="Tomar con alimentos, no mezclar con alcohol…"
- className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 bg-white"/>
+                    className="rounded-lg px-2.5 py-1.5"/>
                 </Field>
               </div>
             ))}
@@ -761,6 +763,6 @@ export function buildTelegramLink(d: DocData): string {
 
 /** Imprime el mismo documento con membrete que se usa para descargar/telegram — antes generaba su propio HTML con datos de contacto inventados (dirección/teléfono fijos), ahora reutiliza buildRecetaHtml con los datos reales de la sede. */
 export function handlePrint(d: DocData) {
-  const html = buildRecetaHtml(d);
+  const html = buildRecetaHtml(d, true);
   printHtml(html, `Receta · ${d.pacienteNombre}`);
 }

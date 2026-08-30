@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "./Icon";
+import { TextInput } from "./TextInput";
 
 export interface ConfirmOptions {
   /** Por defecto "¿Estás seguro? " */
@@ -91,12 +92,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
  <label className="block text-[11px] font-semibold text-slate-500 mb-1.5">
  Escribe <span className="font-bold text-slate-700">{requireText}</span> para confirmar
                   </label>
-                  <input
+                  <TextInput
                     autoFocus
+                    variant="red"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && canConfirm) close(true); }}
- className="w-full border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
                     placeholder={requireText}
                   />
                 </div>

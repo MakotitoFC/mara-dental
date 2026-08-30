@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { useToast } from "@/components/ui/Toast";
 import { Header } from "@/components/layout/Header";
@@ -376,10 +377,9 @@ export default function CategoriasPage() {
             <form id="categoria-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
                 <label className="block text-[13px] font-semibold text-slate-700 mb-1">Nombre <span className="text-red-500">*</span></label>
-                <input
+                <TextInput
                   type="text" required
                   value={formData.nombre} onChange={e => setFormData(p => ({...p, nombre: e.target.value}))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors"
                 />
               </div>
 
@@ -397,20 +397,20 @@ export default function CategoriasPage() {
                 </div>
                 <div className="flex-1">
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1">Cuenta Contable</label>
-                  <input
+                  <TextInput
                     type="text"
                     value={formData.cuenta_contable} onChange={e => setFormData(p => ({...p, cuenta_contable: e.target.value}))}
                     placeholder="Ej. 70.1.1"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors font-mono"
+                    className="font-mono"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-[13px] font-semibold text-slate-700 mb-1">Descripción</label>
-                <textarea
+                <Textarea
                   value={formData.descripcion} onChange={e => setFormData(p => ({...p, descripcion: e.target.value}))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors resize-none h-16"
+                  className="resize-none h-16"
                 />
               </div>
 

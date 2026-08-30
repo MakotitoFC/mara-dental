@@ -4,10 +4,11 @@ import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
 import { registrarPagoAction } from "../../pacientes/[id]/consulta.actions";
-import { enviarVoucherPagoAction, type PresupuestoPendiente } from "../actions";
-import { buildVoucherTexto, buildVoucherHtml } from "../voucherText";
-import { printHtml, downloadHtmlAsPaginatedPdf, type ClinicaInfo } from "@/lib/reportExport";
+import { enviarVoucherPdfPagoAction, type PresupuestoPendiente } from "../actions";
+import { buildVoucherCaption, buildVoucherHtml, comprobanteDocLabel } from "../voucherText";
+import { printHtml, downloadHtmlAsPaginatedPdf, generatePaginatedPdfBlob, type ClinicaInfo } from "@/lib/reportExport";
 
 type MedioPago = { id: number; nombre: string };
 
@@ -23,8 +24,6 @@ export function RegistrarPagoSheet({
   onClose: () => void;
   onSaved: (presupuestoId: string, nuevoSaldo: number, montoPagado: number, medioNombre: string) => void;
 }) {
-  const sedeNombre = sede?.nombre_clinica ?? "MaraDental";
-  
   // Ordenar todas las cuotas correlativamente
   const todasCuotas = [...(presupuesto.cuotas || [])].sort((a, b) => a.numero_cuota - b.numero_cuota);
   const cuotasPendientes = todasCuotas.filter(c => c.estado !== "pagado" && !c.movimiento_caja_id);
@@ -55,7 +54,8 @@ export function RegistrarPagoSheet({
   const [nuevoSaldo, setNuevoSaldo] = useState(0);
   const [voucherEstado, setVoucherEstado] = useState<"enviado" | "sin_telegram" | "fallido" | null>(null);
   const [voucherError, setVoucherError] = useState("");
-  const [voucherTexto, setVoucherTexto] = useState("");
+  const [voucherHtml, setVoucherHtml] = useState("");
+  const [voucherCaption, setVoucherCaption] = useState("");
   const [enviandoVoucher, setEnviandoVoucher] = useState(false);
   const [pagoInfo, setPagoInfo] = useState<{ monto: number; medioNombre: string; referencia: string; observaciones: string; fecha: string; saldoRestante: number } | null>(null);
   const [exportando, setExportando] = useState<"print" | "pdf" | null>(null);
@@ -67,19 +67,65 @@ export function RegistrarPagoSheet({
     : null;
   const esCuotaInvalida = Boolean(cuotaAnteriorImpaga);
 
-  async function intentarEnviarVoucher(texto: string) {
+  /** Arma el HTML del comprobante para un pago dado — el mismo `buildVoucherHtml`
+   * que usa `handleExportarVoucher`, factorizado acá porque también lo necesita
+   * el envío automático por Telegram justo después de guardar el pago. */
+  function buildVoucherHtmlFor(payInfo: { monto: number; medioNombre: string; referencia: string; observaciones: string; fecha: string; saldoRestante: number }): string {
+    return buildVoucherHtml({
+      clinica: sede,
+      numeroComprobante: presupuesto.id,
+      tipoComprobante,
+      pacienteNombre: presupuesto.paciente_nombre,
+      pagadorNombre: quienPaga === "tercero" ? `${terceroNombres} ${terceroApellidos}`.trim() : presupuesto.paciente_nombre,
+      pagadorDocumento: quienPaga === "tercero" ? terceroDocNum : (presupuesto.paciente_documento || null),
+      esTercero: quienPaga === "tercero",
+      monto: payInfo.monto,
+      medioPago: payInfo.medioNombre,
+      referencia: payInfo.referencia || null,
+      observaciones: payInfo.observaciones || null,
+      fecha: payInfo.fecha,
+      saldoRestante: payInfo.saldoRestante,
+      moneda: presupuesto.moneda,
+      cuota: cuotaActual ? {
+        numero_cuota: cuotaActual.numero_cuota,
+        total_cuotas: todasCuotas.length,
+        monto: cuotaActual.monto,
+        fecha_vencimiento: cuotaActual.fecha_vencimiento,
+      } : null,
+      presupuesto: {
+        id: presupuesto.id,
+        total: presupuesto.total_neto,
+        tratamientos: presupuesto.tratamiento ? [{ nombre: presupuesto.tratamiento }] : [],
+      },
+    });
+  }
+
+  /** Genera el PDF del comprobante (mismo pipeline que "Descargar PDF") y lo
+   * envía como documento adjunto por Telegram, con un texto corto de éxito
+   * como caption — reemplaza el envío del detalle textual completo. */
+  async function intentarEnviarVoucherPdf(html: string, caption: string) {
     if (!presupuesto.telegram_chat_id) {
       setVoucherEstado("sin_telegram");
       return;
     }
     setEnviandoVoucher(true);
-    const res = await enviarVoucherPagoAction(presupuesto.paciente_id, presupuesto.telegram_chat_id, texto);
-    setEnviandoVoucher(false);
-    if (res?.error) {
+    try {
+      const blob = await generatePaginatedPdfBlob(html, 680, { clinica: sede, docLabel: comprobanteDocLabel(tipoComprobante) });
+      const file = new File([blob], `comprobante_${presupuesto.id}.pdf`, { type: "application/pdf" });
+      const formData = new FormData();
+      formData.append("document", file);
+      const res = await enviarVoucherPdfPagoAction(presupuesto.paciente_id, presupuesto.telegram_chat_id, caption, formData);
+      if (res?.error) {
+        setVoucherEstado("fallido");
+        setVoucherError(res.error);
+      } else {
+        setVoucherEstado("enviado");
+      }
+    } catch (err: any) {
       setVoucherEstado("fallido");
-      setVoucherError(res.error);
-    } else {
-      setVoucherEstado("enviado");
+      setVoucherError(err?.message || "No se pudo generar el PDF del comprobante");
+    } finally {
+      setEnviandoVoucher(false);
     }
   }
 
@@ -128,54 +174,22 @@ export function RegistrarPagoSheet({
     setPagoInfo({ monto: m, medioNombre, referencia, observaciones, fecha, saldoRestante });
     onSaved(presupuesto.id, saldoRestante, m, medioNombre);
 
-    const texto = buildVoucherTexto({
-      clinica: sedeNombre,
-      pacienteNombre: presupuesto.paciente_nombre,
-      monto: m,
-      medioPago: medioNombre,
-      fecha,
-      saldoRestante,
-      moneda: presupuesto.moneda,
-    });
-    setVoucherTexto(texto);
+    const html = buildVoucherHtmlFor({ monto: m, medioNombre, referencia, observaciones, fecha, saldoRestante });
+    const caption = buildVoucherCaption({ pacienteNombre: presupuesto.paciente_nombre, saldoRestante, moneda: presupuesto.moneda });
+    setVoucherHtml(html);
+    setVoucherCaption(caption);
     setPaso("resultado");
 
-    intentarEnviarVoucher(texto);
+    intentarEnviarVoucherPdf(html, caption);
   }
 
   async function handleExportarVoucher(mode: "print" | "pdf") {
     if (!pagoInfo) return;
     setExportando(mode);
     try {
-      const html = buildVoucherHtml({
-        clinica: sede,
-        numeroComprobante: presupuesto.id,
-        tipoComprobante: tipoComprobante,
-        pacienteNombre: presupuesto.paciente_nombre,
-        pagadorNombre: quienPaga === "tercero" ? `${terceroNombres} ${terceroApellidos}`.trim() : presupuesto.paciente_nombre,
-        pagadorDocumento: quienPaga === "tercero" ? terceroDocNum : (presupuesto.paciente_documento || null),
-        esTercero: quienPaga === "tercero",
-        monto: pagoInfo.monto,
-        medioPago: pagoInfo.medioNombre,
-        referencia: pagoInfo.referencia || null,
-        observaciones: pagoInfo.observaciones || null,
-        fecha: pagoInfo.fecha,
-        saldoRestante: pagoInfo.saldoRestante,
-        moneda: presupuesto.moneda,
-        cuota: cuotaActual ? {
-          numero_cuota: cuotaActual.numero_cuota,
-          total_cuotas: todasCuotas.length,
-          monto: cuotaActual.monto,
-          fecha_vencimiento: cuotaActual.fecha_vencimiento,
-        } : null,
-        presupuesto: {
-          id: presupuesto.id,
-          total: presupuesto.total_neto,
-          tratamientos: presupuesto.tratamiento ? [{ nombre: presupuesto.tratamiento }] : [],
-        },
-      });
+      const html = buildVoucherHtmlFor(pagoInfo);
       if (mode === "print") await printHtml(html, `Comprobante de pago #${presupuesto.id}`);
-      else await downloadHtmlAsPaginatedPdf(html, `comprobante_${presupuesto.id}.pdf`, 800);
+      else await downloadHtmlAsPaginatedPdf(html, `comprobante_${presupuesto.id}.pdf`, 800, { clinica: sede, docLabel: comprobanteDocLabel(tipoComprobante) });
     } catch (err) {
       console.error("Error exportando comprobante: ", err);
     } finally {
@@ -275,12 +289,11 @@ export function RegistrarPagoSheet({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
  <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Monto</label>
-              <input
+              <TextInput
                 type="number" step="0.01" min="0"
                 value={monto}
                 onChange={e => setMonto(e.target.value)}
                 readOnly={cuotaSeleccionada !== ""}
- className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -363,24 +376,22 @@ export function RegistrarPagoSheet({
                       { value: "Pasaporte", label: "Pasaporte" },
                     ]}
                   />
-                  <input
+                  <TextInput
                     placeholder="Nro. Documento"
                     value={terceroDocNum}
                     onChange={e => setTerceroDocNum(e.target.value)}
- className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                    className="col-span-2"
                   />
                 </div>
-                <input
+                <TextInput
                   placeholder="Nombres"
                   value={terceroNombres}
                   onChange={e => setTerceroNombres(e.target.value)}
- className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
                 />
-                <input
+                <TextInput
                   placeholder="Apellidos"
                   value={terceroApellidos}
                   onChange={e => setTerceroApellidos(e.target.value)}
- className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
                 />
               </div>
             )}
@@ -388,22 +399,21 @@ export function RegistrarPagoSheet({
 
           <div className="flex flex-col gap-1.5">
  <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Referencia</label>
-            <input
+            <TextInput
               value={referencia}
               onChange={e => setReferencia(e.target.value)}
               placeholder="Referencia (operación, voucher…)"
- className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
  <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Observaciones</label>
-            <textarea
+            <Textarea
               rows={2}
               value={observaciones}
               onChange={e => setObservaciones(e.target.value)}
               placeholder="Notas internas del pago…"
- className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 resize-none"
+              className="resize-none"
             />
           </div>
 
@@ -448,7 +458,7 @@ export function RegistrarPagoSheet({
                   <Icon name="warning" size={15} /> No se pudo enviar el comprobante{voucherError ? `: ${voucherError}` : ""}
                 </p>
                 <button
-                  onClick={() => intentarEnviarVoucher(voucherTexto)}
+                  onClick={() => intentarEnviarVoucherPdf(voucherHtml, voucherCaption)}
  className="self-start text-[11.5px] font-semibold text-cyan-700 hover:underline"
                 >
                   Reintentar envío

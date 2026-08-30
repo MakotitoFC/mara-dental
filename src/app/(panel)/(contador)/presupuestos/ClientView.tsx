@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { FilterCategoryPicker, type FilterCategoryMeta } from "@/components/ui/FilterCategoryPicker";
 import { TagDropdown } from "@/components/ui/TagDropdown";
+import { TextInput } from "@/components/ui/TextInput";
 import { AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -163,12 +164,12 @@ export default function PresupuestosClient({
           <div className="flex items-center gap-2 pt-1">
             <div className="relative flex-1 max-w-xs">
               <Icon name="search" size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
+              <TextInput
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar paciente por nombre o DNI..."
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[13px] text-slate-700 placeholder-slate-400 outline-none focus:bg-white focus:border-cyan-500 transition-colors"
+                className="pl-10 pr-4"
               />
               {query && (
                 <button

@@ -8,6 +8,7 @@ import { DatePicker } from "@/components/ui/DatePicker";
 import { TimePicker } from "@/components/ui/TimePicker";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { TextInput } from "@/components/ui/TextInput";
 import { crearCasoClinicoAction, agregarConsultaAction } from "../casos.actions";
 import { subirArchivoGeneralAction, getTiposArchivoAction } from "../consulta.actions";
 import { useTipoConsulta } from "@/providers/TipoConsultaProvider";
@@ -213,12 +214,11 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
  <p className="text-[12px] text-slate-500">
                 Se creará un caso clínico automáticamente. Ingresa un título.
               </p>
-              <input
+              <TextInput
                 type="text"
                 value={tituloCaso}
                 onChange={(e) => setTituloCaso(e.target.value)}
                 placeholder="Título del Caso Clínico (Opcional, Ej: Tratamiento Ortodoncia)"
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[16px] sm:text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all placeholder:text-slate-400"
               />
             </div>
           </div>

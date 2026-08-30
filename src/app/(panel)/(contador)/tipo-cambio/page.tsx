@@ -11,6 +11,7 @@ import { useConfirm } from "@/components/ui/ConfirmModal";
 import { getTipoCambioAction, saveTipoCambioAction, deleteTipoCambioAction } from "../contador.actions";
 import { format } from "date-fns";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { TextInput } from "@/components/ui/TextInput";
 
 /** Ventana de números de página con elipsis — mismo patrón que Personal
  * ("1 2 3 ... 8 9 10"). */
@@ -353,28 +354,27 @@ export default function TipoCambioPage() {
               <div className="flex gap-4">
                 <div className="flex-1">
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1">Compra <span className="text-red-500">*</span></label>
-                  <input
+                  <TextInput
                     type="number" step="0.001" min="0" required
                     value={formData.compra || ''} onChange={e => setFormData(p => ({...p, compra: Number(e.target.value)}))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors font-mono"
+                    className="font-mono"
                   />
                 </div>
                 <div className="flex-1">
                   <label className="block text-[13px] font-semibold text-slate-700 mb-1">Venta <span className="text-red-500">*</span></label>
-                  <input
+                  <TextInput
                     type="number" step="0.001" min="0" required
                     value={formData.venta || ''} onChange={e => setFormData(p => ({...p, venta: Number(e.target.value)}))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors font-mono"
+                    className="font-mono"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-[13px] font-semibold text-slate-700 mb-1">Fuente</label>
-                <input
+                <TextInput
                   type="text" required
                   value={formData.fuente} onChange={e => setFormData(p => ({...p, fuente: e.target.value.toUpperCase()}))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 transition-colors"
                 />
               </div>
             </form>

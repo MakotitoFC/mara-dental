@@ -13,7 +13,7 @@ import { useSnapDrag } from "@/lib/hooks/useSnapDrag";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { updateAnotacionesAction, getSedeInfoAction } from "../../consulta.actions";
 import {
-  buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, sectionLabel, wrapDocument, fmtGenerado as fmtGeneradoShared, shortCode,
+  buildLetterheadHeader, buildSignatureBlock, sectionLabel, wrapDocument, fmtGenerado as fmtGeneradoShared, shortCode,
   downloadHtmlAsPaginatedPdf, type ClinicaInfo,
 } from "@/lib/reportExport";
 
@@ -174,7 +174,7 @@ function buildReportHtml(opts: {
     </div>
   `;
 
-  return wrapDocument(`${header}${body}${buildLetterheadFooter({ clinica: opts.clinica, pacienteNombre: opts.pacienteNombre, docCode })}`, 900);
+  return wrapDocument(`${header}${body}`, 900);
 }
 
 function ToolButton({ icon, label, active, onClick, disabled }: {
@@ -858,7 +858,7 @@ export function VisorModal({
     setExportingReport("pdf");
     try {
       const html = await buildReportHtmlForCurrent();
-      await downloadHtmlAsPaginatedPdf(html, `archivo_${pacienteSlug}_${a.nombre_archivo.replace(/\.[^.]+$/, "")}_reporte.pdf`, 900);
+      await downloadHtmlAsPaginatedPdf(html, `archivo_${pacienteSlug}_${a.nombre_archivo.replace(/\.[^.]+$/, "")}_reporte.pdf`, 900, { clinica: sede, docLabel: "Archivo Clínico" });
     } catch (e) {
       console.error("Error convirtiendo a PDF: ", e);
     } finally {

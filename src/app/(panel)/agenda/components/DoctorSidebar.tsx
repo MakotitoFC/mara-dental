@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
+import { Checkbox } from "@/components/ui/Checkbox";
 import type { Cita } from "@/types/agenda";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
 import { updateCitaAction } from "../actions";
@@ -45,23 +46,20 @@ function CitaRow({ c, onChanged }: { c: Cita; onChanged: () => void }) {
   }
 
   return (
-    <label
-      className={`flex items-center gap-2 py-1 px-2 rounded-md text-xs transition-colors ${cancelada ? "cursor-default" : "cursor-pointer"} ${
- muted ? "text-slate-400" : "text-slate-700 hover:bg-slate-50"
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={done}
-        disabled={cancelada}
-        onChange={toggleHecha}
- className="w-3.5 h-3.5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 shrink-0 disabled:opacity-50"
-      />
- <span className={`shrink-0 font-semibold ${muted ? "line-through" : "text-cyan-700"}`}>{c.hora_inicio}</span>
-      <span className={`truncate ${muted ? "line-through" : ""}`} style={!muted ? { color: tipoVars.text } : undefined}>
-        {tipoVars.label}
-      </span>
-    </label>
+    <Checkbox
+      checked={done}
+      disabled={cancelada}
+      onChange={toggleHecha}
+      className={`w-auto gap-2 border-0 px-2 py-1 rounded-md text-xs ${muted ? "text-slate-400" : "text-slate-700"}`}
+      label={
+        <span className="flex items-center gap-2 min-w-0 flex-1">
+          <span className={`shrink-0 font-semibold ${muted ? "line-through" : "text-cyan-700"}`}>{c.hora_inicio}</span>
+          <span className={`truncate ${muted ? "line-through" : ""}`} style={!muted ? { color: tipoVars.text } : undefined}>
+            {tipoVars.label}
+          </span>
+        </span>
+      }
+    />
   );
 }
 

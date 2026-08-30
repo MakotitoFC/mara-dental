@@ -5,6 +5,7 @@ import { Icon } from "@/components/ui/Icon";
 import { SmartPopover } from "@/components/ui/SmartPopover";
 import { Select } from "@/components/ui/Select";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
 import { registrarMovimientoLibreAction, searchProveedoresAction, searchClientesPagoAction } from "../caja.actions";
 
 export function MovimientoLibreSheet({
@@ -189,11 +190,11 @@ export function MovimientoLibreSheet({
  <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Monto</label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-slate-400">S/</span>
-              <input
+              <TextInput
                 type="number" step="0.01" min="0"
                 value={monto}
                 onChange={e => setMonto(e.target.value)}
- className="w-full border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-[13px] outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                className="pl-8"
               />
             </div>
           </div>
@@ -284,11 +285,11 @@ export function MovimientoLibreSheet({
                 matchWidth
                 renderTrigger={(ref) => (
                   <div ref={ref} className="relative">
-                    <input
+                    <TextInput
                       placeholder="Buscar por Nombre o RUC..."
                       value={proveedorSearch}
                       onChange={e => setProveedorSearch(e.target.value)}
- className="w-full border border-slate-200 rounded-xl px-3 py-2 pl-8 text-[13px] outline-none focus:border-cyan-400"
+                      className="pl-8"
                     />
                     <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     {searchingProv && <Icon name="progress_activity" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
@@ -314,29 +315,26 @@ export function MovimientoLibreSheet({
               </SmartPopover>
             ) : isNewProveedor ? (
               <div className="grid grid-cols-2 gap-3 mt-1">
-                <input
+                <TextInput
                   placeholder="Razón Social / Empresa *"
                   value={selectedProveedor?.nombre || ""}
                   onChange={e => setSelectedProveedor(prev => ({ ...prev, nombre: e.target.value }))}
- className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
+                  className="col-span-2"
                 />
-                <input
+                <TextInput
                   placeholder="RUC"
                   value={selectedProveedor?.ruc || ""}
                   onChange={e => setSelectedProveedor(prev => ({ ...prev, ruc: e.target.value, nombre: prev?.nombre || "" }))}
- className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
-                <input
+                <TextInput
                   placeholder="Teléfono"
                   value={selectedProveedor?.telefono || ""}
                   onChange={e => setSelectedProveedor(prev => ({ ...prev, telefono: e.target.value, nombre: prev?.nombre || "" }))}
- className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
-                <input
+                <TextInput
                   placeholder="Email"
                   value={selectedProveedor?.email || ""}
                   onChange={e => setSelectedProveedor(prev => ({ ...prev, email: e.target.value, nombre: prev?.nombre || "" }))}
- className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
               </div>
             ) : (
@@ -380,11 +378,11 @@ export function MovimientoLibreSheet({
                 matchWidth
                 renderTrigger={(ref) => (
                   <div ref={ref} className="relative">
-                    <input
+                    <TextInput
                       placeholder="Buscar por Nombre, Apellidos o Documento..."
                       value={clienteSearch}
                       onChange={e => setClienteSearch(e.target.value)}
- className="w-full border border-slate-200 rounded-xl px-3 py-2 pl-8 text-[13px] outline-none focus:border-cyan-400"
+                      className="pl-8"
                     />
                     <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     {searchingCli && <Icon name="progress_activity" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />}
@@ -426,24 +424,22 @@ export function MovimientoLibreSheet({
                       { value: "Pasaporte", label: "Pasaporte" },
                     ]}
                   />
-                  <input
+                  <TextInput
                     placeholder="Nro. Documento"
                     value={selectedCliente?.numero_documento || ""}
                     onChange={e => setSelectedCliente(prev => ({ ...prev!, numero_documento: e.target.value }))}
- className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
+                    className="col-span-2"
                   />
                 </div>
-                <input
+                <TextInput
                   placeholder="Nombres *"
                   value={selectedCliente?.nombres || ""}
                   onChange={e => setSelectedCliente(prev => ({ ...prev!, nombres: e.target.value }))}
- className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
-                <input
+                <TextInput
                   placeholder="Apellidos *"
                   value={selectedCliente?.apellidos || ""}
                   onChange={e => setSelectedCliente(prev => ({ ...prev!, apellidos: e.target.value }))}
- className="border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
                 />
               </div>
             ) : (
@@ -460,22 +456,21 @@ export function MovimientoLibreSheet({
 
         <div className="flex flex-col gap-1.5">
  <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Referencia</label>
-          <input
+          <TextInput
             value={referencia}
             onChange={e => setReferencia(e.target.value)}
             placeholder="Nro. operación, comprobante..."
- className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
  <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Observaciones / Concepto</label>
-          <textarea
+          <Textarea
             rows={2}
             value={observacion}
             onChange={e => setObservacion(e.target.value)}
             placeholder="Detalle o descripción del movimiento..."
- className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[13px] outline-none focus:border-cyan-400 resize-none"
+            className="resize-none"
           />
         </div>
         

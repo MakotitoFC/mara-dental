@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
 import {
   cerrarCajaAction,
   getDetalleCierreCajaAction,
@@ -260,7 +261,7 @@ export function CerrarCajaSheet({
                       </label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">S/</span>
-                        <input
+                        <TextInput
                           type="number"
                           step="0.01"
                           min="0"
@@ -272,7 +273,7 @@ export function CerrarCajaSheet({
                               [resumenEfectivo?.medio_pago_id ?? 1]: e.target.value,
                             }))
                           }
- className="w-full pl-8 pr-3 py-2 text-[14px] font-bold border border-emerald-300 bg-white rounded-xl outline-none focus:ring-2 focus:ring-emerald-400"
+                          className="pl-8 pr-3 text-[14px] font-bold border-emerald-300 focus:border-emerald-300 focus:ring-emerald-400"
                         />
                       </div>
                     </div>
@@ -340,7 +341,7 @@ export function CerrarCajaSheet({
                           </div>
                           <div className="relative">
                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-medium">S/</span>
-                            <input
+                            <TextInput
                               type="number"
                               step="0.01"
                               min="0"
@@ -352,7 +353,7 @@ export function CerrarCajaSheet({
                                 }))
                               }
                               placeholder={r.esperado.toFixed(2)}
- className="w-full pl-7 pr-2.5 py-1.5 text-[12.5px] font-semibold border border-slate-200 bg-slate-50 rounded-lg outline-none focus:border-cyan-400"
+                              className="pl-7 pr-2.5 py-1.5 text-[12.5px] font-semibold bg-slate-50 rounded-lg"
                             />
                           </div>
                         </div>
@@ -365,12 +366,12 @@ export function CerrarCajaSheet({
  <label className="text-[11px] font-semibold text-slate-600 uppercase">
                     Observaciones del Cierre de Turno (Opcional)
                   </label>
-                  <textarea
+                  <Textarea
                     rows={2}
                     value={observaciones}
                     onChange={(e) => setObservaciones(e.target.value)}
                     placeholder="Ej. Se entregó el efectivo a la administración sin incidencias..."
- className="w-full border border-slate-200 rounded-xl p-2.5 text-[12.5px] outline-none focus:border-cyan-400 resize-none"
+                    className="resize-none text-[12.5px]"
                   />
                 </div>
               </div>

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { SmartPopover } from "@/components/ui/SmartPopover";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
@@ -335,8 +336,8 @@ export function TratamientoSection({
                 
                 <div className="flex flex-col gap-1">
  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Notas del tratamiento (Opcional)</label>
-                  <textarea rows={2} value={notas} onChange={e => setNotas(e.target.value)} placeholder="Ej. Extracción de pieza 36…"
- className="border border-slate-200 rounded-lg px-3 py-2 text-[13px] outline-none focus:border-cyan-400 resize-none bg-white"/>
+                  <Textarea rows={2} value={notas} onChange={e => setNotas(e.target.value)} placeholder="Ej. Extracción de pieza 36…"
+                    className="rounded-lg resize-none"/>
                 </div>
                 <div className="flex justify-end mt-1">
                   <button onClick={handleAdd} disabled={saving}
@@ -448,10 +449,10 @@ function TratamientoCard({ tratamiento, pacienteId, consultaId, onDelete, onPlan
               {addingFase && (
  <div className="bg-white border border-cyan-100 p-3 rounded-xl flex flex-col gap-2">
                   <div className="grid grid-cols-2 gap-2">
- <input value={faseForm.etapa} onChange={e => setFaseForm({...faseForm, etapa: e.target.value})} placeholder="Fase / Etapa" className="border border-slate-200 rounded-lg px-2 py-1 text-[12px] bg-transparent outline-none focus:border-cyan-400"/>
- <input value={faseForm.tiempo_pronostico} onChange={e => setFaseForm({...faseForm, tiempo_pronostico: e.target.value})} placeholder="Tiempo est. (Ej. 2 sem)" className="border border-slate-200 rounded-lg px-2 py-1 text-[12px] bg-transparent outline-none focus:border-cyan-400"/>
+                    <TextInput value={faseForm.etapa} onChange={e => setFaseForm({...faseForm, etapa: e.target.value})} placeholder="Fase / Etapa" className="rounded-lg px-2 py-1"/>
+                    <TextInput value={faseForm.tiempo_pronostico} onChange={e => setFaseForm({...faseForm, tiempo_pronostico: e.target.value})} placeholder="Tiempo est. (Ej. 2 sem)" className="rounded-lg px-2 py-1"/>
                   </div>
- <textarea value={faseForm.descripcion} onChange={e => setFaseForm({...faseForm, descripcion: e.target.value})} placeholder="Descripción de la fase" rows={2} className="border border-slate-200 rounded-lg px-2 py-1 text-[12px] bg-transparent outline-none focus:border-cyan-400 resize-none"/>
+                  <Textarea value={faseForm.descripcion} onChange={e => setFaseForm({...faseForm, descripcion: e.target.value})} placeholder="Descripción de la fase" rows={2} className="rounded-lg px-2 py-1 resize-none"/>
                   <div className="flex justify-end mt-1">
                     <button onClick={handleAddFase} disabled={savingFase} className="bg-cyan-600 text-white px-3 py-1 text-[11px] font-semibold rounded-lg">Guardar Fase</button>
                   </div>
@@ -662,10 +663,10 @@ function FaseCard({
  <div className="bg-white border border-slate-200 rounded-xl p-3 relative flex flex-col gap-2">
  <div className="absolute -left-4.75 top-4 w-3 h-3 bg-white border-2 border-slate-300 rounded-full"/>
         <div className="grid grid-cols-2 gap-2">
- <input value={editForm.etapa} onChange={e => setEditForm({...editForm, etapa: e.target.value})} placeholder="Fase / Etapa" className="border border-slate-200 rounded-lg px-2 py-1 text-[12px] bg-transparent outline-none focus:border-cyan-400"/>
- <input value={editForm.tiempo_pronostico} onChange={e => setEditForm({...editForm, tiempo_pronostico: e.target.value})} placeholder="Tiempo est." className="border border-slate-200 rounded-lg px-2 py-1 text-[12px] bg-transparent outline-none focus:border-cyan-400"/>
+          <TextInput value={editForm.etapa} onChange={e => setEditForm({...editForm, etapa: e.target.value})} placeholder="Fase / Etapa" className="rounded-lg px-2 py-1"/>
+          <TextInput value={editForm.tiempo_pronostico} onChange={e => setEditForm({...editForm, tiempo_pronostico: e.target.value})} placeholder="Tiempo est." className="rounded-lg px-2 py-1"/>
         </div>
- <textarea value={editForm.descripcion} onChange={e => setEditForm({...editForm, descripcion: e.target.value})} placeholder="Descripción" rows={2} className="border border-slate-200 rounded-lg px-2 py-1 text-[12px] bg-transparent outline-none focus:border-cyan-400 resize-none"/>
+        <Textarea value={editForm.descripcion} onChange={e => setEditForm({...editForm, descripcion: e.target.value})} placeholder="Descripción" rows={2} className="rounded-lg px-2 py-1 resize-none"/>
         <div className="flex justify-end gap-2 mt-1">
           <button onClick={() => setIsEditing(false)} className="px-3 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-700">Cancelar</button>
           <button onClick={handleEdit} disabled={savingEdit} className="bg-cyan-600 text-white px-3 py-1 text-[11px] font-semibold rounded-lg">Guardar Cambios</button>
@@ -770,12 +771,12 @@ function FaseCard({
 
               <div className="flex flex-col gap-1">
  <label className="text-[10px] font-medium text-slate-600">Descripción (Opcional)</label>
-                <input
+                <TextInput
                   type="text"
                   placeholder="Ej: Rx de avance..."
                   value={archivoDescripcion}
                   onChange={(e) => setArchivoDescripcion(e.target.value)}
- className="border border-slate-200 rounded-xl px-2.5 py-1.5 text-[12px] bg-white text-slate-800 outline-none focus:border-cyan-400"
+                  className="px-2.5 py-1.5"
                 />
               </div>
             </div>

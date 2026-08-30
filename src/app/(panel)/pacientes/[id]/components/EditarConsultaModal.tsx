@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { Select } from "@/components/ui/Select";
+import { TextInput, Textarea } from "@/components/ui/TextInput";
 import { editarConsultaAction } from "../casos.actions";
 import { subirArchivoGeneralAction, deleteArchivoClinicoAction, getTiposArchivoAction } from "../consulta.actions";
 
@@ -156,23 +157,25 @@ export function EditarConsultaModal({ consulta, pacienteId, onClose, onSaved }: 
  <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
               Motivo de consulta*
             </label>
-            <input
+            <TextInput
               type="text"
+              variant="amber"
               value={motivo}
               onChange={e => setMotivo(e.target.value)}
               placeholder="Ej: Dolor mular agudo, Limpieza de rutina..."
- className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[16px] sm:text-[13px] text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all"
+              className="py-2.5 bg-slate-50"
             />
           </div>
 
           <div className="flex flex-col gap-2">
  <label className="text-[13px] font-semibold text-slate-700">Observaciones de consulta</label>
-            <textarea
+            <Textarea
               rows={3}
+              variant="amber"
               value={observaciones}
               onChange={e => setObservaciones(e.target.value)}
               placeholder="Notas de evolución, diagnóstico diferencial, comentarios..."
- className="w-full border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 resize-none"
+              className="py-2.5 resize-none"
             />
           </div>
         </div>
@@ -282,11 +285,12 @@ export function EditarConsultaModal({ consulta, pacienteId, onClose, onSaved }: 
                         </div>
                         <div className="flex flex-col gap-1">
                           <label className="text-[10px] font-medium text-slate-500">Descripción (Opcional)</label>
-                          <textarea
+                          <Textarea
+                            variant="amber"
                             placeholder="Ej: Radiografía panorámica inicial..."
                             value={descripciones[f.name] || ""}
                             onChange={(e) => setDescripciones(p => ({ ...p, [f.name]: e.target.value }))}
- className="w-full text-[11px] p-2 border border-slate-200 rounded-lg bg-white text-slate-800 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 resize-none"
+                            className="rounded-lg p-2 resize-none"
                             rows={2}
                           />
                         </div>
@@ -315,17 +319,19 @@ export function EditarConsultaModal({ consulta, pacienteId, onClose, onSaved }: 
           <motion.div variants={staggerContainer()} initial="hidden" animate="visible" className="flex flex-col gap-2 mt-2">
             {campos.map((c, i) => (
               <motion.div key={i} variants={staggerItem} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <input
+                <TextInput
+                  variant="amber"
                   value={c.clave}
                   onChange={e => update(i, { clave: e.target.value })}
                   placeholder="Signo / hallazgo"
- className="sm:w-44 shrink-0 border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                  className="sm:w-44 shrink-0 py-2.5"
                 />
-                <input
+                <TextInput
+                  variant="amber"
                   value={c.valor}
                   onChange={e => update(i, { valor: e.target.value })}
                   placeholder="Valor / descripción"
- className="flex-1 min-w-0 border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2.5 text-[16px] sm:text-[13px] outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                  className="flex-1 min-w-0 py-2.5"
                 />
                 <button type="button" onClick={() => remove(i)}
  className="w-10 h-10 shrink-0 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors self-end sm:self-auto">
