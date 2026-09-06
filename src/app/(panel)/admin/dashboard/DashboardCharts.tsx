@@ -1001,72 +1001,100 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         {/* 4. Finanzas */}
         <div id="chart-finanzas" className={`print-page-chart ${!selectedKpis.finanzas ? 'print:hidden' : ''}`}>
           <ChartCard title="Balance Financiero (Ingresos/Egresos/Ganancias)" icon="account_balance">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData.finanzas}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
-                <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${v/1000}k`} />
-                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
-                <Legend content={renderLegend} />
-                <Bar dataKey="ingresos" name="Ingresos" fill="#3b82f6" radius={[4,4,0,0]} barSize={15} />
-                <Bar dataKey="egresos" name="Egresos" fill="#ef4444" radius={[4,4,0,0]} barSize={15} />
-                <Bar dataKey="ganancias" name="Ganancias" fill="#10b981" radius={[4,4,0,0]} barSize={15} />
-              </BarChart>
-            </ResponsiveContainer>
+            {!chartData.finanzas || chartData.finanzas.length === 0 ? (
+              <div className="h-[300px] flex flex-col items-center justify-center text-slate-400 gap-2">
+                <Icon name="info" size={24} className="text-slate-300" />
+                <span className="text-xs">No hay movimientos financieros en este período</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.finanzas}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
+                  <YAxis tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} />
+                  <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => typeof val === "number" ? `S/ ${val.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : String(val)} />
+                  <Legend content={renderLegend} />
+                  <Bar dataKey="ingresos" name="Ingresos" fill="#3b82f6" radius={[4,4,0,0]} barSize={15} />
+                  <Bar dataKey="egresos" name="Egresos" fill="#ef4444" radius={[4,4,0,0]} barSize={15} />
+                  <Bar dataKey="ganancias" name="Ganancias" fill="#10b981" radius={[4,4,0,0]} barSize={15} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </ChartCard>
         </div>
 
         {/* 8. Ticket promedio */}
         <div id="chart-ticket" className={`print-page-chart ${!selectedKpis.ticket ? 'print:hidden' : ''}`}>
           <ChartCard title="Ticket Promedio y Volumen de Ingresos" icon="point_of_sale">
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={chartData.ticketPromedio}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
-                <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${v/1000}k`} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
-                <Legend content={renderLegend} />
-                <Bar yAxisId="left" dataKey="ingreso_total" name="Ingreso Total" fill="#0A8EA0" radius={[4,4,0,0]} barSize={30} />
-                <Line yAxisId="right" type="monotone" dataKey="ticket_promedio" name="Ticket Promedio" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
+            {!chartData.ticketPromedio || chartData.ticketPromedio.length === 0 ? (
+              <div className="h-[300px] flex flex-col items-center justify-center text-slate-400 gap-2">
+                <Icon name="info" size={24} className="text-slate-300" />
+                <span className="text-xs">No hay tickets pagados en este período</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={chartData.ticketPromedio}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${v}`} />
+                  <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => typeof val === "number" ? `S/ ${val.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : String(val)} />
+                  <Legend content={renderLegend} />
+                  <Bar yAxisId="left" dataKey="ingreso_total" name="Ingreso Total" fill="#0A8EA0" radius={[4,4,0,0]} barSize={30} />
+                  <Line yAxisId="right" type="monotone" dataKey="ticket_promedio" name="Ticket Promedio" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </ChartCard>
         </div>
 
         {/* 7. Tasa de conversión */}
         <div id="chart-conversion" className={`print-page-chart ${!selectedKpis.conversion ? 'print:hidden' : ''}`}>
           <ChartCard title="Conversión de Presupuestos (% Aprobación)" icon="price_check">
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={chartData.tasaAprobacion}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
-                <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v*100).toFixed(0)}%`} />
-                <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} />
-                <Legend content={renderLegend} />
-                <Bar yAxisId="left" dataKey="total_presupuestos" name="Total Emitidos" fill="#94a3b8" radius={[4,4,0,0]} barSize={20} />
-                <Bar yAxisId="left" dataKey="total_aprobados" name="Aprobados" fill="#3b82f6" radius={[4,4,0,0]} barSize={20} />
-                <Line yAxisId="right" type="monotone" dataKey="tasa_aprobacion" name="% Aprobación" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
+            {!chartData.tasaAprobacion || chartData.tasaAprobacion.length === 0 ? (
+              <div className="h-[300px] flex flex-col items-center justify-center text-slate-400 gap-2">
+                <Icon name="info" size={24} className="text-slate-300" />
+                <span className="text-xs">No hay presupuestos emitidos en este período</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={chartData.tasaAprobacion}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="periodo" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} dy={10} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} tickFormatter={v => `${(v*100).toFixed(0)}%`} />
+                  <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} />
+                  <Legend content={renderLegend} />
+                  <Bar yAxisId="left" dataKey="total_presupuestos" name="Total Emitidos" fill="#94a3b8" radius={[4,4,0,0]} barSize={20} />
+                  <Bar yAxisId="left" dataKey="total_aprobados" name="Aprobados" fill="#3b82f6" radius={[4,4,0,0]} barSize={20} />
+                  <Line yAxisId="right" type="monotone" dataKey="tasa_aprobacion" name="% Aprobación" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </ChartCard>
         </div>
 
         {/* 5. Gastos por categoría */}
         <div id="chart-egresos" className={`print-page-chart ${!selectedKpis.egresos ? 'print:hidden' : ''}`}>
           <ChartCard title="Distribución de Egresos por Categoría" icon="receipt_long">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData.egresos} layout="vertical" margin={{ left: 50, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="categoria" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => val?.toLocaleString?.() ?? String(val)} />
-                <Bar dataKey="total_gastado" name="Gastado" fill="#5D6D7E" radius={[0,4,4,0]} barSize={20}>
-                   {chartData.egresos.map((e:any, i:number) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {!chartData.egresos || chartData.egresos.length === 0 ? (
+              <div className="h-[300px] flex flex-col items-center justify-center text-slate-400 gap-2">
+                <Icon name="info" size={24} className="text-slate-300" />
+                <span className="text-xs">No hay egresos registrados en este período</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.egresos} layout="vertical" margin={{ left: 10, right: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="categoria" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={140} />
+                  <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} formatter={(val: any) => typeof val === "number" ? `S/ ${val.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : String(val)} />
+                  <Bar dataKey="total_gastado" name="Gastado" fill="#5D6D7E" radius={[0,4,4,0]} barSize={20}>
+                     {chartData.egresos.map((e:any, i:number) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </ChartCard>
         </div>
 
@@ -1155,19 +1183,26 @@ export default function DashboardCharts({ data, options, userRole, userSedeId }:
         {/* 6. Top 5 Tratamientos */}
         <div id="chart-topTratamientos" className={`print-page-chart lg:col-span-2 ${!selectedKpis.topTratamientos ? 'print:hidden' : ''}`}>
           <ChartCard title="Top 5 Tratamientos (Más y Menos Frecuentes)" icon="medical_services">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData.tratamientos} layout="vertical" margin={{ left: 50, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="nombre_tratamiento" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} width={150} />
-                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} />
-                <Bar dataKey="cantidad" name="Cantidad" radius={[0,4,4,0]} barSize={20}>
-                  {chartData.tratamientos.map((entry: any, index: number) => (
-                    <Cell key={`cell-${index}`} fill={entry.clasificacion === "Más Frecuentes" ? POS_COLOR : NEG_COLOR} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {!chartData.tratamientos || chartData.tratamientos.length === 0 ? (
+              <div className="h-[300px] flex flex-col items-center justify-center text-slate-400 gap-2">
+                <Icon name="info" size={24} className="text-slate-300" />
+                <span className="text-xs">No hay tratamientos registrados en este período</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.tratamientos} layout="vertical" margin={{ left: 50, right: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="nombre_tratamiento" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} width={150} />
+                  <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: "8px" }} itemStyle={{ fontSize: 12 }} labelStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="cantidad" name="Cantidad" radius={[0,4,4,0]} barSize={20}>
+                    {chartData.tratamientos.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={entry.clasificacion === "Más Frecuentes" ? POS_COLOR : NEG_COLOR} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </ChartCard>
         </div>
 

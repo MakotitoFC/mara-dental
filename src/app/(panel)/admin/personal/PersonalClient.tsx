@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
@@ -12,7 +12,14 @@ import { TextInput } from "@/components/ui/TextInput";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
-import { createEmpleadoAction, editEmpleadoAction, softDeleteEmpleadoAction, toggleEmpleadoEstadoAction } from "./personal.actions";
+import {
+  createEmpleadoAction,
+  editEmpleadoAction,
+  softDeleteEmpleadoAction,
+  toggleEmpleadoEstadoAction,
+  getPersonalAction,
+  getPersonalCountsAction,
+} from "./personal.actions";
 import { AnimatePresence, motion } from "framer-motion";
 
 type TagKey = "sede" | "rol" | "especialidad" | "puesto";
@@ -196,45 +203,137 @@ export default function PersonalClient({
   const toast = useToast();
   const confirm = useConfirm();
 
+  // Estados locales para respuesta visual inmediata (0ms)
+  const [personalData, setPersonalData] = useState<any[]>(initialData);
+  const [totalCount, setTotalCount] = useState<number>(initialCount);
+  const [pages, setPages] = useState<number>(totalPages);
+  const [page, setPage] = useState<number>(currentPage);
+  const [activosCount, setActivosCount] = useState<number>(countActivos);
+  const [inactivosCount, setInactivosCount] = useState<number>(countInactivos);
+
+  const [estadoTab, setEstadoTab] = useState<"todos" | "activos" | "inactivos">(
+    (searchParams.get("estado") as "activos" | "inactivos") || "todos"
+  );
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingPersonal, setEditingPersonal] = useState<any | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedRol, setSelectedRol] = useState("1");
-  const [isActivo, setIsActivo] = useState(true);
-  const [selectedSede, setSelectedSede] = useState("");
-  const [selectedPuesto, setSelectedPuesto] = useState("");
-  const [selectedEspecialidad, setSelectedEspecialidad] = useState("");
-  const [fechaNacimiento, setFechaNacimiento] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState(searchParams.get("search") || "");
 
-  // Filtros
-  const handleFilter = (key: string, value: string) => {
-    const params = new URLSearchParams(searchParams);
-    if (value) params.set(key, value);
-    else params.delete(key);
-    params.set("page", "1");
-    router.push(`?${params.toString()}`);
-  };
+  const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({
+    sedeId: searchParams.get("sedeId") || "",
+    rolId: searchParams.get("rolId") || "",
+    especialidadId: searchParams.get("especialidadId") || "",
+    puestoId: searchParams.get("puestoId") || "",
+  });
 
-  // Tabs Todos/Activos/Inactivos — mismo patrón que Catálogo de
-  // Tratamientos, pero filtrando server-side (el estado también decide la
-  // paginación real, no solo lo que se ve en la página actual).
-  const estadoTab = (searchParams.get("estado") as "activos" | "inactivos" | null) || "todos";
+  const [isLoading, setIsLoadingData] = useState(false);
+  const latestReqId = useRef(0);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleFilter("search", searchQuery);
-  };
+  // Sincronizar datos si cambian las props iniciales desde SSR
+  useEffect(() => {
+    setPersonalData(initialData);
+    setTotalCount(initialCount);
+    setPages(totalPages);
+    setPage(currentPage);
+    setActivosCount(countActivos);
+    setInactivosCount(countInactivos);
+  }, [initialData, initialCount, totalPages, currentPage, countActivos, countInactivos]);
 
-  // Tags de "filtros activos": solo aparecen cuando el usuario los agrega a
-  // mano desde el picker de 2 pasos (botón maestro o "+ Filtro" → elige
-  // categoría → aparece el tag) — mismo patrón que Calendario/Dashboard
-  // Directivo, no un select suelto siempre visible.
-  const [activeTags, setActiveTags] = useState<Set<TagKey>>(new Set());
+  // Tags de "filtros activos": aparecen si están en los query params o se agregan
+  const [activeTags, setActiveTags] = useState<Set<TagKey>>(() => {
+    const s = new Set<TagKey>();
+    if (searchParams.get("sedeId")) s.add("sede");
+    if (searchParams.get("rolId")) s.add("rol");
+    if (searchParams.get("especialidadId")) s.add("especialidad");
+    if (searchParams.get("puestoId")) s.add("puesto");
+    return s;
+  });
+
   const availableTagKeys: TagKey[] = [
     ...(userRole === "superadmin" ? (["sede"] as TagKey[]) : []),
     "rol", "especialidad", "puesto",
   ];
+
+  // Función unificada para aplicar filtros con 0ms de retraso visual y carga animada
+  const fetchPersonalData = async (overrides: {
+    newPage?: number;
+    newEstado?: "todos" | "activos" | "inactivos";
+    newSearch?: string;
+    newFilters?: Record<string, string>;
+  }) => {
+    const nextEstado = overrides.newEstado !== undefined ? overrides.newEstado : estadoTab;
+    const nextSearch = overrides.newSearch !== undefined ? overrides.newSearch : appliedSearch;
+    const nextPage = overrides.newPage !== undefined ? overrides.newPage : 1;
+    const nextFilters = overrides.newFilters !== undefined ? overrides.newFilters : selectedFilters;
+
+    // 1. Respuesta visual INMEDIATA en React (0ms)
+    setEstadoTab(nextEstado);
+    setAppliedSearch(nextSearch);
+    setPage(nextPage);
+    setSelectedFilters(nextFilters);
+    setIsLoadingData(true);
+
+    // 2. Sincronizar URL para mantener enlaces compartibles sin congelar la UI
+    const params = new URLSearchParams();
+    if (nextPage > 1) params.set("page", String(nextPage));
+    if (nextEstado !== "todos") params.set("estado", nextEstado);
+    if (nextSearch.trim()) params.set("search", nextSearch.trim());
+    Object.entries(nextFilters).forEach(([k, v]) => {
+      if (v) params.set(k, v);
+    });
+    const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+    window.history.replaceState(null, "", newUrl);
+
+    // 3. Petición en segundo plano con protección contra condiciones de carrera
+    const reqId = ++latestReqId.current;
+    const activo = nextEstado === "activos" ? true : nextEstado === "inactivos" ? false : null;
+
+    try {
+      const [personalRes, countsRes] = await Promise.all([
+        getPersonalAction({
+          page: nextPage,
+          limit: 6,
+          search: nextSearch,
+          especialidadId: nextFilters.especialidadId ? parseInt(nextFilters.especialidadId, 10) : null,
+          puestoId: nextFilters.puestoId ? parseInt(nextFilters.puestoId, 10) : null,
+          sedeId: nextFilters.sedeId ? parseInt(nextFilters.sedeId, 10) : (userRole === "admin" ? userSedeId : null),
+          rolId: nextFilters.rolId ? parseInt(nextFilters.rolId, 10) : null,
+          activo,
+        }),
+        getPersonalCountsAction({
+          search: nextSearch,
+          especialidadId: nextFilters.especialidadId ? parseInt(nextFilters.especialidadId, 10) : null,
+          puestoId: nextFilters.puestoId ? parseInt(nextFilters.puestoId, 10) : null,
+          sedeId: nextFilters.sedeId ? parseInt(nextFilters.sedeId, 10) : (userRole === "admin" ? userSedeId : null),
+          rolId: nextFilters.rolId ? parseInt(nextFilters.rolId, 10) : null,
+        }),
+      ]);
+
+      if (reqId === latestReqId.current) {
+        setPersonalData(personalRes.data);
+        setTotalCount(personalRes.count);
+        setPages(personalRes.totalPages);
+        setActivosCount(countsRes.activos);
+        setInactivosCount(countsRes.inactivos);
+        setIsLoadingData(false);
+      }
+    } catch (err: any) {
+      console.error("Error al obtener personal:", err);
+      if (reqId === latestReqId.current) {
+        setIsLoadingData(false);
+        toast.error("Error al actualizar la lista de personal");
+      }
+    }
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchPersonalData({ newSearch: searchQuery, newPage: 1 });
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    fetchPersonalData({ newSearch: "", newPage: 1 });
+  };
+
   const toggleTag = (key: TagKey) => {
     setActiveTags((prev) => {
       const next = new Set(prev);
@@ -242,9 +341,15 @@ export default function PersonalClient({
       return next;
     });
   };
+
   const removeTag = (key: TagKey) => {
-    setActiveTags((prev) => { const next = new Set(prev); next.delete(key); return next; });
-    handleFilter(PARAM_KEY[key], "");
+    setActiveTags((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+    const updatedFilters = { ...selectedFilters, [PARAM_KEY[key]]: "" };
+    fetchPersonalData({ newFilters: updatedFilters, newPage: 1 });
   };
 
   const tagOptions = (key: TagKey): { value: string; label: string }[] => {
@@ -255,16 +360,24 @@ export default function PersonalClient({
   };
 
   const tagLabel = (key: TagKey): string => {
-    const v = searchParams.get(PARAM_KEY[key]) || "";
+    const v = selectedFilters[PARAM_KEY[key]] || "";
     const opt = tagOptions(key).find((o) => o.value === v);
     return `${TAG_META[key].label}: ${opt?.label ?? "Todos"}`;
   };
 
   const handlePageChange = (newPage: number) => {
-    const params = new URLSearchParams(searchParams);
-    params.set("page", newPage.toString());
-    router.push(`?${params.toString()}`);
+    fetchPersonalData({ newPage });
   };
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPersonal, setEditingPersonal] = useState<any | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedRol, setSelectedRol] = useState("1");
+  const [isActivo, setIsActivo] = useState(true);
+  const [selectedSede, setSelectedSede] = useState("");
+  const [selectedPuesto, setSelectedPuesto] = useState("");
+  const [selectedEspecialidad, setSelectedEspecialidad] = useState("");
+  const [fechaNacimiento, setFechaNacimiento] = useState("");
 
   const openModal = (personal: any = null) => {
     setEditingPersonal(personal);
@@ -307,6 +420,7 @@ export default function PersonalClient({
         toast.success("Personal creado con éxito");
       }
       closeModal();
+      fetchPersonalData({ newPage: page });
       router.refresh();
     } catch (err: any) {
       toast.error(err.message || "Error al guardar");
@@ -328,6 +442,7 @@ export default function PersonalClient({
     try {
       await toggleEmpleadoEstadoAction(usuarioId, nuevoEstado);
       toast.success(`Empleado ${nuevoEstado ? "activado" : "desactivado"} correctamente`);
+      fetchPersonalData({ newPage: page });
       router.refresh();
     } catch (err: any) {
       toast.error(`Error al ${accionText} el empleado`);
@@ -346,6 +461,7 @@ export default function PersonalClient({
     try {
       await softDeleteEmpleadoAction(usuarioId);
       toast.success("Empleado desactivado correctamente");
+      fetchPersonalData({ newPage: page });
       router.refresh();
     } catch (err: any) {
       toast.error("Error al eliminar");
@@ -393,13 +509,13 @@ export default function PersonalClient({
               (afecta también la paginación real, no solo la vista actual). */}
           <div className="flex items-center gap-5">
             {[
-              { key: "todos" as const, label: "Todos", count: countActivos + countInactivos },
-              { key: "activos" as const, label: "Activos", count: countActivos },
-              { key: "inactivos" as const, label: "Inactivos", count: countInactivos },
+              { key: "todos" as const, label: "Todos", count: activosCount + inactivosCount },
+              { key: "activos" as const, label: "Activos", count: activosCount },
+              { key: "inactivos" as const, label: "Inactivos", count: inactivosCount },
             ].map((item) => (
               <button
                 key={item.key}
-                onClick={() => handleFilter("estado", item.key === "todos" ? "" : item.key)}
+                onClick={() => fetchPersonalData({ newEstado: item.key, newPage: 1 })}
                 className={`flex items-center gap-1.5 pb-2.5 text-[13px] font-semibold border-b-2 transition-colors ${
                   estadoTab === item.key ? "border-cyan-600 text-cyan-700" : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
@@ -418,10 +534,27 @@ export default function PersonalClient({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar por nombre o apellido..."
-                className="pl-9 pr-3"
+                className="pl-9 pr-8"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded-full hover:bg-slate-100"
+                  title="Limpiar búsqueda"
+                >
+                  <Icon name="close" size={14} />
+                </button>
+              )}
               <button type="submit" className="hidden" />
             </form>
+
+            {isLoading && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-50 text-cyan-700 text-[12px] font-medium animate-pulse shrink-0">
+                <Icon name="sync" size={14} className="animate-spin text-cyan-600" />
+                <span className="hidden sm:inline">Buscando...</span>
+              </div>
+            )}
 
             {/* Solo mobile: "+ Nuevo Personal" baja acá, a la derecha, junto
                 al filtro — en sm+ ya está arriba, en la fila del título. */}
@@ -449,8 +582,11 @@ export default function PersonalClient({
                   key={k}
                   icon={TAG_META[k].icon}
                   label={tagLabel(k)}
-                  value={searchParams.get(PARAM_KEY[k]) || ""}
-                  onChange={(v) => handleFilter(PARAM_KEY[k], v)}
+                  value={selectedFilters[PARAM_KEY[k]] || ""}
+                  onChange={(v) => {
+                    const updatedFilters = { ...selectedFilters, [PARAM_KEY[k]]: v };
+                    fetchPersonalData({ newFilters: updatedFilters, newPage: 1 });
+                  }}
                   options={tagOptions(k)}
                   onRemove={() => removeTag(k)}
                 />
@@ -477,89 +613,127 @@ export default function PersonalClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {initialData.map((p) => (
-                <tr key={p.usuario_id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
-                        <Icon name="person" size={18} />
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={`skeleton-${i}`} className="animate-pulse">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-slate-200 shrink-0" />
+                        <div className="min-w-0 space-y-1.5 flex-1">
+                          <div className="h-4 bg-slate-200 rounded w-3/4" />
+                          <div className="h-3 bg-slate-100 rounded w-1/2" />
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-700 truncate">{p.nombre} {p.apellido}</p>
-                        <p className="text-[12px] text-slate-500 truncate">{p.email}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-4 bg-slate-200 rounded w-16" />
+                        <div className="h-4 bg-slate-200 rounded w-20" />
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] md:text-[11px] font-medium bg-blue-50 text-blue-600 uppercase">
-                        {p.usuarios?.rol?.rol || "Usuario"}
-                      </span>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] md:text-[11px] font-medium bg-cyan-50 text-cyan-600">
-                        {p.puesto?.puesto || "Sin puesto"}
-                      </span>
-                    </div>
-                    {p.especialidad && (
-                      <div className="text-[10px] md:text-[11px] text-slate-500 flex items-center gap-1 mt-1">
-                        <Icon name="medical_services" size={12} /> {p.especialidad.especialidad}
+                      <div className="h-3 bg-slate-100 rounded w-24 mt-1.5" />
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="h-4 bg-slate-200 rounded w-16" />
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="h-3 bg-slate-200 rounded w-20" />
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      <div className="inline-block h-5 bg-slate-200 rounded-full w-16" />
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-slate-100" />
+                        <div className="w-8 h-8 rounded-lg bg-slate-100" />
+                        <div className="w-8 h-8 rounded-lg bg-slate-100" />
                       </div>
-                    )}
-                  </td>
-                  <td className="px-5 py-4 text-slate-700">
-                    {p.num_colegiatura || "-"}
-                  </td>
-                  <td className="px-5 py-4 text-slate-500 text-[10px] md:text-[11px]">
-                    {new Date(p.created_at).toLocaleDateString("es-ES", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric"
-                    })}
-                  </td>
-                  <td className="px-5 py-4 text-center">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-[10px] md:text-[11px] font-semibold rounded-full ${
-                      p.usuarios?.activo ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${p.usuarios?.activo ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                      {p.usuarios?.activo ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleToggleEstado(p.usuario_id, Boolean(p.usuarios?.activo))}
-                        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-                          p.usuarios?.activo
-                            ? "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
-                            : "text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
-                        }`}
-                        title={p.usuarios?.activo ? "Desactivar empleado" : "Activar empleado"}
-                      >
-                        <Icon name={p.usuarios?.activo ? "block" : "check_circle"} size={16} />
-                      </button>
-                      <button
-                        onClick={() => openModal(p)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition-colors"
-                        title="Editar"
-                      >
-                        <Icon name="edit" size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(p.usuario_id)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        title="Eliminar"
-                      >
-                        <Icon name="delete" size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {initialData.length === 0 && (
+                    </td>
+                  </tr>
+                ))
+              ) : personalData.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center text-[13px] md:text-sm text-slate-500">
                     No se encontró personal con los filtros seleccionados
                   </td>
                 </tr>
+              ) : (
+                personalData.map((p) => (
+                  <tr key={p.usuario_id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+                          <Icon name="person" size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-700 truncate">{p.nombre} {p.apellido}</p>
+                          <p className="text-[12px] text-slate-500 truncate">{p.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] md:text-[11px] font-medium bg-blue-50 text-blue-600 uppercase">
+                          {p.usuarios?.rol?.rol || "Usuario"}
+                        </span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] md:text-[11px] font-medium bg-cyan-50 text-cyan-600">
+                          {p.puesto?.puesto || "Sin puesto"}
+                        </span>
+                      </div>
+                      {p.especialidad && (
+                        <div className="text-[10px] md:text-[11px] text-slate-500 flex items-center gap-1 mt-1">
+                          <Icon name="medical_services" size={12} /> {p.especialidad.especialidad}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-slate-700">
+                      {p.num_colegiatura || "-"}
+                    </td>
+                    <td className="px-5 py-4 text-slate-500 text-[10px] md:text-[11px]">
+                      {new Date(p.created_at).toLocaleDateString("es-ES", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric"
+                      })}
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-[10px] md:text-[11px] font-semibold rounded-full ${
+                        p.usuarios?.activo ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${p.usuarios?.activo ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                        {p.usuarios?.activo ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleToggleEstado(p.usuario_id, Boolean(p.usuarios?.activo))}
+                          className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                            p.usuarios?.activo
+                              ? "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
+                              : "text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
+                          }`}
+                          title={p.usuarios?.activo ? "Desactivar empleado" : "Activar empleado"}
+                        >
+                          <Icon name={p.usuarios?.activo ? "block" : "check_circle"} size={16} />
+                        </button>
+                        <button
+                          onClick={() => openModal(p)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition-colors"
+                          title="Editar"
+                        >
+                          <Icon name="edit" size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p.usuario_id)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          title="Eliminar"
+                        >
+                          <Icon name="delete" size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -570,10 +744,24 @@ export default function PersonalClient({
             pantalla) — en md+ el nav está oculto así que ahí no hace falta. */}
         <div className="md:hidden flex-1 min-h-0 overflow-y-auto no-scrollbar bg-slate-50 p-3 flex flex-col">
           <div className="flex flex-col gap-3">
-            {initialData.length === 0 ? (
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={`skeleton-card-${i}`} className="bg-white rounded-xl border border-slate-200 p-4 animate-pulse flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-slate-200 shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-4 bg-slate-200 rounded w-3/4" />
+                      <div className="h-3 bg-slate-100 rounded w-1/2" />
+                    </div>
+                  </div>
+                  <div className="h-4 bg-slate-100 rounded w-2/3" />
+                  <div className="h-3 bg-slate-100 rounded w-1/3" />
+                </div>
+              ))
+            ) : personalData.length === 0 ? (
               <p className="text-center text-[13px] text-slate-400 py-10">No se encontró personal con los filtros seleccionados</p>
             ) : (
-              initialData.map((p) => (
+              personalData.map((p) => (
                 <div key={p.usuario_id} className="bg-white rounded-xl border border-slate-200 flex flex-col">
                   <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100">
                     <span className="text-[11px] font-semibold text-slate-400">#{p.usuario_id.slice(0, 8)}</span>
@@ -657,29 +845,30 @@ export default function PersonalClient({
               blur sutil del fondo translúcido. mt-3 arriba + sticky bottom-0
               (que respeta el p-3 del contenedor) = mismo espacio a ambos
               lados de la píldora. */}
-          {totalPages > 1 && (
+          {pages > 1 && (
             <div className="mt-3 sticky bottom-0 self-center z-10 flex items-center gap-1 bg-white/70 backdrop-blur-md border border-slate-200 rounded-full shadow-lg px-1.5 py-1.5">
               <button
-                disabled={currentPage === 1}
-                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={page === 1 || isLoading}
+                onClick={() => handlePageChange(page - 1)}
                 className="w-7 h-7 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Icon name="chevron_left" size={16} />
               </button>
-              {getMobilePageWindow(currentPage, totalPages).map((p) => (
+              {getMobilePageWindow(page, pages).map((p) => (
                 <button
                   key={p}
+                  disabled={isLoading}
                   onClick={() => handlePageChange(p)}
                   className={`w-7 h-7 rounded-full text-[12px] font-semibold transition-colors ${
-                    p === currentPage ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                    p === page ? "bg-cyan-600 text-white" : "text-slate-600 hover:bg-slate-100"
                   }`}
                 >
                   {p}
                 </button>
               ))}
               <button
-                disabled={currentPage === totalPages}
-                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={page === pages || isLoading}
+                onClick={() => handlePageChange(page + 1)}
                 className="w-7 h-7 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Icon name="chevron_right" size={16} />
@@ -692,29 +881,30 @@ export default function PersonalClient({
             propio que la envuelva, patrón "Anterior / 1 2 3 ... / Siguiente".
             En mobile se oculta: ahí la paginación es la píldora flotante
             dentro de la lista de tarjetas (ver más arriba). */}
-        {initialCount > 0 && (
+        {totalCount > 0 && (
           <div className="hidden sm:flex shrink-0 items-center justify-between gap-3 px-4 sm:px-6 py-3 flex-wrap border-t border-slate-200">
             <span className="text-[12.5px] text-slate-500 whitespace-nowrap">
-              Página {currentPage} de {totalPages}
+              Página {page} de {pages} ({totalCount} {totalCount === 1 ? "empleado" : "empleados"})
             </span>
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               <button
-                disabled={currentPage === 1}
-                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={page === 1 || isLoading}
+                onClick={() => handlePageChange(page - 1)}
                 className="shrink-0 flex items-center gap-1 h-8 px-2.5 rounded-lg border border-slate-200 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Icon name="chevron_left" size={16} />
                 <span className="hidden sm:inline">Anterior</span>
               </button>
-              {getPageNumbers(currentPage, totalPages).map((p, i) =>
+              {getPageNumbers(page, pages).map((p, i) =>
                 p === "..." ? (
                   <span key={`ellipsis-${i}`} className="shrink-0 w-8 h-8 flex items-center justify-center text-[12.5px] text-slate-400">…</span>
                 ) : (
                   <button
                     key={p}
+                    disabled={isLoading}
                     onClick={() => handlePageChange(p)}
                     className={`shrink-0 w-8 h-8 rounded-lg text-[12.5px] font-semibold transition-colors ${
-                      p === currentPage ? "bg-slate-100 text-slate-800" : "text-slate-600 hover:bg-slate-50 border border-slate-200"
+                      p === page ? "bg-slate-100 text-slate-800" : "text-slate-600 hover:bg-slate-50 border border-slate-200"
                     }`}
                   >
                     {p}
@@ -722,8 +912,8 @@ export default function PersonalClient({
                 )
               )}
               <button
-                disabled={currentPage === totalPages}
-                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={page === pages || isLoading}
+                onClick={() => handlePageChange(page + 1)}
                 className="shrink-0 flex items-center gap-1 h-8 px-2.5 rounded-lg border border-slate-200 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="hidden sm:inline">Siguiente</span>

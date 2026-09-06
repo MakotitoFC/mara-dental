@@ -41,6 +41,14 @@ export async function getFiltrosPersonalAction() {
   };
 }
 
+function normalizeText(text: string): string {
+  return (text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export async function getPersonalAction({
   page = 1,
   limit = 20,
@@ -80,6 +88,46 @@ export async function getPersonalAction({
     targetSedeId = currentUserProfile.sede_id; // Por defecto la suya si no seleccionó
   }
 
+  // Búsqueda inteligente por nombre+apellido, apellido+nombre, email y términos múltiples
+  let matchingUserIds: string[] | null = null;
+  if (search && search.trim()) {
+    const qNorm = normalizeText(search);
+    const terms = qNorm.split(/\s+/).filter(Boolean);
+
+    const adminClient = getAdminClient();
+    let qPersonal = adminClient
+      .from("personal")
+      .select("usuario_id, nombre, apellido, email, usuarios!inner(sede_id)");
+    if (targetSedeId) {
+      qPersonal = qPersonal.eq("usuarios.sede_id", targetSedeId);
+    }
+    const { data: allPersonal } = await qPersonal;
+
+    const matched = (allPersonal || []).filter((p: any) => {
+      const nom = normalizeText(p.nombre);
+      const ape = normalizeText(p.apellido);
+      const mail = normalizeText(p.email);
+      const nomApe = `${nom} ${ape}`;
+      const apeNom = `${ape} ${nom}`;
+
+      if (nomApe.includes(qNorm) || apeNom.includes(qNorm) || mail.includes(qNorm)) {
+        return true;
+      }
+      return terms.length > 0 && terms.every(
+        (t) => nomApe.includes(t) || apeNom.includes(t) || mail.includes(t)
+      );
+    });
+
+    matchingUserIds = matched.map((m: any) => m.usuario_id);
+    if (matchingUserIds.length === 0) {
+      return {
+        data: [],
+        count: 0,
+        totalPages: 0,
+      };
+    }
+  }
+
   // Query base
   let query = supabase
     .from("personal")
@@ -117,9 +165,8 @@ export async function getPersonalAction({
     query = query.eq("usuarios.activo", activo);
   }
 
-  if (search.trim()) {
-    const s = `%${search.trim()}%`;
-    query = query.or(`nombre.ilike.${s},apellido.ilike.${s}`);
+  if (matchingUserIds !== null) {
+    query = query.in("usuario_id", matchingUserIds);
   }
 
   // Paginación
@@ -177,6 +224,44 @@ export async function getPersonalCountsAction({
     targetSedeId = currentUserProfile.sede_id;
   }
 
+  let matchingUserIds: string[] | null = null;
+  if (search && search.trim()) {
+    const qNorm = normalizeText(search);
+    const terms = qNorm.split(/\s+/).filter(Boolean);
+
+    const adminClient = getAdminClient();
+    let qPersonal = adminClient
+      .from("personal")
+      .select("usuario_id, nombre, apellido, email, usuarios!inner(sede_id)");
+    if (targetSedeId) {
+      qPersonal = qPersonal.eq("usuarios.sede_id", targetSedeId);
+    }
+    const { data: allPersonal } = await qPersonal;
+
+    const matched = (allPersonal || []).filter((p: any) => {
+      const nom = normalizeText(p.nombre);
+      const ape = normalizeText(p.apellido);
+      const mail = normalizeText(p.email);
+      const nomApe = `${nom} ${ape}`;
+      const apeNom = `${ape} ${nom}`;
+
+      if (nomApe.includes(qNorm) || apeNom.includes(qNorm) || mail.includes(qNorm)) {
+        return true;
+      }
+      return terms.length > 0 && terms.every(
+        (t) => nomApe.includes(t) || apeNom.includes(t) || mail.includes(t)
+      );
+    });
+
+    matchingUserIds = matched.map((m: any) => m.usuario_id);
+    if (matchingUserIds.length === 0) {
+      return {
+        activos: 0,
+        inactivos: 0,
+      };
+    }
+  }
+
   function baseQuery(activo: boolean) {
     let q = supabase
       .from("personal")
@@ -186,9 +271,8 @@ export async function getPersonalCountsAction({
     if (especialidadId) q = q.eq("especialidad_id", especialidadId);
     if (puestoId) q = q.eq("puesto_id", puestoId);
     if (rolId) q = q.eq("usuarios.rol_id", rolId);
-    if (search.trim()) {
-      const s = `%${search.trim()}%`;
-      q = q.or(`nombre.ilike.${s},apellido.ilike.${s}`);
+    if (matchingUserIds !== null) {
+      q = q.in("usuario_id", matchingUserIds);
     }
     return q;
   }
