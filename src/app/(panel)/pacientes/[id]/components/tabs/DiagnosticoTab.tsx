@@ -225,13 +225,14 @@ function ResumenRegistrado({ done, detalles }: { done: boolean[]; detalles: stri
   );
 }
 
-export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, onFinalizarConsulta }: {
+export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, onFinalizarConsulta, onNavigateTab }: {
   paciente: any;
   consultaId?: string | null;
   data: any;
   loading: boolean;
   refetch: () => void;
   onFinalizarConsulta?: () => void;
+  onNavigateTab?: (tab: string) => void;
 }) {
   const pacienteId = String(paciente.id);
   const [planItems, setPlanItems] = useState<{ estado: string }[] | null>(null);
@@ -292,32 +293,14 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
       const list = await getDiagnosticosPacienteAction(String(pacienteId));
       const safeList = list || [];
 
-      // `historialPaciente`/`detalleMap`/`selectedId` se actualizan juntos al
-      // final — si `historialPaciente` se marcaba antes de tener el detalle
-      // listo, había un render intermedio con la lista ya poblada pero
-      // `selectedId` todavía apuntando a nada, y por un instante se mostraba
-      // el aviso de "sin diagnósticos" en vez del registro actual (el más
-      // reciente, que debe verse seleccionado por defecto).
+      setHistorialPaciente(safeList);
       if (safeList.length > 0) {
-        const entries = await Promise.all(
-          safeList.map(async (d: any) => {
-            const [tratamientos, recomendaciones, recetas] = await Promise.all([
-              getTratamientosAction(String(d.id)),
-              getRecomendacionesConsultaAction(String(d.consulta_id)),
-              getRecetasAction(String(d.id)),
-            ]);
-            return [String(d.id), { tratamientos, recomendaciones, recetas }] as const;
-          })
-        );
-        setHistorialPaciente(safeList);
-        setDetalleMap(Object.fromEntries(entries));
         setSelectedId((prev) =>
           prev && safeList.some((d: any) => String(d.id) === prev)
             ? prev
             : String(safeList[0].id)
         );
       } else {
-        setHistorialPaciente(safeList);
         setDetalleMap({});
         setSelectedId(null);
       }
@@ -332,6 +315,37 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
   useEffect(() => {
     fetchHistorialPaciente();
   }, [fetchHistorialPaciente]);
+
+  // Carga bajo demanda de los detalles (tratamientos, recomendaciones, recetas) solo del diagnóstico seleccionado
+  useEffect(() => {
+    if (!selectedId || !historialPaciente || historialPaciente.length === 0) return;
+    if (detalleMap[selectedId]) return; // Ya en caché
+
+    let cancelado = false;
+    const diagSel = historialPaciente.find((d) => String(d.id) === selectedId);
+    const cId = diagSel?.consulta_id ? String(diagSel.consulta_id) : null;
+
+    async function cargarDetalle() {
+      try {
+        const [tratamientos, recomendaciones, recetas] = await Promise.all([
+          getTratamientosAction(selectedId!),
+          cId ? getRecomendacionesConsultaAction(cId) : Promise.resolve([]),
+          getRecetasAction(selectedId!),
+        ]);
+        if (!cancelado) {
+          setDetalleMap((prev) => ({
+            ...prev,
+            [selectedId!]: { tratamientos, recomendaciones, recetas },
+          }));
+        }
+      } catch (err) {
+        console.error("Error cargando detalle del diagnóstico:", err);
+      }
+    }
+
+    cargarDetalle();
+    return () => { cancelado = true; };
+  }, [selectedId, historialPaciente, detalleMap]);
 
   if (!consultaId) {
     if (historialPaciente === null) return <DiagnosticoSkeleton />;
@@ -471,6 +485,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                     doctorNombre={seleccionado.doctor_nombre ?? "Doctor"}
                     diagnosticoTexto={seleccionado.diagnostico_texto ?? ""}
                     onSaved={fetchHistorialPaciente}
+                    onNavigateTab={onNavigateTab}
                   />
                 </>
               ) : (
@@ -761,6 +776,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                 doctorNombre={data.consulta?.doctor_nombre ?? "Doctor"}
                 diagnosticoTexto={actual.diagnostico_texto ?? ""}
                 onSaved={refetch}
+                onNavigateTab={onNavigateTab}
               />
             )
           )}

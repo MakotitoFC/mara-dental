@@ -37,6 +37,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+#Local files
 bd-new.md
 bd-old.md
 seed-data.md
@@ -49,3 +51,4 @@ database.sqlite
 /test-*
 /check*
 /plan_*
+telegram*

@@ -325,7 +325,9 @@ export async function getDiagnosticosPacienteAction(pacienteId: string) {
       cie10(id, codigo, descripcion),
       archivos_clinicos ( id, nombre_archivo, url, tipo_archivo_id, categoria, fecha_subida, tam_bytes, anotaciones, tipo_archivo (id, tipo_archivo) ),
       nota_clinica!inner ( historia_clinica!inner ( paciente_id ) ),
-      consultas!consulta_origen_id ( usuarios ( personal ( nombre, apellido, url_firma_digital, num_colegiatura, especialidad ( especialidad ) ) ) )
+      consultas!consulta_origen_id ( usuarios ( personal ( nombre, apellido, url_firma_digital, num_colegiatura, especialidad ( especialidad ) ) ) ),
+      tratamiento ( id ),
+      recetas ( id )
     `)
     .eq("nota_clinica.historia_clinica.paciente_id", pacienteId)
     .order("fecha_deteccion", { ascending: false });
@@ -384,6 +386,8 @@ export async function getDiagnosticosPacienteAction(pacienteId: string) {
         cie10: d.cie10,
         doctor_nombre,
         archivos: await procesarArchivos(d.archivos_clinicos || [], personalInfo),
+        tratamientos_count: (d.tratamiento || []).length,
+        recetas_count: (d.recetas || []).length,
       };
     })
   );
