@@ -13,7 +13,7 @@ import { useSnapDrag } from "@/lib/hooks/useSnapDrag";
 import { calcEdad } from "@/lib/date-utils";
 import {
   esc, buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, wrapDocument, fmtGenerado, shortCode,
-  downloadHtmlAsPaginatedPdf, printHtml, type ClinicaInfo,
+  downloadHtmlAsPaginatedPdf, generatePaginatedPdfBlob, printHtml, type ClinicaInfo,
 } from "@/lib/reportExport";
 import {
   saveRecetaAction,
@@ -66,17 +66,59 @@ interface SectionProps {
   doctorNombre: string;
   diagnosticoTexto: string;
   onSaved?: () => void;
+  onNavigateTab?: (tab: string) => void;
   /** El rótulo queda fijo y solo el listado de registros scrollea (uso en el modal mobile). */
   scrollBody?: boolean;
 }
 
 export function RecetaSection(props: SectionProps) {
-  const { diagnosticoId, pacienteId, initial, enabled = true, pacienteNombre, telefono, dni, pacienteFechaNacimiento, alergias, doctorNombre, diagnosticoTexto, onSaved, scrollBody = false } = props;
+  const { diagnosticoId, pacienteId, initial, enabled = true, pacienteNombre, telefono, dni, pacienteFechaNacimiento, alergias, doctorNombre, diagnosticoTexto, onSaved, onNavigateTab, scrollBody = false } = props;
   const [recetas, setRecetas] = useState<Receta[]>(initial || []);
   const [showModal, setShowModal] = useState(false);
   const [sede, setSede] = useState<ClinicaInfo | null>(null);
   const [firmante, setFirmante] = useState<any | null>(null);
   const edad = pacienteFechaNacimiento ? calcEdad(pacienteFechaNacimiento) : null;
+  const toast = useToast();
+  const confirm = useConfirm();
+
+  async function handleSendViaChat(d: DocData) {
+    const clinica = d.clinica ?? sede;
+    (window as any).__loadingTelegramAttachment = true;
+    (window as any).__autoSendPending = false;
+
+    if (onNavigateTab) {
+      onNavigateTab("chat");
+    }
+
+    try {
+      const html = buildRecetaHtml({ ...d, clinica });
+      const blob = await generatePaginatedPdfBlob(html, 800, { clinica, docLabel: "Receta Médica Odontológica" });
+      const cleanName = (d.pacienteNombre || "Paciente").replace(/\s+/g, "_");
+      const filename = `Receta_${cleanName}_${d.fecha || new Date().toISOString().split("T")[0]}.pdf`;
+      const pdfFile = new File([blob], filename, { type: "application/pdf" });
+
+      const caption = `🦷 Receta médica odontológica emitida por Dr. ${d.doctorNombre || "Doctor"} para ${d.pacienteNombre || "el paciente"}.`;
+
+      (window as any).__pendingTelegramFile = pdfFile;
+      (window as any).__pendingTelegramCaption = caption;
+      (window as any).__loadingTelegramAttachment = false;
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("telegram_attachment_ready", {
+            detail: { file: pdfFile, caption },
+          })
+        );
+      }
+    } catch (err) {
+      console.error("Error generando PDF de receta:", err);
+      (window as any).__loadingTelegramAttachment = false;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("telegram_attachment_error"));
+      }
+      toast.error("No se pudo generar el archivo PDF de la receta.");
+    }
+  }
 
   useEffect(() => {
     setRecetas(initial || []);
@@ -86,9 +128,6 @@ export function RecetaSection(props: SectionProps) {
     getSedeInfoAction().then(setSede).catch(() => {});
     getPerfilProfesionalAction().then(setFirmante).catch(() => {});
   }, []);
-
-  const toast = useToast();
-  const confirm = useConfirm();
 
   async function handleToggleEstado(r: Receta) {
     const newEst = r.estado === "activa" ? "cancelada" : "activa";
@@ -102,7 +141,7 @@ export function RecetaSection(props: SectionProps) {
 
   async function handleDeleteMed(medId: number) {
     const ok = await confirm({
-      title: "¿Quitar medicamento? ",
+      title: "¿Quitar medicamento?",
       message: "El medicamento será removido de esta receta médica.",
       confirmLabel: "Sí, quitar",
     });
@@ -114,29 +153,29 @@ export function RecetaSection(props: SectionProps) {
   }
 
   return (
- <motion.div variants={fadeIn} initial="hidden" animate="visible" className={`bg-white rounded-2xl border relative ${scrollBody ? "flex flex-col h-full overflow-hidden" : ""} ${enabled ? "border-slate-200" : "border-slate-200 opacity-60"}`}>
+    <motion.div variants={fadeIn} initial="hidden" animate="visible" className={`bg-white rounded-2xl border relative ${scrollBody ? "flex flex-col h-full overflow-hidden" : ""} ${enabled ? "border-slate-200" : "border-slate-200 opacity-60"}`}>
       {!enabled && (
- <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2 rounded-2xl">
- <Icon name="lock" size={22} className="text-slate-400"/>
- <p className="text-[12px] font-semibold text-slate-500">Disponible con diagnóstico definitivo</p>
+        <div className="absolute inset-0 z-10 bg-white/70 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2 rounded-2xl">
+          <Icon name="lock" size={22} className="text-slate-400"/>
+          <p className="text-[12px] font-semibold text-slate-500">Disponible con diagnóstico definitivo</p>
         </div>
       )}
- <div className={`${scrollBody ? "shrink-0" : ""} flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100`}>
+      <div className={`${scrollBody ? "shrink-0" : ""} flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100`}>
         <div className="flex items-center gap-2">
- <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
             <Icon name="medication" size={18} />
           </div>
- <h2 className="text-[14px] font-semibold text-slate-800">Recetas médicas</h2>
+          <h2 className="text-[14px] font-semibold text-slate-800">Recetas médicas</h2>
         </div>
         <button onClick={() => enabled && setShowModal(true)} disabled={!enabled}
- className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-cyan-200 text-[12px] font-semibold text-cyan-600 hover:bg-cyan-50 disabled:opacity-40 transition-colors">
+          className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-cyan-200 text-[12px] font-semibold text-cyan-600 hover:bg-cyan-50 disabled:opacity-40 transition-colors">
           <Icon name="add" size={16} /> Nueva receta
         </button>
       </div>
 
       <div className={`p-5 flex flex-col gap-4 ${scrollBody ? "flex-1 min-h-0 overflow-y-auto no-scrollbar" : ""}`}>
         {recetas.length === 0 ? (
- <div className="py-8 text-center text-slate-400">
+          <div className="py-8 text-center text-slate-400">
             <Icon name="medication" size={28} className="opacity-30 mx-auto mb-2" />
             <p className="text-[12px]">Sin recetas emitidas</p>
           </div>
@@ -159,7 +198,7 @@ export function RecetaSection(props: SectionProps) {
                     doctorNombre={doctorNombre}
                     onDownload={() => handleDownloadPdf(docData, sede)}
                     onPrint={() => handlePrint(docData)}
-                    onSend={() => window.open(buildTelegramLink(docData), "_blank")}
+                    onSend={() => handleSendViaChat(docData)}
                     onToggleEstado={() => handleToggleEstado(r)}
                     onDeleteMed={() => handleDeleteMed(m.id)}
                     showManage
@@ -190,6 +229,7 @@ export function RecetaSection(props: SectionProps) {
             diagnosticoTexto={diagnosticoTexto}
             onClose={() => setShowModal(false)}
             onSaved={onSaved}
+            onSendViaChat={handleSendViaChat}
           />
         )}
       </AnimatePresence>
@@ -419,13 +459,14 @@ export async function handleDownloadPdf(d: DocData, sede: ClinicaInfo | null) {
 function RecetaModal({
   diagnosticoId, pacienteId, pacienteNombre, telefono, dni, edad, alergias,
   doctorNombre, doctorEspecialidad, doctorNumColegiatura, doctorFirmaUrl, clinica,
-  diagnosticoTexto, onClose, onSaved,
+  diagnosticoTexto, onClose, onSaved, onSendViaChat,
 }: {
   diagnosticoId: string; pacienteId: string; pacienteNombre: string; telefono: string; dni: string;
   edad?: number | null; alergias?: string[];
   doctorNombre: string; doctorEspecialidad?: string | null; doctorNumColegiatura?: string | null; doctorFirmaUrl?: string | null;
   clinica?: ClinicaInfo | null;
   diagnosticoTexto: string; onClose: () => void; onSaved?: () => void;
+  onSendViaChat?: (d: DocData) => void;
 }) {
   useBodyScrollLock();
   // Sin snap points (alto natural según contenido, como el resto de sheets
@@ -601,11 +642,23 @@ function RecetaModal({
  className="hidden sm:flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-xl text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
           <Icon name="print" size={14} /> Imprimir PDF
         </button>
-        <a href={canSave ? telegramLink : undefined} target="_blank" rel="noreferrer"
-          onClick={canSave ? (e) => { e.preventDefault(); guardar().then(ok => { if (ok) { window.open(telegramLink, "_blank"); onSaved?.(); onClose(); } }); } : (e) => e.preventDefault()}
- className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium transition-colors ${canSave ? "bg-[color:var(--telegram-blue)] hover:bg-[color:var(--telegram-blue-hover)] text-white" : "bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none"}`}>
+        <button
+          onClick={() => {
+            if (canSave) {
+              guardar().then(ok => {
+                if (ok) {
+                  onSaved?.();
+                  onClose();
+                  onSendViaChat?.(previewData);
+                }
+              });
+            }
+          }}
+          disabled={!canSave}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-medium transition-colors ${canSave ? "bg-[color:var(--telegram-blue)] hover:bg-[color:var(--telegram-blue-hover)] text-white" : "bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none"}`}
+        >
           <Icon name="send" size={14} /> Telegram
-        </a>
+        </button>
       </div>
     </div>
   );

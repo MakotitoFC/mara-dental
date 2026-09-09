@@ -157,8 +157,8 @@ const ESTADO_CITA_CFG: Record<string, { label: string; bg: string; text: string 
 };
 
 function duracionMin(inicio: string, fin: string): number | null {
-  const [h1, m1] = inicio.split(" : ").map(Number);
-  const [h2, m2] = fin.split(" : ").map(Number);
+  const [h1, m1] = (inicio || "").trim().split(/\s*:\s*/).map(Number);
+  const [h2, m2] = (fin || "").trim().split(/\s*:\s*/).map(Number);
   if ([h1, m1, h2, m2].some((n) => Number.isNaN(n))) return null;
   const diff = h2 * 60 + m2 - (h1 * 60 + m1);
   return diff > 0 ? diff : null;

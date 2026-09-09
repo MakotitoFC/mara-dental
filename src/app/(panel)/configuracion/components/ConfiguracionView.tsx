@@ -228,8 +228,8 @@ function initialsDoctor(nombre: string, apellido: string) {
 }
 
 function toMinutos(hora: string) {
-  const [h, m] = hora.split(" : ").map(Number);
-  return h * 60 + m;
+  const [h, m] = (hora || "").trim().split(/\s*:\s*/).map(Number);
+  return (h || 0) * 60 + (m || 0);
 }
 function fmtHora(minutos: number) {
   const h = Math.floor(minutos / 60);

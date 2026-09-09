@@ -16,6 +16,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [loadingAttachment, setLoadingAttachment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
@@ -23,34 +24,48 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
   useEffect(() => {
     fetchData();
 
+    // Nombre de canal único por paciente para evitar colisiones
+    const channelName = `chat_tab_${pacienteId}`;
     const channel = supabase
-      .channel("messages_changes")
+      .channel(channelName)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        { event: "INSERT", schema: "public", table: "messages", filter: `paciente_id=eq.${pacienteId}` },
         (payload) => {
-          if (payload.new.paciente_id !== pacienteId) return;
+          const newMsg = payload.new;
+          if (!newMsg || newMsg.paciente_id !== pacienteId) return;
 
           setMessages((prev) => {
-            if (prev.some(m => m.id === payload.new.id)) return prev;
-            return [...prev, payload.new];
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
           });
           
-          setPaciente((prev: any) => prev && !prev.telegram_chat_id ? { ...prev, telegram_chat_id: "linked" } : prev);
+          setPaciente((prev: any) => (prev && !prev.telegram_chat_id ? { ...prev, telegram_chat_id: "linked" } : prev));
           
           setTimeout(scrollToBottom, 100);
 
-          if (payload.new.direction === "inbound" && !payload.new.is_read) {
-            supabase.from("messages").update({ is_read: true }).eq("id", payload.new.id).then();
+          if (newMsg.direction === "inbound" && !newMsg.is_read) {
+            supabase.from("messages").update({ is_read: true }).eq("id", newMsg.id).then();
           }
         }
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "pacientes" },
+        { event: "UPDATE", schema: "public", table: "pacientes", filter: `id=eq.${pacienteId}` },
         (payload) => {
-          if (payload.new.id === pacienteId) {
+          if (payload.new && payload.new.id === pacienteId) {
             setPaciente((prev: any) => ({ ...prev, ...payload.new }));
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages", filter: `paciente_id=eq.${pacienteId}` },
+        (payload) => {
+          if (payload.new) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === payload.new.id ? { ...m, ...payload.new } : m))
+            );
           }
         }
       )
@@ -61,13 +76,88 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
     };
   }, [pacienteId]);
 
+  // Sondeo automático de respaldo: verifica vinculación e ingreso de nuevos mensajes en tiempo real
   useEffect(() => {
+    const isLinked = !!paciente?.telegram_chat_id;
+    // Si aún no está vinculado, verificar cada 3 segundos para habilitar el chat instantáneamente cuando el paciente conecte
+    const intervalMs = isLinked ? 6000 : 3000;
+
+    const interval = setInterval(async () => {
+      const data = await getChatInfoAction(pacienteId, 0, 20);
+      if (data && data.paciente) {
+        setPaciente((prev: any) => {
+          if (!prev?.telegram_chat_id && data.paciente.telegram_chat_id) {
+            return data.paciente;
+          }
+          return prev ? { ...prev, ...data.paciente } : data.paciente;
+        });
+
+        if (data.messages && data.messages.length > 0) {
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const hasNew = data.messages.some((m: any) => !existingIds.has(m.id));
+            if (!hasNew) return prev;
+
+            const map = new Map();
+            prev.forEach((m) => map.set(m.id, m));
+            data.messages.forEach((m: any) => map.set(m.id, m));
+            const sorted = Array.from(map.values()).sort(
+              (a: any, b: any) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
+            );
+            setTimeout(scrollToBottom, 100);
+            return sorted;
+          });
+        }
+      }
+    }, intervalMs);
+
+    return () => clearInterval(interval);
+  }, [pacienteId, paciente?.telegram_chat_id]);
+
+  useEffect(() => {
+    // Verificar si hay un archivo o carga pendiente proveniente de otra pestaña
     const pendingFile = (window as any).__pendingTelegramFile;
+    const pendingCaption = (window as any).__pendingTelegramCaption || (window as any).__autoSendTelegramMessage || "";
+    const isLoading = (window as any).__loadingTelegramAttachment;
+
     if (pendingFile) {
       setSelectedFile(pendingFile);
+      if (pendingCaption) setText(pendingCaption);
       (window as any).__pendingTelegramFile = null;
+      (window as any).__pendingTelegramCaption = null;
+      (window as any).__autoSendPending = false;
+      (window as any).__autoSendTelegramMessage = null;
+      toast.info("Documento cargado. Puedes agregar un mensaje y presionar Enviar.");
+    } else if (isLoading) {
+      setLoadingAttachment(true);
     }
-  }, []);
+
+    const handleReady = (e: any) => {
+      setLoadingAttachment(false);
+      const { file, caption } = e.detail || {};
+      if (file) {
+        setSelectedFile(file);
+        if (caption) setText(caption);
+        (window as any).__pendingTelegramFile = null;
+        (window as any).__pendingTelegramCaption = null;
+        (window as any).__loadingTelegramAttachment = false;
+        toast.info("Documento cargado. Puedes agregar un mensaje y presionar Enviar.");
+      }
+    };
+
+    const handleError = () => {
+      setLoadingAttachment(false);
+      (window as any).__loadingTelegramAttachment = false;
+    };
+
+    window.addEventListener("telegram_attachment_ready", handleReady);
+    window.addEventListener("telegram_attachment_error", handleError);
+
+    return () => {
+      window.removeEventListener("telegram_attachment_ready", handleReady);
+      window.removeEventListener("telegram_attachment_error", handleError);
+    };
+  }, [pacienteId]);
 
   const [accessDenied, setAccessDenied] = useState(false);
   const [deniedMessage, setDeniedMessage] = useState("");
@@ -132,28 +222,23 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
     toast.success("Enlace copiado al portapapeles");
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!text.trim() && !selectedFile) return;
+  const executeSendMessage = async (fileToSend: File | null, textToSend: string) => {
+    if (!textToSend.trim() && !fileToSend) return;
 
-    const currentText = text;
-    const currentFile = selectedFile;
-    setText("");
-    setSelectedFile(null);
     setSending(true);
 
     // Optimistic UI
     const tempId = `temp-${Date.now()}`;
     const tempMessage = {
       id: tempId,
-      content: currentText,
+      content: textToSend,
       direction: "outbound",
       sent_at: new Date().toISOString(),
       status: "sending",
-      file_name: currentFile?.name,
-      file_type: currentFile?.type,
-      file_size: currentFile?.size,
-      file_url: currentFile ? URL.createObjectURL(currentFile) : null
+      file_name: fileToSend?.name,
+      file_type: fileToSend?.type,
+      file_size: fileToSend?.size,
+      file_url: fileToSend ? URL.createObjectURL(fileToSend) : null
     };
     
     setMessages(prev => [...prev, tempMessage]);
@@ -162,10 +247,10 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
     let fileUrl = undefined;
     let presignedUrl = undefined;
     
-    if (currentFile) {
+    if (fileToSend) {
       const { uploadChatAttachmentAction } = await import("../../chat.actions");
       const formData = new FormData();
-      formData.append("file", currentFile);
+      formData.append("file", fileToSend);
       formData.append("pacienteId", pacienteId);
       const subida = await uploadChatAttachmentAction(formData);
       if (subida.error) {
@@ -180,11 +265,11 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
 
     const res = await sendMessageAction(
       pacienteId, 
-      currentText, 
+      textToSend, 
       fileUrl, 
-      currentFile?.name, 
-      currentFile?.type, 
-      currentFile?.size,
+      fileToSend?.name, 
+      fileToSend?.type, 
+      fileToSend?.size,
       presignedUrl
     );
     
@@ -192,11 +277,23 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
       toast.error(res.error);
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "failed" } : m));
     } else if (res.message) {
-      // Reemplazar mensaje temporal con el real
       setMessages(prev => prev.map(m => m.id === tempId ? res.message : m));
+      toast.success(fileToSend ? "Documento enviado a Telegram con éxito." : "Mensaje enviado.");
     }
     
     setSending(false);
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim() && !selectedFile) return;
+
+    const currentText = text;
+    const currentFile = selectedFile;
+    setText("");
+    setSelectedFile(null);
+
+    await executeSendMessage(currentFile, currentText);
   };
 
   if (loading) {
@@ -356,7 +453,13 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
         <div ref={messagesEndRef} />
       </div>
 
- <div className="p-4 bg-white border-t border-slate-100">
+      <div className="p-4 bg-white border-t border-slate-100">
+        {loadingAttachment && (
+          <div className="mb-3 flex items-center gap-2.5 bg-cyan-50 border border-cyan-200 p-2.5 rounded-xl text-[13px] text-cyan-800 animate-pulse">
+            <div className="w-4 h-4 rounded-full border-2 border-cyan-600 border-t-transparent animate-spin shrink-0" />
+            <span>Generando y cargando documento PDF...</span>
+          </div>
+        )}
         {selectedFile && (
  <div className="mb-3 flex items-center justify-between bg-slate-100 p-2 rounded-lg text-[13px] border border-slate-200">
             <div className="flex items-center gap-2 truncate">

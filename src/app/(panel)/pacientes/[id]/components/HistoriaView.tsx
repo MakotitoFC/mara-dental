@@ -547,6 +547,7 @@ export function HistoriaView({
                 loading={loadingConsulta}
                 refetch={refetchConsultaData}
                 onFinalizarConsulta={finalizarConsultaDirecto}
+                onNavigateTab={(t) => goTo(t as TabKey)}
               />
             )}
             {tab === "archivos" && (

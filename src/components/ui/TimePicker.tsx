@@ -7,9 +7,9 @@ import { SmartPopover } from "./SmartPopover";
 
 function parseHM(v?: string): { h: number; m: number } | null {
   if (!v) return null;
-  const [h, m] = v.split(" : ").map(Number);
-  if (Number.isNaN(h) || Number.isNaN(m)) return null;
-  return { h, m };
+  const parts = v.trim().split(/\s*:\s*/).map(Number);
+  if (parts.length < 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) return null;
+  return { h: parts[0], m: parts[1] };
 }
 
 /** Selector de hora/minutos con diseño propio (el <input type="time"> nativo no se puede estilizar). */
