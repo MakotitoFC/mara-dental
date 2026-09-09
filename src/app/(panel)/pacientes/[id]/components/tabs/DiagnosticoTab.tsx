@@ -163,7 +163,6 @@ const WIZARD_STEPS = [
   { key: "recetas", label: "Recetas", icon: "medication", titulo: "Medicamentos prescritos" },
 ] as const;
 
-/** Franja fija (no scrollea) — ver DiagnosticoTab: se pasa sticky desde afuera. */
 function ConsultaStepper({ step, done, onStepClick }: { step: number; done: boolean[]; onStepClick: (i: number) => void }) {
   // Mismo patrón visual que el stepper de "Nuevo paciente" (NuevoPacienteModal):
   // círculos a flex-1 (ocupan todo el ancho disponible, no un grupo centrado
@@ -649,19 +648,15 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
   return (
     <>
     <div className="h-full flex flex-col gap-4 min-w-0">
-      {/* Wizard — el stepper queda fijo, fuera del scroll interno del paso (ver
-          contenedor de HistoriaView: "diagnosticos" no scrollea a ese nivel,
-          solo lo hace el contenido de abajo). Antes usaba position:sticky
-          DENTRO de un contenedor que sí scrolleaba — funcionaba casi siempre,
-          pero en mobile el compositor puede atrasarse un frame durante scroll
-          rápido y dejar ver el contenido de abajo un instante. Sacarlo del
-          scroll de raíz lo evita de plano. El resumen registrado ya no vive
-          aquí: se muestra en el modal de confirmación al Finalizar. */}
- <div className="shrink-0 bg-slate-50 -mx-3 px-3 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6 pb-2">
-        <ConsultaStepper step={step} done={done} onStepClick={goStep} />
-      </div>
-
       <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col gap-4">
+        {/* Stepper — ya no queda fijo fuera del scroll: pedido explícito de
+            liberar ese espacio en pantalla en todos los tamaños (antes vivía
+            en un contenedor `shrink-0` hermano de este scroll para evitar un
+            parpadeo de `position:sticky` en mobile; ahora scrollea con el
+            resto del paso). El resumen registrado no vive aquí: se muestra
+            en el modal de confirmación al Finalizar. */}
+        <ConsultaStepper step={step} done={done} onStepClick={goStep} />
+
         {/* Título del paso + navegación — fuera de cualquier card (cada
             componente de paso, DiagnosticoForm/TratamientoSection/etc., ya
             trae su propia tarjeta con su propio ícono/subtítulo, así que

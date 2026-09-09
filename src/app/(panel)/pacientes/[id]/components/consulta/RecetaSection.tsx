@@ -141,7 +141,7 @@ export function RecetaSection(props: SectionProps) {
             <p className="text-[12px]">Sin recetas emitidas</p>
           </div>
         ) : (
-          <motion.div variants={staggerContainer()} initial="hidden" animate="visible" className="flex flex-col gap-3">
+          <motion.div variants={staggerContainer()} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {filas.map(({ medicamento: m, receta: r }) => {
               const docData: DocData = {
                 pacienteNombre, doctorNombre, fecha: r.fecha_emision, diagnostico: diagnosticoTexto, medicamentos: r.receta_medicamento,
@@ -239,7 +239,7 @@ export function PrescriptionRow({ medicamento, estado, fechaEmision, doctorNombr
   return (
     <div
       onClick={onView}
- className={`flex rounded-3xl overflow-hidden border border-blue-100 bg-white shadow-sm ${onView ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
+ className={`flex rounded-3xl overflow-hidden border border-slate-200 bg-white shadow-sm ${onView ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
     >
       <div className="flex-1 min-w-0 p-4 sm:p-5 flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">

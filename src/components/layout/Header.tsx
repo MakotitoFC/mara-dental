@@ -9,6 +9,7 @@ import { getAlertasAction, markNotificacionLeidaAction, type AlertasData } from 
 import { createClient } from "@/lib/supabase/client";
 import { GuardedLink } from "./GuardedLink";
 import { useClickOutside } from "@/lib/hooks/useClickOutside";
+import { useToast } from "@/components/ui/Toast";
 
 export interface Breadcrumb {
   label: string;
@@ -63,33 +64,60 @@ function AlertasButton() {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   useClickOutside(containerRef, () => setOpen(false), open);
+  const toast = useToast();
+  // Snapshot de la última respuesta — permite detectar qué es realmente NUEVO
+  // entre un fetch y el siguiente (para disparar el toast solo una vez por
+  // novedad real, no en cada refetch ni en la carga inicial de la página).
+  const prevDataRef = useRef<AlertasData | null>(null);
 
   useEffect(() => {
     setDismissed(readDismissed());
-    
-    const fetchAlertas = () => fetch("/api/alertas", { cache: "no-store" }).then(res => res.json()).then(res => {
+
+    const fetchAlertas = (isInitial: boolean) => fetch("/api/alertas", { cache: "no-store" }).then(res => res.json()).then((res: AlertasData) => {
       globalAlertasCache = res;
       setData(res);
+
+      // Toasts activos para novedades reales — antes solo se actualizaba el
+      // contador de la campana en silencio. Se compara contra el snapshot
+      // anterior, nunca contra el primer fetch (evita bombardear con toasts
+      // de todo lo que ya estaba pendiente al abrir la app).
+      if (!isInitial && prevDataRef.current) {
+        const prev = prevDataRef.current;
+        const prevMsgByPaciente = new Map((prev.mensajesNoLeidos || []).map((m) => [m.pacienteId, m.cantidad]));
+        for (const m of res.mensajesNoLeidos || []) {
+          const prevCantidad = prevMsgByPaciente.get(m.pacienteId) ?? 0;
+          if (m.cantidad > prevCantidad) {
+            toast.info(`${m.cantidad - prevCantidad} mensaje${m.cantidad - prevCantidad > 1 ? "s" : ""} nuevo${m.cantidad - prevCantidad > 1 ? "s" : ""} por Telegram`, { title: m.pacienteNombre });
+          }
+        }
+        const prevNotifIds = new Set((prev.notificacionesSistema || []).map((n) => n.id));
+        for (const n of res.notificacionesSistema || []) {
+          if (!prevNotifIds.has(n.id)) {
+            toast.info(n.mensaje, { title: n.titulo });
+          }
+        }
+      }
+      prevDataRef.current = res;
     }).catch(() => setData({ citasProximas: [], cumpleanos: [], alergias: [], tratamientosPendientes: [], mensajesNoLeidos: [], notificacionesSistema: [] }));
-    
+
     // Fetch inicial
-    fetchAlertas();
+    fetchAlertas(true);
 
     const supabase = createClient();
     const channel = supabase
       .channel("header_alerts_messages")
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => fetchAlertas())
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => fetchAlertas(false))
       .on("postgres_changes", { event: "*", schema: "public", table: "notificaciones" }, (payload) => {
         console.log("[Header] notificaciones postgres_changes: ", payload);
-        fetchAlertas();
+        fetchAlertas(false);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "solicitud_validacion" }, (payload) => {
         console.log("[Header] solicitud_validacion postgres_changes: ", payload);
-        fetchAlertas();
+        fetchAlertas(false);
       })
       .on("broadcast", { event: "NEW_NOTIFICACION" }, (payload) => {
         console.log("[Header] NEW_NOTIFICACION broadcast recibido: ", payload);
-        fetchAlertas();
+        fetchAlertas(false);
       })
       .subscribe((status) => {
         console.log("[Header] Realtime status: ", status);

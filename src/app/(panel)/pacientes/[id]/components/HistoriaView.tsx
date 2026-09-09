@@ -506,16 +506,14 @@ export function HistoriaView({
       )}
 
       {/* ── Contenido — único contenedor con scroll interno de toda la vista del paciente.
-          "diagnosticos" solo es la excepción CON consulta activa: ahí su encabezado
-          (stepper de pasos) queda fijo y solo su contenido interno scrollea (ver
-          DiagnosticoTab). Antes el stepper usaba position:sticky DENTRO de este scroll —
-          funcionaba, pero en mobile el compositor puede "atrasarse" un frame durante
-          scroll rápido y dejar ver el contenido de abajo un instante; sacarlo del scroll
-          de raíz lo evita del todo, no solo lo disimula. Sin consulta activa, "diagnosticos"
-          muestra el historial del paciente (mismo patrón que "presupuestos") y SÍ usa este
-          scroll normal — su contenido (detalle + historial) no tiene una región interna
-          propia que scrollee, así que necesita el scroll de acá para que todo sea
-          alcanzable (antes quedaba con overflow-hidden y el detalle quedaba inalcanzable). ── */}
+          "diagnosticos" solo es la excepción CON consulta activa: ahí maneja su propio
+          scroll interno (ver DiagnosticoTab) — incluyendo el stepper de pasos, que ya no
+          queda fijo arriba, así se libera espacio en pantalla en todos los tamaños. Sin
+          consulta activa, "diagnosticos" muestra el historial del paciente (mismo patrón
+          que "presupuestos") y SÍ usa este scroll normal — su contenido (detalle +
+          historial) no tiene una región interna propia que scrollee, así que necesita el
+          scroll de acá para que todo sea alcanzable (antes quedaba con overflow-hidden y
+          el detalle quedaba inalcanzable). ── */}
       <div
         className={`flex-1 min-h-0 overflow-x-hidden no-scrollbar ${diagnosticoWizardActivo ? "overflow-hidden" : "overflow-y-auto"} ${contentPadding}`}
       >

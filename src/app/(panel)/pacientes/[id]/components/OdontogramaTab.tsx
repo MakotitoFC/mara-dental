@@ -1097,7 +1097,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
           (border-r en desktop, border-b en mobile) es lo único que los separa. */}
       <div className="flex flex-col md:flex-row w-full md:flex-1 md:min-h-0">
 
- <div className="w-full flex flex-col items-center p-6 sm:p-8 border-b md:border-b-0 md:border-r border-slate-200 bg-white md:min-h-0 md:flex-none md:w-[26rem] xl:w-[30rem]">
+ <div className="w-full flex flex-col items-center p-6 sm:p-8 border-b md:border-b-0 md:border-r border-slate-200 bg-white md:min-h-0 md:flex-none md:w-[26rem] xl:w-[30rem] 2xl:w-[36rem]">
           <div className="w-full flex justify-center flex-1 min-h-0">
           <div className="flex w-full gap-6 min-h-0 justify-center">
             {/* DERECHA — convención odontológica: el lado derecho del paciente
@@ -1310,7 +1310,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                 )}
               </div>
 
-              {selectedTeeth.length > 0 && (isCompactViewer ? (
+              {selectedTeeth.length > 0 ? (isCompactViewer ? (
                 <ResponsiveSheet
                   onClose={clearSelection}
                   title="Registro clínico"
@@ -1355,21 +1355,30 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                     )}
                   </div>
                   </>
-              ))}
+              )) : (
+                /* Sin dientes seleccionados: "Continuar a Diagnóstico" debe
+                   verse igual (pedido explícito) — antes solo aparecía junto
+                   al botón Guardar, es decir, recién al elegir un diente. */
+                onNavigateTab && (
+                  <div className="flex items-center justify-end">
+                    <button onClick={() => onNavigateTab("diagnosticos")} className="h-10 shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-4 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[12.5px] font-bold transition-colors border-0">
+                      Continuar a Diagnóstico
+                      <Icon name="chevron_right" size={14} />
+                    </button>
+                  </div>
+                )
+              )}
 
-                  {/* Separador — debajo de Guardar (o del estado vacío), antes del
-                      historial. Solo tiene sentido si el historial de abajo
-                      realmente se muestra (no en consulta activa). */}
- {!isEditable && <div className="border-t border-slate-200"/>}
+                  <div className="border-t border-slate-200"/>
                 </>
               )}
 
-              {/* Historial de Exámenes. No se muestra dentro de una consulta
-                  activa (isEditable), solo al ver el odontograma fuera de ese
-                  flujo. Siempre inline (antes en mobile abría en un bottom
-                  sheet aparte) — listado scrollable dentro de la misma
-                  pestaña, junto con el resto del panel. */}
-              {!isEditable && (
+              {/* Historial de Exámenes — pedido explícito: los registros ya
+                  hechos deben verse también dentro de una consulta activa,
+                  no solo al ver el odontograma fuera de ese flujo. Siempre
+                  inline (antes en mobile abría en un bottom sheet aparte) —
+                  listado scrollable dentro de la misma pestaña, junto con el
+                  resto del panel. */}
               <div className="flex flex-col gap-2.5 md:flex-1 md:min-h-0">
                 <div className="shrink-0 flex items-center justify-between gap-2">
  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Historial de Exámenes</p>
@@ -1435,7 +1444,6 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                   />
                 </div>
               </div>
-              )}
             </div>
         </div>
         </div>
