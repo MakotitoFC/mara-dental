@@ -142,26 +142,29 @@ export function buildLetterheadFooter(opts: { clinica: ClinicaInfo | null; pacie
  * profesional no tiene una firma digital real subida en Configuración, para
  * que el documento no salga con un espacio en blanco encima del nombre. */
 const GENERIC_SIGNATURE_SVG = `
-  <svg width="130" height="42" viewBox="0 0 130 42" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 0 6px auto;">
+  <svg width="170" height="56" viewBox="0 0 130 42" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 6px;">
     <path d="M4 30c8-20 15-20 19-6 3 10 6 10 10-3 4-13 8-13 12 3 3 11 6 11 10-4 3-12 7-12 11 0 3 9 6 9 10-3 3-12 7-12 11 0 2 6 5 6 8-1"
       stroke="#0e7490" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" />
     <path d="M4 34q10 5 20 2" stroke="#0e7490" stroke-width="1.1" fill="none" stroke-linecap="round" opacity="0.5" />
   </svg>
 `;
 
-/** Bloque de firma del profesional — imagen de firma digital si existe; si no,
- * un trazo genérico (no un espacio en blanco) mientras no suba la real desde
- * Configuración; nombre siempre (si hay); especialidad y N° de colegiatura
- * solo si el dato real está disponible. */
+/** Bloque de firma del profesional — imagen de firma digital (SVG subido en
+ * Configuración, sin fondo) si existe; si no, un trazo genérico (no un
+ * espacio en blanco) mientras no suba la real; nombre siempre (si hay);
+ * especialidad y N° de colegiatura solo si el dato real está disponible.
+ * Todo el bloque centrado (imagen, línea divisoria y texto) — antes iba
+ * alineado a la derecha. La imagen se deja bastante más grande que antes
+ * (antes 40px de alto): al ser SVG escala sin perder nitidez. */
 export function buildSignatureBlock(f: FirmanteInfo): string {
   if (!f.nombre) return "";
   return `
-    <div style="text-align:right;">
+    <div style="text-align:center;">
       ${f.firmaUrl
-        ? `<img src="${f.firmaUrl}" style="height:40px;object-fit:contain;margin:0 0 6px auto;display:block;" crossorigin="anonymous" />`
+        ? `<img src="${f.firmaUrl}" style="height:70px;max-width:220px;object-fit:contain;margin:0 auto 6px;display:block;" crossorigin="anonymous" />`
         : GENERIC_SIGNATURE_SVG
       }
-      <div style="height:1px;width:150px;background:#D5D8DC;margin:0 0 6px auto;"></div>
+      <div style="height:1px;width:150px;background:#D5D8DC;margin:0 auto 6px;"></div>
       <div style="font-size:12px;font-weight:800;color:#1A1A2E;">Dr. ${esc(f.nombre)}</div>
       ${f.especialidad ? `<div style="font-size:10.5px;color:#0e7490;font-weight:600;">${esc(f.especialidad)}</div>` : ""}
       ${f.numColegiatura ? `<div style="font-size:9.5px;color:#95A5A6;">C.O.P. ${esc(f.numColegiatura)}</div>` : ""}

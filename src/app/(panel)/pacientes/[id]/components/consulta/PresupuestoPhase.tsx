@@ -173,12 +173,7 @@ function buildPresupuestoHtml(opts: {
       <div style="font-size:10.5px;color:#5D6D7E;line-height:1.6;"><b style="color:#2C3E50;">Condiciones:</b> Este presupuesto tiene validez de 30 días desde la fecha de emisión. El paciente firma en señal de conformidad con el plan de tratamiento propuesto. Cualquier cambio en el plan de tratamiento puede modificar el total.</div>
     </div>
 
-    <div style="padding:32px 28px 24px;display:flex;justify-content:space-between;align-items:flex-end;gap:20px;">
-      <div style="text-align:left;">
-        <div style="height:1px;width:170px;background:#D5D8DC;margin-bottom:6px;"></div>
-        <div style="font-size:11px;font-weight:700;color:#212E3D;">Firma del Paciente</div>
-        ${(opts.pacienteNombre || opts.pacienteDni) ? `<div style="font-size:9.5px;color:#95A5A6;">${esc([opts.pacienteNombre, opts.pacienteDni ? `DNI ${opts.pacienteDni}` : null].filter(Boolean).join(" · "))}</div>` : ""}
-      </div>
+    <div style="padding:32px 28px 24px;display:flex;justify-content:center;">
       ${buildSignatureBlock({ nombre: presupuesto.doctor_nombre, especialidad: presupuesto.doctor_especialidad, numColegiatura: presupuesto.doctor_num_colegiatura, firmaUrl: presupuesto.doctor_firma_url })}
     </div>
   `;

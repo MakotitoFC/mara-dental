@@ -367,6 +367,80 @@ function HorarioSemanaCalendar({ horarios }: { horarios: Record<number, HorarioR
   );
 }
 
+// ─── Firma digital: conversión automática a SVG sin fondo ─────────────────
+// El usuario sube una foto/escaneo normal de su firma (JPG/PNG, con el
+// fondo de la hoja/papel) — acá se procesa en el propio navegador (canvas,
+// sin backend ni librería de vectorizado) para que el archivo final SEA un
+// SVG y no tenga fondo, sin pedirle al doctor que sepa qué es un SVG:
+//  1) Dibuja la imagen en un canvas.
+//  2) Estima el color de fondo promediando las 4 esquinas (asume fondo
+//     razonablemente uniforme, como el papel de una firma escaneada).
+//  3) Vuelve transparente cada píxel parecido a ese color (con un borde
+//     suave, no un corte brusco, para que el trazo no quede dentado).
+//  4) Reexporta el resultado como PNG en base64 y lo envuelve en un <svg>
+//     con <image>, con el viewBox real de la imagen — es un SVG válido
+//     (adaptable a cualquier tamaño vía viewBox) aunque adentro lleve una
+//     imagen ya procesada, no un trazo vectorial puro.
+// Si el archivo elegido YA es un SVG, se usa tal cual (no tiene fondo que
+// quitar ni sentido reprocesar un vector).
+async function convertirFirmaASvgSinFondo(file: File): Promise<File> {
+  if (file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")) {
+    return file;
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("No se pudo leer la imagen"));
+      el.src = objectUrl;
+    });
+
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    if (!w || !h) return file;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const px = imageData.data;
+
+    // Color de fondo estimado: promedio de las 4 esquinas.
+    const corners = [0, (w - 1) * 4, (h - 1) * w * 4, ((h - 1) * w + (w - 1)) * 4];
+    let bgR = 0, bgG = 0, bgB = 0;
+    for (const c of corners) { bgR += px[c]; bgG += px[c + 1]; bgB += px[c + 2]; }
+    bgR /= corners.length; bgG /= corners.length; bgB /= corners.length;
+
+    const LOW = 35, HIGH = 70; // distancia de color: <LOW=transparente, >HIGH=opaco, entre medio=degradado
+    for (let i = 0; i < px.length; i += 4) {
+      const dr = px[i] - bgR, dg = px[i + 1] - bgG, db = px[i + 2] - bgB;
+      const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+      if (dist <= LOW) {
+        px[i + 3] = 0;
+      } else if (dist < HIGH) {
+        px[i + 3] = Math.round(((dist - LOW) / (HIGH - LOW)) * 255);
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+
+    const pngDataUrl = canvas.toDataURL("image/png");
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><image href="${pngDataUrl}" width="${w}" height="${h}" /></svg>`;
+    const svgFileName = file.name.replace(/\.[^.]+$/, "") + ".svg";
+    return new File([svg], svgFileName, { type: "image/svg+xml" });
+  } catch (e) {
+    console.error("Error convirtiendo firma a SVG:", e);
+    return file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, sedes }: {
   perfil: PerfilProfesional | null;
   rol?: string;
@@ -398,6 +472,8 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
   // logo de sede: "Subir" solo abre el selector y previsualiza, "Guardar"
   // recién sube el archivo.
   const [uploadingFirma, setUploadingFirma] = useState(false);
+  const [procesandoFirma, setProcesandoFirma] = useState(false);
+  const [draggingFirma, setDraggingFirma] = useState(false);
   const [pendingFirmaFile, setPendingFirmaFile] = useState<File | null>(null);
   const [firmaPreview, setFirmaPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -629,11 +705,31 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
     router.refresh();
   }
 
-  function handleFirmaFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  async function procesarFirmaFile(file: File | undefined | null) {
     if (!file) return;
-    setPendingFirmaFile(file);
-    setFirmaPreview(URL.createObjectURL(file));
+    if (!file.type.startsWith("image/") && !file.name.toLowerCase().endsWith(".svg")) {
+      toast.error("Selecciona una imagen (foto o escaneo de tu firma)");
+      return;
+    }
+    setProcesandoFirma(true);
+    try {
+      const svgFile = await convertirFirmaASvgSinFondo(file);
+      setPendingFirmaFile(svgFile);
+      setFirmaPreview(URL.createObjectURL(svgFile));
+    } finally {
+      setProcesandoFirma(false);
+    }
+  }
+
+  function handleFirmaFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    procesarFirmaFile(e.target.files?.[0]);
+    e.target.value = "";
+  }
+
+  function handleFirmaDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDraggingFirma(false);
+    procesarFirmaFile(e.dataTransfer.files?.[0]);
   }
 
   async function handleSaveFirma() {
@@ -1004,22 +1100,21 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
     );
   }
 
-  // --- VISTA ADMIN / SUPERADMIN (y roles genéricos como contador, sin
-  // SECCIÓN 2 de sede) ---
-  // Sin esAdminOrSuperadmin no hay SECCIÓN 2 (sede) — la página quedaría con
-  // la tarjeta de "Información Personal" pegada arriba y un vacío enorme
-  // debajo. Se corrige centrando la tarjeta (con su propio ancho máximo,
-  // borde y margen respecto al borde de la pantalla) en el espacio
-  // disponible, en cualquier tamaño de pantalla. Con SECCIÓN 2
-  // (admin/superadmin) se mantiene el layout de siempre, a todo el ancho.
+  // --- VISTA ADMIN / SUPERADMIN / DOCTOR ---
+  // Antes, sin SECCIÓN 2 (sede, solo admin/superadmin), la vista de doctor
+  // centraba la tarjeta en un ancho máximo angosto para evitar que quedara
+  // pegada arriba con un vacío enorme debajo. Ya no aplica: con SECCIÓN 3
+  // (Firma Digital) y SECCIÓN 4 (Horario Profesional) el contenido de
+  // doctor es tan largo como el de admin — se unifica a un solo layout a
+  // todo el ancho para los tres roles.
   return (
-    <div className={esAdminOrSuperadmin ? "flex flex-col gap-6" : "flex flex-col gap-6 h-full items-center justify-center px-4 sm:px-6"}>
+    <div className="flex flex-col gap-6">
 
       {/* SECCIONES 1 y 2: unificadas en una sola hoja/card blanca continua —
           antes eran dos cards independientes con gap-6 entre sí; ahora
           comparten un único contenedor bg-white/border/shadow y se separan
           con un border-t entre ambas (ver SECCIÓN 2 más abajo). */}
-      <div className={esAdminOrSuperadmin ? "bg-white" : "bg-white rounded-2xl border border-slate-200 shadow-sm w-full max-w-2xl"}>
+      <div className="bg-white">
       {/* SECCIÓN 1: DATOS PERSONALES */}
  <div className="p-5">
  <div className="flex items-center justify-between gap-3 mb-4">
@@ -1264,65 +1359,82 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            {perfil?.especialidad && (
+          {/* Info a la izquierda + firma a la derecha, en vez de apilado — a
+              todo el ancho de la página ya no queda sentido dejar la tarjeta
+              de firma sola en una columna angosta con todo el resto vacío. */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {perfil?.especialidad && (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Especialidad</p>
+                  <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil.especialidad}</p>
+                </div>
+              )}
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Especialidad</p>
-                <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil.especialidad}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Email profesional</p>
+                <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.email ?? "—"}</p>
               </div>
-            )}
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Email profesional</p>
-              <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.email ?? "—"}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Teléfono</p>
-              <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.telefono ?? "—"}</p>
-            </div>
-            {perfil?.num_colegiatura && (
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">N.° Colegiatura</p>
-                <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil.num_colegiatura}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Teléfono</p>
+                <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil?.telefono ?? "—"}</p>
               </div>
-            )}
-          </div>
+              {perfil?.num_colegiatura && (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">N.° Colegiatura</p>
+                  <p className="text-[13.5px] text-slate-700 mt-0.5">{perfil.num_colegiatura}</p>
+                </div>
+              )}
+            </div>
 
-          <div className="max-w-sm">
-            <div className="rounded-2xl border border-slate-200 p-4 flex flex-col items-center gap-3">
-              <div className="w-full h-28 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center p-2 overflow-hidden relative">
-                {firmaPreview || perfil?.firma_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={firmaPreview || perfil?.firma_url || undefined} alt="Firma digital" className="max-h-full max-w-full object-contain" />
-                ) : (
-                  <div className="flex flex-col items-center gap-1 text-slate-400">
-                    <Icon name="upload" size={22} />
-                    <span className="text-[11px]">Sin firma registrada</span>
-                  </div>
-                )}
-              </div>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFirmaFileSelect} />
-              <div className="w-full flex items-center gap-2">
-                <button
+            <div>
+              <div className="rounded-2xl border border-slate-200 p-4 flex flex-col items-center gap-3">
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDraggingFirma(true); }}
+                  onDragLeave={() => setDraggingFirma(false)}
+                  onDrop={handleFirmaDrop}
                   onClick={() => fileRef.current?.click()}
-                  disabled={uploadingFirma}
-                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12.5px] font-semibold transition-colors disabled:opacity-50"
+                  className={`w-full h-28 rounded-xl border-2 border-dashed flex items-center justify-center p-2 overflow-hidden relative cursor-pointer transition-colors ${draggingFirma ? "border-cyan-400 bg-cyan-50" : "border-slate-300 bg-slate-50"}`}
                 >
-                  <Icon name="upload" size={16} />
-                  Subir
-                </button>
-                <button
-                  onClick={handleSaveFirma}
-                  disabled={!pendingFirmaFile || uploadingFirma}
-                  className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Icon name="check" size={16} />
-                  {uploadingFirma ? "Guardando…" : "Guardar"}
-                </button>
+                  {procesandoFirma ? (
+                    <div className="flex flex-col items-center gap-1 text-slate-400">
+                      <Icon name="progress_activity" size={22} className="animate-spin" />
+                      <span className="text-[11px]">Procesando firma…</span>
+                    </div>
+                  ) : firmaPreview || perfil?.firma_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={firmaPreview || perfil?.firma_url || undefined} alt="Firma digital" className="max-h-full max-w-full object-contain pointer-events-none" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-slate-400 pointer-events-none">
+                      <Icon name="upload" size={22} />
+                      <span className="text-[11px]">Sin firma registrada</span>
+                      <span className="text-[10px]">Arrastra una imagen o haz clic</span>
+                    </div>
+                  )}
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFirmaFileSelect} />
+                <div className="w-full flex items-center gap-2">
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploadingFirma || procesandoFirma}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12.5px] font-semibold transition-colors disabled:opacity-50"
+                  >
+                    <Icon name="upload" size={16} />
+                    Subir
+                  </button>
+                  <button
+                    onClick={handleSaveFirma}
+                    disabled={!pendingFirmaFile || uploadingFirma || procesandoFirma}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Icon name="check" size={16} />
+                    {uploadingFirma ? "Guardando…" : "Guardar"}
+                  </button>
+                </div>
               </div>
+              <p className="text-[11.5px] text-slate-500 leading-relaxed mt-3">
+                Sube una foto o escaneo de tu firma (o arrástrala aquí) — se convierte automáticamente a SVG sin fondo, lista para usarse en recetas y documentos clínicos.
+              </p>
             </div>
-            <p className="text-[11.5px] text-slate-500 leading-relaxed mt-3">
-              Esta firma se usará en las recetas electrónicas y documentos clínicos emitidos bajo tu perfil profesional.
-            </p>
           </div>
         </div>
       )}

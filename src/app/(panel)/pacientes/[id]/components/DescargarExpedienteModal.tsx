@@ -8,7 +8,7 @@ import { calcEdad } from "@/lib/date-utils";
 import { getExpedienteCompletoAction } from "../actions";
 import { getCasosClinicosAction } from "../casos.actions";
 import {
-  esc, fmtGenerado, buildLetterheadHeader, sectionLabel, wrapDocument,
+  esc, fmtGenerado, buildLetterheadHeader, buildSignatureBlock, sectionLabel, wrapDocument,
   downloadHtmlAsPaginatedPdf, printHtml, type ClinicaInfo,
 } from "@/lib/reportExport";
 
@@ -463,6 +463,10 @@ function buildHistoriaClinicaHtml(data: any, secciones: Secciones): string {
             ` : ""}
 
             ${(secciones.presupuestos && presupuestosHtml) ? `<div style="margin:10px 0 4px;page-break-inside:avoid;break-inside:avoid;">${sectionLabel("Presupuestos de la visita")}</div>${presupuestosHtml}` : ""}
+
+            <div style="margin-top:14px;padding-top:10px;border-top:1px dashed #e2e8f0;display:flex;justify-content:center;page-break-inside:avoid;break-inside:avoid;">
+              ${buildSignatureBlock({ nombre: c.doctor?.replace(/^Dr\.\s*/, ""), especialidad: c.doctorEspecialidad, numColegiatura: c.doctorNumColegiatura, firmaUrl: c.doctorFirmaUrl })}
+            </div>
           </div>
         `;
       }).join("");

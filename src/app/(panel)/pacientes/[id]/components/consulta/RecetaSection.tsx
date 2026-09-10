@@ -439,7 +439,7 @@ function buildRecetaHtml(opts: DocData, includeFooter = false): string {
       ${alergiasHtml}
     </div>
 
-    <div style="padding:28px 28px 24px;display:flex;justify-content:flex-end;">
+    <div style="padding:28px 28px 24px;display:flex;justify-content:center;">
       ${buildSignatureBlock({ nombre: opts.doctorNombre, especialidad: opts.doctorEspecialidad, numColegiatura: opts.doctorNumColegiatura, firmaUrl: opts.doctorFirmaUrl })}
     </div>
   `;

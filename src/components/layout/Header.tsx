@@ -115,6 +115,10 @@ function AlertasButton() {
         console.log("[Header] solicitud_validacion postgres_changes: ", payload);
         fetchAlertas(false);
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "mensajes_telegram" }, (payload) => {
+        console.log("[Header] mensajes_telegram postgres_changes: ", payload);
+        fetchAlertas(false);
+      })
       .on("broadcast", { event: "NEW_NOTIFICACION" }, (payload) => {
         console.log("[Header] NEW_NOTIFICACION broadcast recibido: ", payload);
         fetchAlertas(false);

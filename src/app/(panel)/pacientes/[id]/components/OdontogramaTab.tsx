@@ -563,6 +563,21 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
   const [drafts, setDrafts] = useState<Record<number, ToothDraft>>({});
   const [activeSurfaces, setActiveSurfaces] = useState<Set<Surface>>(new Set());
   const prevSelectedRef = useRef<number[]>([]);
+  // Refs para el botón "bajar al historial" del panel de escritorio: al
+  // elegir un diente, el contenido de Registro Clínico crece y empuja el
+  // Historial fuera de la vista dentro del mismo contenedor con scroll
+  // oculto — este botón hace scroll directo a `historialRef` en vez de
+  // obligar al usuario a descubrir que ese contenedor scrollea.
+  const registroScrollRef = useRef<HTMLDivElement>(null);
+  const historialRef = useRef<HTMLDivElement>(null);
+  // Medición en JS del tamaño real disponible para el odontograma de
+  // dentición "adulto" — reemplaza el cálculo por CSS `aspect-ratio`, que en
+  // pantallas muy altas podía desincronizar el alto del SVG con el de la
+  // capa de números superpuesta (ver comentario junto al JSX). Llena el alto
+  // disponible de la fila y deriva el ancho manteniendo la proporción real
+  // del viewBox (409×694), recortado por el ancho disponible si hiciera falta.
+  const dentalRowRef = useRef<HTMLDivElement>(null);
+  const [adultBoxSize, setAdultBoxSize] = useState<{ w: number; h: number } | null>(null);
   // Tablet además de mobile: el editor de Registro clínico solo se abre en
   // modal por debajo de 1024px, dejando el panel inline solo para desktop.
   const isCompactViewer = useIsMobile(1024);
@@ -603,6 +618,53 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
   useEffect(() => {
     fetchOdontogramas();
   }, [paciente.id]);
+
+  // Mide en JS el espacio real disponible para el odontograma de dentición
+  // "adulto" (ver `adultBoxSize` arriba) — llena el alto disponible y deriva
+  // el ancho manteniendo la proporción real del viewBox (409×694), recortado
+  // por el ancho disponible si no entra. `ResizeObserver` en vez de un
+  // cálculo por CSS puro porque acá el alto disponible viene de una cadena
+  // flex (`md:h-full`/`flex-1`/`min-h-0`) que no siempre coincide, en
+  // pantallas muy altas, con lo que `aspect-ratio` termina resolviendo.
+  useEffect(() => {
+    if (dentition !== "adulto") return;
+    const el = dentalRowRef.current;
+    if (!el) return;
+    const compute = () => {
+      const { width, height } = el.getBoundingClientRect();
+      if (width <= 0 || height <= 0) return;
+      // `height` viene de un contenedor flex (`md:h-full`/`flex-1`/`min-h-0`)
+      // que en consulta activa mide una fila más — la barra "Consulta en
+      // curso" — antes de asentarse; una medición tomada a mitad de ese
+      // reflow puede leer una altura mayor a lo que en realidad cabe en
+      // pantalla. Como el viewport es el límite físico real de lo que se
+      // puede ver, ninguna medición legítima de este contenedor debería
+      // superarlo — se descarta la que sí lo hace en vez de fijar una caja
+      // ya de entrada más grande que la pantalla.
+      if (height > window.innerHeight) return;
+      let w = height * (VIEWBOX_W / VIEWBOX_H);
+      let h = height;
+      if (w > width) {
+        w = width;
+        h = w * (VIEWBOX_H / VIEWBOX_W);
+      }
+      setAdultBoxSize({ w, h });
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // `loading` es la pieza clave: mientras es `true` el componente devuelve
+    // <OdontogramaSkeleton/> más abajo y `dentalRowRef` nunca se llega a
+    // montar (el efecto corre igual, por orden de hooks, pero sale acá mismo
+    // por `!el`). Sin `loading` en las dependencias, cuando los datos
+    // terminan de cargar y el diente SÍ se monta, este efecto no se repite
+    // (ninguna de las otras dependencias cambió) y `adultBoxSize` se queda
+    // en null para siempre — la caja cae al CSS de respaldo, que en un
+    // contenedor flex con altura ya definida ignora el `aspect-ratio` (ver
+    // comentario junto al JSX) y el SVG (que sí mantiene su proporción real)
+    // termina más alto que la caja, desbordándola.
+  }, [dentition, isEditable, isCompactViewer, loading]);
 
   const isViewingSession = !!expandedSessionId;
   const selectedSession = sessions.find(s => s.id === expandedSessionId) ?? null;
@@ -1097,7 +1159,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
           (border-r en desktop, border-b en mobile) es lo único que los separa. */}
       <div className="flex flex-col md:flex-row w-full md:flex-1 md:min-h-0">
 
- <div className="w-full flex flex-col items-center p-6 sm:p-8 border-b md:border-b-0 md:border-r border-slate-200 bg-white md:min-h-0 md:flex-none md:w-[26rem] xl:w-[30rem] 2xl:w-[36rem]">
+ <div className="w-full flex flex-col items-center p-6 sm:p-8 border-b md:border-b-0 md:border-r border-slate-200 bg-white md:min-h-0 md:flex-none md:w-[26rem] xl:w-[30rem]">
           <div className="w-full flex justify-center flex-1 min-h-0">
           <div className="flex w-full gap-6 min-h-0 justify-center">
             {/* DERECHA — convención odontológica: el lado derecho del paciente
@@ -1112,20 +1174,28 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
               DERECHA
             </span>
 
-            {/* El diente graficado llena el alto disponible del panel (el
-                mismo que reciben el resto de las pestañas — cadena de
-                md:h-full / md:flex-1 / md:min-h-0 desde el contenedor de la
-                pestaña "Dental" hasta acá) y el ancho se deriva de ese alto
-                manteniendo la proporción real del viewBox (409x694) vía
-                aspect-ratio — así nunca se recorta ni exige scroll propio,
-                sea cual sea el alto real de la pantalla. El padding del
-                contenedor (p-6/p-8 de arriba) es lo que le da aire al
-                gráfico respecto al borde del panel, no un padding sobre el
-                propio SVG. La dentición infantil (2 paneles recortados y
-                apilados) sigue calculándose por ancho, como antes. */}
-            <div className={`min-w-0 ${dentition === "adulto" ? "max-h-full max-w-[calc(100%-1rem)] md:max-w-full aspect-[409/694] h-full" : "self-start w-full max-w-56 sm:max-w-64"}`}>
+            {/* El diente graficado se mide con `ResizeObserver` (ver
+                `dentalRowRef`/`adultBoxSize` más arriba) en vez de CSS
+                `aspect-ratio` — con `aspect-[409/694] h-full` el SVG (que
+                trae su propio `height:"auto"` calculado desde el ancho) y
+                esta capa de números (posicionados en % sobre el 100% de
+                este div) podían terminar midiendo alturas distintas en
+                pantallas muy altas (bug real, confirmado con captura: los
+                dientes se amontonaban arriba). El intento siguiente
+                (truco de `padding-bottom` + `overflow-hidden`) arregló eso
+                pero introdujo OTRO bug: los números de los dientes más
+                exteriores del arco (16, 26, 48, etc.) quedan a media pieza
+                de tocar el borde de la caja, y ese `overflow-hidden` se los
+                cortaba a la mitad. Midiendo con JS y fijando `width`/`height`
+                en píxeles exactos (sin `overflow-hidden`) se evitan los dos
+                problemas: SVG y números miden siempre la misma caja, y el
+                texto puede asomarse un poco fuera del cuadro sin cortarse. */}
+            <div ref={dentalRowRef} className={`min-w-0 min-h-0 w-full flex justify-center ${dentition === "adulto" ? "" : "self-start max-w-56 sm:max-w-64"}`}>
             {dentition === "adulto" ? (
-              <div className="relative w-full h-full">
+              <div
+                className="relative w-full max-h-full aspect-[409/694]"
+                style={adultBoxSize ? { width: adultBoxSize.w, height: adultBoxSize.h, maxHeight: "none" } : undefined}
+              >
                 <Odontogram
                   key={`${dentition}-${chartResetKey}`}
                   theme="light"
@@ -1254,12 +1324,13 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
             el odontograma, y el historial de cada diente se abre en un modal
             al tocarlo (ver mobileToothModal más abajo). Tablet ya se
             considera "desktop" para este layout (md:, no lg:). */}
-        <div className={`w-full md:flex-1 md:h-full min-w-0 md:flex justify-center ${isEditable ? "flex" : "hidden"}`}>
+        <div className={`w-full md:flex-1 md:h-full min-w-0 md:flex justify-center relative ${isEditable ? "flex" : "hidden"}`}>
         {/* En consulta activa (isEditable) todo el panel es una sola región de
             scroll, acotada a la altura del odontograma. Fuera de consulta,
             el panel no scrollea como bloque — solo la lista de registros de
             más abajo lo hace, quedando el título y los filtros siempre fijos. */}
         <div
+          ref={registroScrollRef}
           className={`w-full md:min-w-[360px] xl:min-w-[440px] md:max-w-[620px] md:h-full md:min-h-0 min-w-0 flex flex-col gap-3 p-4 sm:p-6 bg-white ${isEditable ? "md:overflow-y-auto md:overflow-x-visible no-scrollbar overscroll-contain" : ""}`}
         >
           {showRegistro && (
@@ -1288,8 +1359,16 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
  <p className="text-[13px] font-semibold text-slate-500">Toca uno o más dientes en el odontograma</p>
  <p className="text-[11px] text-slate-400">Cada superficie puede tener su propia condición</p>
                     </div>
- <div className="rounded-xl bg-slate-100 text-slate-400 text-[12px] font-semibold text-center py-2.5">
-                      Selecciona dientes en el odontograma
+                    <div className="flex items-stretch gap-2">
+ <div className="flex-1 h-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-400 text-[12px] font-semibold text-center">
+                        Selecciona dientes en el odontograma
+                      </div>
+                      {onNavigateTab && (
+                        <button onClick={() => onNavigateTab("diagnosticos")} className="flex-1 h-10 shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-4 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12.5px] font-bold transition-colors border-0">
+                          Continuar a Diagnóstico
+                          <Icon name="chevron_right" size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -1310,7 +1389,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                 )}
               </div>
 
-              {selectedTeeth.length > 0 ? (isCompactViewer ? (
+              {selectedTeeth.length > 0 && (isCompactViewer ? (
                 <ResponsiveSheet
                   onClose={clearSelection}
                   title="Registro clínico"
@@ -1324,11 +1403,6 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                         <Icon name="add" size={14} />
                         {saving ? "Guardando..." : readyTeeth.length > 1 ? `Guardar ${readyTeeth.length} registros` : "Agregar"}
                       </button>
-                      {onNavigateTab && (
-                        <button onClick={() => onNavigateTab("diagnosticos")} title="Continuar a Diagnóstico" aria-label="Continuar a Diagnóstico" className="h-10 w-10 shrink-0 flex items-center justify-center bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors border-0">
-                          <Icon name="chevron_right" size={18} />
-                        </button>
-                      )}
                     </div>
                   }
                 >
@@ -1338,36 +1412,19 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                 <>
                   {registroEditorContent}
 
-                  {/* Guardar + Continuar a Diagnóstico — fuera del contenedor con
-                      scroll (y de su efecto humo), siempre visibles. Ya no es
-                      flotante: vive junto a Guardar, en el otro extremo, y solo
-                      se habilita con contenido en Observaciones. */}
-                  <div className="flex items-center justify-between gap-2">
+                  {/* Guardar — fuera del contenedor con scroll (y de su efecto
+                      humo), siempre visible. Con un diente elegido ya no
+                      convive acá con "Continuar a Diagnóstico" (se quitó de
+                      esta fila): la prioridad pasa a guardar el registro o
+                      bajar al Historial con el botón flotante. */}
+                  <div className="flex items-center justify-end gap-2">
                     <button onClick={addRecords} disabled={readyTeeth.length === 0 || saving} className="h-10 shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-lg text-[12.5px] font-bold transition-colors border-0">
                       <Icon name="add" size={14} />
                       {saving ? "Guardando..." : readyTeeth.length > 1 ? `Guardar ${readyTeeth.length} registros` : "Agregar registro"}
                     </button>
-                    {onNavigateTab && (
-                      <button onClick={() => onNavigateTab("diagnosticos")} className="h-10 shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-4 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[12.5px] font-bold transition-colors border-0">
-                        Continuar a Diagnóstico
-                        <Icon name="chevron_right" size={14} />
-                      </button>
-                    )}
                   </div>
                   </>
-              )) : (
-                /* Sin dientes seleccionados: "Continuar a Diagnóstico" debe
-                   verse igual (pedido explícito) — antes solo aparecía junto
-                   al botón Guardar, es decir, recién al elegir un diente. */
-                onNavigateTab && (
-                  <div className="flex items-center justify-end">
-                    <button onClick={() => onNavigateTab("diagnosticos")} className="h-10 shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-4 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[12.5px] font-bold transition-colors border-0">
-                      Continuar a Diagnóstico
-                      <Icon name="chevron_right" size={14} />
-                    </button>
-                  </div>
-                )
-              )}
+              ))}
 
                   <div className="border-t border-slate-200"/>
                 </>
@@ -1378,8 +1435,11 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                   no solo al ver el odontograma fuera de ese flujo. Siempre
                   inline (antes en mobile abría en un bottom sheet aparte) —
                   listado scrollable dentro de la misma pestaña, junto con el
-                  resto del panel. */}
-              <div className="flex flex-col gap-2.5 md:flex-1 md:min-h-0">
+                  resto del panel. `md:min-h-[220px]` asegura que se alcancen
+                  a ver ~2 registros antes de necesitar el scroll propio del
+                  historial, en vez de colapsar casi a 0 cuando el contenido
+                  de Registro Clínico (arriba) crece con un diente elegido. */}
+              <div ref={historialRef} className="flex flex-col gap-2.5 md:flex-1 md:min-h-[220px]">
                 <div className="shrink-0 flex items-center justify-between gap-2">
  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Historial de Exámenes</p>
                   <FilterCategoryPicker variant="icon" categories={HISTORIAL_FILTER_CATEGORIES} activeKeys={activeFilterTags} onToggle={toggleFilterTag} />
@@ -1445,6 +1505,24 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                 </div>
               </div>
             </div>
+
+            {/* Bajar al Historial — solo con un diente elegido, que es cuando
+                Registro Clínico crece y empuja el Historial fuera de la vista
+                dentro de este mismo contenedor (con scroll oculto, así que no
+                es obvio para el usuario que puede desplazarse). Hace scroll
+                directo a `historialRef` en vez de que el usuario tenga que
+                descubrirlo a mano. */}
+            {isEditable && !isCompactViewer && selectedTeeth.length > 0 && (
+              <button
+                type="button"
+                onClick={() => historialRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                title="Ir al Historial de Exámenes"
+                aria-label="Ir al Historial de Exámenes"
+                className="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-cyan-600 hover:bg-cyan-700 text-white shadow-lg flex items-center justify-center transition-colors z-10"
+              >
+                <Icon name="expand_more" size={20} />
+              </button>
+            )}
         </div>
         </div>
       </div>

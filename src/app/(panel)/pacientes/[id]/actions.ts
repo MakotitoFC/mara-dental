@@ -386,7 +386,7 @@ export async function getHistorialConsultasAction(
     .from("consultas")
     .select(`
       id, nota_clinica_id, tipo_consulta_id, fecha_consulta, motivo, observaciones, examen_fisico,
-      usuarios ( personal ( nombre, apellido, url_firma_digital, especialidad ( especialidad ) ) ),
+      usuarios ( personal ( nombre, apellido, url_firma_digital, num_colegiatura, especialidad ( especialidad ) ) ),
       recomendacion ( id, contenido ),
       diagnostico!consulta_origen_id (
         id, diagnostico, es_definitivo, "esTratado",
@@ -543,6 +543,7 @@ export async function getHistorialConsultasAction(
       observaciones: c.observaciones || "",
       doctor: dr,
       doctorEspecialidad: especialidad?.especialidad ?? null,
+      doctorNumColegiatura: personal?.num_colegiatura ?? null,
       doctorFirmaUrl: await signFirmaUrl(supabase, personal?.url_firma_digital),
       examen,
       diagnosticos,
