@@ -1361,9 +1361,11 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
 
           {/* Info a la izquierda + firma a la derecha, en vez de apilado — a
               todo el ancho de la página ya no queda sentido dejar la tarjeta
-              de firma sola en una columna angosta con todo el resto vacío. */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              de firma sola en una columna angosta con todo el resto vacío.
+              flex (no grid 1fr) para que ambos bloques queden juntos y
+              centrados como grupo, en vez de estirados a los extremos. */}
+          <div className="flex flex-col lg:flex-row lg:justify-center lg:items-center gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:w-auto lg:max-w-md">
               {perfil?.especialidad && (
                 <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Especialidad</p>
@@ -1386,7 +1388,7 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
               )}
             </div>
 
-            <div>
+            <div className="w-full sm:w-[340px] shrink-0">
               <div className="rounded-2xl border border-slate-200 p-4 flex flex-col items-center gap-3">
                 <div
                   onDragOver={(e) => { e.preventDefault(); setDraggingFirma(true); }}
@@ -1431,9 +1433,6 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                   </button>
                 </div>
               </div>
-              <p className="text-[11.5px] text-slate-500 leading-relaxed mt-3">
-                Sube una foto o escaneo de tu firma (o arrástrala aquí) — se convierte automáticamente a SVG sin fondo, lista para usarse en recetas y documentos clínicos.
-              </p>
             </div>
           </div>
         </div>
