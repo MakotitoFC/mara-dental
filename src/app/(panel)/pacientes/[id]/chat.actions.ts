@@ -178,6 +178,33 @@ export async function generateChatLinkAction(pacienteId: string) {
   return { success: true, code };
 }
 
+export async function regenerateChatLinkAction(pacienteId: string) {
+  const perm = await checkChatPermissions(pacienteId);
+  if (!perm.allowed) {
+    return { error: perm.error || "No tienes permiso para regenerar el enlace de invitación para este paciente" };
+  }
+
+  const supabase = await createClient();
+  const code = uuidv4();
+
+  const { error } = await supabase
+    .from("pacientes")
+    .update({
+      telegram_link_code: code,
+      telegram_chat_id: null,
+      chat_activated_at: null,
+    })
+    .eq("id", pacienteId);
+
+  if (error) {
+    console.error("Error regenerating link code:", error);
+    return { error: "No se pudo regenerar el código de invitación" };
+  }
+
+  revalidatePath(`/pacientes/${pacienteId}`);
+  return { success: true, code };
+}
+
 export async function sendMessageAction(pacienteId: string, text?: string, fileUrl?: string, fileName?: string, fileType?: string, fileSize?: number, presignedUrl?: string) {
   const perm = await checkChatPermissions(pacienteId);
   if (!perm.allowed) {

@@ -3,12 +3,15 @@
 import { useEffect, useState, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
-import { getChatInfoAction, generateChatLinkAction, sendMessageAction } from "../../chat.actions";
+import { useConfirm } from "@/components/ui/ConfirmModal";
+import { getChatInfoAction, generateChatLinkAction, regenerateChatLinkAction, sendMessageAction } from "../../chat.actions";
 import { createClient } from "@/lib/supabase/client";
 
 export function ChatTab({ pacienteId }: { pacienteId: string }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
   const [paciente, setPaciente] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [page, setPage] = useState(0);
@@ -207,13 +210,46 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
   };
 
   const handleGenerateLink = async () => {
+    setRegenerating(true);
     const res = await generateChatLinkAction(pacienteId);
+    setRegenerating(false);
     if (res.error) {
       toast.error(res.error);
       return;
     }
     fetchData();
     toast.success("Enlace de invitación generado.");
+  };
+
+  const handleRegenerateLink = async () => {
+    const isCurrentlyLinked = !!paciente?.telegram_chat_id;
+    if (isCurrentlyLinked) {
+      const ok = await confirm({
+        title: "¿Regenerar enlace de Telegram?",
+        message: "Esta acción desvinculará la cuenta o número actual de Telegram para permitir que el paciente se una con su nuevo número. El historial de mensajes se conservará intacto.",
+        confirmLabel: "Sí, regenerar enlace",
+        cancelLabel: "Cancelar",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+
+    setRegenerating(true);
+    const res = await regenerateChatLinkAction(pacienteId);
+    setRegenerating(false);
+
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+
+    setPaciente((prev: any) => ({
+      ...prev,
+      telegram_link_code: res.code,
+      telegram_chat_id: null,
+      chat_activated_at: null,
+    }));
+    toast.success("Nuevo enlace de invitación generado. Compártelo con el paciente.");
   };
 
   const copyToClipboard = (code: string) => {
@@ -324,44 +360,89 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
 
   if (!isLinked) {
     return (
- <div className="bg-white rounded-2xl border border-slate-200 p-10 flex flex-col items-center justify-center text-center">
- <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-500 mb-6">
+      <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-10 flex flex-col items-center justify-center text-center">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-500 mb-5">
           <Icon name="send" size={32} />
         </div>
- <h2 className="text-xl font-bold text-slate-800 mb-2">
+        <h2 className="text-lg sm:text-xl font-bold text-slate-800 mb-2">
           Chat por Telegram no vinculado
         </h2>
- <p className="text-slate-500 max-w-md mx-auto mb-8 text-[14px]">
-          El paciente aún no ha activado la comunicación por Telegram. Genera un enlace de invitación para que pueda iniciar la conversación con el bot de la clínica.
+        <p className="text-slate-500 max-w-md mx-auto mb-6 text-[13.5px]">
+          {messages.length > 0
+            ? "Se ha generado un nuevo enlace de invitación. Comparte este enlace con el paciente para que active el bot con su nuevo número telefónico."
+            : "El paciente aún no ha activado la comunicación por Telegram. Genera un enlace de invitación para que pueda iniciar la conversación con el bot de la clínica."}
         </p>
 
         {paciente?.telegram_link_code ? (
-          <div className="flex flex-col items-center gap-3 w-full max-w-sm">
- <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full flex items-center justify-between">
- <span className="text-[12px] font-mono text-slate-600 truncate">
+          <div className="flex flex-col items-center gap-3 w-full max-w-md">
+            <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full flex items-center justify-between gap-2">
+              <span className="text-[12px] font-mono text-slate-700 truncate select-all">
                 https://t.me/MaraDentalBot?start={paciente.telegram_link_code}
               </span>
               <button
+                type="button"
                 onClick={() => copyToClipboard(paciente.telegram_link_code)}
- className="w-8 h-8 flex items-center justify-center text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors shrink-0 ml-2"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-[12px] font-medium transition-colors shrink-0 shadow-sm"
                 title="Copiar enlace"
               >
-                <Icon name="content_copy" size={16} />
+                <Icon name="content_copy" size={14} />
+                <span>Copiar</span>
               </button>
             </div>
- <p className="text-[12px] text-amber-600 flex items-center gap-1.5">
-              <Icon name="pending" size={14} />
-              Esperando a que el paciente inicie el bot...
-            </p>
+
+            <div className="flex items-center justify-between w-full px-1 pt-1">
+              <p className="text-[12px] text-amber-600 flex items-center gap-1.5 font-medium">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+                Esperando a que el paciente inicie el bot...
+              </p>
+              <button
+                type="button"
+                onClick={handleRegenerateLink}
+                disabled={regenerating}
+                className="text-[12px] font-medium text-slate-500 hover:text-cyan-700 flex items-center gap-1 transition-colors disabled:opacity-50"
+                title="Generar otro código de invitación"
+              >
+                <Icon name="refresh" size={13} className={regenerating ? "animate-spin text-cyan-600" : ""} />
+                Regenerar enlace
+              </button>
+            </div>
           </div>
         ) : (
           <button
+            type="button"
             onClick={handleGenerateLink}
-            className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700 text-white px-5 py-2.5 rounded-xl text-[14px] font-medium transition-colors"
+            disabled={regenerating}
+            className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700 text-white px-5 py-2.5 rounded-xl text-[14px] font-medium transition-colors shadow-sm disabled:opacity-50"
           >
             <Icon name="link" size={18} />
             Generar Enlace de Invitación
           </button>
+        )}
+
+        {messages.length > 0 && (
+          <div className="mt-8 pt-6 border-t border-slate-100 w-full max-w-md">
+            <details className="group text-left">
+              <summary className="cursor-pointer text-[12.5px] font-semibold text-slate-500 hover:text-slate-800 flex items-center justify-between select-none">
+                <span>Ver historial anterior ({messages.length} mensajes)</span>
+                <Icon name="expand_more" size={18} className="group-open:rotate-180 transition-transform text-slate-400" />
+              </summary>
+              <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl max-h-60 overflow-y-auto flex flex-col gap-2 text-[12px]">
+                {messages.map((m: any) => (
+                  <div key={m.id} className={`p-2.5 rounded-lg max-w-[85%] ${m.direction === 'outbound' ? 'bg-cyan-600 text-white self-end' : 'bg-white border border-slate-200 text-slate-700 self-start'}`}>
+                    {m.file_name && (
+                      <div className="flex items-center gap-1 font-semibold mb-0.5">
+                        <Icon name="description" size={13} /> {m.file_name}
+                      </div>
+                    )}
+                    <p className="whitespace-pre-wrap">{m.content}</p>
+                    <span className="text-[10px] opacity-70 block text-right mt-0.5">
+                      {new Date(m.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
         )}
       </div>
     );
@@ -371,23 +452,37 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
   const pacienteIniciales = (`${paciente?.nombre?.[0] ?? ""}${paciente?.apellido?.[0] ?? ""}`.toUpperCase()) || "P";
 
   return (
- <div className="flex flex-col h-[600px] lg:h-full bg-white overflow-hidden">
- <div className="shrink-0 flex items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-200">
-        <div className="relative shrink-0">
- <div className="w-10 h-10 rounded-full bg-cyan-50 border-2 border-cyan-200 flex items-center justify-center">
- <span className="text-[13px] font-bold text-cyan-700">{pacienteIniciales}</span>
+    <div className="flex flex-col h-[600px] lg:h-full bg-white overflow-hidden">
+      <div className="shrink-0 flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-slate-200">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="relative shrink-0">
+            <div className="w-10 h-10 rounded-full bg-cyan-50 border-2 border-cyan-200 flex items-center justify-center">
+              <span className="text-[13px] font-bold text-cyan-700">{pacienteIniciales}</span>
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-[color:var(--telegram-blue)] border-2 border-white flex items-center justify-center">
+              <Icon name="send" size={9} className="text-white" />
+            </span>
           </div>
- <span className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-[color:var(--telegram-blue)] border-2 border-white flex items-center justify-center">
-            <Icon name="send" size={9} className="text-white" />
-          </span>
+          <div className="min-w-0">
+            <h2 className="text-[14px] font-bold text-slate-800 truncate">{pacienteNombre}</h2>
+            <p className="text-[11px] text-slate-400 flex items-center gap-1">
+              <Icon name="send" size={11} className="text-[color:var(--telegram-blue)]" />
+              Vinculado por Telegram
+            </p>
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
- <h2 className="text-[14px] font-bold text-slate-800 truncate">{pacienteNombre}</h2>
- <p className="text-[11px] text-slate-400 flex items-center gap-1">
-            <Icon name="send" size={11} className="text-[color:var(--telegram-blue)]" />
-            Vinculado por Telegram
-          </p>
-        </div>
+
+        <button
+          type="button"
+          onClick={handleRegenerateLink}
+          disabled={regenerating}
+          title="Regenerar invitación si el paciente cambió o perdió su número de Telegram"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-cyan-300 bg-white hover:bg-cyan-50/50 text-[12px] font-semibold text-slate-600 hover:text-cyan-700 transition-colors shrink-0 shadow-sm disabled:opacity-50"
+        >
+          <Icon name="refresh" size={14} className={regenerating ? "animate-spin text-cyan-600" : "text-slate-500"} />
+          <span className="hidden sm:inline">Regenerar invitación</span>
+          <span className="sm:hidden">Nuevo enlace</span>
+        </button>
       </div>
 
       <div
