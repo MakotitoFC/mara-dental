@@ -169,7 +169,7 @@ function buildReportHtml(opts: {
 
     ${relacionadosHtml}
 
-    <div style="padding:20px 28px 24px;display:flex;justify-content:flex-end;">
+    <div style="padding:20px 28px 24px;display:flex;justify-content:center;">
       ${buildSignatureBlock({ nombre: opts.doctorNombre, especialidad: opts.doctorEspecialidad, numColegiatura: opts.doctorNumColegiatura, firmaUrl: opts.firmaSrc })}
     </div>
   `;

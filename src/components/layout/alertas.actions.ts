@@ -26,7 +26,7 @@ function diasHastaCumple(fechaNacimiento: string, hoy: Date): number | null {
   return Math.round((proximo.getTime() - hoySinHora.getTime()) / 86400000);
 }
 
-const EMPTY = { citasProximas: [], cumpleanos: [], alergias: [], tratamientosPendientes: [], mensajesNoLeidos: [], notificacionesSistema: [] };
+const EMPTY = { citasProximas: [], cumpleanos: [], alergias: [], tratamientosPendientes: [], mensajesNoLeidos: [], notificacionesSistema: [], mensajesTelegram: [] };
 
 export interface AlertaCitaProxima {
   id: string;
@@ -73,6 +73,16 @@ export interface AlertaNotificacion {
   created_at: string;
 }
 
+export interface AlertaTelegram {
+  id: string;
+  pacienteId: string;
+  pacienteNombre: string;
+  tipoMensaje: string;
+  mensaje: string;
+  estadoEnvio: string;
+  fechaEnvio: string;
+}
+
 export interface AlertasData {
   citasProximas: AlertaCitaProxima[];
   cumpleanos: AlertaCumpleanos[];
@@ -80,6 +90,7 @@ export interface AlertasData {
   tratamientosPendientes: AlertaTratamiento[];
   mensajesNoLeidos?: AlertaMensaje[];
   notificacionesSistema?: AlertaNotificacion[];
+  mensajesTelegram?: AlertaTelegram[];
 }
 
 function fmtHoraCita(fecha: string, horaInicio: string) {
@@ -122,6 +133,7 @@ export async function getAlertasAction(): Promise<AlertasData> {
   const en48h = new Date(now.getTime() + 48 * 3600 * 1000);
   const limiteStr = en48h.toISOString().split("T")[0];
   const hace90dias = new Date(now.getTime() - 90 * 86400000).toISOString();
+  const hace24h = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
 
   // 2. Si es Doctor, obtener los IDs de pacientes que atiende este doctor
   let docPacienteIdsSet: Set<string> = new Set();
@@ -191,6 +203,25 @@ export async function getAlertasAction(): Promise<AlertasData> {
       .eq("is_read", false)
       .in("paciente_id", docPacienteIds);
     unreadMessages = msgData || [];
+  }
+
+  // Envíos de Telegram (comprobantes, recetas, devoluciones, etc.) — sin
+  // columna de "leído" en la tabla, así que se acotan a las últimas 24h en
+  // vez de acumularse indefinidamente. Un doctor solo ve los de sus propios
+  // pacientes (mismo criterio que `unreadMessages`); admin/superadmin ven todos.
+  let telegramMensajes: any[] = [];
+  if (!isDoctor || docPacienteIds.length > 0) {
+    let telegramQuery = supabase
+      .from("mensajes_telegram")
+      .select("id, paciente_id, tipo_mensaje, mensaje, estado_envio, fecha_envio, pacientes ( nombre, apellido )")
+      .gte("fecha_envio", hace24h)
+      .order("fecha_envio", { ascending: false })
+      .limit(10);
+
+    if (isDoctor) telegramQuery = telegramQuery.in("paciente_id", docPacienteIds);
+
+    const { data: tgData } = await telegramQuery;
+    telegramMensajes = tgData || [];
   }
 
   const [citasRes, pacientesRes, consultasRes] = await Promise.all([
@@ -298,7 +329,17 @@ export async function getAlertasAction(): Promise<AlertasData> {
 
   const notificacionesSistema: AlertaNotificacion[] = notifData || [];
 
-  return { citasProximas, cumpleanos, alergias, tratamientosPendientes: tratamientosPendientes.slice(0, 8), mensajesNoLeidos, notificacionesSistema };
+  const mensajesTelegram: AlertaTelegram[] = telegramMensajes.map((m: any) => ({
+    id: `tg-${m.id}`,
+    pacienteId: String(m.paciente_id),
+    pacienteNombre: `${m.pacientes?.nombre ?? ""} ${m.pacientes?.apellido ?? ""}`.trim() || "Paciente",
+    tipoMensaje: m.tipo_mensaje || "",
+    mensaje: m.mensaje || "",
+    estadoEnvio: m.estado_envio || "",
+    fechaEnvio: m.fecha_envio,
+  }));
+
+  return { citasProximas, cumpleanos, alergias, tratamientosPendientes: tratamientosPendientes.slice(0, 8), mensajesNoLeidos, notificacionesSistema, mensajesTelegram };
 }
 
 export async function markNotificacionLeidaAction(id: string) {
