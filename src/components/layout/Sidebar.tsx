@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
 import { GuardedLink } from "./GuardedLink";
+import { useActiveConsultaGuard } from "./ActiveConsultaGuard";
 import { createClient } from "@/lib/supabase/client";
 
 const NAV_MAIN = [
@@ -55,7 +56,8 @@ const ROLE_HREFS: Record<string, string[]> = {
 const COLLAPSE_KEY = "maradental:sidebar-collapsed";
 
 export function Sidebar() {
-  const pathname = usePathname();
+  const router = useRouter();
+  const { activePath } = useActiveConsultaGuard();
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [validacionesCount, setValidacionesCount] = useState(0);
@@ -115,12 +117,25 @@ export function Sidebar() {
     });
   }
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
-
   const userRole = user?.rol ?? "";
   const allowedHrefs = ROLE_HREFS[userRole] ?? NAV_MAIN.map((n) => n.href);
   const visibleNav = NAV_MAIN.filter((n) => allowedHrefs.includes(n.href));
   const mainItems = visibleNav;
+
+  // Precarga de rutas para navegación inmediata
+  useEffect(() => {
+    allowedHrefs.forEach((href) => {
+      try {
+        router.prefetch(href);
+      } catch {}
+    });
+    try {
+      router.prefetch("/configuracion");
+    } catch {}
+  }, [allowedHrefs, router]);
+
+  const cleanActivePath = activePath.split("?")[0].split("#")[0];
+  const isActive = (href: string) => cleanActivePath === href || cleanActivePath.startsWith(href + "/");
 
   return (
     <motion.aside

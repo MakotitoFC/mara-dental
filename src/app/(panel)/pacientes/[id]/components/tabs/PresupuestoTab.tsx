@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/Badge";
 const ESTADO_OPTIONS = [
   { value: "pendiente", label: "Pendiente" },
   { value: "aprobado", label: "Aprobado" },
+  { value: "pagado", label: "Pagado" },
   { value: "cancelado", label: "Cancelado" },
 ];
 
@@ -55,7 +56,13 @@ function HistorialRow({ item, active, onClick, isMobile }: { item: any; active: 
   const moneda = item.items?.[0]?.moneda;
 
   if (isMobile) {
-    const pill = cfg.status === "success" ? "bg-emerald-50 text-emerald-600" : cfg.status === "canceled" ? "bg-slate-100 text-slate-500" : "bg-amber-50 text-amber-600";
+    const pill = cfg.status === "success"
+      ? "bg-emerald-50 text-emerald-600"
+      : cfg.status === "info"
+      ? "bg-cyan-50 text-cyan-600"
+      : cfg.status === "canceled"
+      ? "bg-slate-100 text-slate-500"
+      : "bg-amber-50 text-amber-600";
     return (
       <button
         onClick={onClick}

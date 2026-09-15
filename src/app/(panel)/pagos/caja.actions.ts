@@ -358,13 +358,18 @@ export async function cerrarCajaAction(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
 
+  const adminClient = getAdminClient();
+
   // 1. Cerrar turno en caja_turno
-  const { error: errCierre } = await supabase
+  const { error: errCierre } = await adminClient
     .from("caja_turno")
     .update({ fecha_cierre: new Date().toISOString() })
     .eq("id", cajaId);
 
-  if (errCierre) return { error: "No se pudo cerrar la caja" };
+  if (errCierre) {
+    console.error("Error al cerrar caja_turno:", errCierre);
+    return { error: "No se pudo cerrar la caja: " + errCierre.message };
+  }
 
   // 2. Insertar montos de cierre
   if (montosCierre.length > 0) {
@@ -374,11 +379,14 @@ export async function cerrarCajaAction(
       monto: m.monto,
       evento: "cierre",
     }));
-    await supabase.from("medio_pago_caja_monto").insert(records);
+    const { error: errMontos } = await adminClient.from("medio_pago_caja_monto").insert(records);
+    if (errMontos) {
+      console.error("Error al registrar montos de cierre:", errMontos);
+    }
   }
 
   // 3. Confirmar y marcar todos los movimientos del turno como conciliados
-  await supabase
+  await adminClient
     .from("movimiento_caja")
     .update({
       estado: "confirmado",
@@ -389,6 +397,306 @@ export async function cerrarCajaAction(
 
   revalidatePath("/pagos");
   return { success: true };
+}
+
+export async function cerrarCajaSinMovimientosAction(cajaId: string) {
+  const adminClient = getAdminClient();
+  const { data: iniciales } = await adminClient
+    .from("medio_pago_caja_monto")
+    .select("medio_pago_id, monto")
+    .eq("caja_turno_id", cajaId)
+    .eq("evento", "apertura");
+
+  const montosCierre = (iniciales || []).map((i) => ({
+    medio_pago_id: i.medio_pago_id,
+    monto: Number(i.monto),
+  }));
+
+  return cerrarCajaAction(cajaId, montosCierre, "Cierre sin movimientos (montos de apertura intactos)");
+}
+
+export async function getUltimoCierreCajaAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { esPrimeraVez: true, montos: {}, fecha_cierre: null };
+
+  const adminClient = getAdminClient();
+  const { data: usr } = await adminClient.from("usuarios").select("sede_id").eq("id", user.id).single();
+  const sedeId = usr?.sede_id;
+
+  let query = adminClient
+    .from("caja_turno")
+    .select("id, fecha_cierre")
+    .not("fecha_cierre", "is", null)
+    .order("fecha_cierre", { ascending: false })
+    .limit(1);
+
+  if (sedeId) {
+    query = query.eq("sede_id", sedeId);
+  } else {
+    query = query.eq("usuario_id", user.id);
+  }
+
+  const { data: ultimoTurnoCerrado } = await query.maybeSingle();
+
+  if (!ultimoTurnoCerrado) {
+    return { esPrimeraVez: true, montos: {}, fecha_cierre: null };
+  }
+
+  const { data: montosCierre } = await adminClient
+    .from("medio_pago_caja_monto")
+    .select("medio_pago_id, monto")
+    .eq("caja_turno_id", ultimoTurnoCerrado.id)
+    .eq("evento", "cierre");
+
+  const montosMap: Record<number, number> = {};
+  (montosCierre || []).forEach((m) => {
+    montosMap[m.medio_pago_id] = Number(m.monto);
+  });
+
+  return {
+    esPrimeraVez: false,
+    montos: montosMap,
+    fecha_cierre: ultimoTurnoCerrado.fecha_cierre,
+  };
+}
+
+export interface AjusteAperturaPendiente {
+  medio_pago_id: number;
+  medio_pago_nombre: string;
+  monto_anterior: number;
+  monto_apertura: number;
+  diferencia: number;
+  tipo: "I" | "E";
+}
+
+export interface InfoAjustesApertura {
+  fecha_cierre_anterior: string | null;
+  fecha_apertura_actual: string;
+  ajustes: AjusteAperturaPendiente[];
+}
+
+export async function getAjustesAperturaPendientesAction(cajaId: string): Promise<InfoAjustesApertura> {
+  const adminClient = getAdminClient();
+
+  // 1. Obtener datos de la caja actual
+  const { data: cajaActual } = await adminClient
+    .from("caja_turno")
+    .select("id, fecha_apertura, sede_id, usuario_id")
+    .eq("id", cajaId)
+    .single();
+
+  if (!cajaActual) {
+    return { fecha_cierre_anterior: null, fecha_apertura_actual: new Date().toISOString(), ajustes: [] };
+  }
+
+  // 2. Obtener el turno cerrado anterior a la fecha de apertura de este turno
+  const { data: turnoAnterior } = await adminClient
+    .from("caja_turno")
+    .select("id, fecha_cierre")
+    .eq("sede_id", cajaActual.sede_id)
+    .not("fecha_cierre", "is", null)
+    .lt("fecha_cierre", cajaActual.fecha_apertura)
+    .order("fecha_cierre", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // Si no hay turno anterior cerrado, es la primera apertura: no hay discrepancia exigible
+  if (!turnoAnterior) {
+    return { fecha_cierre_anterior: null, fecha_apertura_actual: cajaActual.fecha_apertura, ajustes: [] };
+  }
+
+  // 3. Montos de apertura del turno actual
+  const { data: montosAperturaRaw } = await adminClient
+    .from("medio_pago_caja_monto")
+    .select("medio_pago_id, monto")
+    .eq("caja_turno_id", cajaId)
+    .eq("evento", "apertura");
+
+  // 4. Montos de cierre del turno anterior
+  const { data: montosCierreAnteriorRaw } = await adminClient
+    .from("medio_pago_caja_monto")
+    .select("medio_pago_id, monto")
+    .eq("caja_turno_id", turnoAnterior.id)
+    .eq("evento", "cierre");
+
+  const mapaApertura = new Map<number, number>();
+  (montosAperturaRaw || []).forEach((m) => mapaApertura.set(m.medio_pago_id, Number(m.monto)));
+
+  const mapaCierre = new Map<number, number>();
+  (montosCierreAnteriorRaw || []).forEach((m) => mapaCierre.set(m.medio_pago_id, Number(m.monto)));
+
+  // 5. Obtener todos los medios de pago
+  const { data: mediosPago } = await adminClient.from("medio_pago").select("id, nombre");
+  const listaMedios = mediosPago || [];
+
+  // 6. Verificar movimientos de ajuste ya registrados en este turno
+  const { data: movimientosAjuste } = await adminClient
+    .from("movimiento_caja")
+    .select("medio_pago_id, monto")
+    .eq("caja_turno_id", cajaId)
+    .eq("referencia", "AJUSTE_APERTURA")
+    .neq("estado", "anulado");
+
+  const ajustadosSet = new Set<number>();
+  (movimientosAjuste || []).forEach((m) => ajustadosSet.add(m.medio_pago_id));
+
+  // 7. Calcular discrepancias pendientes
+  const ajustes: AjusteAperturaPendiente[] = [];
+
+  for (const mp of listaMedios) {
+    if (ajustadosSet.has(mp.id)) continue;
+
+    const montoApertura = mapaApertura.get(mp.id) || 0;
+    const montoCierreAnterior = mapaCierre.get(mp.id) || 0;
+    const diff = Number((montoApertura - montoCierreAnterior).toFixed(2));
+
+    if (Math.abs(diff) > 0.009) {
+      ajustes.push({
+        medio_pago_id: mp.id,
+        medio_pago_nombre: mp.nombre,
+        monto_anterior: montoCierreAnterior,
+        monto_apertura: montoApertura,
+        diferencia: Math.abs(diff),
+        tipo: diff > 0 ? "I" : "E",
+      });
+    }
+  }
+
+  return {
+    fecha_cierre_anterior: turnoAnterior.fecha_cierre,
+    fecha_apertura_actual: cajaActual.fecha_apertura,
+    ajustes,
+  };
+}
+
+export async function registrarAjusteAperturaAction(data: {
+  caja_id: string;
+  medio_pago_id: number;
+  monto: number;
+  tipo: "I" | "E";
+  fecha: string;
+  tipo_moneda_id?: number;
+  observacion?: string;
+  categoria_id?: number;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const adminClient = getAdminClient();
+
+  // 1. Obtener datos de la caja actual
+  const { data: cajaActual } = await adminClient
+    .from("caja_turno")
+    .select("id, fecha_apertura, sede_id")
+    .eq("id", data.caja_id)
+    .single();
+
+  if (!cajaActual) return { error: "Caja no encontrada." };
+
+  // 2. Obtener el turno cerrado anterior
+  const { data: turnoAnterior } = await adminClient
+    .from("caja_turno")
+    .select("id, fecha_cierre")
+    .eq("sede_id", cajaActual.sede_id)
+    .not("fecha_cierre", "is", null)
+    .lt("fecha_cierre", cajaActual.fecha_apertura)
+    .order("fecha_cierre", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // 3. Validar fecha del movimiento
+  if (!data.fecha) {
+    return { error: "Debe ingresar la fecha en la que se realizó el consumo o movimiento." };
+  }
+
+  const fechaMov = new Date(data.fecha);
+  if (isNaN(fechaMov.getTime())) {
+    return { error: "La fecha ingresada no es válida." };
+  }
+
+  const fechaAperturaMs = new Date(cajaActual.fecha_apertura).getTime();
+  if (fechaMov.getTime() > fechaAperturaMs + 60000) {
+    return {
+      error: `La fecha no puede ser mayor a la fecha de apertura de hoy (${new Date(cajaActual.fecha_apertura).toLocaleString("es-PE")}).`,
+    };
+  }
+
+  if (turnoAnterior?.fecha_cierre) {
+    const fechaCierreMs = new Date(turnoAnterior.fecha_cierre).getTime();
+    if (fechaMov.getTime() < fechaCierreMs - 60000) {
+      return {
+        error: `La fecha no puede ser menor a la fecha de cierre de la caja anterior (${new Date(turnoAnterior.fecha_cierre).toLocaleString("es-PE")}).`,
+      };
+    }
+  }
+
+  // 4. Resolver tipo_moneda_id (NOT NULL en movimiento_caja)
+  let tipoMonedaId = data.tipo_moneda_id;
+  if (!tipoMonedaId) {
+    const { data: tm } = await adminClient
+      .from("tipo_moneda")
+      .select("id")
+      .eq("moneda", "PEN")
+      .maybeSingle();
+    tipoMonedaId = tm?.id || 1;
+  }
+
+  // 5. Resolver categoria_id
+  let catId = data.categoria_id;
+  if (!catId) {
+    if (data.tipo === "I") {
+      const { data: cat } = await adminClient
+        .from("categoria_movimiento")
+        .select("id")
+        .eq("tipo", "I")
+        .ilike("nombre", "%varios%")
+        .limit(1)
+        .maybeSingle();
+      catId = cat?.id || 4;
+    } else {
+      const { data: cat } = await adminClient
+        .from("categoria_movimiento")
+        .select("id")
+        .eq("tipo", "E")
+        .ilike("nombre", "%gastos%")
+        .limit(1)
+        .maybeSingle();
+      catId = cat?.id || 16;
+    }
+  }
+
+  const montoFinal = data.tipo === "E" ? -Math.abs(data.monto) : Math.abs(data.monto);
+  const obs = data.observacion || `Ajuste de apertura obligatorio (${data.tipo === "I" ? "Ingreso" : "Egreso"} por discrepancia con cierre anterior)`;
+
+  // 6. Insertar movimiento_caja con fecha, tipo_moneda_id y campos requeridos
+  const { data: mov, error } = await adminClient
+    .from("movimiento_caja")
+    .insert({
+      caja_turno_id: data.caja_id,
+      fecha: fechaMov.toISOString(),
+      monto: montoFinal,
+      tipo_moneda_id: tipoMonedaId,
+      categoria_id: catId,
+      medio_pago_id: data.medio_pago_id,
+      referencia: "AJUSTE_APERTURA",
+      observacion: obs,
+      usuario_id: user.id,
+      estado: "confirmado",
+      conciliado: true,
+      fecha_conciliacion: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Error al registrar ajuste de apertura:", error);
+    return { error: `No se pudo registrar el movimiento de ajuste: ${error.message}` };
+  }
+
+  revalidatePath("/pagos");
+  return { success: true, movimiento_id: mov?.id };
 }
 
 export async function getMontosEsperadosCajaAction(cajaId: string) {

@@ -6,6 +6,8 @@ import { Icon } from "@/components/ui/Icon";
 import type { PagosDashboardSede, PresupuestoPendiente } from "../actions";
 import { RegistrarPagoSheet } from "./RegistrarPagoSheet";
 import { CerrarCajaSheet } from "./CerrarCajaSheet";
+import { CerrarCajaSinMovimientosModal } from "./CerrarCajaSinMovimientosModal";
+import { getDetalleCierreCajaAction } from "../caja.actions";
 import { CuotasSheet } from "./CuotasSheet";
 import { MovimientoLibreSheet } from "./MovimientoLibreSheet";
 import { SolicitarDevolucionSheet } from "./SolicitarDevolucionSheet";
@@ -55,9 +57,27 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
   const [activoCuotas, setActivoCuotas] = useState<PresupuestoPendiente | null>(null);
   const [activoDevolucion, setActivoDevolucion] = useState<PresupuestoPendiente | null>(null);
   const [showCerrarCaja, setShowCerrarCaja] = useState(false);
+  const [showCierreSinMovimientos, setShowCierreSinMovimientos] = useState(false);
+  const [verificandoCierre, setVerificandoCierre] = useState(false);
   const [showMovimientoLibre, setShowMovimientoLibre] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  async function handleClicCerrarCaja() {
+    setVerificandoCierre(true);
+    try {
+      const detalle = await getDetalleCierreCajaAction(cajaAbiertaId);
+      if (detalle && detalle.total_movimientos === 0) {
+        setShowCierreSinMovimientos(true);
+      } else {
+        setShowCerrarCaja(true);
+      }
+    } catch {
+      setShowCerrarCaja(true);
+    } finally {
+      setVerificandoCierre(false);
+    }
+  }
 
   useEffect(() => {
     const openId = searchParams.get("openCuotas") || searchParams.get("presupuestoId");
@@ -326,11 +346,16 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
  <Icon name="search" size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"/>
           </div>
           <button
-            onClick={() => setShowCerrarCaja(true)}
-            className="flex items-center justify-center h-[38px] px-3.5 bg-slate-100 text-slate-700 hover:bg-red-600 hover:text-white active:bg-red-700 active:text-white rounded-xl text-[13px] font-semibold transition-colors shrink-0 gap-1.5"
+            onClick={handleClicCerrarCaja}
+            disabled={verificandoCierre}
+            className="flex items-center justify-center h-[38px] px-3.5 bg-slate-100 text-slate-700 hover:bg-red-600 hover:text-white active:bg-red-700 active:text-white disabled:opacity-50 rounded-xl text-[13px] font-semibold transition-colors shrink-0 gap-1.5"
             title="Cerrar turno de caja"
           >
-            <Icon name="point_of_sale" size={17} />
+            {verificandoCierre ? (
+              <Icon name="progress_activity" size={17} className="animate-spin" />
+            ) : (
+              <Icon name="point_of_sale" size={17} />
+            )}
             <span className="hidden sm:inline">Cerrar Caja</span>
           </button>
         </div>
@@ -643,6 +668,13 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
             onSuccess={() => {
               updatePendienteLocal(activoDevolucion.id, () => null);
             }}
+          />
+        )}
+        {showCierreSinMovimientos && (
+          <CerrarCajaSinMovimientosModal
+            key="cierre-sin-movimientos"
+            cajaId={cajaAbiertaId}
+            onClose={() => setShowCierreSinMovimientos(false)}
           />
         )}
         {showCerrarCaja && (

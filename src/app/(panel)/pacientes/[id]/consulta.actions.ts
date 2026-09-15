@@ -1471,6 +1471,10 @@ export async function updateEstadoPresupuestoAction(data: { presupuesto_id: stri
 
 export async function deletePresupuestoAction(presupuestoId: string, pacienteId: string) {
   const supabase = await createClient();
+  const { data: p } = await supabase.from("presupuestos").select("estado").eq("id", presupuestoId).single();
+  if (p && p.estado !== "pendiente") {
+    return { error: "Solo se pueden eliminar presupuestos en estado pendiente." };
+  }
   await supabase.from("movimiento_caja").delete().eq("presupuesto_id", presupuestoId);
   await supabase.from("detalle_presupuesto").delete().eq("presupuesto_id", presupuestoId);
   await supabase.from("presupuestos").delete().eq("id", presupuestoId);

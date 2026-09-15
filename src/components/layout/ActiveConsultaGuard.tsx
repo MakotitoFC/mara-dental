@@ -10,8 +10,8 @@
 // que solo interrumpe la navegación si HistoriaView registró una consulta
 // activa (`setActiveConsultaExit`).
 
-import { createContext, useCallback, useContext, useRef, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
 
@@ -20,29 +20,48 @@ type ExitHandler = () => void;
 interface ActiveConsultaGuardValue {
   setActiveConsultaExit: (onExit: ExitHandler | null) => void;
   guardedNavigate: (href: string) => void;
+  activePath: string;
+  setOptimisticPath: (path: string | null) => void;
 }
 
 const ActiveConsultaGuardContext = createContext<ActiveConsultaGuardValue | null>(null);
 
 export function useActiveConsultaGuard() {
   const ctx = useContext(ActiveConsultaGuardContext);
-  if (!ctx) throw new Error("useActiveConsultaGuard debe usarse dentro de <ActiveConsultaGuardProvider>");
+  const pathname = usePathname();
+  const router = useRouter();
+  if (!ctx) {
+    return {
+      setActiveConsultaExit: () => {},
+      guardedNavigate: (href: string) => router.push(href),
+      activePath: pathname,
+      setOptimisticPath: () => {},
+    };
+  }
   return ctx;
 }
 
 export function ActiveConsultaGuardProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const confirm = useConfirm();
   const toast = useToast();
   const exitRef = useRef<ExitHandler | null>(null);
+  const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
 
   const setActiveConsultaExit = useCallback((onExit: ExitHandler | null) => {
     exitRef.current = onExit;
   }, []);
 
+  useEffect(() => {
+    setOptimisticPath(null);
+  }, [pathname]);
+
   const guardedNavigate = useCallback(
     async (href: string) => {
+      const cleanHref = href.split("?")[0].split("#")[0];
       if (!exitRef.current) {
+        setOptimisticPath(cleanHref);
         router.push(href);
         return;
       }
@@ -56,13 +75,18 @@ export function ActiveConsultaGuardProvider({ children }: { children: ReactNode 
       exitRef.current?.();
       exitRef.current = null;
       toast.success("Saliste de la consulta correctamente");
+      setOptimisticPath(cleanHref);
       router.push(href);
     },
     [confirm, router, toast],
   );
 
+  const activePath = optimisticPath ?? pathname;
+
   return (
-    <ActiveConsultaGuardContext.Provider value={{ setActiveConsultaExit, guardedNavigate }}>
+    <ActiveConsultaGuardContext.Provider
+      value={{ setActiveConsultaExit, guardedNavigate, activePath, setOptimisticPath }}
+    >
       {children}
     </ActiveConsultaGuardContext.Provider>
   );

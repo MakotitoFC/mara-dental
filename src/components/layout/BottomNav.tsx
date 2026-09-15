@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { useAuth } from "./AuthProvider";
 import { GuardedLink } from "./GuardedLink";
+import { useActiveConsultaGuard } from "./ActiveConsultaGuard";
 
 type NavItem = { href: string; icon: string; label: string };
 
@@ -58,12 +59,23 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
 const DEFAULT_NAV: NavItem[] = NAV_BY_ROLE.doctor;
 
 export function BottomNav() {
-  const pathname = usePathname();
+  const router = useRouter();
+  const { activePath } = useActiveConsultaGuard();
   const { user } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const cleanActivePath = activePath.split("?")[0].split("#")[0];
+  const isActive = (href: string) => cleanActivePath === href || cleanActivePath.startsWith(href + "/");
   const navItems = NAV_BY_ROLE[user?.rol ?? ""] ?? DEFAULT_NAV;
+
+  // Precarga de rutas para navegación inmediata
+  useEffect(() => {
+    navItems.forEach((item) => {
+      try {
+        router.prefetch(item.href);
+      } catch {}
+    });
+  }, [navItems, router]);
 
   const hasOverflow = navItems.length > 4;
   const primaryItems = hasOverflow ? navItems.slice(0, 3) : navItems;

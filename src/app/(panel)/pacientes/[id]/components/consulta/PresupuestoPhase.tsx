@@ -8,6 +8,7 @@ import { TextInput, Textarea } from "@/components/ui/TextInput";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
 import { ESTADO_PRESUPUESTO_CFG } from "@/lib/estadoConfig";
 import { Badge } from "@/components/ui/Badge";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 import {
   searchCatalogoAction,
   getCatalogoTratamientosAction,
@@ -49,7 +50,7 @@ function fmtFechaCorta(iso?: string) {
 
 const money = (n: number, m = "PEN") => `${m === "PEN" ? "S/" : m} ${n.toFixed(2)}`;
 
-const ESTADO_LABEL: Record<string, string> = { pendiente: "Pendiente", aprobado: "Vigente", cancelado: "Cancelado" };
+const ESTADO_LABEL: Record<string, string> = { pendiente: "Pendiente", aprobado: "Aprobado", pagado: "Pagado", cancelado: "Cancelado" };
 
 function buildPresupuestoHtml(opts: {
   clinica: ClinicaInfo | null;
@@ -478,6 +479,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
   onNavigateTab?: (tab: string) => void;
   fillHeight?: boolean;
 }) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [showPago, setShowPago] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -503,8 +505,27 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
     onSaved?.();
   }
 
+  async function handleVolverAPendiente() {
+    const ok = await confirm({
+      title: "Volver a estado pendiente",
+      message: "¿Deseas cambiar el estado de este presupuesto a pendiente?",
+      confirmLabel: "Volver a pendiente",
+      cancelLabel: "Cancelar",
+      danger: false,
+    });
+    if (!ok) return;
+    await cambiarEstado("pendiente");
+  }
+
   async function eliminar() {
-    if (!confirm("¿Eliminar este presupuesto y todos sus pagos? Esta acción no se puede deshacer.")) return;
+    const ok = await confirm({
+      title: "Eliminar presupuesto",
+      message: "¿Deseas eliminar este presupuesto? Esta acción no se puede deshacer.",
+      confirmLabel: "Eliminar",
+      cancelLabel: "Cancelar",
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     await deletePresupuestoAction(String(presupuesto.id), String(pacienteId));
     setBusy(false);
@@ -676,8 +697,8 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
               </button>
             )}
             {presupuesto.estado === "aprobado" && (
-              <button onClick={() => cambiarEstado("pendiente")} disabled={busy} title="Volver a pendiente"
- className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-[12px] font-medium transition-colors">
+              <button onClick={handleVolverAPendiente} disabled={busy} title="Volver a pendiente"
+                className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-[12px] font-medium transition-colors">
                 <Icon name="undo" size={15} /> <span className="hidden sm:inline">Volver a pendiente</span>
               </button>
             )}
@@ -685,18 +706,19 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
           <div className="flex items-center gap-1.5 sm:gap-2">
             {presupuesto.estado !== "cancelado" && (
               <button onClick={() => cambiarEstado("cancelado")} disabled={busy} title="Cancelar"
- className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-[12px] font-medium transition-colors">
+                className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl text-[12px] font-medium transition-colors">
                 <Icon name="block" size={15} /> <span className="hidden sm:inline">Cancelar</span>
               </button>
             )}
-            <button onClick={eliminar} disabled={busy} title="Eliminar presupuesto"
- className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 text-red-500 hover:bg-red-50 border border-red-100 disabled:opacity-40 rounded-xl text-[12px] font-medium transition-colors">
-              <Icon name="delete" size={14} /> <span className="hidden sm:inline">Eliminar presupuesto</span>
-            </button>
+            {presupuesto.estado === "pendiente" && (
+              <button onClick={eliminar} disabled={busy} title="Eliminar presupuesto"
+                className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 text-red-500 hover:bg-red-50 border border-red-100 disabled:opacity-40 rounded-xl text-[12px] font-medium transition-colors">
+                <Icon name="delete" size={14} /> <span className="hidden sm:inline">Eliminar presupuesto</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
     </motion.div>
   );
 }
-

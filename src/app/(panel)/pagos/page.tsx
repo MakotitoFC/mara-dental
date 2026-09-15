@@ -3,9 +3,17 @@ import { Header } from "@/components/layout/Header";
 import { createClient } from "@/lib/supabase/server";
 import { getPagosDashboardSedeAction } from "./actions";
 import { getMediosPagoAction, getSedeInfoAction } from "../pacientes/[id]/consulta.actions";
-import { checkCajaAbiertaAction, getCategoriasIngresoAction, getCategoriasEgresoAction, getTiposMonedaAction } from "./caja.actions";
+import {
+  checkCajaAbiertaAction,
+  getCategoriasIngresoAction,
+  getCategoriasEgresoAction,
+  getTiposMonedaAction,
+  getUltimoCierreCajaAction,
+  getAjustesAperturaPendientesAction,
+} from "./caja.actions";
 import { PagosView } from "./components/PagosView";
 import { CajaManager } from "./components/CajaManager";
+import { AjusteAperturaObligatorio } from "./components/AjusteAperturaObligatorio";
 import { Suspense } from "react";
 
 async function PagosDataLoader() {
@@ -20,7 +28,24 @@ async function PagosDataLoader() {
   ]);
 
   if (!estadoCaja.caja) {
-    return <CajaManager mediosPago={mediosPago} />;
+    const cierreAnterior = await getUltimoCierreCajaAction();
+    return <CajaManager mediosPago={mediosPago} initialCierreAnterior={cierreAnterior} />;
+  }
+
+  // Verificar si hay ajustes de apertura obligatorios pendientes
+  const infoAjustes = await getAjustesAperturaPendientesAction(estadoCaja.caja.id);
+  if (infoAjustes.ajustes.length > 0) {
+    return (
+      <AjusteAperturaObligatorio
+        cajaId={estadoCaja.caja.id}
+        ajustesPendientes={infoAjustes.ajustes}
+        fechaCierreAnterior={infoAjustes.fecha_cierre_anterior}
+        fechaAperturaActual={infoAjustes.fecha_apertura_actual}
+        categoriasIngreso={categoriasIn}
+        categoriasEgreso={categoriasEg}
+        monedas={monedas}
+      />
+    );
   }
 
   return (

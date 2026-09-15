@@ -33,7 +33,9 @@ import {
   ArrowUpDown, MinusCircle, Loader2, SplitSquareVertical,
   Maximize,
   ListFilter,
-  Siren
+  Siren,
+  LockOpen,
+  Scale
 } from "lucide-react";
 
 interface IconProps {
@@ -250,6 +252,10 @@ const ICONS: Record<string, LucideIcon> = {
   progress_activity:    Loader2,
   splitscreen:          SplitSquareVertical,
   emergency:            Siren,
+  calculate:            Calculator,
+  checklist:            ListChecks,
+  lock_open:            LockOpen,
+  balance:              Scale,
 };
 
 // Iconos con SVG propio (no vienen de lucide-react) — mismo contrato de props.
