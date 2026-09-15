@@ -14,7 +14,7 @@ export function ValidacionView({ initialPeticiones }: { initialPeticiones: any[]
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase.channel("realtime_solicitudes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "solicitud_validacion" }, (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "solicitud_validacion" }, (payload: any) => {
         router.refresh();
       })
       .subscribe();

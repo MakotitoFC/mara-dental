@@ -67,8 +67,7 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
     supabase
       .from("pacientes")
       .select("id, nombre, apellido, fecha_nacimiento")
-      .eq("activo", true)
-      .like("fecha_nacimiento", `%${suffixCumple}`),
+      .eq("activo", true),
     supabase
       .from("recordatorios")
       .select("id, citas!inner(doctor_id)")
@@ -95,6 +94,7 @@ export async function getDashboardDataAction(): Promise<DashboardData | null> {
   }));
 
   const cumpleañosHoy: CumpleañosHoy[] = (pacientesRes.data || [])
+    .filter((p: any) => p.fecha_nacimiento && p.fecha_nacimiento.endsWith(suffixCumple))
     .map((p: any) => ({
       id: String(p.id),
       nombre: `${p.nombre} ${p.apellido}`.trim(),
@@ -214,8 +214,7 @@ export async function getDashboardAsistenteDataAction(): Promise<DashboardAsiste
       .from("pacientes")
       .select("id, nombre, apellido, fecha_nacimiento, telegram_chat_id")
       .eq("sede_id", usr.sede_id)
-      .eq("activo", true)
-      .like("fecha_nacimiento", `%${suffixCumple}`),
+      .eq("activo", true),
   ]);
 
   const citasRaw = citasRes.data || [];
@@ -290,6 +289,7 @@ export async function getDashboardAsistenteDataAction(): Promise<DashboardAsiste
   const mesHoy = ahora.getMonth() + 1;
   const diaHoy = ahora.getDate();
   const cumpleañosHoy: CumpleañosHoyConTelegram[] = (pacientesSedeRes.data || [])
+    .filter((p: any) => p.fecha_nacimiento && p.fecha_nacimiento.endsWith(suffixCumple))
     .map((p: any) => ({
       id: String(p.id),
       nombre: `${p.nombre} ${p.apellido}`.trim(),

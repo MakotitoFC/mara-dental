@@ -155,7 +155,7 @@ export async function getDetallePacienteAction(pacienteId: string) {
 
   const { data: contactos } = await supabase
     .from("contacto")
-    .select("id, nombre, apellido, dni, telefono, tipo_contacto")
+    .select("id, nombre, apellido, dni, telefono, tipo_contacto, email")
     .eq("paciente_id", pacienteId);
 
   const pFinal = {
@@ -217,12 +217,66 @@ export async function updatePacienteAction(pacienteId: string, data: {
   restricciones_clinicas?: string[];
   alergias?: string[];
   antecedentes?: { cronicas: string[]; medicacion_habitual: string[]; quirurgicos: string[] };
+  contactos?: {
+    id?: string;
+    nombre: string;
+    apellido: string;
+    dni?: string;
+    telefono: string;
+    tipo_contacto: string;
+    email?: string;
+  }[];
 }) {
   const supabase = await createClient();
 
   const hoy = new Date().toISOString().split("T")[0];
   if (data.fecha_nacimiento > hoy) {
     return { error: "La fecha de nacimiento no puede ser mayor a la fecha actual." };
+  }
+
+  if (data.ocupacion && data.ocupacion.trim().length > 30) {
+    return { error: "El campo ocupación no puede superar los 30 caracteres." };
+  }
+  if (data.religion && data.religion.trim().length > 30) {
+    return { error: "El campo religión no puede superar los 30 caracteres." };
+  }
+  if (data.raza && data.raza.trim().length > 30) {
+    return { error: "El campo raza no puede superar los 30 caracteres." };
+  }
+  if (data.grado_instruccion && data.grado_instruccion.trim().length > 15) {
+    return { error: "El grado de instrucción no puede superar los 15 caracteres." };
+  }
+  if (data.lugar_nacimiento && data.lugar_nacimiento.trim().length > 30) {
+    return { error: "El lugar de nacimiento no puede superar los 30 caracteres." };
+  }
+  if (data.lugar_procedencia && data.lugar_procedencia.trim().length > 30) {
+    return { error: "El lugar donde reside actualmente no puede superar los 30 caracteres." };
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (data.email && data.email.trim()) {
+    if (!emailRegex.test(data.email.trim())) {
+      return { error: "El correo electrónico del paciente no tiene un formato válido." };
+    }
+  }
+
+  if (Array.isArray(data.contactos)) {
+    for (const c of data.contactos) {
+      if (!c.nombre || !c.nombre.trim()) {
+        return { error: "Todos los contactos deben tener un nombre." };
+      }
+      if (!c.apellido || !c.apellido.trim()) {
+        return { error: "Todos los contactos deben tener un apellido." };
+      }
+      if (!c.telefono || !c.telefono.trim()) {
+        return { error: "Todos los contactos deben tener un número de teléfono." };
+      }
+      if (c.email && c.email.trim()) {
+        if (!emailRegex.test(c.email.trim())) {
+          return { error: `El correo del contacto "${c.nombre} ${c.apellido}" no tiene un formato válido.` };
+        }
+      }
+    }
   }
 
   const { data: updatedRows, error } = await supabase.from("pacientes").update({
@@ -259,6 +313,46 @@ export async function updatePacienteAction(pacienteId: string, data: {
 
   if (!updatedRows || updatedRows.length === 0) {
     return { error: "No tienes permiso para actualizar los datos de este paciente (RLS) o el paciente no existe." };
+  }
+
+  // Sincronizar contactos si se envió la lista
+  if (Array.isArray(data.contactos)) {
+    try {
+      const { data: existingContactos } = await supabase
+        .from("contacto")
+        .select("id")
+        .eq("paciente_id", pacienteId);
+
+      const existingIds = new Set((existingContactos || []).map((ec: any) => String(ec.id)));
+      const incomingIds = new Set(data.contactos.filter((c: any) => c.id).map((c: any) => String(c.id)));
+
+      // Eliminar contactos que ya no están en la lista
+      const idsToDelete = [...existingIds].filter((id) => !incomingIds.has(id));
+      if (idsToDelete.length > 0) {
+        await supabase.from("contacto").delete().in("id", idsToDelete);
+      }
+
+      // Actualizar o insertar
+      for (const c of data.contactos) {
+        const payloadContacto: any = {
+          nombre: c.nombre.trim(),
+          apellido: c.apellido.trim(),
+          dni: c.dni?.trim() || null,
+          telefono: c.telefono.trim(),
+          tipo_contacto: c.tipo_contacto || "emergencia",
+          email: c.email?.trim() || null,
+          paciente_id: pacienteId,
+        };
+
+        if (c.id && existingIds.has(String(c.id))) {
+          await supabase.from("contacto").update(payloadContacto).eq("id", c.id);
+        } else {
+          await supabase.from("contacto").insert(payloadContacto);
+        }
+      }
+    } catch (contactoErr) {
+      console.error("Error sincronizando contactos:", contactoErr);
+    }
   }
 
   revalidatePath(`/pacientes/${pacienteId}`);

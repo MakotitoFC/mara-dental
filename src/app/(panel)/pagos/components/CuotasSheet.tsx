@@ -53,7 +53,7 @@ export function CuotasSheet({
         schema: "public", 
         table: "solicitud_validacion",
         filter: `referencia_id=eq.${presupuesto.id}`
-      }, (payload) => {
+      }, (payload: any) => {
         const estado = payload.new.estado;
         if (isMounted) {
           setSolicitudEstado(payload.new);

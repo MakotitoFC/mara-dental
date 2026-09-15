@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmModal";
-import { getChatInfoAction, generateChatLinkAction, regenerateChatLinkAction, sendMessageAction } from "../../chat.actions";
+import { getChatInfoAction, generateChatLinkAction, regenerateChatLinkAction, sendMessageAction, markMessagesAsReadAction } from "../../chat.actions";
 import { createClient } from "@/lib/supabase/client";
 
 export function ChatTab({ pacienteId }: { pacienteId: string }) {
@@ -27,44 +27,49 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
   useEffect(() => {
     fetchData();
 
-    // Nombre de canal único por paciente para evitar colisiones
-    const channelName = `chat_tab_${pacienteId}`;
+    // Canal único por instancia para evitar colisiones y asegurar conexión limpia
+    const cleanPacienteId = pacienteId.trim().toLowerCase();
+    const channelName = `chat_tab_${cleanPacienteId}_${Date.now()}`;
     const channel = supabase
       .channel(channelName)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter: `paciente_id=eq.${pacienteId}` },
-        (payload) => {
+        { event: "INSERT", schema: "public", table: "messages", filter: `paciente_id=eq.${cleanPacienteId}` },
+        (payload: any) => {
           const newMsg = payload.new;
-          if (!newMsg || newMsg.paciente_id !== pacienteId) return;
+          if (!newMsg || newMsg.paciente_id !== cleanPacienteId) return;
 
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
           
-          setPaciente((prev: any) => (prev && !prev.telegram_chat_id ? { ...prev, telegram_chat_id: "linked" } : prev));
+          // Si el paciente aún no aparecía vinculado, el mensaje activa la vista de chat inmediatamente
+          setPaciente((prev: any) => ({
+            ...prev,
+            telegram_chat_id: prev?.telegram_chat_id || "linked"
+          }));
           
           setTimeout(scrollToBottom, 100);
 
           if (newMsg.direction === "inbound" && !newMsg.is_read) {
-            supabase.from("messages").update({ is_read: true }).eq("id", newMsg.id).then();
+            markMessagesAsReadAction(cleanPacienteId).catch(console.error);
           }
         }
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "pacientes", filter: `id=eq.${pacienteId}` },
-        (payload) => {
-          if (payload.new && payload.new.id === pacienteId) {
+        { event: "UPDATE", schema: "public", table: "pacientes", filter: `id=eq.${cleanPacienteId}` },
+        (payload: any) => {
+          if (payload.new && payload.new.id === cleanPacienteId) {
             setPaciente((prev: any) => ({ ...prev, ...payload.new }));
           }
         }
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages", filter: `paciente_id=eq.${pacienteId}` },
-        (payload) => {
+        { event: "UPDATE", schema: "public", table: "messages", filter: `paciente_id=eq.${cleanPacienteId}` },
+        (payload: any) => {
           if (payload.new) {
             setMessages((prev) =>
               prev.map((m) => (m.id === payload.new.id ? { ...m, ...payload.new } : m))
@@ -72,50 +77,18 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
           }
         }
       )
-      .subscribe();
+      .subscribe((status: string, err?: any) => {
+        if (status === "SUBSCRIBED") {
+          console.log(`[ChatTab] Realtime conectado para paciente ${cleanPacienteId}`);
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(`[ChatTab] Realtime status (${status}):`, err);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [pacienteId]);
-
-  // Sondeo automático de respaldo: verifica vinculación e ingreso de nuevos mensajes en tiempo real
-  useEffect(() => {
-    const isLinked = !!paciente?.telegram_chat_id;
-    // Si aún no está vinculado, verificar cada 3 segundos para habilitar el chat instantáneamente cuando el paciente conecte
-    const intervalMs = isLinked ? 6000 : 3000;
-
-    const interval = setInterval(async () => {
-      const data = await getChatInfoAction(pacienteId, 0, 20);
-      if (data && data.paciente) {
-        setPaciente((prev: any) => {
-          if (!prev?.telegram_chat_id && data.paciente.telegram_chat_id) {
-            return data.paciente;
-          }
-          return prev ? { ...prev, ...data.paciente } : data.paciente;
-        });
-
-        if (data.messages && data.messages.length > 0) {
-          setMessages((prev) => {
-            const existingIds = new Set(prev.map((m) => m.id));
-            const hasNew = data.messages.some((m: any) => !existingIds.has(m.id));
-            if (!hasNew) return prev;
-
-            const map = new Map();
-            prev.forEach((m) => map.set(m.id, m));
-            data.messages.forEach((m: any) => map.set(m.id, m));
-            const sorted = Array.from(map.values()).sort(
-              (a: any, b: any) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
-            );
-            setTimeout(scrollToBottom, 100);
-            return sorted;
-          });
-        }
-      }
-    }, intervalMs);
-
-    return () => clearInterval(interval);
-  }, [pacienteId, paciente?.telegram_chat_id]);
 
   useEffect(() => {
     // Verificar si hay un archivo o carga pendiente proveniente de otra pestaña
@@ -167,29 +140,34 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
 
   const fetchData = async (pageNum: number = 0) => {
     if (pageNum === 0) setLoading(true);
-    const data = await getChatInfoAction(pacienteId, pageNum, 20);
-    if (data) {
-      if (data.allowed === false) {
-        setAccessDenied(true);
-        setDeniedMessage(data.error || "No tienes permiso para acceder al chat de este paciente.");
-        if (pageNum === 0) setLoading(false);
-        return;
+    try {
+      const data = await getChatInfoAction(pacienteId, pageNum, 20);
+      if (data) {
+        if (data.allowed === false) {
+          setAccessDenied(true);
+          setDeniedMessage(data.error || "No tienes permiso para acceder al chat de este paciente.");
+          return;
+        }
+        setAccessDenied(false);
+        if (pageNum === 0) {
+          setPaciente(data.paciente);
+          setMessages(data.messages || []);
+          setTimeout(scrollToBottom, 100);
+        } else {
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newMessages = (data.messages || []).filter((m: any) => !existingIds.has(m.id));
+            return [...newMessages, ...prev];
+          });
+        }
+        setHasMore(data.messages?.length === 20);
       }
-      setAccessDenied(false);
-      if (pageNum === 0) {
-        setPaciente(data.paciente);
-        setMessages(data.messages || []);
-        setTimeout(scrollToBottom, 100);
-      } else {
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id));
-          const newMessages = (data.messages || []).filter((m: any) => !existingIds.has(m.id));
-          return [...newMessages, ...prev];
-        });
-      }
-      setHasMore(data.messages?.length === 20);
+    } catch (err) {
+      console.error("Error al cargar chat:", err);
+      toast.error("No se pudo cargar la información del chat.");
+    } finally {
+      if (pageNum === 0) setLoading(false);
     }
-    if (pageNum === 0) setLoading(false);
   };
 
   const loadMore = async () => {

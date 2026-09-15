@@ -111,6 +111,25 @@ export async function createPacienteAction(data: {
     return { error: "La fecha de nacimiento no puede ser mayor a la fecha actual." };
   }
 
+  if (data.ocupacion && data.ocupacion.trim().length > 30) {
+    return { error: "El campo ocupación no puede superar los 30 caracteres." };
+  }
+  if (data.religion && data.religion.trim().length > 30) {
+    return { error: "El campo religión no puede superar los 30 caracteres." };
+  }
+  if (data.raza && data.raza.trim().length > 30) {
+    return { error: "El campo raza no puede superar los 30 caracteres." };
+  }
+  if (data.grado_instruccion && data.grado_instruccion.trim().length > 15) {
+    return { error: "El grado de instrucción no puede superar los 15 caracteres." };
+  }
+  if (data.lugar_nacimiento && data.lugar_nacimiento.trim().length > 30) {
+    return { error: "El lugar de nacimiento no puede superar los 30 caracteres." };
+  }
+  if (data.lugar_procedencia && data.lugar_procedencia.trim().length > 30) {
+    return { error: "El lugar donde reside actualmente no puede superar los 30 caracteres." };
+  }
+
   // Generamos el UUID en el servidor para no tener que hacer un .select("id") al final.
   // El .select() dispara la regla RLS `select_pacientes_doctor` y, como este paciente
   // es recién creado y no tiene citas asignadas, el SELECT falla arrojando el error 42501.

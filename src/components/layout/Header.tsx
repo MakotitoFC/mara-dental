@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, startTransition } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "./AuthProvider";
-import { getAlertasAction, markNotificacionLeidaAction, type AlertasData } from "./alertas.actions";
-import { createClient } from "@/lib/supabase/client";
 import { GuardedLink } from "./GuardedLink";
 import { useClickOutside } from "@/lib/hooks/useClickOutside";
-import { useToast } from "@/components/ui/Toast";
+import { useAlertas } from "./AlertasProvider";
 
 export interface Breadcrumb {
   label: string;
@@ -36,17 +34,6 @@ function SedeDisplay({ sede }: { sede?: string }) {
   );
 }
 
-const DISMISSED_KEY = "maradental:alertas-dismissed";
-
-function readDismissed(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? "[]")); }
-  catch { return new Set(); }
-}
-function writeDismissed(set: Set<string>) {
-  localStorage.setItem(DISMISSED_KEY, JSON.stringify([...set]));
-}
-
 const fmtHoraCita = (fecha: string, hora: string) => {
   const hoyStr = new Date().toISOString().split("T")[0];
   const dia = fecha === hoyStr ? "Hoy" : new Date(fecha + "T12:00:00").toLocaleDateString("es-PE", { weekday: "short", day: "numeric" });
@@ -55,94 +42,12 @@ const fmtHoraCita = (fecha: string, hora: string) => {
 
 interface AlertRowDef { key: string; icon: string; iconColor: string; iconBg: string; title: string; subtitle: string; link?: string; }
 
-let globalAlertasCache: AlertasData | null = null;
-
 /** Alertas inteligentes: citas próximas (24-48h), cumpleaños de la semana, alergias con cita hoy, tratamientos pendientes. */
 function AlertasButton() {
   const [open, setOpen] = useState(false);
-  const [data, setData] = useState<AlertasData | null>(globalAlertasCache);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const { data, loading, dismissed, dismiss, dismissAll } = useAlertas();
   const containerRef = useRef<HTMLDivElement>(null);
   useClickOutside(containerRef, () => setOpen(false), open);
-  const toast = useToast();
-  // Snapshot de la última respuesta — permite detectar qué es realmente NUEVO
-  // entre un fetch y el siguiente (para disparar el toast solo una vez por
-  // novedad real, no en cada refetch ni en la carga inicial de la página).
-  const prevDataRef = useRef<AlertasData | null>(null);
-
-  useEffect(() => {
-    setDismissed(readDismissed());
-
-    const fetchAlertas = (isInitial: boolean) => fetch("/api/alertas", { cache: "no-store" }).then(res => res.json()).then((res: AlertasData) => {
-      globalAlertasCache = res;
-      setData(res);
-
-      // Toasts activos para novedades reales — antes solo se actualizaba el
-      // contador de la campana en silencio. Se compara contra el snapshot
-      // anterior, nunca contra el primer fetch (evita bombardear con toasts
-      // de todo lo que ya estaba pendiente al abrir la app).
-      if (!isInitial && prevDataRef.current) {
-        const prev = prevDataRef.current;
-        const prevMsgByPaciente = new Map((prev.mensajesNoLeidos || []).map((m) => [m.pacienteId, m.cantidad]));
-        for (const m of res.mensajesNoLeidos || []) {
-          const prevCantidad = prevMsgByPaciente.get(m.pacienteId) ?? 0;
-          if (m.cantidad > prevCantidad) {
-            toast.info(`${m.cantidad - prevCantidad} mensaje${m.cantidad - prevCantidad > 1 ? "s" : ""} nuevo${m.cantidad - prevCantidad > 1 ? "s" : ""} por Telegram`, { title: m.pacienteNombre });
-          }
-        }
-        const prevNotifIds = new Set((prev.notificacionesSistema || []).map((n) => n.id));
-        for (const n of res.notificacionesSistema || []) {
-          if (!prevNotifIds.has(n.id)) {
-            toast.info(n.mensaje, { title: n.titulo });
-          }
-        }
-      }
-      prevDataRef.current = res;
-    }).catch(() => setData({ citasProximas: [], cumpleanos: [], alergias: [], tratamientosPendientes: [], mensajesNoLeidos: [], notificacionesSistema: [] }));
-
-    // Fetch inicial
-    fetchAlertas(true);
-
-    const supabase = createClient();
-    const channel = supabase
-      .channel("header_alerts_messages")
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => fetchAlertas(false))
-      .on("postgres_changes", { event: "*", schema: "public", table: "notificaciones" }, (payload) => {
-        console.log("[Header] notificaciones postgres_changes: ", payload);
-        fetchAlertas(false);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "solicitud_validacion" }, (payload) => {
-        console.log("[Header] solicitud_validacion postgres_changes: ", payload);
-        fetchAlertas(false);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "mensajes_telegram" }, (payload) => {
-        console.log("[Header] mensajes_telegram postgres_changes: ", payload);
-        fetchAlertas(false);
-      })
-      .on("broadcast", { event: "NEW_NOTIFICACION" }, (payload) => {
-        console.log("[Header] NEW_NOTIFICACION broadcast recibido: ", payload);
-        fetchAlertas(false);
-      })
-      .subscribe((status) => {
-        console.log("[Header] Realtime status: ", status);
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  function dismiss(key: string) {
-    if (key.startsWith("notif: ")) {
-      markNotificacionLeidaAction(key.replace("notif: ", "")).catch(console.error);
-    }
-    setDismissed((prev) => {
-      const next = new Set(prev);
-      next.add(key);
-      writeDismissed(next);
-      return next;
-    });
-  }
 
   const rows: AlertRowDef[] = [];
   if (data) {
@@ -215,8 +120,8 @@ function AlertasButton() {
  <p className="text-[12.5px] font-bold text-slate-800">Alertas</p>
               {count > 0 && (
                 <button
-                  onMouseDown={(e) => { e.preventDefault(); const next = new Set(dismissed); visibleRows.forEach((r) => next.add(r.key)); setDismissed(next); writeDismissed(next); }}
- className="text-[11px] font-semibold text-cyan-600 hover:text-cyan-700"
+                  onMouseDown={(e) => { e.preventDefault(); dismissAll(visibleRows.map((r) => r.key)); }}
+                  className="text-[11px] font-semibold text-cyan-600 hover:text-cyan-700"
                 >
                   Marcar todas como leídas
                 </button>
@@ -224,7 +129,7 @@ function AlertasButton() {
             </div>
 
             <div className="max-h-80 overflow-y-auto no-scrollbar flex flex-col py-1">
-              {!data ? (
+              {!data && loading ? (
                 <div className="py-8 flex justify-center">
  <div className="w-6 h-6 rounded-full border-2 border-slate-200 border-t-cyan-500 animate-spin"/>
                 </div>

@@ -20,20 +20,24 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const supabase = await createClient(); // instanciar cliente
   let currentUser: AuthUser | null = null;
   let tiposConsulta: TipoConsulta[] = [];
+  let accessToken: string | null = null;
   
-  const {data:{user:realUser}} = await supabase.auth.getUser();
+  const { data: { user: realUser } } = await supabase.auth.getUser();
 
   if (!realUser) {
     redirect('/login');
-  }else{
+  } else {
     const userId = realUser.id;
     const email = realUser.email ?? "";
     try {
-      const [userRes, personalRes, tiposRes] = await Promise.all([
-        supabase.from("usuarios").select(`activo, rol_id, sede_id, rol (rol), sede (nombre_clinica)`).eq("id",userId).single(),
-        supabase.from("personal").select("nombre, apellido, especialidad (especialidad)").eq("usuario_id",userId).single(),
+      const [sessionRes, userRes, personalRes, tiposRes] = await Promise.all([
+        supabase.auth.getSession(),
+        supabase.from("usuarios").select(`activo, rol_id, sede_id, rol (rol), sede (nombre_clinica)`).eq("id", userId).single(),
+        supabase.from("personal").select("nombre, apellido, especialidad (especialidad)").eq("usuario_id", userId).single(),
         supabase.from("tipo_consulta").select("id, tipo_consulta, color").order("tipo_consulta", { ascending: true })
       ]);
+
+      accessToken = sessionRes.data?.session?.access_token || null;
 
       if (userRes.data && userRes.data.activo === false) {
         await supabase.auth.signOut();
@@ -68,7 +72,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <TipoConsultaProvider tipos={tiposConsulta}>
-      <DashboardShell initialUser={currentUser}>
+      <DashboardShell initialUser={currentUser} initialAccessToken={accessToken}>
           {children}
       </DashboardShell>
     </TipoConsultaProvider>

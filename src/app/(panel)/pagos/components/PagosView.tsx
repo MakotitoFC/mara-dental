@@ -105,7 +105,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
         schema: "public",
         table: "solicitud_validacion",
         filter: `sede_id=eq.${sede.id}`
-      }, (payload) => {
+      }, (payload: any) => {
         if (payload.new.estado === "aprobada") {
           startTransition(() => {
             router.refresh();

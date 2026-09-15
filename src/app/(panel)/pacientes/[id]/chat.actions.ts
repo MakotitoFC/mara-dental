@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { v4 as uuidv4 } from "uuid";
 import { revalidatePath } from "next/cache";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
@@ -17,78 +18,46 @@ export async function checkChatPermissions(pacienteId: string): Promise<{ allowe
   // 1. Obtener rol del usuario actual
   const { data: userData } = await supabase
     .from("usuarios")
-    .select("rol_id, rol ( rol )")
+    .select("rol_id, activo, rol ( rol )")
     .eq("id", user.id)
     .single();
+
+  if (!userData || !userData.activo) {
+    return { allowed: false, isDoctor: false, isAdmin: false, error: "Usuario inactivo o no encontrado" };
+  }
 
   const rolName = ((userData?.rol as any)?.rol || "").toLowerCase();
   const isAdmin = rolName === "admin" || rolName === "superadmin" || userData?.rol_id === 2 || userData?.rol_id === 3;
   const isDoctor = rolName === "doctor" || userData?.rol_id === 1;
 
-  // Admins y Superadmins tienen permiso global para supervisar chats
-  if (isAdmin) {
-    return { allowed: true, isDoctor: false, isAdmin: true };
-  }
-
-  if (isDoctor) {
-    // a) ¿Es el creador del paciente?
-    const { data: p } = await supabase
-      .from("pacientes")
-      .select("id, creado_por")
-      .eq("id", pacienteId)
-      .single();
-
-    if (p && String(p.creado_por) === String(user.id)) {
-      return { allowed: true, isDoctor: true, isAdmin: false };
-    }
-
-    // b) ¿Tiene citas registradas con este paciente?
-    const { data: citas } = await supabase
-      .from("citas")
-      .select("id")
-      .eq("paciente_id", pacienteId)
-      .eq("doctor_id", user.id)
-      .limit(1);
-
-    if (citas && citas.length > 0) {
-      return { allowed: true, isDoctor: true, isAdmin: false };
-    }
-
-    // c) ¿Tiene consultas registradas con este paciente?
-    const { data: hc } = await supabase
-      .from("historia_clinica")
-      .select("id")
-      .eq("paciente_id", pacienteId)
-      .maybeSingle();
-
-    if (hc) {
-      const { data: notas } = await supabase
-        .from("nota_clinica")
-        .select("id")
-        .eq("historia_clinica_id", hc.id);
-
-      const notaIds = (notas || []).map((n) => n.id);
-      if (notaIds.length > 0) {
-        const { data: consultas } = await supabase
-          .from("consultas")
-          .select("id")
-          .in("nota_clinica_id", notaIds)
-          .eq("doctor_id", user.id)
-          .limit(1);
-
-        if (consultas && consultas.length > 0) {
-          return { allowed: true, isDoctor: true, isAdmin: false };
-        }
-      }
-    }
+  if (isAdmin || isDoctor) {
+    return { allowed: true, isDoctor, isAdmin };
   }
 
   return {
     allowed: false,
-    isDoctor,
+    isDoctor: false,
     isAdmin: false,
-    error: "No tienes permiso para acceder al chat de este paciente. Solo el médico tratante o administradores pueden acceder."
+    error: "No tienes permiso para acceder al chat de este paciente. Solo los médicos tratantes y administradores pueden acceder."
   };
+}
+
+export async function markMessagesAsReadAction(pacienteId: string) {
+  const perm = await checkChatPermissions(pacienteId);
+  if (!perm.allowed) return { error: "No autorizado" };
+
+  const admin = getAdminClient();
+  const { error } = await admin.from("messages")
+    .update({ is_read: true })
+    .eq("paciente_id", pacienteId)
+    .eq("direction", "inbound")
+    .eq("is_read", false);
+
+  if (error) {
+    console.error("Error marking messages as read:", error);
+    return { error: error.message };
+  }
+  return { success: true };
 }
 
 export async function getChatInfoAction(pacienteId: string, page: number = 0, limit: number = 20) {
@@ -104,9 +73,10 @@ export async function getChatInfoAction(pacienteId: string, page: number = 0, li
 
   const supabase = await createClient();
 
-  // Marcar mensajes como leídos si estamos cargando la primera página
+  // Marcar mensajes como leídos si estamos cargando la primera página usando admin para sortear RLS
   if (page === 0) {
-    await supabase.from("messages")
+    const admin = getAdminClient();
+    await admin.from("messages")
       .update({ is_read: true })
       .eq("paciente_id", pacienteId)
       .eq("direction", "inbound")
@@ -161,10 +131,10 @@ export async function generateChatLinkAction(pacienteId: string) {
     return { error: perm.error || "No tienes permiso para generar código de enlace para este paciente" };
   }
 
-  const supabase = await createClient();
+  const admin = getAdminClient();
   const code = uuidv4();
 
-  const { error } = await supabase
+  const { error } = await admin
     .from("pacientes")
     .update({ telegram_link_code: code })
     .eq("id", pacienteId);
@@ -184,10 +154,10 @@ export async function regenerateChatLinkAction(pacienteId: string) {
     return { error: perm.error || "No tienes permiso para regenerar el enlace de invitación para este paciente" };
   }
 
-  const supabase = await createClient();
+  const admin = getAdminClient();
   const code = uuidv4();
 
-  const { error } = await supabase
+  const { error } = await admin
     .from("pacientes")
     .update({
       telegram_link_code: code,

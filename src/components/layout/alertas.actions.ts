@@ -113,15 +113,19 @@ function fmtHoraCita(fecha: string, horaInicio: string) {
   return `${dia} · ${hora}`;
 }
 
+import { getAdminClient } from "@/lib/supabase/admin";
+
 export async function getAlertasAction(): Promise<AlertasData> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return EMPTY;
 
+  const admin = getAdminClient();
+
   // 1. Obtener rol del usuario actual
-  const { data: usuarioData } = await supabase
+  const { data: usuarioData } = await admin
     .from("usuarios")
-    .select("rol_id, rol ( rol )")
+    .select("rol_id, sede_id, rol ( rol )")
     .eq("id", user.id)
     .single();
 
@@ -138,18 +142,22 @@ export async function getAlertasAction(): Promise<AlertasData> {
   // 2. Si es Doctor, obtener los IDs de pacientes que atiende este doctor
   let docPacienteIdsSet: Set<string> = new Set();
   if (isDoctor) {
-    const [citasDoc, consultasDoc, pacientesDoc] = await Promise.all([
-      supabase.from("citas").select("paciente_id").eq("doctor_id", user.id),
-      supabase.from("consultas").select("nota_clinica_id").eq("doctor_id", user.id),
-      supabase.from("pacientes").select("id").eq("creado_por", user.id),
+    const [citasDoc, consultasDoc, pacientesDoc, sedePacientesDoc] = await Promise.all([
+      admin.from("citas").select("paciente_id").eq("doctor_id", user.id),
+      admin.from("consultas").select("nota_clinica_id").eq("doctor_id", user.id),
+      admin.from("pacientes").select("id").eq("creado_por", user.id),
+      usuarioData?.sede_id
+        ? admin.from("pacientes").select("id").eq("sede_id", usuarioData.sede_id)
+        : Promise.resolve({ data: [] }),
     ]);
 
     (citasDoc.data || []).forEach((c: any) => { if (c.paciente_id) docPacienteIdsSet.add(String(c.paciente_id)); });
     (pacientesDoc.data || []).forEach((p: any) => { if (p.id) docPacienteIdsSet.add(String(p.id)); });
+    (sedePacientesDoc.data || []).forEach((p: any) => { if (p.id) docPacienteIdsSet.add(String(p.id)); });
 
     const notaIds = (consultasDoc.data || []).map((c: any) => c.nota_clinica_id).filter(Boolean);
     if (notaIds.length > 0) {
-      const { data: notas } = await supabase
+      const { data: notas } = await admin
         .from("nota_clinica")
         .select("historia_clinica ( paciente_id )")
         .in("id", notaIds);
@@ -162,9 +170,9 @@ export async function getAlertasAction(): Promise<AlertasData> {
 
   const docPacienteIds = Array.from(docPacienteIdsSet);
 
-  let citasQuery = supabase
+  let citasQuery = admin
     .from("citas")
-    .select("id, fecha, hora_inicio, tipo_consulta, estado, paciente_id, pacientes ( id, nombre, apellido, alergias )")
+    .select("id, fecha, hora_inicio, tipo_consulta_id, tipo_consulta ( id, tipo_consulta, color ), estado, paciente_id, pacientes ( id, nombre, apellido, alergias )")
     .gte("fecha", hoyStr)
     .lte("fecha", limiteStr)
     .neq("estado", "cancelada")
@@ -173,9 +181,12 @@ export async function getAlertasAction(): Promise<AlertasData> {
 
   if (isDoctor) {
     citasQuery = citasQuery.eq("doctor_id", user.id);
+  } else if (usuarioData?.sede_id) {
+    // Si no es doctor (ej: asistente), filtrar citas por su sede
+    citasQuery = citasQuery.eq("sede_id", usuarioData.sede_id);
   }
 
-  let consultasQuery = supabase
+  let consultasQuery = admin
     .from("consultas")
     .select(`
       id,
@@ -195,23 +206,38 @@ export async function getAlertasAction(): Promise<AlertasData> {
   }
 
   let unreadMessages: any[] = [];
-  if (isDoctor && docPacienteIds.length > 0) {
-    const { data: msgData } = await supabase
+  if (isDoctor) {
+    if (docPacienteIds.length > 0) {
+      const { data: msgData } = await admin
+        .from("messages")
+        .select("paciente_id")
+        .eq("direction", "inbound")
+        .eq("is_read", false)
+        .in("paciente_id", docPacienteIds);
+      unreadMessages = msgData || [];
+    }
+  } else {
+    let msgQuery = admin
       .from("messages")
       .select("paciente_id")
       .eq("direction", "inbound")
-      .eq("is_read", false)
-      .in("paciente_id", docPacienteIds);
+      .eq("is_read", false);
+
+    if (usuarioData?.sede_id) {
+      const { data: sedePacs } = await admin.from("pacientes").select("id").eq("sede_id", usuarioData.sede_id);
+      const sIds = (sedePacs || []).map((p: any) => p.id);
+      if (sIds.length > 0) {
+        msgQuery = msgQuery.in("paciente_id", sIds);
+      }
+    }
+    const { data: msgData } = await msgQuery;
     unreadMessages = msgData || [];
   }
 
-  // Envíos de Telegram (comprobantes, recetas, devoluciones, etc.) — sin
-  // columna de "leído" en la tabla, así que se acotan a las últimas 24h en
-  // vez de acumularse indefinidamente. Un doctor solo ve los de sus propios
-  // pacientes (mismo criterio que `unreadMessages`); admin/superadmin ven todos.
+  // Envíos de Telegram
   let telegramMensajes: any[] = [];
   if (!isDoctor || docPacienteIds.length > 0) {
-    let telegramQuery = supabase
+    let telegramQuery = admin
       .from("mensajes_telegram")
       .select("id, paciente_id, tipo_mensaje, mensaje, estado_envio, fecha_envio, pacientes ( nombre, apellido )")
       .gte("fecha_envio", hace24h)
@@ -224,12 +250,18 @@ export async function getAlertasAction(): Promise<AlertasData> {
     telegramMensajes = tgData || [];
   }
 
+  let pacientesQuery = admin
+    .from("pacientes")
+    .select("id, nombre, apellido, fecha_nacimiento")
+    .eq("activo", true);
+
+  if (usuarioData?.sede_id && !isDoctor) {
+    pacientesQuery = pacientesQuery.eq("sede_id", usuarioData.sede_id);
+  }
+
   const [citasRes, pacientesRes, consultasRes] = await Promise.all([
     citasQuery,
-    supabase
-      .from("pacientes")
-      .select("id, nombre, apellido, fecha_nacimiento")
-      .eq("activo", true),
+    pacientesQuery,
     consultasQuery,
   ]);
 
@@ -245,7 +277,7 @@ export async function getAlertasAction(): Promise<AlertasData> {
       pacienteNombre: `${c.pacientes?.nombre ?? ""} ${c.pacientes?.apellido ?? ""}`.trim(),
       fecha: c.fecha,
       horaInicio: (c.hora_inicio || "").slice(0, 5),
-      tipoConsulta: c.tipo_consulta || "",
+      tipoConsulta: (Array.isArray(c.tipo_consulta) ? c.tipo_consulta[0]?.tipo_consulta : c.tipo_consulta?.tipo_consulta) || "",
     }));
 
   const cumpleanos: AlertaCumpleanos[] = (pacientesRes.data || [])
@@ -319,7 +351,7 @@ export async function getAlertasAction(): Promise<AlertasData> {
     id: `msg-${m.pacienteId}-${m.cantidad}`
   }));
 
-  const { data: notifData } = await supabase
+  const { data: notifData } = await admin
     .from("notificaciones")
     .select("id, titulo, mensaje, link, created_at")
     .eq("destinatario_id", user.id)
@@ -347,6 +379,17 @@ export async function markNotificacionLeidaAction(id: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autenticado" };
 
-  await supabase.from("notificaciones").update({ leido: true }).eq("id", id).eq("destinatario_id", user.id);
+  const admin = getAdminClient();
+  await admin.from("notificaciones").update({ leido: true }).eq("id", id).eq("destinatario_id", user.id);
+  return { success: true };
+}
+
+export async function markMessagesAsReadForPacienteAction(pacienteId: string) {
+  const admin = getAdminClient();
+  await admin.from("messages")
+    .update({ is_read: true })
+    .eq("paciente_id", pacienteId)
+    .eq("direction", "inbound")
+    .eq("is_read", false);
   return { success: true };
 }

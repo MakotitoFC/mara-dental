@@ -156,9 +156,10 @@ export async function getReportePagosAction() {
 export async function getReporteCitasAction() {
   const supabase = await createClient();
   const { data } = await supabase.from("citas").select(`
-    id, fecha, hora_inicio, estado, tipo_consulta,
+    id, fecha, hora_inicio, estado, tipo_consulta_id,
+    tipo_consulta ( tipo_consulta ),
     pacientes(nombre, apellido, dni),
-    personal(nombre, apellido)
+    usuarios ( personal ( nombre, apellido ) )
   `).order("fecha", { ascending: false });
   return data || [];
 }
@@ -167,7 +168,7 @@ export async function getMetricasPersonalAction() {
   const supabase = await createClient();
   
   // Obtenemos al personal médico
-  const { data: personalList } = await supabase.from("personal").select("id, nombre, apellido, puesto(puesto), especialidad(especialidad)");
+  const { data: personalList } = await supabase.from("personal").select("usuario_id, nombre, apellido, puesto(puesto), especialidad(especialidad)");
   if (!personalList) return [];
 
   // Obtenemos citas atendidas por doctor
@@ -176,12 +177,12 @@ export async function getMetricasPersonalAction() {
   const { data: presupuestos } = await supabase.from("presupuestos").select("doctor_id, total_bruto, descuento_monto").in("estado", ["aprobado", "pagado"]);
 
   return personalList.map((doc: any) => {
-    const docCitas = citas?.filter(c => c.doctor_id === doc.id) || [];
-    const docPresupuestos = presupuestos?.filter(p => p.doctor_id === doc.id) || [];
+    const docCitas = citas?.filter(c => c.doctor_id === doc.usuario_id) || [];
+    const docPresupuestos = presupuestos?.filter(p => p.doctor_id === doc.usuario_id) || [];
     const totalGenerado = docPresupuestos.reduce((acc, curr) => acc + (Number(curr.total_bruto) - Number(curr.descuento_monto)), 0);
     
     return {
-      id: doc.id,
+      id: doc.usuario_id,
       nombreCompleto: `${doc.nombre} ${doc.apellido}`,
       puesto: doc.puesto?.puesto || "N/A",
       especialidad: doc.especialidad?.especialidad || "General",

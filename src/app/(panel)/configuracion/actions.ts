@@ -318,20 +318,7 @@ export async function updateFirmaDigitalAction(formData: FormData) {
 
 /** Determina el ID correcto para `horarios_medico.medico_id` según el usuario actual. */
 async function resolveMedicoId(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<string> {
-  const { data: personal } = await supabase.from("personal").select("id").eq("usuario_id", userId).single();
-  const candidates = [userId];
-  if (personal?.id && personal.id !== userId) candidates.push(personal.id);
-
-  const { data: rows } = await supabase
-    .from("horarios_medico")
-    .select("medico_id")
-    .in("medico_id", candidates)
-    .limit(1);
-
-  if (rows && rows.length > 0) {
-    return rows[0].medico_id as string;
-  }
-  return candidates[candidates.length - 1];
+  return userId;
 }
 
 export async function getHorariosAction(): Promise<Record<number, HorarioRango[]>> {
@@ -340,25 +327,15 @@ export async function getHorariosAction(): Promise<Record<number, HorarioRango[]
   const base: Record<number, HorarioRango[]> = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] };
   if (!user) return base;
 
-  // Se consulta con ambos candidatos posibles de "medico_id" (auth.users.id y
-  // personal.id) directamente en una sola query — evita depender de un paso
-  // previo de "resolución" que, si la tabla está bloqueada por RLS, siempre
-  // fallaría igual y terminaría escondiendo el horario real.
-  const { data: personal } = await supabase.from("personal").select("id").eq("usuario_id", user.id).single();
-  const candidates = [user.id];
-  if (personal?.id && personal.id !== user.id) candidates.push(personal.id);
-
   const { data, error } = await supabase
     .from("horarios_medico")
     .select("id, medico_id, dia_semana, hora_inicio, hora_fin, turno")
-    .in("medico_id", candidates)
+    .eq("medico_id", user.id)
     .order("dia_semana", { ascending: true })
     .order("hora_inicio", { ascending: true });
 
   if (error) {
-    console.error("[getHorariosAction] Error obteniendo horario del médico (¿RLS en horarios_medico?):", error, "candidates:", candidates);
-  } else {
-    console.log(`[getHorariosAction] candidates=${JSON.stringify(candidates)} filas encontradas=${data?.length ?? 0}`);
+    console.error("[getHorariosAction] Error obteniendo horario del médico:", error);
   }
 
   for (const row of data || []) {

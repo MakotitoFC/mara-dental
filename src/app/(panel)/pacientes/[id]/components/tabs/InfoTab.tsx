@@ -34,6 +34,7 @@ export function InfoTab({
   const nacimiento = fmtDMY(p.fecha_nacimiento);
   const ant = p.antecedentes_estructurados || { cronicas: [], medicacion_habitual: [], quirurgicos: [] };
   const alergias: string[] = Array.isArray(p.alergias) ? p.alergias : [];
+  const contactos: any[] = Array.isArray(p.contactos) ? p.contactos : [];
   const recientes = (datosCasos?.casos ?? []).slice(0, 3);
 
   const datosDemograficos: [string, string, string | undefined][] = [
@@ -41,7 +42,7 @@ export function InfoTab({
     ["favorite", "Estado civil", p.estado_civil],
     ["school", "Grado de instrucción", p.grado_instruccion],
     ["location_on", "Lugar de nacimiento", p.lugar_nacimiento],
-    ["pin_drop", "Procedencia", p.lugar_procedencia],
+    ["pin_drop", "Lugar donde reside actualmente", p.lugar_procedencia],
     ["church", "Religión", p.religion],
     ["person", "Raza", p.raza],
   ];
@@ -116,7 +117,65 @@ export function InfoTab({
           <Row icon="phone" label="Teléfono" value={has(p.telefono) ? p.telefono : "—"} />
           <Row icon="email" label="Email" value={has(p.email) ? p.email : "—"} />
           <Row icon="location_on" label="Dirección" value={has(p.direccion) ? p.direccion : "—"} />
-          <Row icon="home" label="Domicilio" value={has(p.domicilio) ? p.domicilio : "—"} />
+          <Row icon="home" label="Referencia" value={has(p.domicilio) ? p.domicilio : "—"} />
+        </Card>
+
+        <Card title="Contactos de Emergencia y Apoderados">
+          {contactos.length === 0 ? (
+            <p className="text-[12.5px] text-slate-400 py-1">
+              Sin contactos de emergencia o apoderados registrados.
+            </p>
+          ) : (
+            <div className="flex flex-col divide-y divide-slate-100">
+              {contactos.map((c: any, idx: number) => {
+                const isApoderado = c.tipo_contacto === "apoderado";
+                return (
+                  <div key={c.id || idx} className="py-2.5 first:pt-0 last:pb-0 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[13px] font-bold text-slate-800">
+                        {c.nombre} {c.apellido}
+                      </p>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0 ${
+                          isApoderado
+                            ? "bg-cyan-50 text-cyan-700 border border-cyan-200"
+                            : "bg-amber-50 text-amber-700 border border-amber-200"
+                        }`}
+                      >
+                        <Icon name={isApoderado ? "supervisor_account" : "emergency"} size={12} />
+                        {isApoderado ? "Apoderado" : "Emergencia"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[12px] text-slate-600">
+                      {c.telefono && (
+                        <div className="flex items-center gap-1.5 text-slate-700">
+                          <Icon name="phone" size={13} className="text-slate-400 shrink-0" />
+                          <a href={`tel:${c.telefono}`} className="hover:text-cyan-600 hover:underline">
+                            {c.telefono}
+                          </a>
+                        </div>
+                      )}
+                      {c.dni && (
+                        <div className="flex items-center gap-1.5 text-slate-500">
+                          <Icon name="badge" size={13} className="text-slate-400 shrink-0" />
+                          <span>DNI: {c.dni}</span>
+                        </div>
+                      )}
+                      {c.email && (
+                        <div className="flex items-center gap-1.5 text-slate-600 sm:col-span-2">
+                          <Icon name="email" size={13} className="text-slate-400 shrink-0" />
+                          <a href={`mailto:${c.email}`} className="hover:text-cyan-600 hover:underline truncate">
+                            {c.email}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
 
  <div className="rounded-2xl border border-slate-200 p-4 sm:p-5 bg-white">

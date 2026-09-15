@@ -36,7 +36,7 @@ export function ValidacionesView({ validaciones, sedeId }: { validaciones: any[]
     }
 
     const channel = supabase.channel("validaciones_view")
-      .on("postgres_changes", { event: "*", schema: "public", table: "solicitud_validacion", filter: `sede_id=eq.${sedeId}` }, async (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "solicitud_validacion", filter: `sede_id=eq.${sedeId}` }, async (payload: any) => {
         console.log("[ValidacionesView] POSTGRES event received: ", payload);
         if (payload.eventType === "DELETE") {
           setLocalValidaciones(prev => prev.filter(v => v.id !== payload.old.id));
@@ -44,7 +44,7 @@ export function ValidacionesView({ validaciones, sedeId }: { validaciones: any[]
           reloadFullList();
         }
       })
-      .on("broadcast", { event: "NEW_VALIDACION" }, (payload) => {
+      .on("broadcast", { event: "NEW_VALIDACION" }, (payload: any) => {
         console.log("[ValidacionesView] BROADCAST event received: ", payload);
         if (!payload.payload?.sede_id || payload.payload?.sede_id === sedeId) {
           if (payload.payload?.presupuesto_info) {
@@ -62,7 +62,7 @@ export function ValidacionesView({ validaciones, sedeId }: { validaciones: any[]
           }
         }
       })
-      .subscribe((status) => {
+      .subscribe((status: string) => {
         console.log("[ValidacionesView] Realtime status: ", status);
       });
       

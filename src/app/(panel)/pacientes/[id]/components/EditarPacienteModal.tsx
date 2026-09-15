@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { DatePicker } from "@/components/ui/DatePicker";
@@ -11,16 +11,89 @@ import { updatePacienteAction } from "../actions";
 const GRUPOS_SANGUINEOS = ["A+", "A−", "B+", "B−", "AB+", "AB−", "O+", "O−"];
 const SEXOS = ["Masculino", "Femenino"];
 const ESTADOS_CIVILES = ["Soltero/a", "Casado/a", "Conviviente", "Viudo/a", "Divorciado/a"];
+const GRADOS_INSTRUCCION = [
+  "No especifica",
+  "Primaria",
+  "Secundaria",
+  "Técnico",
+  "Superior",
+];
+const RAZAS_PREDEFINIDAS = [
+  "No especifica",
+  "Mestizo",
+  "Caucásico",
+  "Afrodescendiente",
+  "Indígena / Nativo",
+  "Asiático",
+];
+
 const SEXO_OPTIONS = SEXOS.map((s) => ({ value: s, label: s }));
 const GRUPO_OPTIONS = GRUPOS_SANGUINEOS.map((g) => ({ value: g, label: g }));
 const ESTADO_CIVIL_OPTIONS = ESTADOS_CIVILES.map((s) => ({ value: s, label: s }));
+const GRADO_INSTRUCCION_OPTIONS = GRADOS_INSTRUCCION.map((g) => ({ value: g, label: g }));
+const RAZA_OPTIONS = [
+  ...RAZAS_PREDEFINIDAS.map((r) => ({ value: r, label: r })),
+  { value: "Otro", label: "Otro" },
+];
 
-const inputCls ="w-full border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 transition-colors";
+export interface ContactoItem {
+  id?: string;
+  nombre: string;
+  apellido: string;
+  dni?: string;
+  telefono: string;
+  tipo_contacto: "emergencia" | "apoderado";
+  email?: string;
+}
+
+const inputCls = "w-full border border-slate-200 bg-white text-slate-800 rounded-xl px-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 transition-colors";
+
+function LimitedTextInput({
+  value,
+  onChange,
+  maxLength = 30,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  maxLength?: number;
+  placeholder?: string;
+  className?: string;
+}) {
+  const isNearLimit = value.length >= maxLength - 3 && value.length < maxLength;
+  const isAtLimit = value.length >= maxLength;
+
+  return (
+    <div className="flex flex-col">
+      <input
+        type="text"
+        value={value}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`${inputCls} ${isAtLimit ? "border-amber-400 focus:border-amber-500 focus:ring-amber-100" : ""} ${className || ""}`}
+      />
+      <div className="flex items-center justify-between mt-1 px-1">
+        {isAtLimit ? (
+          <span className="text-[11px] text-amber-600 font-medium">Límite alcanzado (máx. {maxLength} caracteres)</span>
+        ) : isNearLimit ? (
+          <span className="text-[11px] text-amber-500 font-medium">Quedan {maxLength - value.length} caracteres</span>
+        ) : (
+          <span />
+        )}
+        <span className={`text-[10px] font-mono ml-auto ${isAtLimit ? "text-amber-600 font-bold" : "text-slate-400"}`}>
+          {value.length}/{maxLength}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
- <label className="text-[12px] font-semibold text-slate-700">{label}</label>
+      <label className="text-[12px] font-semibold text-slate-700">{label}</label>
       {children}
     </div>
   );
@@ -85,8 +158,74 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
   const [lugarProcedencia, setLugarProcedencia] = useState(p.lugar_procedencia ?? "");
   const [ocupacion, setOcupacion] = useState(p.ocupacion ?? "");
   const [estadoCivil, setEstadoCivil] = useState(p.estado_civil ?? "");
+
+  const [contactos, setContactos] = useState<ContactoItem[]>(
+    Array.isArray(p.contactos)
+      ? p.contactos.map((c: any) => ({
+          id: c.id,
+          nombre: c.nombre ?? "",
+          apellido: c.apellido ?? "",
+          dni: c.dni ?? "",
+          telefono: c.telefono ?? "",
+          tipo_contacto: c.tipo_contacto === "apoderado" ? "apoderado" : "emergencia",
+          email: c.email ?? "",
+        }))
+      : []
+  );
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isPatientEmailInvalid = Boolean(email.trim() && !emailRegex.test(email.trim()));
+
+  const hasInvalidContactEmail = contactos.some(
+    (c) => Boolean(c.email && c.email.trim() && !emailRegex.test(c.email.trim()))
+  );
+  const hasIncompleteContact = contactos.some(
+    (c) => !c.nombre.trim() || !c.apellido.trim() || !c.telefono.trim()
+  );
+
+  function handleAddContacto() {
+    setContactos((prev) => [
+      ...prev,
+      {
+        nombre: "",
+        apellido: "",
+        dni: "",
+        telefono: "",
+        tipo_contacto: "emergencia",
+        email: "",
+      },
+    ]);
+  }
+
+  function updateContacto(index: number, field: keyof ContactoItem, value: any) {
+    setContactos((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  }
+
+  function removeContacto(index: number) {
+    setContactos((prev) => prev.filter((_, i) => i !== index));
+  }
+
   const [gradoInstruccion, setGradoInstruccion] = useState(p.grado_instruccion ?? "");
-  const [raza, setRaza] = useState(p.raza ?? "");
+  const gradoOptions = useMemo(() => {
+    if (gradoInstruccion && !GRADOS_INSTRUCCION.includes(gradoInstruccion)) {
+      return [{ value: gradoInstruccion, label: gradoInstruccion }, ...GRADO_INSTRUCCION_OPTIONS];
+    }
+    return GRADO_INSTRUCCION_OPTIONS;
+  }, [gradoInstruccion]);
+
+  const initialRaza = (p.raza ?? "").trim();
+  const isPredefinedRaza = RAZAS_PREDEFINIDAS.includes(initialRaza);
+  const [razaSelect, setRazaSelect] = useState(
+    initialRaza ? (isPredefinedRaza ? initialRaza : "Otro") : ""
+  );
+  const [razaOtro, setRazaOtro] = useState(
+    initialRaza && !isPredefinedRaza ? initialRaza : ""
+  );
+
   const [religion, setReligion] = useState(p.religion ?? "");
   const [grupoSanguineo, setGrupo] = useState(p.grupo_sanguineo ?? "");
   const [enfermedadInput, setEnfermedadInput] = useState("");
@@ -105,7 +244,26 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
   const [quirurgicos, setQuirurgicos] = useState<string[]>(antIni.quirurgicos || []);
 
   const hoy = new Date().toISOString().split("T")[0];
-  const canSave = Boolean(nombre.trim() && apellido.trim() && dni.trim() && fechaNac && telefono.trim());
+
+  const isExceeded =
+    ocupacion.length > 30 ||
+    lugarNacimiento.length > 30 ||
+    lugarProcedencia.length > 30 ||
+    religion.length > 30 ||
+    (razaSelect === "Otro" && razaOtro.length > 30) ||
+    gradoInstruccion.length > 15;
+
+  const canSave = Boolean(
+    nombre.trim() &&
+    apellido.trim() &&
+    dni.trim() &&
+    fechaNac &&
+    telefono.trim() &&
+    !isExceeded &&
+    !isPatientEmailInvalid &&
+    !hasInvalidContactEmail &&
+    !hasIncompleteContact
+  );
 
   function addChip(val: string, list: string[], setter: (l: string[]) => void, inputSetter: (s: string) => void) {
     const v = val.trim();
@@ -120,6 +278,33 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
     setSaving(true);
     setError("");
 
+    const finalRaza = (razaSelect === "Otro" ? razaOtro.trim() : razaSelect.trim()) || undefined;
+
+    const validationErrors: string[] = [];
+    if (ocupacion.length > 30) validationErrors.push("El campo ocupación no puede superar los 30 caracteres.");
+    if (lugarNacimiento.length > 30) validationErrors.push("El lugar de nacimiento no puede superar los 30 caracteres.");
+    if (lugarProcedencia.length > 30) validationErrors.push("El lugar donde reside actualmente no puede superar los 30 caracteres.");
+    if (religion.length > 30) validationErrors.push("El campo religión no puede superar los 30 caracteres.");
+    if (finalRaza && finalRaza.length > 30) validationErrors.push("El campo raza no puede superar los 30 caracteres.");
+    if (gradoInstruccion.length > 15) validationErrors.push("El grado de instrucción no puede superar los 15 caracteres.");
+
+    if (isPatientEmailInvalid) {
+      validationErrors.push("El correo electrónico del paciente no tiene un formato válido.");
+    }
+    if (hasInvalidContactEmail) {
+      validationErrors.push("Uno o más contactos tienen un correo electrónico con formato inválido.");
+    }
+    if (hasIncompleteContact) {
+      validationErrors.push("Todos los contactos deben incluir nombre, apellido y teléfono.");
+    }
+
+    if (validationErrors.length > 0) {
+      setSaving(false);
+      setError(validationErrors[0]);
+      toast.error(validationErrors[0], { title: "Error de validación" });
+      return;
+    }
+
     const payload = {
       nombre: nombre.trim(),
       apellido: apellido.trim(),
@@ -129,7 +314,7 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
       email: email.trim() || undefined,
       sexo: sexo || undefined,
       lugar_nacimiento: lugarNacimiento.trim() || undefined,
-      raza: raza.trim() || undefined,
+      raza: finalRaza,
       direccion: direccion.trim() || undefined,
       domicilio: domicilio.trim() || undefined,
       lugar_procedencia: lugarProcedencia.trim() || undefined,
@@ -142,6 +327,15 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
       restricciones_clinicas: restriccionesClinicas,
       alergias,
       antecedentes: { cronicas, medicacion_habitual: medicacion, quirurgicos },
+      contactos: contactos.map((c) => ({
+        id: c.id,
+        nombre: c.nombre.trim(),
+        apellido: c.apellido.trim(),
+        dni: c.dni?.trim() || undefined,
+        telefono: c.telefono.trim(),
+        tipo_contacto: c.tipo_contacto,
+        email: c.email?.trim() || undefined,
+      })),
     };
 
     const res = await updatePacienteAction(String(p.id), payload);
@@ -159,6 +353,7 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
     const updatedPatientData = {
       ...p,
       ...payload,
+      contactos: payload.contactos,
       antecedentes_estructurados: payload.antecedentes,
       antecedentes: cronicas,
     };
@@ -216,7 +411,16 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
                 <input value={telefono} onChange={(e) => setTelefono(e.target.value)} className={inputCls} />
               </Field>
               <Field label="Email">
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={`${inputCls} ${isPatientEmailInvalid ? "border-red-400 focus:border-red-500 focus:ring-red-100" : ""}`}
+                  placeholder="ejemplo@correo.com"
+                />
+                {isPatientEmailInvalid && (
+                  <span className="text-[11px] text-red-500 font-medium">Formato de correo inválido (ej: usuario@dominio.com)</span>
+                )}
               </Field>
             </div>
 
@@ -224,23 +428,23 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
               <Field label="Dirección">
                 <input value={direccion} onChange={(e) => setDireccion(e.target.value)} className={inputCls} placeholder="Ej. Av. Principal 123" />
               </Field>
-              <Field label="Domicilio">
-                <input value={domicilio} onChange={(e) => setDomicilio(e.target.value)} className={inputCls} placeholder="Ej. Dpto / Referencia" />
+              <Field label="Referencia">
+                <input value={domicilio} onChange={(e) => setDomicilio(e.target.value)} className={inputCls} placeholder="Ej. Dpto / Frente al parque" />
               </Field>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Lugar de nacimiento">
-                <input value={lugarNacimiento} onChange={(e) => setLugarNacimiento(e.target.value)} className={inputCls} placeholder="Ciudad / Provincia" />
+                <LimitedTextInput value={lugarNacimiento} onChange={setLugarNacimiento} maxLength={30} placeholder="Ciudad / Provincia" />
               </Field>
-              <Field label="Lugar de procedencia">
-                <input value={lugarProcedencia} onChange={(e) => setLugarProcedencia(e.target.value)} className={inputCls} placeholder="Lugar de procedencia" />
+              <Field label="Lugar donde reside actualmente">
+                <LimitedTextInput value={lugarProcedencia} onChange={setLugarProcedencia} maxLength={30} placeholder="Lugar donde reside actualmente" />
               </Field>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Ocupación">
-                <input value={ocupacion} onChange={(e) => setOcupacion(e.target.value)} className={inputCls} placeholder="Ocupación actual" />
+                <LimitedTextInput value={ocupacion} onChange={setOcupacion} maxLength={30} placeholder="Ocupación actual" />
               </Field>
               <Field label="Estado civil">
                 <Select value={estadoCivil} onChange={setEstadoCivil} options={ESTADO_CIVIL_OPTIONS} placeholder="— Seleccionar —" />
@@ -249,15 +453,140 @@ export function EditarPacienteModal({ paciente: p, onClose, onSaved }: {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Field label="Grado de instrucción">
-                <input value={gradoInstruccion} onChange={(e) => setGradoInstruccion(e.target.value)} className={inputCls} placeholder="Ej. Superior / Técnico" />
+                <Select value={gradoInstruccion} onChange={setGradoInstruccion} options={gradoOptions} placeholder="— Seleccionar —" />
               </Field>
               <Field label="Raza">
-                <input value={raza} onChange={(e) => setRaza(e.target.value)} className={inputCls} placeholder="Raza / Etnia" />
+                <Select value={razaSelect} onChange={setRazaSelect} options={RAZA_OPTIONS} placeholder="— Seleccionar —" />
+                {razaSelect === "Otro" && (
+                  <div className="mt-1.5">
+                    <LimitedTextInput
+                      value={razaOtro}
+                      onChange={setRazaOtro}
+                      maxLength={30}
+                      placeholder="Especificar raza / etnia"
+                    />
+                  </div>
+                )}
               </Field>
               <Field label="Religión">
-                <input value={religion} onChange={(e) => setReligion(e.target.value)} className={inputCls} placeholder="Religión" />
+                <LimitedTextInput value={religion} onChange={setReligion} maxLength={30} placeholder="Religión" />
               </Field>
             </div>
+          </div>
+
+          {/* Sección Contactos de emergencia y apoderados */}
+          <div className="flex flex-col gap-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Contactos de emergencia y apoderados</p>
+                <p className="text-[11.5px] text-slate-500">Personas de contacto o apoderados vinculados al paciente</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddContacto}
+                className="flex items-center gap-1 px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl text-[12px] font-semibold transition-colors cursor-pointer"
+              >
+                <Icon name="add" size={14} /> Añadir contacto
+              </button>
+            </div>
+
+            {contactos.length === 0 ? (
+              <div className="p-4 border border-dashed border-slate-200 rounded-xl text-center bg-slate-50/50">
+                <p className="text-[12px] text-slate-400">Sin contactos adicionales registrados.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {contactos.map((c, idx) => {
+                  const isContactEmailInvalid = Boolean(c.email && c.email.trim() && !emailRegex.test(c.email.trim()));
+                  return (
+                    <div key={c.id || idx} className="bg-slate-50 border border-slate-200 rounded-xl p-3 sm:p-4 flex flex-col gap-3 relative">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[12px] font-bold text-slate-700 flex items-center gap-1.5">
+                          <Icon name={c.tipo_contacto === "apoderado" ? "supervisor_account" : "emergency"} size={16} className={c.tipo_contacto === "apoderado" ? "text-cyan-600" : "text-amber-600"} />
+                          Contacto #{idx + 1}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 text-[11px] font-medium">
+                            <button
+                              type="button"
+                              onClick={() => updateContacto(idx, "tipo_contacto", "emergencia")}
+                              className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${c.tipo_contacto === "emergencia" ? "bg-amber-100 text-amber-800 font-bold" : "text-slate-500 hover:text-slate-700"}`}
+                            >
+                              Emergencia
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateContacto(idx, "tipo_contacto", "apoderado")}
+                              className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${c.tipo_contacto === "apoderado" ? "bg-cyan-100 text-cyan-800 font-bold" : "text-slate-500 hover:text-slate-700"}`}
+                            >
+                              Apoderado
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeContacto(idx)}
+                            className="p-1 text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                            title="Eliminar contacto"
+                          >
+                            <Icon name="delete" size={16} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <Field label="Nombre *">
+                          <input
+                            value={c.nombre}
+                            onChange={(e) => updateContacto(idx, "nombre", e.target.value)}
+                            placeholder="Nombre del contacto"
+                            className={inputCls}
+                          />
+                        </Field>
+                        <Field label="Apellido *">
+                          <input
+                            value={c.apellido}
+                            onChange={(e) => updateContacto(idx, "apellido", e.target.value)}
+                            placeholder="Apellido del contacto"
+                            className={inputCls}
+                          />
+                        </Field>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <Field label="Teléfono *">
+                          <input
+                            value={c.telefono}
+                            onChange={(e) => updateContacto(idx, "telefono", e.target.value)}
+                            placeholder="Teléfono o celular"
+                            className={inputCls}
+                          />
+                        </Field>
+                        <Field label="DNI">
+                          <input
+                            value={c.dni || ""}
+                            onChange={(e) => updateContacto(idx, "dni", e.target.value)}
+                            placeholder="DNI / Documento"
+                            className={inputCls}
+                          />
+                        </Field>
+                        <Field label="Email">
+                          <input
+                            type="email"
+                            value={c.email || ""}
+                            onChange={(e) => updateContacto(idx, "email", e.target.value)}
+                            placeholder="correo@ejemplo.com"
+                            className={`${inputCls} ${isContactEmailInvalid ? "border-red-400 focus:border-red-500 focus:ring-red-100" : ""}`}
+                          />
+                          {isContactEmailInvalid && (
+                            <span className="text-[10px] text-red-500 font-medium">Correo inválido</span>
+                          )}
+                        </Field>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
  <div className="flex flex-col gap-3 pt-3 border-t border-slate-100">

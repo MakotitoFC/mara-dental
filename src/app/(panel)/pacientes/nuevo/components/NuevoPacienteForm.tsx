@@ -11,12 +11,24 @@ import { createPacienteAction } from "../../actions";
 const GRUPOS_SANGUINEOS = ["A+", "A−", "B+", "B−", "AB+", "AB−", "O+", "O−"];
 const SEXOS             = ["Masculino", "Femenino", "Otro"];
 const ESTADOS_CIVILES   = ["Soltero/a", "Casado/a", "Conviviente", "Viudo/a", "Divorciado/a"];
-const GRADOS_INST       = ["Ninguna", "Primaria", "Secundaria", "Técnica", "Superior"];
+const GRADOS_INST       = ["No especifica", "Primaria", "Secundaria", "Técnico", "Superior"];
+const RAZAS_PREDEFINIDAS = [
+  "No especifica",
+  "Mestizo",
+  "Caucásico",
+  "Afrodescendiente",
+  "Indígena / Nativo",
+  "Asiático",
+];
 
 const SEXO_OPTIONS = SEXOS.map((s) => ({ value: s, label: s }));
 const ESTADO_CIVIL_OPTIONS = ESTADOS_CIVILES.map((s) => ({ value: s, label: s }));
 const GRUPO_OPTIONS = GRUPOS_SANGUINEOS.map((g) => ({ value: g, label: g }));
 const GRADO_INST_OPTIONS = GRADOS_INST.map((g) => ({ value: g, label: g }));
+const RAZA_OPTIONS = [
+  ...RAZAS_PREDEFINIDAS.map((r) => ({ value: r, label: r })),
+  { value: "Otro", label: "Otro" },
+];
 
 export function NuevoPacienteForm() {
   const router = useRouter();
@@ -37,7 +49,8 @@ export function NuevoPacienteForm() {
   const [domicilio,        setDomicilio]        = useState("");
   const [lugarProc,        setLugarProc]        = useState("");
   const [lugarNac,         setLugarNac]         = useState("");
-  const [raza,             setRaza]             = useState("");
+  const [razaSelect,       setRazaSelect]       = useState("");
+  const [razaOtro,         setRazaOtro]         = useState("");
 
   // Clínico
   const [grupoSanguineo,   setGrupo]            = useState("");
@@ -60,7 +73,23 @@ export function NuevoPacienteForm() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const hoy = new Date().toISOString().split("T")[0];
-  const canSave = nombre.trim() && apellido.trim() && dni.trim() && telefono.trim() && fechaNac && !loading;
+  const isOverLimit =
+    ocupacion.trim().length > 30 ||
+    religion.trim().length > 30 ||
+    (razaSelect === "Otro" ? razaOtro.trim().length > 30 : razaSelect.trim().length > 30) ||
+    lugarNac.trim().length > 30 ||
+    lugarProc.trim().length > 30 ||
+    gradoInst.trim().length > 15;
+
+  const canSave = Boolean(
+    nombre.trim() &&
+    apellido.trim() &&
+    dni.trim() &&
+    telefono.trim() &&
+    fechaNac &&
+    !loading &&
+    !isOverLimit
+  );
 
   function addChip(val: string, list: string[], setter: (l: string[]) => void, inputSetter: (s: string) => void) {
     const v = val.trim();
@@ -76,6 +105,39 @@ export function NuevoPacienteForm() {
     setLoading(true);
     setErrorMsg(null);
 
+    const finalRaza = (razaSelect === "Otro" ? razaOtro.trim() : razaSelect.trim()) || undefined;
+
+    if (ocupacion.trim().length > 30) {
+      setErrorMsg("El campo ocupación no puede superar los 30 caracteres.");
+      setLoading(false);
+      return;
+    }
+    if (lugarNac.trim().length > 30) {
+      setErrorMsg("El lugar de nacimiento no puede superar los 30 caracteres.");
+      setLoading(false);
+      return;
+    }
+    if (lugarProc.trim().length > 30) {
+      setErrorMsg("El lugar donde reside actualmente no puede superar los 30 caracteres.");
+      setLoading(false);
+      return;
+    }
+    if (religion.trim().length > 30) {
+      setErrorMsg("El campo religión no puede superar los 30 caracteres.");
+      setLoading(false);
+      return;
+    }
+    if (finalRaza && finalRaza.length > 30) {
+      setErrorMsg("El campo raza no puede superar los 30 caracteres.");
+      setLoading(false);
+      return;
+    }
+    if (gradoInst.trim().length > 15) {
+      setErrorMsg("El grado de instrucción no puede superar los 15 caracteres.");
+      setLoading(false);
+      return;
+    }
+
     const res = await createPacienteAction({
       nombre, apellido, dni,
       fecha_nacimiento:  fechaNac,
@@ -83,7 +145,7 @@ export function NuevoPacienteForm() {
       email:             email             || undefined,
       sexo:              sexo              || undefined,
       lugar_nacimiento:  lugarNac          || undefined,
-      raza:              raza              || undefined,
+      raza:              finalRaza,
       direccion:         direccion         || undefined,
       domicilio:         domicilio         || undefined,
       lugar_procedencia: lugarProc         || undefined,
@@ -141,7 +203,7 @@ export function NuevoPacienteForm() {
               <Select value={estadoCivil} onChange={setEstadoCivil} options={ESTADO_CIVIL_OPTIONS} placeholder="— Seleccionar —" />
             </FormField>
             <FormField label="Religión">
-              <TextInput value={religion} onChange={e => setReligion(e.target.value)} placeholder="Católica, Evangélica…" />
+              <LimitedTextInput value={religion} onChange={setReligion} maxLength={30} placeholder="Católica, Evangélica…" />
             </FormField>
           </FormCard>
 
@@ -156,17 +218,27 @@ export function NuevoPacienteForm() {
             <FormField label="Dirección">
               <TextInput value={direccion} onChange={e => setDireccion(e.target.value)} placeholder="Av. Principal 123" />
             </FormField>
-            <FormField label="Domicilio">
+            <FormField label="Referencia">
               <TextInput value={domicilio} onChange={e => setDomicilio(e.target.value)} placeholder="Urb. Los Pinos Mz. A Lt. 5" />
             </FormField>
-            <FormField label="Lugar de procedencia">
-              <TextInput value={lugarProc} onChange={e => setLugarProc(e.target.value)} placeholder="Lima, Cusco…" />
+            <FormField label="Lugar donde reside actualmente">
+              <LimitedTextInput value={lugarProc} onChange={setLugarProc} maxLength={30} placeholder="Lima, Cusco…" />
             </FormField>
             <FormField label="Lugar de nacimiento">
-              <TextInput value={lugarNac} onChange={e => setLugarNac(e.target.value)} placeholder="Arequipa…" />
+              <LimitedTextInput value={lugarNac} onChange={setLugarNac} maxLength={30} placeholder="Arequipa…" />
             </FormField>
             <FormField label="Raza / Etnia">
-              <TextInput value={raza} onChange={e => setRaza(e.target.value)} placeholder="Mestizo/a…" />
+              <Select value={razaSelect} onChange={setRazaSelect} options={RAZA_OPTIONS} placeholder="— Seleccionar —" />
+              {razaSelect === "Otro" && (
+                <div className="mt-1.5">
+                  <LimitedTextInput
+                    value={razaOtro}
+                    onChange={setRazaOtro}
+                    maxLength={30}
+                    placeholder="Especifique raza o etnia…"
+                  />
+                </div>
+              )}
             </FormField>
           </FormCard>
 
@@ -176,7 +248,7 @@ export function NuevoPacienteForm() {
               <Select value={grupoSanguineo} onChange={setGrupo} options={GRUPO_OPTIONS} placeholder="— No especificado —" />
             </FormField>
             <FormField label="Ocupación">
-              <TextInput value={ocupacion} onChange={e => setOcupacion(e.target.value)} placeholder="Docente, Ingeniero…" />
+              <LimitedTextInput value={ocupacion} onChange={setOcupacion} maxLength={30} placeholder="Docente, Ingeniero…" />
             </FormField>
             <FormField label="Grado de instrucción">
               <Select value={gradoInst} onChange={setGradoInst} options={GRADO_INST_OPTIONS} placeholder="— Seleccionar —" />
@@ -337,3 +409,47 @@ function ChipInput({ value, chips, placeholder, chipClass, onChange, onAdd, onRe
     </div>
   );
 }
+
+function LimitedTextInput({
+  value,
+  onChange,
+  maxLength = 30,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  maxLength?: number;
+  placeholder?: string;
+  className?: string;
+}) {
+  const isNearLimit = value.length >= maxLength - 3 && value.length < maxLength;
+  const isAtLimit = value.length >= maxLength;
+
+  return (
+    <div className="flex flex-col">
+      <TextInput
+        type="text"
+        value={value}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        variant={isAtLimit ? "amber" : "cyan"}
+        className={className}
+      />
+      <div className="flex items-center justify-between mt-1 px-1">
+        {isAtLimit ? (
+          <span className="text-[11px] text-amber-600 font-medium">Límite alcanzado (máx. {maxLength} caracteres)</span>
+        ) : isNearLimit ? (
+          <span className="text-[11px] text-amber-500 font-medium">Quedan {maxLength - value.length} caracteres</span>
+        ) : (
+          <span />
+        )}
+        <span className={`text-[10px] font-mono ml-auto ${isAtLimit ? "text-amber-600 font-bold" : "text-slate-400"}`}>
+          {value.length}/{maxLength}
+        </span>
+      </div>
+    </div>
+  );
+}
+

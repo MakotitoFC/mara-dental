@@ -31,7 +31,7 @@ export function AuthProvider({ children, initialUser }: { children: ReactNode, i
     const supabase = createClient();
 
     // Solo escuchamos eventos en vivo (ej. si el token expira o hace logout)
-    const {data:listener} = supabase.auth.onAuthStateChange(async (event)=>{
+    const {data:listener} = supabase.auth.onAuthStateChange(async (event: any)=>{
       if(event==="SIGNED_OUT"){
         setUser(null);
         router.push("/login");

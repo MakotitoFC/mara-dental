@@ -73,7 +73,7 @@ export function Sidebar() {
       .select("*", { count: "exact", head: true })
       .eq("sede_id", user.sede_id)
       .eq("estado", "pendiente")
-      .then(({ count }) => {
+      .then(({ count }: { count: number | null }) => {
         if (count !== null) setValidacionesCount(count);
       });
 
@@ -83,7 +83,7 @@ export function Sidebar() {
         .select("*", { count: "exact", head: true })
         .eq("sede_id", user.sede_id!)
         .eq("estado", "pendiente")
-        .then(({ count }) => {
+        .then(({ count }: { count: number | null }) => {
           if (count !== null) setValidacionesCount(count);
         });
     };
@@ -95,7 +95,7 @@ export function Sidebar() {
         table: "solicitud_validacion",
         filter: `sede_id=eq.${user.sede_id}`
       }, refetchCount)
-      .on("broadcast", { event: "NEW_VALIDACION" }, (payload) => {
+      .on("broadcast", { event: "NEW_VALIDACION" }, (payload: any) => {
         if (!payload.payload?.sede_id || payload.payload?.sede_id === user.sede_id) {
           refetchCount();
         }
