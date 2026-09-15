@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "./Icon";
 
@@ -28,10 +28,10 @@ interface ToastContextValue {
 }
 
 const DEFAULT_DURATION: Record<ToastType, number | null> = {
-  success: 4000,
-  warning: 6000,
-  info: 4000,
-  error: null, // persiste hasta que el usuario lo cierre
+  success: 3000, // confirmación: 3 segundos y desaparece
+  warning: 5000,
+  info: 3000,
+  error: 5000,   // error: 5 segundos y desaparece
 };
 
 const TOAST_CFG: Record<ToastType, { icon: string; accent: string; iconBg: string }> = {
@@ -51,6 +51,54 @@ export function useToast() {
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+function NetworkStatusListener({
+  onError,
+  onSuccess,
+}: {
+  onError: (msg: string, opts?: ToastOptions) => void;
+  onSuccess: (msg: string, opts?: ToastOptions) => void;
+}) {
+  useEffect(() => {
+    let wasOffline = false;
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      wasOffline = true;
+      onError("No tienes conexión a internet. Verifica tu red.", {
+        title: "Sin conexión a internet",
+        duration: 5000,
+      });
+    }
+
+    const handleOffline = () => {
+      wasOffline = true;
+      onError("No tienes conexión a internet. Verifica tu red.", {
+        title: "Sin conexión a internet",
+        duration: 5000,
+      });
+    };
+
+    const handleOnline = () => {
+      if (wasOffline) {
+        onSuccess("Conexión a internet restablecida.", {
+          title: "Conectado",
+          duration: 3000,
+        });
+        wasOffline = false;
+      }
+    };
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [onError, onSuccess]);
+
+  return null;
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -84,6 +132,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   return (
     <ToastContext.Provider value={value}>
+      <NetworkStatusListener onError={value.error} onSuccess={value.success} />
       {children}
       <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 w-[calc(100vw-2rem)] sm:w-[360px] pointer-events-none">
         <AnimatePresence initial={false}>

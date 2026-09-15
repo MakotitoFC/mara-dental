@@ -108,17 +108,82 @@ export async function loginAction(formData: FormData){
     }
 }
 
-export async function resetPasswordAction(formData: FormData){
-    const email = formData.get("email") as string;
-    const supabase = await createClient();
+export async function resetPasswordAction(formData: FormData) {
+  const email = formData.get("email") as string;
+  const supabase = await createClient();
+  const headersList = await headers();
+  const host = headersList.get("x-forwarded-host") || headersList.get("host") || "";
+  const proto = headersList.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || (host ? `${proto}://${host}` : "http://localhost:3000");
 
-    const {error} = await supabase.auth.resetPasswordForEmail(email,{
-        redirectTo:`${process.env.NEXT_PUBLIC_SITE_URL}/actualizar-password`,
-    });
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteUrl}/auth/callback?next=/actualizar-password`,
+  });
 
-    if(error) return {error:"No se pudo enviar el correo de recuperación."};
+  if (error) {
+    return { error: error.message || "No se pudo enviar el correo de recuperación." };
+  }
 
-    return {success:"Te hemos enviado un enlace para recuperar tu contraseña."}
+  return { success: "Te hemos enviado un correo con instrucciones para restablecer tu contraseña." };
+}
+
+export async function verifyRecoveryOtpAction(formData: FormData) {
+  const email = formData.get("email") as string;
+  const token = ((formData.get("token") as string) || "").trim();
+  const supabase = await createClient();
+
+  if (!email || !token) {
+    return { error: "Por favor ingresa tu correo y el código de verificación." };
+  }
+
+  const { error } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type: "recovery",
+  });
+
+  if (error) {
+    return { error: "Código incorrecto o expirado. Por favor verifica e intenta nuevamente." };
+  }
+
+  return { success: true };
+}
+
+export async function updatePasswordAction(formData: FormData) {
+  const password = formData.get("password") as string;
+  const confirmPassword = formData.get("confirmPassword") as string;
+
+  if (!password || password.length < 6) {
+    return { error: "La contraseña debe tener al menos 6 caracteres." };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { error: "La contraseña debe incluir al menos una letra minúscula (a-z)." };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { error: "La contraseña debe incluir al menos una letra mayúscula (A-Z)." };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { error: "La contraseña debe incluir al menos un número (0-9)." };
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return { error: "La contraseña debe incluir al menos un símbolo o carácter especial (!@#$%...)." };
+  }
+  if (password !== confirmPassword) {
+    return { error: "Las contraseñas no coinciden. Por favor verifícalas." };
+  }
+
+  const supabase = await createClient();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { error: "La sesión ha expirado o no es válida. Por favor solicita un nuevo código de recuperación." };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    return { error: error.message || "No se pudo actualizar la contraseña." };
+  }
+
+  return { success: true };
 }
 
 export async function logoutAction() {

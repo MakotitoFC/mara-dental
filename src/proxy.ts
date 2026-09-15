@@ -30,10 +30,16 @@ export async function proxy(request: NextRequest) {
   // Refresca la sesión del usuario para que no expire
   const {data: {user}} = await supabase.auth.getUser();
 
-  //Saber la ruta en la que estamos
+  // Saber la ruta en la que estamos
   const pathname = request.nextUrl.pathname;
 
-  if (!user && !pathname.startsWith('/login')) {
+  const isAuthRoute =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/recuperar-password') ||
+    pathname.startsWith('/actualizar-password') ||
+    pathname.startsWith('/auth/callback');
+
+  if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     const redirectResponse = NextResponse.redirect(url);
@@ -43,9 +49,10 @@ export async function proxy(request: NextRequest) {
     return redirectResponse;
   }
 
-  const isPublicRoute = pathname.startsWith('/login') || pathname === '/';
+  // Rutas de entrada que redirigen al panel si el usuario ya cuenta con sesión activa
+  const isRedirectIfAuthed = pathname.startsWith('/login') || pathname.startsWith('/recuperar-password') || pathname === '/';
 
-  if(user){
+  if (user) {
     const { data: userData, error } = await supabase.from('usuarios').select('activo, rol_id, rol (rol)').eq('id', user.id).single();
 
     // EXPULSIÓN INMEDIATA: Si el usuario fue desactivado por un admin/superadmin, cerrar sesión en el servidor y redirigir
@@ -61,8 +68,8 @@ export async function proxy(request: NextRequest) {
       return redirectResponse;
     }
 
-    // Evitar que un usuario logueado vea el login
-    if(isPublicRoute){
+    // Evitar que un usuario logueado acceda al login o solicitud de recuperación
+    if (isRedirectIfAuthed) {
       const url = request.nextUrl.clone();
       url.pathname = '/dashboard';
       const redirectResponse = NextResponse.redirect(url);

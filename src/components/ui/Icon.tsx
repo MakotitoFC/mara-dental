@@ -32,7 +32,8 @@ import {
   Hourglass, RefreshCw, TrendingDown, WalletCards, Timer,
   ArrowUpDown, MinusCircle, Loader2, SplitSquareVertical,
   Maximize,
-  ListFilter
+  ListFilter,
+  Siren
 } from "lucide-react";
 
 interface IconProps {
@@ -248,6 +249,7 @@ const ICONS: Record<string, LucideIcon> = {
   remove_circle_outline: MinusCircle,
   progress_activity:    Loader2,
   splitscreen:          SplitSquareVertical,
+  emergency:            Siren,
 };
 
 // Iconos con SVG propio (no vienen de lucide-react) — mismo contrato de props.

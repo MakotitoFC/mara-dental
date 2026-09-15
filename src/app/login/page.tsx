@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import {
@@ -31,7 +32,7 @@ const TEST_USERS = [
   { email: "superadmin2026@gmail.com", password: "SuperAdmin2026", name: "Juan Pablo Escalante", rol: "SuperAdmin (S1)", color: "bg-slate-200 text-slate-700" },
   { email: "israjm19@gmail.com", password: "M@ria10ijmrasmr", name: "María Isabel Gutiérrez", rol: "Admin (S1)", color: "bg-amber-100 text-amber-700" },
   { email: "admin1sede2@gmail.com", password: "Admin1Sede2", name: "Luis Fernando López", rol: "Admin (S2)", color: "bg-amber-100 text-amber-700" },
-  { email: "escalinza14@gmail.com", password: "Takemy2026", name: "Dr. Carlos Rodríguez", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
+  { email: "escalinza14@gmail.com", password: "M@ria10ijmrasmr", name: "Dr. Carlos Rodríguez", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
   { email: "doctor2sede1@gmail.com", password: "Doctor2Sede1", name: "Dr. Miguel Ángel Díaz", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
   { email: "doctor3sede1@gmail.com", password: "Doctor3Sede1", name: "Dr. Marco Torres", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
   { email: "doctor1sede2@gmail.com", password: "Doctor1Sede2", name: "Dr. José María Romero", rol: "Doctor (S2)", color: "bg-cyan-100 text-cyan-700" },
@@ -175,9 +176,9 @@ function LoginPageContent() {
                   label={<span className="text-sm text-slate-600">Recordarme</span>}
                   className="w-auto border-0 p-0 hover:bg-transparent"
                 />
-                <a href="#" className="text-sm text-cyan-600 hover:text-cyan-700 transition-colors">
+                <Link href="/recuperar-password" className="text-sm text-cyan-600 hover:text-cyan-700 transition-colors">
                   ¿Olvidaste tu contraseña?
-                </a>
+                </Link>
               </div>
             </motion.div>
 
