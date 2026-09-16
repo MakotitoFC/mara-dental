@@ -38,6 +38,7 @@ export interface PagoHistorial {
   categoria_nombre?: string;
   fecha_pago: string;
   moneda: string;
+  caja_turno_id?: string;
 }
 
 export interface MetodoPagoResumen {
@@ -68,8 +69,8 @@ function conDiagnostico(motivo: string): PagosDashboardSede {
 
 /** Panel de pagos de la sede: pendientes de cobro, ingresos/egresos/comprobantes de
  * hoy, desglose por método de pago e historial reciente — todo en una sola
- * consulta. Incluye cobros de presupuestos y movimientos libres (ingresos/egresos). */
-export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede> {
+ * consulta. El Historial Reciente muestra solo los movimientos de la caja abierta actual. */
+export async function getPagosDashboardSedeAction(cajaId?: string): Promise<PagosDashboardSede> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return VACIO;
@@ -77,15 +78,29 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
   const { data: usr } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
   if (!usr?.sede_id) return conDiagnostico("No se pudo resolver sede_id del asistente");
 
+  // Resolver caja abierta si no se suministró explícitamente
+  let targetCajaId = cajaId;
+  if (!targetCajaId) {
+    const { data: cajaAbierta } = await supabase
+      .from("caja_turno")
+      .select("id")
+      .eq("usuario_id", user.id)
+      .is("fecha_cierre", null)
+      .order("fecha_apertura", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    targetCajaId = cajaAbierta?.id;
+  }
+
   const adminClient = getAdminClient();
   const hoyStr = new Date().toISOString().split("T")[0];
   const inicioMesStr = hoyStr.substring(0, 8) + "01";
 
-  // Obtenemos todos los movimientos de la sede a través del join con caja_turno
-  const { data: ultimosMovimientos, error: ultimosErr } = await adminClient
+  // Obtenemos los movimientos de la sede (asegurando incluir los de la caja activa)
+  let query = adminClient
     .from("movimiento_caja")
     .select(`
-      id, monto, estado, fecha, observacion,
+      id, monto, estado, fecha, observacion, caja_turno_id,
       categoria:categoria_id ( nombre, tipo ),
       medio_pago ( nombre ), 
       caja_turno!inner ( sede_id ),
@@ -94,9 +109,15 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
       proveedores ( nombre )
     `)
     .neq("estado", "anulado")
-    .eq("caja_turno.sede_id", usr.sede_id)
-    .gte("fecha", inicioMesStr)
-    .order("fecha", { ascending: false });
+    .eq("caja_turno.sede_id", usr.sede_id);
+
+  if (targetCajaId) {
+    query = query.or(`caja_turno_id.eq.${targetCajaId},fecha.gte.${inicioMesStr}`);
+  } else {
+    query = query.gte("fecha", inicioMesStr);
+  }
+
+  const { data: ultimosMovimientos, error: ultimosErr } = await query.order("fecha", { ascending: false });
 
   if (ultimosErr) {
     console.error("[getPagosDashboardSedeAction] Error obteniendo movimientos:", ultimosErr.message);
@@ -142,7 +163,10 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
       nombreConcepto = tipo === "E" ? "Egreso Libre" : "Ingreso Libre";
     }
 
-    if (historialTodo.length < 8) {
+    // El Historial Reciente debe mostrar solo los movimientos pertenecientes a la caja abierta actual
+    const esDeCajaActual = targetCajaId ? pg.caja_turno_id === targetCajaId : true;
+
+    if (esDeCajaActual && historialTodo.length < 20) {
       historialTodo.push({
         id: String(pg.id),
         paciente_nombre: nombreConcepto,
@@ -152,6 +176,7 @@ export async function getPagosDashboardSedeAction(): Promise<PagosDashboardSede>
         categoria_nombre: cat?.nombre,
         fecha_pago: pg.fecha,
         moneda: "PEN",
+        caja_turno_id: pg.caja_turno_id,
       });
     }
 

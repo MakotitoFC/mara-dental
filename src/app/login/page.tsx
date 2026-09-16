@@ -38,9 +38,9 @@ const TEST_USERS = [
   { email: "doctor1sede2@gmail.com", password: "Doctor1Sede2", name: "Dr. José María Romero", rol: "Doctor (S2)", color: "bg-cyan-100 text-cyan-700" },
   { email: "doctor2sede2@gmail.com", password: "Doctor2Sede2", name: "Dr. Santiago Castro", rol: "Doctor (S2)", color: "bg-cyan-100 text-cyan-700" },
   { email: "doctor3sede2@gmail.com", password: "Doctor3Sede2", name: "Dr. Carlos Mendoza", rol: "Doctor (S2)", color: "bg-cyan-100 text-cyan-700" },
-  { email: "almen042919@gmail.com", password: "Almen2029", name: "Ana Patricia Fernández", rol: "Cajero (S1)", color: "bg-emerald-100 text-emerald-700" },
-  { email: "cajero1sede2@gmail.com", password: "Cajero1Sede2", name: "Rosa María Chávez", rol: "Cajero (S2)", color: "bg-emerald-100 text-emerald-700" },
-  { email: "cajero2sede2@gmail.com", password: "Cajero2Sede2", name: "María Fernanda Salazar", rol: "Cajero (S2)", color: "bg-emerald-100 text-emerald-700" },
+  { email: "almen042919@gmail.com", password: "Almen2029", name: "Ana Patricia Fernández", rol: "Contador (S1)", color: "bg-emerald-100 text-emerald-700" },
+  { email: "cajero1sede2@gmail.com", password: "Cajero1Sede2", name: "Rosa María Chávez", rol: "Contador (S2)", color: "bg-emerald-100 text-emerald-700" },
+  { email: "cajero2sede2@gmail.com", password: "Cajero2Sede2", name: "María Fernanda Salazar", rol: "Contador (S2)", color: "bg-emerald-100 text-emerald-700" },
   { email: "t1513300521@gmail.com", password: "J@elito12", name: "José Luis Martínez", rol: "Asistente (S1)", color: "bg-blue-100 text-blue-700" },
   { email: "asistente1sede2@gmail.com", password: "Asistente1Sede2", name: "Laura Patricia Ramos", rol: "Asistente (S2)", color: "bg-blue-100 text-blue-700" },
 ];

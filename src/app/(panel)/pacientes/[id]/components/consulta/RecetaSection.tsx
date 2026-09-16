@@ -45,7 +45,7 @@ interface Receta {
 type MedDraft = { medicamento_nombre: string; dosis: string; frecuencia: string; indicaciones: string; medicamento_id: number | null };
 const emptyMed = (): MedDraft => ({ medicamento_nombre: "", dosis: "", frecuencia: "Cada 8 horas", indicaciones: "", medicamento_id: null });
 
-const FRECUENCIAS = ["Cada 6 horas", "Cada 8 horas", "Cada 12 horas", "Cada 24 horas", "Una vez al día", "Dos veces al día"];
+const FRECUENCIAS = ["Cada 6 horas", "Cada 8 horas", "Cada 12 horas", "Cada 24 horas", "Una vez al día", "Dos veces al día","Tres veces al día"];
 const FRECUENCIA_OPTIONS = FRECUENCIAS.map((f) => ({ value: f, label: f }));
 
 const fmtFecha = (d: string) => {

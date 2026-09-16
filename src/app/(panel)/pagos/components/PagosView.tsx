@@ -142,7 +142,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
         table: "movimiento_caja",
       }, () => {
         import("../actions").then(({ getPagosDashboardSedeAction }) => {
-          getPagosDashboardSedeAction().then((fresh) => {
+          getPagosDashboardSedeAction(cajaAbiertaId).then((fresh) => {
             if (fresh) setDashboard(fresh);
           });
         });
@@ -153,7 +153,14 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
       supabase.removeChannel(channelValidaciones);
       supabase.removeChannel(channelMovimientos);
     };
-  }, [sede?.id, router]);
+  }, [sede?.id, router, cajaAbiertaId]);
+
+  const historialCaja = useMemo(() => {
+    if (!cajaAbiertaId) return dashboard.historial;
+    return dashboard.historial.filter(
+      (h) => !h.caja_turno_id || h.caja_turno_id === cajaAbiertaId
+    );
+  }, [dashboard.historial, cajaAbiertaId]);
 
   const [pendientesBuscados, setPendientesBuscados] = useState<PresupuestoPendiente[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -593,13 +600,20 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
             </div>
 
             {/* Historial Reciente con Acciones de Comprobante PDF / Imprimir */}
- <div className="bg-white border border-slate-200 rounded-2xl p-4">
- <h3 className="text-[13px] font-semibold text-slate-800 mb-3">Historial Reciente</h3>
-              {dashboard.historial.length === 0 ? (
- <p className="text-[11.5px] text-slate-400">Sin movimientos registrados aún.</p>
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[13px] font-semibold text-slate-800">Historial Reciente</h3>
+                {cajaAbiertaId && (
+                  <span className="text-[10.5px] font-medium text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded-full border border-cyan-100">
+                    Caja actual
+                  </span>
+                )}
+              </div>
+              {historialCaja.length === 0 ? (
+                <p className="text-[11.5px] text-slate-400">Sin movimientos en esta caja aún.</p>
               ) : (
                 <div className="flex flex-col gap-2.5">
-                  {dashboard.historial.map((h) => {
+                  {historialCaja.map((h) => {
                     const isEgreso = h.tipo === "E";
                     const isExporting = exportingId === h.id;
 

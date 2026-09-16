@@ -17,8 +17,7 @@ import { AjusteAperturaObligatorio } from "./components/AjusteAperturaObligatori
 import { Suspense } from "react";
 
 async function PagosDataLoader() {
-  const [dashboard, mediosPago, sede, estadoCaja, categoriasIn, categoriasEg, monedas] = await Promise.all([
-    getPagosDashboardSedeAction(),
+  const [mediosPago, sede, estadoCaja, categoriasIn, categoriasEg, monedas] = await Promise.all([
     getMediosPagoAction(),
     getSedeInfoAction(),
     checkCajaAbiertaAction(),
@@ -47,6 +46,8 @@ async function PagosDataLoader() {
       />
     );
   }
+
+  const dashboard = await getPagosDashboardSedeAction(estadoCaja.caja.id);
 
   return (
     <PagosView

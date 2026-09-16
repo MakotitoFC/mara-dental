@@ -853,3 +853,343 @@ export async function getReporteFinancieroAction(startDate: string, endDate: str
     })
   };
 }
+
+// -----------------------------------------------------------------------------
+// Movimientos de Caja Filtrados (Auditoría del Contador)
+// -----------------------------------------------------------------------------
+
+export interface FiltrosMovimientosContador {
+  temporalidad: "hoy" | "mes" | "año" | "fecha" | "historico";
+  fechaEspecifica?: string; // YYYY-MM-DD
+  estado?: "todos" | "confirmado" | "pendiente" | "anulado";
+  tipo?: "todos" | "I" | "E";
+  categoriaId?: number | "todos";
+  busqueda?: string;
+}
+
+export interface MovimientoCajaDetallado {
+  id: string;
+  caja_turno_id: string;
+  fecha: string;
+  monto: number;
+  tipo_moneda_id: number;
+  categoria_id: number | null;
+  medio_pago_id: number | null;
+  observacion: string | null;
+  referencia: string | null;
+  presupuesto_id: string | null;
+  cliente_id: string | null;
+  proveedor_id: string | null;
+  usuario_id: string | null;
+  estado: "pendiente" | "confirmado" | "anulado";
+  conciliado: boolean;
+  fecha_conciliacion: string | null;
+  comprobante_pago_id: string | null;
+  motivo_anulacion: string | null;
+  anulado_por: string | null;
+  fecha_anulacion: string | null;
+
+  // Campos enriquecidos para visualización humana:
+  moneda_codigo: string;
+  categoria_nombre: string;
+  categoria_tipo: "I" | "E";
+  categoria_cuenta_contable?: string | null;
+  categoria_afecto_igv?: boolean;
+  medio_pago_nombre: string;
+  turno_apertura: string;
+  turno_cierre: string | null;
+  usuario_nombre: string;
+  entidad_tipo: "paciente" | "cliente" | "proveedor" | "general";
+  entidad_nombre: string;
+  entidad_documento?: string;
+  comprobante_tipo?: string;
+  comprobante_serie_numero?: string;
+  comprobante_estado?: string;
+  anulado_por_nombre?: string;
+}
+
+export interface MovimientosCajaFiltradosResult {
+  movimientos: MovimientoCajaDetallado[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  totales: {
+    totalIngresos: number;
+    totalEgresos: number;
+    balance: number;
+  };
+}
+
+function getFechasFiltro(
+  temporalidad: "hoy" | "mes" | "año" | "fecha" | "historico",
+  fechaEspecifica?: string
+) {
+  const now = new Date();
+  const y = now.getFullYear();
+
+  if (temporalidad === "hoy") {
+    const start = new Date(y, now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const end = new Date(y, now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { gte: start.toISOString(), lte: end.toISOString() };
+  }
+  if (temporalidad === "mes") {
+    const start = new Date(y, now.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(y, now.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { gte: start.toISOString(), lte: end.toISOString() };
+  }
+  if (temporalidad === "año") {
+    const start = new Date(y, 0, 1, 0, 0, 0, 0);
+    const end = new Date(y, 11, 31, 23, 59, 59, 999);
+    return { gte: start.toISOString(), lte: end.toISOString() };
+  }
+  if (temporalidad === "fecha" && fechaEspecifica) {
+    const parts = fechaEspecifica.split("-").map(Number);
+    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+      const start = new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+      const end = new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999);
+      return { gte: start.toISOString(), lte: end.toISOString() };
+    }
+  }
+  return null; // historico: sin límite
+}
+
+export async function getCategoriasParaFiltroAction() {
+  const adminClient = getAdminClient();
+  const { data } = await adminClient
+    .from("categoria_movimiento")
+    .select("id, nombre, tipo, activo")
+    .order("tipo", { ascending: true })
+    .order("nombre", { ascending: true });
+  return data || [];
+}
+
+export async function getMovimientosCajaFiltradosAction(
+  filtros: FiltrosMovimientosContador,
+  pagination: { page?: number; pageSize?: number } = {}
+): Promise<MovimientosCajaFiltradosResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autorizado");
+
+  const { data: usr } = await supabase
+    .from("usuarios")
+    .select("sede_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!usr?.sede_id) throw new Error("No se pudo resolver la sede del contador");
+  const sedeId = usr.sede_id;
+
+  const adminClient = getAdminClient();
+  const page = Math.max(1, pagination.page || 1);
+  const pageSize = pagination.pageSize || 15;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = adminClient
+    .from("movimiento_caja")
+    .select(
+      `
+      id,
+      caja_turno_id,
+      fecha,
+      monto,
+      tipo_moneda_id,
+      categoria_id,
+      medio_pago_id,
+      observacion,
+      referencia,
+      presupuesto_id,
+      cliente_id,
+      proveedor_id,
+      usuario_id,
+      estado,
+      conciliado,
+      fecha_conciliacion,
+      comprobante_pago_id,
+      motivo_anulacion,
+      anulado_por,
+      fecha_anulacion,
+      moneda:tipo_moneda_id (id, moneda),
+      categoria:categoria_id (id, nombre, tipo, afecto_igv, cuenta_contable),
+      medio_pago:medio_pago_id (id, nombre),
+      caja_turno!inner (id, fecha_apertura, fecha_cierre, usuario_id, sede_id),
+      presupuestos:presupuesto_id (id, total_bruto, pacientes (id, nombre, apellido, dni)),
+      cliente_pago:cliente_id (id, nombre, apellidos, dni, pasaporte, carnet_extranjeria),
+      proveedores:proveedor_id (id, nombre, ruc, telefono, email),
+      comprobante:comprobante_pago_id (id, tipo_comprobante, serie, numero, estado, monto_total)
+    `,
+      { count: "exact" }
+    )
+    .eq("caja_turno.sede_id", sedeId);
+
+  // 1. Filtro temporal sobre 'fecha' (timestamptz)
+  const rango = getFechasFiltro(filtros.temporalidad, filtros.fechaEspecifica);
+  if (rango) {
+    query = query.gte("fecha", rango.gte).lte("fecha", rango.lte);
+  }
+
+  // 2. Filtro por estado
+  if (filtros.estado && filtros.estado !== "todos") {
+    query = query.eq("estado", filtros.estado);
+  }
+
+  // 3. Filtro por categoría o tipo
+  if (filtros.categoriaId && filtros.categoriaId !== "todos") {
+    query = query.eq("categoria_id", filtros.categoriaId);
+  } else if (filtros.tipo && filtros.tipo !== "todos") {
+    const { data: cats } = await adminClient
+      .from("categoria_movimiento")
+      .select("id")
+      .eq("tipo", filtros.tipo);
+    const catIds = (cats || []).map((c: any) => c.id);
+    if (catIds.length > 0) {
+      query = query.in("categoria_id", catIds);
+    }
+  }
+
+  // Ordenar cronológicamente descendente
+  query = query.order("fecha", { ascending: false }).range(from, to);
+
+  const { data: rawMovimientos, error, count } = await query;
+  if (error) {
+    console.error("[getMovimientosCajaFiltradosAction] Error:", error);
+    throw error;
+  }
+
+  // Resolver nombres de usuarios (usuario_id y anulado_por) desde personal
+  const userIds = Array.from(
+    new Set(
+      (rawMovimientos || [])
+        .flatMap((m: any) => [m.usuario_id, m.anulado_por])
+        .filter(Boolean)
+    )
+  );
+
+  const personalMap = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: personalList } = await adminClient
+      .from("personal")
+      .select("usuario_id, nombre, apellido")
+      .in("usuario_id", userIds);
+
+    (personalList || []).forEach((p: any) => {
+      personalMap.set(p.usuario_id, `${p.nombre} ${p.apellido}`.trim());
+    });
+  }
+
+  let totalIngresos = 0;
+  let totalEgresos = 0;
+
+  const movimientos: MovimientoCajaDetallado[] = (rawMovimientos || []).map((m: any) => {
+    const cat = Array.isArray(m.categoria) ? m.categoria[0] : m.categoria;
+    const med = Array.isArray(m.medio_pago) ? m.medio_pago[0] : m.medio_pago;
+    const mon = Array.isArray(m.moneda) ? m.moneda[0] : m.moneda;
+    const turno = Array.isArray(m.caja_turno) ? m.caja_turno[0] : m.caja_turno;
+    const comp = Array.isArray(m.comprobante) ? m.comprobante[0] : m.comprobante;
+
+    const montoRaw = Number(m.monto);
+    const montoAbs = Math.abs(montoRaw);
+    const tipo = (cat?.tipo as "I" | "E") || (montoRaw < 0 ? "E" : "I");
+
+    // Resolver entidad relacionada
+    let entidadTipo: "paciente" | "cliente" | "proveedor" | "general" = "general";
+    let entidadNombre = m.observacion || (tipo === "E" ? "Egreso General" : "Ingreso General");
+    let entidadDocumento: string | undefined = undefined;
+
+    if (m.presupuestos) {
+      const p = Array.isArray(m.presupuestos) ? m.presupuestos[0] : m.presupuestos;
+      const pac = p ? (Array.isArray(p.pacientes) ? p.pacientes[0] : p.pacientes) : null;
+      if (pac) {
+        entidadTipo = "paciente";
+        entidadNombre = `${pac.nombre ?? ""} ${pac.apellido ?? ""}`.trim();
+        entidadDocumento = pac.dni;
+      }
+    } else if (m.cliente_pago) {
+      const cli = Array.isArray(m.cliente_pago) ? m.cliente_pago[0] : m.cliente_pago;
+      if (cli) {
+        entidadTipo = "cliente";
+        entidadNombre = `${cli.nombre ?? ""} ${cli.apellidos ?? ""}`.trim();
+        entidadDocumento = cli.dni || cli.pasaporte || cli.carnet_extranjeria;
+      }
+    } else if (m.proveedores) {
+      const prov = Array.isArray(m.proveedores) ? m.proveedores[0] : m.proveedores;
+      if (prov) {
+        entidadTipo = "proveedor";
+        entidadNombre = prov.nombre;
+        entidadDocumento = prov.ruc;
+      }
+    }
+
+    if (m.estado !== "anulado") {
+      if (tipo === "I") {
+        totalIngresos += montoAbs;
+      } else {
+        totalEgresos += montoAbs;
+      }
+    }
+
+    const usuarioNombre = m.usuario_id
+      ? personalMap.get(m.usuario_id) || "Usuario registrado"
+      : "No registrado";
+    const anuladoPorNombre = m.anulado_por ? personalMap.get(m.anulado_por) : undefined;
+
+    return {
+      id: String(m.id),
+      caja_turno_id: String(m.caja_turno_id),
+      fecha: m.fecha,
+      monto: montoAbs,
+      tipo_moneda_id: m.tipo_moneda_id,
+      categoria_id: m.categoria_id,
+      medio_pago_id: m.medio_pago_id,
+      observacion: m.observacion,
+      referencia: m.referencia,
+      presupuesto_id: m.presupuesto_id,
+      cliente_id: m.cliente_id,
+      proveedor_id: m.proveedor_id,
+      usuario_id: m.usuario_id,
+      estado: m.estado,
+      conciliado: Boolean(m.conciliado),
+      fecha_conciliacion: m.fecha_conciliacion,
+      comprobante_pago_id: m.comprobante_pago_id,
+      motivo_anulacion: m.motivo_anulacion,
+      anulado_por: m.anulado_por,
+      fecha_anulacion: m.fecha_anulacion,
+
+      moneda_codigo: mon?.moneda || "PEN",
+      categoria_nombre: cat?.nombre || "Sin categoría",
+      categoria_tipo: tipo,
+      categoria_cuenta_contable: cat?.cuenta_contable,
+      categoria_afecto_igv: cat?.afecto_igv,
+      medio_pago_nombre: med?.nombre || "No especificado",
+      turno_apertura: turno?.fecha_apertura || m.fecha,
+      turno_cierre: turno?.fecha_cierre || null,
+      usuario_nombre: usuarioNombre,
+      entidad_tipo: entidadTipo,
+      entidad_nombre: entidadNombre,
+      entidad_documento: entidadDocumento,
+      comprobante_tipo: comp?.tipo_comprobante,
+      comprobante_serie_numero: comp?.serie || comp?.numero ? `${comp.serie || ""}-${comp.numero || ""}` : undefined,
+      comprobante_estado: comp?.estado,
+      anulado_por_nombre: anuladoPorNombre,
+    };
+  });
+
+  const totalCount = count || 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+  return {
+    movimientos,
+    totalCount,
+    page,
+    pageSize,
+    totalPages,
+    totales: {
+      totalIngresos,
+      totalEgresos,
+      balance: totalIngresos - totalEgresos,
+    },
+  };
+}
+

@@ -24,7 +24,7 @@ function getMobilePageWindow(current: number, total: number): number[] {
   return [current, current + 1];
 }
 
-export default function CajaTurnosClient({ initialData }: { initialData: any[] }) {
+export default function CajaTurnosClient({ initialData, hideHeader = false }: { initialData: any[]; hideHeader?: boolean }) {
   const router = useRouter();
   const supabase = createClient();
   const [page, setPage] = useState(1);
@@ -52,14 +52,16 @@ export default function CajaTurnosClient({ initialData }: { initialData: any[] }
 
   return (
     <>
-      <Header title="Turnos de Caja" />
+      {!hideHeader && <Header title="Turnos de Caja" />}
       <div className="flex flex-col flex-1 min-h-0 bg-slate-50">
-        <header className="shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6 py-4 sm:py-6 bg-white border-b border-slate-200">
-          <div className="min-w-0">
-            <h1 className="text-[15px] md:text-base font-bold text-slate-800">Turnos de Caja</h1>
-            <p className="hidden sm:block text-[13px] md:text-sm text-slate-500">Historial de apertura y cierre de caja en todas las sedes.</p>
-          </div>
-        </header>
+        {!hideHeader && (
+          <header className="shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6 py-4 sm:py-6 bg-white border-b border-slate-200">
+            <div className="min-w-0">
+              <h1 className="text-[15px] md:text-base font-bold text-slate-800">Turnos de Caja</h1>
+              <p className="hidden sm:block text-[13px] md:text-sm text-slate-500">Historial de apertura y cierre de caja en todas las sedes.</p>
+            </div>
+          </header>
+        )}
 
         <main className="flex-1 min-h-0 flex flex-col bg-white overflow-hidden">
         <div className="hidden md:flex flex-col flex-1 min-h-0 overflow-auto no-scrollbar">

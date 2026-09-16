@@ -164,6 +164,7 @@ const ICONS: Record<string, LucideIcon> = {
   phone:                Phone,
   send:                 Send,
   content_copy:         Copy,
+  copy:                 Copy,
   done_all:             CheckCheck,
 
   // Archivos / carpetas
