@@ -12,7 +12,8 @@ import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 import { useSnapDrag } from "@/lib/hooks/useSnapDrag";
 import { calcEdad } from "@/lib/date-utils";
 import {
-  esc, buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, wrapDocument, fmtGenerado, shortCode,
+  esc, wrapDocument,
+  buildRecetaBandaHeader, buildFirmaDerecha, buildFormatoFooterAzul, FORMATO_PRIMARIO, FORMATO_SECUNDARIO,
   downloadHtmlAsPaginatedPdf, generatePaginatedPdfBlob, printHtml, type ClinicaInfo,
 } from "@/lib/reportExport";
 import {
@@ -92,7 +93,7 @@ export function RecetaSection(props: SectionProps) {
 
     try {
       const html = buildRecetaHtml({ ...d, clinica });
-      const blob = await generatePaginatedPdfBlob(html, 800, { clinica, docLabel: "Receta Médica Odontológica" });
+      const blob = await generatePaginatedPdfBlob(html, 800, undefined, "a5-horizontal");
       const cleanName = (d.pacienteNombre || "Paciente").replace(/\s+/g, "_");
       const filename = `Receta_${cleanName}_${d.fecha || new Date().toISOString().split("T")[0]}.pdf`;
       const pdfFile = new File([blob], filename, { type: "application/pdf" });
@@ -180,8 +181,12 @@ export function RecetaSection(props: SectionProps) {
             <p className="text-[12px]">Sin recetas emitidas</p>
           </div>
         ) : (
-          <motion.div variants={staggerContainer()} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {filas.map(({ medicamento: m, receta: r }) => {
+          <>
+          {/* Mismo patrón que Presupuesto/admin: tabla con encabezado desde md
+              (tablet ancho/desktop); en mobile y tablet angosto, tarjetas sin
+              encabezado con cada campo y su label arriba del valor. */}
+          {(() => {
+            const filasDoc = filas.map(({ medicamento: m, receta: r }) => {
               const docData: DocData = {
                 pacienteNombre, doctorNombre, fecha: r.fecha_emision, diagnostico: diagnosticoTexto, medicamentos: r.receta_medicamento,
                 dni, edad, alergias,
@@ -189,24 +194,87 @@ export function RecetaSection(props: SectionProps) {
                 clinica: sede,
                 recetaId: r.id,
               };
-              return (
-                <motion.div key={m.id} variants={staggerItem}>
-                  <PrescriptionRow
-                    medicamento={m}
-                    estado={r.estado}
-                    fechaEmision={r.fecha_emision}
-                    doctorNombre={doctorNombre}
-                    onDownload={() => handleDownloadPdf(docData, sede)}
-                    onPrint={() => handlePrint(docData)}
-                    onSend={() => handleSendViaChat(docData)}
-                    onToggleEstado={() => handleToggleEstado(r)}
-                    onDeleteMed={() => handleDeleteMed(m.id)}
-                    showManage
-                  />
-                </motion.div>
-              );
-            })}
-          </motion.div>
+              return { m, r, docData, isActive: r.estado === "activa" };
+            });
+            const acciones = (x: typeof filasDoc[number]) => (
+              <div className="flex items-center justify-end flex-nowrap gap-0.5">
+                <ActionLink icon="download" label="Descargar" onClick={() => handleDownloadPdf(x.docData, sede)} hoverClass="hover:text-emerald-600" />
+                <ActionLink icon="print" label="Imprimir" onClick={() => handlePrint(x.docData)} hoverClass="hover:text-emerald-600" />
+                <ActionLink icon="send" label="Enviar" onClick={() => handleSendViaChat(x.docData)} hoverClass="hover:text-[color:var(--telegram-blue)]" />
+                <ActionLink icon="delete" label="Eliminar" onClick={() => handleDeleteMed(x.m.id)} textClass="text-red-400" hoverClass="hover:text-red-600" />
+              </div>
+            );
+            const badge = (isActive: boolean) => (
+              <span className={`inline-block text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${isActive ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>
+                {isActive ? "Activa" : "Cancelada"}
+              </span>
+            );
+            const th = "sticky top-0 z-10 bg-white px-1 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide";
+            const lbl = "block text-[10px] font-bold uppercase tracking-wide text-slate-400";
+            return (
+              <>
+                <div className="hidden md:block overflow-x-auto -mx-1">
+                  <table className="w-full text-left border-collapse min-w-[520px]">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className={th}>Medicamento</th>
+                        <th className={th}>Frecuencia</th>
+                        <th className={th}>Indicaciones</th>
+                        <th className={th}>Emitida</th>
+                        <th className={`${th} text-right`}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filasDoc.map((x) => (
+                        <tr key={x.m.id} className="border-b border-slate-50 last:border-0">
+                          <td className="px-1 py-2.5 align-top">
+                            <p className="text-[13px] font-medium text-slate-800">{x.m.medicamento_nombre}</p>
+                            {x.m.dosis && <p className="text-[11px] text-slate-400 mt-0.5">{x.m.dosis}</p>}
+                          </td>
+                          <td className="px-1 py-2.5 align-top text-[13px] text-slate-600 whitespace-nowrap">{x.m.frecuencia || "—"}</td>
+                          <td className="px-1 py-2.5 align-top text-[13px] text-slate-600 max-w-[200px]">{x.m.indicaciones || "—"}</td>
+                          <td className="px-1 py-2.5 align-top text-[13px] text-slate-600 whitespace-nowrap">{fmtFechaCorta(x.r.fecha_emision)}</td>
+                          <td className="px-1 py-1.5 align-top">{acciones(x)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="md:hidden divide-y divide-slate-100">
+                  {filasDoc.map((x) => (
+                    <div key={x.m.id} className="py-3 flex flex-col gap-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className={lbl}>Medicamento</span>
+                          <p className="text-[13px] font-medium text-slate-800">{x.m.medicamento_nombre}</p>
+                          {x.m.dosis && <p className="text-[11px] text-slate-400 mt-0.5">{x.m.dosis}</p>}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className={lbl}>Frecuencia</span>
+                          <span className="text-[13px] text-slate-600">{x.m.frecuencia || "—"}</span>
+                        </div>
+                        <div>
+                          <span className={lbl}>Emitida</span>
+                          <span className="text-[13px] text-slate-600">{fmtFechaCorta(x.r.fecha_emision)}</span>
+                        </div>
+                      </div>
+                      {x.m.indicaciones && (
+                        <div>
+                          <span className={lbl}>Indicaciones</span>
+                          <p className="text-[13px] text-slate-600">{x.m.indicaciones}</p>
+                        </div>
+                      )}
+                      {acciones(x)}
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
+          </>
         )}
       </div>
 
@@ -377,81 +445,68 @@ export function RecetaDetailModal({ data, dni, onClose }: { data: DocData; dni?:
 }
 
 function buildRecetaHtml(opts: DocData, includeFooter = false): string {
-  const docCode = opts.recetaId != null ? `Receta #${shortCode(opts.recetaId)}` : "Receta médica";
-  const header = buildLetterheadHeader({
-    clinica: opts.clinica ?? null,
-    docLabel: "Receta Médica Odontológica",
-    docCode,
-    pacienteNombre: opts.pacienteNombre,
-    generado: fmtGenerado(),
+  const header = buildRecetaBandaHeader({
+    nombre: opts.doctorNombre, especialidad: opts.doctorEspecialidad, numColegiatura: opts.doctorNumColegiatura, firmaUrl: opts.doctorFirmaUrl,
   });
 
-  const infoCell = (label: string, value?: string | null) => value ? `
-    <div>
-      <div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">${esc(label)}</div>
-      <div style="font-size:12px;font-weight:700;color:#212E3D;">${esc(value)}</div>
-    </div>
-  ` : "";
-
-  const infoBar = `
-    <div style="margin:0 28px 20px;padding:14px 18px;background:#ecfeff;border-radius:10px;display:flex;flex-wrap:wrap;gap:18px;">
-      ${infoCell("Paciente", opts.pacienteNombre)}
-      ${infoCell("DNI", opts.dni)}
-      ${infoCell("Edad", opts.edad != null ? `${opts.edad} años` : null)}
-      ${infoCell("Fecha", fmtFechaCorta(opts.fecha))}
-      ${infoCell("Diagnóstico", opts.diagnostico)}
+  const campo = (label: string, value?: string | null) => `
+    <div style="flex:1;min-width:120px;">
+      <span style="font-size:10.5px;color:#5D6D7E;">${esc(label)}: </span>
+      <span style="font-size:11.5px;font-weight:700;color:${FORMATO_PRIMARIO};">${esc(value || "—")}</span>
     </div>
   `;
 
-  const medsHtml = opts.medicamentos.map((m, i) => `
-    <div style="border:1px solid #EDF0F4;border-radius:10px;padding:14px 16px;margin-bottom:10px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-        <span style="width:22px;height:22px;border-radius:50%;background:#0891b2;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i + 1}</span>
-        <span style="font-size:13.5px;font-weight:800;color:#212E3D;">${esc(m.medicamento_nombre)}</span>
-        ${m.dosis ? `<span style="font-size:12px;color:#5D6D7E;">${esc(m.dosis)}</span>` : ""}
-      </div>
-      ${m.frecuencia || m.indicaciones ? `
-        <div style="padding-left:32px;">
-          ${m.frecuencia ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Frecuencia</div><div style="font-size:12px;color:#2C3E50;margin-bottom:6px;">${esc(m.frecuencia)}</div>` : ""}
-          ${m.indicaciones ? `<div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">Indicaciones</div><div style="font-size:12px;color:#2C3E50;">${esc(m.indicaciones)}</div>` : ""}
-        </div>
-      ` : ""}
-    </div>`).join("");
-
-  const alergiasHtml = (opts.alergias && opts.alergias.length > 0) ? `
-    <div style="margin:6px 0 0;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;display:flex;gap:8px;align-items:flex-start;">
-      <span style="font-size:14px;line-height:1;">⚠️</span>
-      <div style="font-size:11px;color:#92400e;line-height:1.6;"><b>Paciente con alergias registradas:</b> ${esc(opts.alergias.join(", "))}. Verificar compatibilidad antes de administrar.</div>
+  const datosRow = `
+    <div style="padding:20px 32px 0;display:flex;flex-wrap:wrap;gap:16px;">
+      ${campo("Nombre y apellidos", opts.pacienteNombre)}
+      ${campo("Edad", opts.edad != null ? `${opts.edad} años` : null)}
+      ${campo("Fecha", fmtFechaCorta(opts.fecha))}
     </div>
-  ` : "";
+    <div style="padding:10px 32px 0;">
+      ${campo("Diagnóstico", opts.diagnostico)}
+    </div>
+  `;
+
+  const rpHtml = opts.medicamentos.map((m, i) => `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:800;color:#212E3D;">${i + 1}. ${esc(m.medicamento_nombre)}${m.dosis ? ` — ${esc(m.dosis)}` : ""}</div>
+      ${m.frecuencia ? `<div style="font-size:11px;color:#5D6D7E;margin-top:2px;">${esc(m.frecuencia)}</div>` : ""}
+    </div>
+  `).join("") || `<div style="font-size:11px;color:#95A5A6;">Sin medicamentos registrados</div>`;
+
+  const indicacionesHtml = opts.medicamentos.filter(m => m.indicaciones).map(m => `
+    <div style="margin-bottom:10px;">
+      <div style="font-size:10px;font-weight:700;color:#95A5A6;">${esc(m.medicamento_nombre)}</div>
+      <div style="font-size:11px;color:#2C3E50;">${esc(m.indicaciones)}</div>
+    </div>
+  `).join("") || `<div style="font-size:11px;color:#95A5A6;">Sin indicaciones adicionales</div>`;
 
   const body = `
-    ${infoBar}
-    <div style="padding:0 28px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-        <span style="width:34px;height:34px;border-radius:50%;background:#ecfeff;color:#0891b2;font-family:Georgia,serif;font-size:20px;display:flex;align-items:center;justify-content:center;">℞</span>
-        <div>
-          <div style="font-size:14px;font-weight:800;color:#212E3D;">Prescripción Médica</div>
-          <div style="font-size:10.5px;color:#95A5A6;">Válida por 30 días desde la fecha de emisión</div>
-        </div>
+    ${datosRow}
+    <div style="padding:20px 32px 0;display:flex;gap:32px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:220px;">
+        <div style="font-size:12px;font-style:italic;font-weight:800;color:${FORMATO_PRIMARIO};margin-bottom:10px;">Rp.</div>
+        ${rpHtml}
       </div>
-      ${medsHtml}
-      ${alergiasHtml}
+      <div style="flex:1;min-width:220px;">
+        <div style="font-size:12px;font-style:italic;font-weight:800;color:${FORMATO_PRIMARIO};margin-bottom:10px;">Indicaciones</div>
+        ${indicacionesHtml}
+      </div>
     </div>
 
-    <div style="padding:28px 28px 24px;display:flex;justify-content:center;">
-      ${buildSignatureBlock({ nombre: opts.doctorNombre, especialidad: opts.doctorEspecialidad, numColegiatura: opts.doctorNumColegiatura, firmaUrl: opts.doctorFirmaUrl })}
+    <div style="padding:20px 32px 20px;display:flex;justify-content:flex-end;">
+      ${buildFirmaDerecha({ nombre: opts.doctorNombre, especialidad: opts.doctorEspecialidad, numColegiatura: opts.doctorNumColegiatura, firmaUrl: opts.doctorFirmaUrl })}
     </div>
   `;
 
-  const footer = includeFooter ? buildLetterheadFooter({ clinica: opts.clinica ?? null, pacienteNombre: opts.pacienteNombre, docCode }) : "";
-  return wrapDocument(`${header}${body}${footer}`, 800);
+  const footer = buildFormatoFooterAzul(opts.clinica ?? null);
+  return wrapDocument(`<div style="padding:12px;box-sizing:border-box;"><div style="display:flex;flex-direction:column;min-height:531px;border:2px solid ${FORMATO_PRIMARIO};border-radius:6px;overflow:hidden;box-sizing:border-box;"><div>${header}${body}</div><div style="margin-top:auto;">${footer}</div></div></div>`, 800);
 }
 
 export async function handleDownloadPdf(d: DocData, sede: ClinicaInfo | null) {
   const clinica = d.clinica ?? sede;
   const html = buildRecetaHtml({ ...d, clinica });
-  await downloadHtmlAsPaginatedPdf(html, `receta_${d.pacienteNombre.replace(/\s+/g, "_")}_${d.fecha}.pdf`, 800, { clinica, docLabel: "Receta Médica Odontológica" });
+  await downloadHtmlAsPaginatedPdf(html, `receta_${d.pacienteNombre.replace(/\s+/g, "_")}_${d.fecha}.pdf`, 800, undefined, "a5-horizontal");
 }
 
 // ─── Modal "Nueva receta electrónica" (dos paneles + vista previa) ─────────────
@@ -817,5 +872,5 @@ export function buildTelegramLink(d: DocData): string {
 /** Imprime el mismo documento con membrete que se usa para descargar/telegram — antes generaba su propio HTML con datos de contacto inventados (dirección/teléfono fijos), ahora reutiliza buildRecetaHtml con los datos reales de la sede. */
 export function handlePrint(d: DocData) {
   const html = buildRecetaHtml(d, true);
-  printHtml(html, `Receta · ${d.pacienteNombre}`);
+  printHtml(html, `Receta · ${d.pacienteNombre}`, "a5-horizontal");
 }

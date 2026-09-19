@@ -273,8 +273,10 @@ export function ArchivosTab({ paciente, consultaId, onNavigateTab }: {
 
         <div>
           {loading ? (
-            <div className="py-10 flex justify-center">
- <div className="w-8 h-8 border-2 border-slate-200 border-t-cyan-500 rounded-full animate-spin"/>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="skeleton-shimmer rounded-xl h-36" />
+              ))}
             </div>
           ) : view === "grid" ? (
             <motion.div variants={staggerContainer(0.04)} initial="hidden" animate="visible" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">

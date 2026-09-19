@@ -568,7 +568,7 @@ export function CalendarToolbar({
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <button
               onClick={onNewCita}
-              className="flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors shrink-0"
+              className="order-2 md:order-none flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors shrink-0"
             >
               <Icon name="add" size={16} />
               <span className="hidden sm:inline">Nueva cita</span>
@@ -581,14 +581,19 @@ export function CalendarToolbar({
                 onClick={onOpenDoctorPanel}
                 title="Doctores"
                 aria-label="Ver doctores"
- className="lg:hidden flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11.5px] font-semibold transition-colors shrink-0"
+ className="order-4 md:order-none lg:hidden flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11.5px] font-semibold transition-colors shrink-0"
               >
                 <Icon name="stethoscope" size={16} />
                 <span className="hidden sm:inline">Doctores</span>
               </button>
             )}
-            <FiltroPickerButton variant="icon" availableKeys={availableKeys} activeKeys={activeFilterKeys} onToggle={toggleFilterKey} />
-            <ViewSelector view={view} onViewChange={onViewChange} joined />
+            <div className="order-1 md:order-none">
+              <FiltroPickerButton variant="icon" availableKeys={availableKeys} activeKeys={activeFilterKeys} onToggle={toggleFilterKey} />
+            </div>
+            <div className="basis-full h-0 order-3 md:hidden" />
+            <div className="order-5 md:order-none">
+              <ViewSelector view={view} onViewChange={onViewChange} joined />
+            </div>
           </div>
         </div>
 
@@ -660,25 +665,18 @@ export function CalendarToolbar({
           {isCronograma && (
  <h1 className="text-[15px] md:text-[17px] font-bold text-slate-900 truncate px-1">{label}</h1>
           )}
-          <button
-            onClick={onNewCita}
-            className="sm:hidden ml-auto flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12px] font-semibold transition-colors shrink-0"
-          >
-            <Icon name="add" size={16} />
-            Nueva cita
-          </button>
         </div>
 
         {/* Botón de filtro (icon-only, mismo estilo que FiltroPickerButton
             usa en asistente — sin fondo/borde cian, se ve como acción del
             header, no como un tag) + nueva cita */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 md:ml-auto">
+        <div className="flex items-center justify-end gap-2 md:ml-auto">
           <div className="flex items-center gap-2 flex-wrap">
             <FiltroPickerButton variant="icon" availableKeys={doctorAvailableKeys} activeKeys={activeFilterKeys} onToggle={toggleFilterKey} />
           </div>
           <button
             onClick={onNewCita}
-            className="hidden sm:flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors shrink-0"
+            className="flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors shrink-0"
           >
             <Icon name="add" size={16} />
             Nueva cita

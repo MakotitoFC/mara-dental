@@ -704,10 +704,10 @@ export async function getTratamientosAction(diagnosticoId: string) {
   const { data, error } = await supabase
     .from("tratamiento")
     .select(`
-      id, 
-      tratamiento, 
+      id,
+      tratamiento,
       catalogo_tratamiento_id,
-      catalogo_tratamientos ( nombre ),
+      catalogo_tratamientos ( nombre, precio, moneda ),
       plan_tratamiento (
         id, fase, orden, descripcion, tiempo_estimado, estado,
         archivos_clinicos ( id, nombre_archivo, url, tipo_archivo_id, categoria, descripcion, fecha_subida, tam_bytes, tipo_archivo(id, tipo_archivo) )
@@ -734,6 +734,8 @@ export async function getTratamientosAction(diagnosticoId: string) {
     notas: t.tratamiento as string,
     catalogo_id: t.catalogo_tratamiento_id,
     catalogo_nombre: t.catalogo_tratamientos?.nombre,
+    precio: t.catalogo_tratamientos?.precio != null ? Number(t.catalogo_tratamientos.precio) : null,
+    moneda: t.catalogo_tratamientos?.moneda ?? "PEN",
     plan: (t.plan_tratamiento || []).sort((a: any, b: any) => a.orden - b.orden).map((p: any) => ({
       id: p.id,
       fase: p.fase,

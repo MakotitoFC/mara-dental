@@ -15,6 +15,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { FilterCategoryPicker, type FilterCategoryMeta } from "@/components/ui/FilterCategoryPicker";
 import { TagDropdown } from "@/components/ui/TagDropdown";
+import { GuiaRegistroOdontograma } from "./GuiaRegistroOdontograma";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -527,6 +528,8 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
   const [sessions, setSessions] = useState<ExamSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Observaciones generales del registro: una sola para todos los dientes.
+  const [observacionGeneral, setObservacionGeneral] = useState("");
 
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [chartResetKey, setChartResetKey] = useState(0);
@@ -762,6 +765,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
   );
 
   function resetSelection() {
+    setObservacionGeneral("");
     setSelectedTeeth([]);
     setDrafts({});
     setActiveTooth(null);
@@ -925,7 +929,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
         surfaceConditions: d.isAll ? [] : Object.entries(d.surfaceConventions).map(([s, c]) => ({
           surface: s as string, convention: c as string,
         })),
-        observaciones: d.observaciones,
+        observaciones: observacionGeneral.trim(),
       });
       if (res?.error && !firstError) firstError = res.error;
     }
@@ -1079,35 +1083,15 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
       </div>
 
       <div>
-        <div className="flex items-center justify-between mb-1 gap-2">
- <p className="text-[13px] font-bold text-slate-700">Observaciones</p>
-          {selectedTeeth.length > 1 && (
-            <Select
-              value={String(activeTooth ?? "")}
-              onChange={v => { setActiveTooth(Number(v)); setActiveSurfaces(new Set()); }}
-              options={selectedTeeth.map(t => ({ value: String(t), label: `Diente #${t}` }))}
-              className="w-36"
-            />
-          )}
-        </div>
-        <textarea rows={3} value={activeDraft.observaciones} onChange={e => updateActiveDraft({ observaciones: e.target.value })}
-          placeholder="Escribe detalles del hallazgo clínico…"
+ <p className="text-[13px] font-bold text-slate-700 mb-0.5">Observaciones generales</p>
+ <p className="text-[11px] text-slate-400 mb-1.5">Aplican a todos los dientes de este registro, no a uno solo.</p>
+        <textarea rows={3} value={observacionGeneral} onChange={e => setObservacionGeneral(e.target.value)}
+          placeholder="Escribe detalles generales del hallazgo clínico…"
  className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-800 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 resize-none text-[16px] sm:text-[13px]"
         />
-        {/* La BD guarda la observación pegada a una superficie/condición — un
-            diente sin ninguna asignada no tiene dónde guardarla, aunque tenga
-            texto escrito. Avisa ANTES de que se pierda al guardar. */}
-        {activeDraft.observaciones.trim().length > 0 && !(activeDraft.isAll ? activeDraft.allConvention : Object.keys(activeDraft.surfaceConventions).length > 0) && (
- <p className="text-[11px] text-amber-600 font-medium mt-1.5 flex items-center gap-1">
-            <Icon name="warning" size={13} className="shrink-0" />
-            Esta observación no se guardará si al diente #{activeTooth} no le asignas al menos una superficie (o "Diente completo") con una condición.
-          </p>
-        )}
       </div>
     </div>
   );
-
-  if (loading) return <OdontogramaSkeleton />;
 
   // Compartido entre el título mobile (arriba, junto a Historial) y la fila
   // propia de tablet/desktop (dentro de la columna del odontograma).
@@ -1133,16 +1117,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
     </span>
   );
 
-  return (
-    <>
- <div className="flex flex-col w-full md:h-full relative bg-white">
-
-      {/* Título + descripción — mismo diseño en todos los breakpoints. Pegado
-          (sticky) justo debajo del navbar de tabs, mismo fondo blanco y sin
-          espacio entre ambos, para que se lea como una sola pieza — el
-          separador gris queda abajo, pegado al contenido. La dentición vive
-          en esta misma fila, junto al título, en todos los breakpoints. */}
-      {!isEditable && (
+  const subheader = !isEditable ? (
  <div className="sticky top-0 z-20 px-4 sm:px-6 py-4 bg-white border-b border-slate-100">
           <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
  <div className="flex items-center gap-3">
@@ -1152,7 +1127,27 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
           </div>
  <p className="hidden md:block text-[12px] text-slate-400 mt-1.5 leading-snug">Estado dental actual y marcaciones por pieza</p>
         </div>
-      )}
+  ) : null;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col w-full md:h-full relative bg-white">
+        {subheader}
+        <OdontogramaSkeleton registro={isEditable} />
+      </div>
+    );
+  }
+
+  return (
+    <>
+ <div className="flex flex-col w-full md:h-full relative bg-white">
+
+      {/* Título + descripción — mismo diseño en todos los breakpoints. Pegado
+          (sticky) justo debajo del navbar de tabs, mismo fondo blanco y sin
+          espacio entre ambos, para que se lea como una sola pieza — el
+          separador gris queda abajo, pegado al contenido. La dentición vive
+          en esta misma fila, junto al título, en todos los breakpoints. */}
+      {subheader}
 
       {/* Sin tarjeta/contenedor propio — el odontograma y el registro clínico
           quedan directamente sobre el fondo blanco de la vista; el trazo
@@ -1190,7 +1185,7 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                 en píxeles exactos (sin `overflow-hidden`) se evitan los dos
                 problemas: SVG y números miden siempre la misma caja, y el
                 texto puede asomarse un poco fuera del cuadro sin cortarse. */}
-            <div ref={dentalRowRef} className={`min-w-0 min-h-0 w-full flex justify-center ${dentition === "adulto" ? "" : "self-start max-w-56 sm:max-w-64"}`}>
+            <div ref={dentalRowRef} className="min-w-0 min-h-0 w-full flex justify-center">
             {dentition === "adulto" ? (
               <div
                 className="relative w-full max-h-full aspect-[409/694]"
@@ -1238,8 +1233,13 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
               // superior e inferior (ver INFANTIL_CROP_Y). En vez de un
               // scaleY (que encogería los dientes junto con el hueco), se
               // recorta el mismo SVG en dos paneles — cada uno muestra solo
-              // su franja real de contenido — y se apilan pegados.
-              <div className="flex flex-col gap-2">
+              // su franja real de contenido — y se apilan pegados. `w-full`
+              // es necesario: sin él, este div (flex item de dentalRowRef,
+              // que ya llena el ancho de la columna) no hereda ese ancho —
+              // se encoge a su contenido, y como sus hijos miden su alto por
+              // padding-bottom en % DE ESE ancho encogido, toda la dentadura
+              // terminaba mucho más chica de lo que en realidad cabía.
+              <div className="flex flex-col gap-2 w-full">
                 <div className="relative w-full overflow-hidden" style={{ height: 0, paddingBottom: `${(INFANTIL_PANEL_H / VIEWBOX_W) * 100}%` }}>
                   <div className="absolute left-0 w-full" style={{ top: 0, transform: `translateY(${(INFANTIL_TOP_MARGIN / VIEWBOX_H) * 100}%)` }}>
                     <Odontogram
@@ -1340,6 +1340,8 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
  <p className="text-[11px] text-slate-400">Cada superficie puede tener su propia condición</p>
               </div>
 
+              <GuiaRegistroOdontograma />
+
               {/* Dientes seleccionados */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -1355,17 +1357,17 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
                 {selectedTeeth.length === 0 ? (
                   <div className="flex flex-col gap-2">
  <div className="border border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center text-center gap-1">
- <Icon name="lightbulb" size={22} className="text-slate-300 mb-1"/>
+ <Icon name="tips_and_updates" size={22} className="text-slate-300 mb-1"/>
  <p className="text-[13px] font-semibold text-slate-500">Toca uno o más dientes en el odontograma</p>
  <p className="text-[11px] text-slate-400">Cada superficie puede tener su propia condición</p>
                     </div>
                     <div className="flex items-stretch gap-2">
  <div className="flex-1 h-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-400 text-[12px] font-semibold text-center">
-                        Selecciona dientes en el odontograma
+                        {isCompactViewer ? "Selecciona dientes" : "Selecciona dientes en el odontograma"}
                       </div>
                       {onNavigateTab && (
                         <button onClick={() => onNavigateTab("diagnosticos")} className="flex-1 h-10 shrink-0 whitespace-nowrap flex items-center justify-center gap-1.5 px-4 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12.5px] font-bold transition-colors border-0">
-                          Continuar a Diagnóstico
+                          {isCompactViewer ? "Diagnóstico" : "Continuar a Diagnóstico"}
                           <Icon name="chevron_right" size={14} />
                         </button>
                       )}

@@ -4,9 +4,12 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
-import { saveRecomendacionAction, editRecomendacionAction, deleteRecomendacionAction } from "../../consulta.actions";
+import { saveRecomendacionAction, editRecomendacionAction, deleteRecomendacionAction, getSedeInfoAction } from "../../consulta.actions";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmModal";
+import {
+  buildNotaCuidadosHtml, downloadHtmlAsPaginatedPdf, generatePaginatedPdfBlob, printHtml, type ClinicaInfo,
+} from "@/lib/reportExport";
 
 interface Recomendacion {
   id: number;
@@ -21,7 +24,14 @@ export function RecomendacionesSection({
   enabled = true,
   onSaved,
   scrollBody = false,
-}: { consultaId: string; pacienteId: string; initial: Recomendacion[]; enabled?: boolean; onSaved?: () => void; /** El rótulo queda fijo y solo el listado de registros scrollea (uso en el modal mobile). */ scrollBody?: boolean }) {
+  pacienteNombre,
+  onNavigateTab,
+}: {
+  consultaId: string; pacienteId: string; initial: Recomendacion[]; enabled?: boolean; onSaved?: () => void; /** El rótulo queda fijo y solo el listado de registros scrollea (uso en el modal mobile). */ scrollBody?: boolean;
+  /** Para el documento "Nota de Cuidados" — igual patrón de props que ya usa RecetaSection. */
+  pacienteNombre?: string;
+  onNavigateTab?: (tab: string) => void;
+}) {
   const [recomendaciones, setRecomendaciones] = useState<Recomendacion[]>(initial || []);
   const [creating, setCreating] = useState(false);
   const [contenido, setContenido] = useState("");
@@ -36,6 +46,57 @@ export function RecomendacionesSection({
 
   const toast = useToast();
   const confirm = useConfirm();
+
+  // ── Documento "Nota de Cuidados" ────────────────────────────────────────
+  const [sede, setSede] = useState<ClinicaInfo | null>(null);
+  const [exportando, setExportando] = useState<"print" | "pdf" | "telegram" | null>(null);
+
+  useEffect(() => {
+    getSedeInfoAction().then(setSede).catch(() => {});
+  }, []);
+
+  function buildNotaCuidadosDoc() {
+    return buildNotaCuidadosHtml({
+      titulo: "Cuidados e indicaciones para el paciente",
+      pacienteNombre,
+      fecha: new Date().toISOString(),
+      recomendaciones: recomendaciones.map((r) => r.contenido),
+    });
+  }
+
+  async function handleExportar(mode: "print" | "pdf" | "telegram") {
+    setExportando(mode);
+    try {
+      const html = buildNotaCuidadosDoc();
+      const pacienteSlug = (pacienteNombre || "paciente").replace(/\s+/g, "_");
+      if (mode === "print") {
+        await printHtml(html, `Nota de Cuidados · ${pacienteNombre || ""}`, "a5-vertical");
+      } else if (mode === "pdf") {
+        await downloadHtmlAsPaginatedPdf(html, `nota_cuidados_${pacienteSlug}.pdf`, 640, undefined, "a5-vertical");
+      } else if (mode === "telegram") {
+        (window as any).__loadingTelegramAttachment = true;
+        (window as any).__autoSendPending = false;
+        onNavigateTab?.("chat");
+        const blob = await generatePaginatedPdfBlob(html, 640, undefined, "a5-vertical");
+        const filename = `Nota_Cuidados_${pacienteSlug}.pdf`;
+        const pdfFile = new File([blob], filename, { type: "application/pdf" });
+        const caption = `🦷 Nota de cuidados e indicaciones para ${pacienteNombre || "el paciente"}.`;
+        (window as any).__pendingTelegramFile = pdfFile;
+        (window as any).__pendingTelegramCaption = caption;
+        (window as any).__loadingTelegramAttachment = false;
+        window.dispatchEvent(new CustomEvent("telegram_attachment_ready", { detail: { file: pdfFile, caption } }));
+      }
+    } catch (err) {
+      console.error("Error exportando nota de cuidados: ", err);
+      if (mode === "telegram") {
+        (window as any).__loadingTelegramAttachment = false;
+        window.dispatchEvent(new CustomEvent("telegram_attachment_error"));
+      }
+      toast.error("No se pudo generar el documento.");
+    } finally {
+      setExportando(null);
+    }
+  }
 
   function startEdit(item: Recomendacion) {
     setEditingId(item.id);
@@ -101,23 +162,37 @@ export function RecomendacionesSection({
  <p className="text-[12px] font-semibold text-slate-500">Disponible con diagnóstico definitivo</p>
         </div>
       )}
- <div className={`${scrollBody ? "shrink-0" : ""} flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100`}>
-        <div className="flex items-center gap-2">
+ <div className={`${scrollBody ? "shrink-0" : ""} flex flex-wrap items-center justify-between gap-2 px-5 pt-5 pb-4 border-b border-slate-100`}>
+        <div className="flex items-center gap-2 min-w-0">
  <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600 shrink-0">
             <Icon name="tips_and_updates" size={18} />
           </div>
  <h2 className="text-[14px] font-semibold text-slate-800">Recomendaciones</h2>
         </div>
-        <button onClick={() => enabled && setCreating(v => !v)} disabled={!enabled}
- className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-cyan-200 text-[12px] font-semibold text-cyan-600 hover:bg-cyan-50 disabled:opacity-40 transition-colors">
-          <Icon name={creating ? "remove" : "add"} size={16} />
-          {creating ? "Cancelar" : (
-            <>
-              <span className="sm:hidden">Nueva</span>
-              <span className="hidden sm:inline">Nueva recomendación</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={() => handleExportar("print")} disabled={exportando !== null} title="Imprimir Nota de Cuidados"
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors">
+            <Icon name="print" size={13} />
+          </button>
+          <button onClick={() => handleExportar("pdf")} disabled={exportando !== null} title="Descargar PDF"
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors">
+            <Icon name="download" size={13} />
+          </button>
+          <button onClick={() => handleExportar("telegram")} disabled={exportando !== null} title="Enviar por Telegram"
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-[color:var(--telegram-blue)] hover:bg-[color:var(--telegram-blue)]/10 disabled:opacity-40 transition-colors">
+            <Icon name="send" size={13} />
+          </button>
+          <button onClick={() => enabled && setCreating(v => !v)} disabled={!enabled}
+ className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-cyan-200 text-[12px] font-semibold text-cyan-600 hover:bg-cyan-50 disabled:opacity-40 transition-colors">
+            <Icon name={creating ? "remove" : "add"} size={16} />
+            {creating ? "Cancelar" : (
+              <>
+                <span className="sm:hidden">Nueva</span>
+                <span className="hidden sm:inline">Nueva recomendación</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className={`p-5 flex flex-col gap-4 ${scrollBody ? "flex-1 min-h-0 overflow-y-auto no-scrollbar" : ""}`}>

@@ -99,7 +99,7 @@ function HistorialRow({ item, active, onClick, isMobile }: { item: any; active: 
       onClick={onClick}
       className={`w-full text-left flex items-center gap-3 px-3 py-3 border-l-2 transition-colors border-0 ${
         active
- ? "bg-slate-100 border-l-slate-400"
+ ? "bg-cyan-50 border-l-cyan-600"
  :"border-l-transparent hover:bg-slate-50"
       }`}
     >
@@ -219,7 +219,15 @@ export function PresupuestoTab({ paciente, consultaId, refetch, onNavigateTab }:
     if (isCompact) setShowDetalleModal(true);
   }
 
-  if (historialLoading && historial.length === 0) return <PresupuestoSkeleton />;
+  if (historialLoading && historial.length === 0) return (
+    <div className="flex flex-col w-full lg:h-full">
+        <div className="static md:sticky md:top-0 md:z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-4 mb-3 bg-white border-b border-slate-100">
+          <h2 className="text-[15px] font-bold text-slate-800">Presupuesto</h2>
+          <p className="hidden md:block text-[12px] text-slate-400 mt-0.5 leading-snug">Gestiona y aprueba los presupuestos del paciente</p>
+        </div>
+        <PresupuestoSkeleton />
+    </div>
+  );
 
   const seleccionado = historial.find(h => h.id === selectedId) ?? null;
   const historialFiltrado = historial.filter((h) => {
@@ -299,10 +307,6 @@ export function PresupuestoTab({ paciente, consultaId, refetch, onNavigateTab }:
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isCompact && filtroButton}
-          <button onClick={handleNuevo} title="Nuevo"
-            className="shrink-0 flex items-center gap-1.5 px-3 lg:px-4 py-2 sm:py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[12px] sm:text-[13px] font-semibold transition-colors shadow-sm">
-            <Icon name="add" size={16} /> <span className="hidden lg:inline">Nuevo</span>
-          </button>
         </div>
       </div>
 
@@ -349,14 +353,14 @@ export function PresupuestoTab({ paciente, consultaId, refetch, onNavigateTab }:
     return (
       <>
         {header}
- <div className={isMobile ? "flex flex-col gap-3 px-3 pt-3 bg-slate-50" : "flex flex-col divide-y divide-slate-100"}>
+ <div className="flex flex-col gap-3 px-3 pt-3 bg-slate-50">
           {historialFiltrado.length === 0 ? (
  <p className="text-[12px] text-slate-400 text-center py-8">
               {hasFilter ? "Sin presupuestos con este filtro." : "Este paciente no tiene presupuesto registrado."}
             </p>
           ) : (
             historialMobilePag.map(item => (
-              <HistorialRow key={item.id} item={item} active={item.id === selectedId} onClick={() => selectItem(item.id)} isMobile={isMobile} />
+              <HistorialRow key={item.id} item={item} active={item.id === selectedId} onClick={() => selectItem(item.id)} isMobile />
             ))
           )}
         </div>
@@ -365,7 +369,7 @@ export function PresupuestoTab({ paciente, consultaId, refetch, onNavigateTab }:
             asistente (Turnos de Caja, Personal, etc.). Solo en mobile: en
             tablet (md-lg, dentro de isCompact) no se muestra. */}
         {mobileTotalPages > 1 && (
- <div className="md:hidden mt-3 sticky bottom-3 self-center z-10 flex items-center gap-1 bg-white/70 backdrop-blur-md border border-slate-200 rounded-full shadow-lg px-1.5 py-1.5 mx-auto w-fit">
+ <div className="mt-3 sticky bottom-3 self-center z-10 flex items-center gap-1 bg-white/70 backdrop-blur-md border border-slate-200 rounded-full shadow-lg px-1.5 py-1.5 mx-auto w-fit">
             <button
               disabled={mobilePage === 1}
               onClick={() => setMobilePage(p => p - 1)}

@@ -490,20 +490,20 @@ export default function ConfiguracionTiposClient({
             </div>
             
             <div className="p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {consultas.map((c) => (
                   <div key={c.id} className={`flex items-center justify-between p-3 border rounded-xl transition-colors ${c.estado === false ? 'border-amber-200 bg-amber-50/40 opacity-70' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm ring-1 ring-black/5" style={{ backgroundColor: c.color }}></div>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-[13px] md:text-sm text-slate-700">{c.tipo_consulta}</span>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-8 h-8 shrink-0 rounded-full border-2 border-white shadow-sm ring-1 ring-black/5" style={{ backgroundColor: c.color }}></div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-semibold text-[13px] md:text-sm text-slate-700 break-words">{c.tipo_consulta}</span>
                         {c.estado === false && <span className="text-[10px] md:text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded w-fit mt-0.5">INACTIVO</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
                       <button 
                         onClick={() => { setConsultaForm(c); setIsConsultaModalOpen(true); }}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                        className="w-9 h-9 sm:w-8 sm:h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                         title="Editar"
                       >
                         <Icon name="edit" size={16} />
@@ -511,7 +511,7 @@ export default function ConfiguracionTiposClient({
                       {c.estado !== false && (
                         <button 
                           onClick={() => handleDeleteConsulta(c.id)}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                          className="w-9 h-9 sm:w-8 sm:h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
                           title="Desactivar"
                         >
                           <Icon name="block" size={16} />
@@ -545,20 +545,20 @@ export default function ConfiguracionTiposClient({
             </div>
             
             <div className="p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {condiciones.map((c) => (
                   <div key={c.id} className={`flex items-center justify-between p-3 border rounded-xl transition-colors ${c.estado === false ? 'border-amber-200 bg-amber-50/40 opacity-70' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm ring-1 ring-black/5" style={{ backgroundColor: c.color }}></div>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-[13px] md:text-sm text-slate-700 uppercase">{c.condicion}</span>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-8 h-8 shrink-0 rounded-full border-2 border-white shadow-sm ring-1 ring-black/5" style={{ backgroundColor: c.color }}></div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-semibold text-[13px] md:text-sm text-slate-700 uppercase break-words">{c.condicion}</span>
                         {c.estado === false && <span className="text-[10px] md:text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded w-fit mt-0.5">INACTIVO</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
                       <button 
                         onClick={() => { setCondicionForm(c); setIsCondicionModalOpen(true); }}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                        className="w-9 h-9 sm:w-8 sm:h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                         title="Editar"
                       >
                         <Icon name="edit" size={16} />
@@ -566,7 +566,7 @@ export default function ConfiguracionTiposClient({
                       {c.estado !== false && (
                         <button 
                           onClick={() => handleDeleteCondicion(c.id)}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                          className="w-9 h-9 sm:w-8 sm:h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
                           title="Desactivar"
                         >
                           <Icon name="block" size={16} />
@@ -599,22 +599,22 @@ export default function ConfiguracionTiposClient({
             </div>
             
             <div className="p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {archivos.map((a) => (
                   <div key={a.id} className={`flex items-center justify-between p-3 border rounded-xl transition-colors ${a.estado === false ? 'border-amber-200 bg-amber-50/40 opacity-70' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-8 h-8 shrink-0 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500">
                         <Icon name="description" size={16} />
                       </div>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-[13px] md:text-sm text-slate-700 uppercase">{a.tipo_archivo}</span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-semibold text-[13px] md:text-sm text-slate-700 uppercase break-words">{a.tipo_archivo}</span>
                         {a.estado === false && <span className="text-[10px] md:text-[11px] font-bold text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded w-fit mt-0.5">INACTIVO</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
                       <button 
                         onClick={() => { setArchivoForm(a); setIsArchivoModalOpen(true); }}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                        className="w-9 h-9 sm:w-8 sm:h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                         title="Editar"
                       >
                         <Icon name="edit" size={16} />
@@ -622,7 +622,7 @@ export default function ConfiguracionTiposClient({
                       {a.estado !== false && (
                         <button 
                           onClick={() => handleDeleteArchivo(a.id)}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                          className="w-9 h-9 sm:w-8 sm:h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
                           title="Desactivar"
                         >
                           <Icon name="block" size={16} />
@@ -655,20 +655,20 @@ export default function ConfiguracionTiposClient({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {cie10.map(c => (
                   <div key={c.codigo} className="border border-slate-200 bg-white rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow">
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 flex gap-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => {
                         setCie10Form({ codigo: c.codigo, descripcion: c.descripcion, codigo_antiguo: c.codigo, estado: c.estado !== undefined ? c.estado : true });
                         setIsCie10ModalOpen(true);
-                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
+                      }} className="p-2 sm:p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
                         <Icon name="edit_note" size={16} />
                       </button>
                       {c.estado !== false && (
-                        <button onClick={() => handleDeleteCie10(c.codigo)} className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
+                        <button onClick={() => handleDeleteCie10(c.codigo)} className="p-2 sm:p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
                           <Icon name="block" size={16} />
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pr-[5.5rem] [@media(hover:hover)]:pr-0">
                       <div className={`w-2 h-2 rounded-full ${c.estado === false ? 'bg-slate-300' : 'bg-cyan-600'}`}></div>
                       <h3 className="font-bold text-[13px] md:text-sm text-slate-800 break-all">{c.codigo}</h3>
                     </div>
@@ -704,20 +704,20 @@ export default function ConfiguracionTiposClient({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {roles.map(r => (
                   <div key={r.id} className="border border-slate-200 bg-white rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow">
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 flex gap-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => {
                         setRolForm({ id: r.id, rol: r.rol, descripcion: r.descripcion, estado: r.estado });
                         setIsRolModalOpen(true);
-                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
+                      }} className="p-2 sm:p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
                         <Icon name="edit_note" size={16} />
                       </button>
                       {r.estado && (
-                        <button onClick={() => handleDeleteRol(r.id)} className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
+                        <button onClick={() => handleDeleteRol(r.id)} className="p-2 sm:p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
                           <Icon name="block" size={16} />
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pr-[5.5rem] [@media(hover:hover)]:pr-0">
                       <div className={`w-2 h-2 rounded-full ${r.estado ? 'bg-cyan-600' : 'bg-slate-300'}`}></div>
                       <h3 className="font-bold text-[13px] md:text-sm text-slate-800 break-all">{r.rol}</h3>
                     </div>
@@ -754,20 +754,20 @@ export default function ConfiguracionTiposClient({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {puestos.map(p => (
                   <div key={p.id} className="border border-slate-200 bg-white rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow">
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 flex gap-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => {
                         setPuestoForm({ id: p.id, puesto: p.puesto, descripcion: p.descripcion, estado: p.estado });
                         setIsPuestoModalOpen(true);
-                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
+                      }} className="p-2 sm:p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
                         <Icon name="edit_note" size={16} />
                       </button>
                       {p.estado && (
-                        <button onClick={() => handleDeletePuesto(p.id)} className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
+                        <button onClick={() => handleDeletePuesto(p.id)} className="p-2 sm:p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
                           <Icon name="block" size={16} />
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pr-[5.5rem] [@media(hover:hover)]:pr-0">
                       <div className={`w-2 h-2 rounded-full ${p.estado ? 'bg-cyan-600' : 'bg-slate-300'}`}></div>
                       <h3 className="font-bold text-[13px] md:text-sm text-slate-800 break-all">{p.puesto}</h3>
                     </div>
@@ -804,20 +804,20 @@ export default function ConfiguracionTiposClient({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {especialidades.map(e => (
                   <div key={e.id} className="border border-slate-200 bg-white rounded-xl p-4 flex flex-col gap-3 relative group shadow-sm hover:shadow-md transition-shadow">
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 flex gap-1 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => {
                         setEspecialidadForm({ id: e.id, especialidad: e.especialidad, descripcion: e.descripcion, estado: e.estado });
                         setIsEspecialidadModalOpen(true);
-                      }} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
+                      }} className="p-2 sm:p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg" title="Editar">
                         <Icon name="edit_note" size={16} />
                       </button>
                       {e.estado && (
-                        <button onClick={() => handleDeleteEspecialidad(e.id)} className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
+                        <button onClick={() => handleDeleteEspecialidad(e.id)} className="p-2 sm:p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg" title="Desactivar">
                           <Icon name="block" size={16} />
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pr-[5.5rem] [@media(hover:hover)]:pr-0">
                       <div className={`w-2 h-2 rounded-full ${e.estado ? 'bg-cyan-600' : 'bg-slate-300'}`}></div>
                       <h3 className="font-bold text-[13px] md:text-sm text-slate-800 break-all">{e.especialidad}</h3>
                     </div>

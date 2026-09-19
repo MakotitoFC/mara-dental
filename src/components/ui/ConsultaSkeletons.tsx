@@ -125,22 +125,25 @@ export function PresupuestoSkeleton() {
 
 /** Skeleton del Odontograma: dentadura fija a un costado (mismo ancho/alto
  * que el gráfico real) + Historial de Exámenes centrado, tipo timeline. */
-export function OdontogramaSkeleton() {
+export function OdontogramaSkeleton({ registro = false }: { registro?: boolean } = {}) {
   return (
     <div className="flex flex-col md:flex-row w-full">
       <div className="w-full md:flex-none md:w-[26rem] xl:w-[30rem] flex flex-col items-center gap-4 p-6 sm:p-8 border-b md:border-b-0 md:border-r border-slate-200">
-        <div className="flex items-center gap-3 w-full">
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-6 w-20 rounded-lg" />
-        </div>
         <div className="w-full max-w-[13rem] aspect-[409/694] rounded-[40%] skeleton-shimmer" />
       </div>
       <div className="w-full md:flex-1 flex justify-center p-4 sm:p-6">
         <div className="w-full max-w-[620px] flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-2">
-            <Skeleton className="h-3 w-32" />
-            <Skeleton className="w-9 h-9 rounded-lg" />
-          </div>
+          {registro ? (
+            <div>
+              <h3 className="text-[14px] font-bold text-slate-800">Registro clínico</h3>
+              <p className="text-[11px] text-slate-400">Cada superficie puede tener su propia condición</p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Historial de Exámenes</p>
+              <Skeleton className="w-9 h-9 rounded-lg" />
+            </div>
+          )}
           <div className="flex flex-col gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex gap-3">
