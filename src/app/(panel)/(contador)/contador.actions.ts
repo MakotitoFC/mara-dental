@@ -3,6 +3,32 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 
+async function getCallerProfile() {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data: userData } = await supabase
+      .from("usuarios")
+      .select("id, rol_id, sede_id, rol ( rol )")
+      .eq("id", user.id)
+      .single();
+    if (!userData) return null;
+    const rolRaw = userData.rol as any;
+    const rolName = (Array.isArray(rolRaw) ? rolRaw[0]?.rol : rolRaw?.rol) || "";
+    return {
+      userId: user.id,
+      rolId: userData.rol_id,
+      sedeId: userData.sede_id,
+      rolName,
+      isDoctorAdmin: userData.rol_id === 6 || rolName === "doctor_admin",
+    };
+  } catch (err) {
+    console.error("Error getCallerProfile in contador.actions:", err);
+    return null;
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Categorías
 // -----------------------------------------------------------------------------
@@ -249,8 +275,9 @@ export async function deleteClientePagoAction(id: string) {
 // -----------------------------------------------------------------------------
 
 export async function getCajaTurnosAction() {
+  const caller = await getCallerProfile();
   const adminClient = getAdminClient();
-  const { data: turnos, error } = await adminClient
+  let query = adminClient
     .from("caja_turno")
     .select(`
       id, fecha_apertura, fecha_cierre, usuario_id,
@@ -258,6 +285,12 @@ export async function getCajaTurnosAction() {
     `)
     .order("fecha_apertura", { ascending: false })
     .limit(100);
+
+  if (caller?.isDoctorAdmin && caller.sedeId) {
+    query = query.eq("sede_id", caller.sedeId);
+  }
+
+  const { data: turnos, error } = await query;
   
   if (error) throw error;
   if (!turnos || turnos.length === 0) return [];
@@ -407,17 +440,18 @@ export async function toggleConciliadoAction(movimientoId: string, conciliado: b
 // -----------------------------------------------------------------------------
 
 export async function getComprobantesAction() {
+  const caller = await getCallerProfile();
   const adminClient = getAdminClient();
   const { data, error } = await adminClient
     .from("comprobante_pago")
     .select(`
       *,
-      paciente:paciente_id (id, nombre, apellido, dni),
+      paciente:paciente_id (id, nombre, apellido, dni, sede_id),
       cliente:cliente_id (id, nombre, apellidos, dni, pasaporte, carnet_extranjeria),
       movimiento:movimiento_caja_id (
         id, fecha, monto, referencia, observacion, estado,
         medio_pago:medio_pago_id (id, nombre),
-        caja_turno:caja_turno_id (id, fecha_apertura, sede:sede_id (nombre_clinica)),
+        caja_turno:caja_turno_id (id, fecha_apertura, sede_id, sede:sede_id (nombre_clinica)),
         presupuesto:presupuesto_id (
           id, fecha_emision, total_bruto, descuento_monto, estado,
           detalle_presupuesto ( catalogo_tratamientos (nombre, moneda) ),
@@ -429,7 +463,14 @@ export async function getComprobantesAction() {
     .limit(200);
   
   if (error) throw error;
-  return data || [];
+  let list = data || [];
+  if (caller?.isDoctorAdmin && caller.sedeId) {
+    list = list.filter((c: any) =>
+      c.movimiento?.caja_turno?.sede_id === caller.sedeId ||
+      c.paciente?.sede_id === caller.sedeId
+    );
+  }
+  return list;
 }
 
 export async function anularComprobanteAction(id: string, motivo: string) {
@@ -494,16 +535,21 @@ export async function getPresupuestosPaginadosAction({
   filtro?: string;
   sedeId?: string;
 }) {
+  const caller = await getCallerProfile();
+  const effectiveSedeId = (caller?.isDoctorAdmin && caller.sedeId) ? String(caller.sedeId) : sedeId;
   const adminClient = getAdminClient();
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
+
+  const pacienteJoin = effectiveSedeId ? "paciente:paciente_id!inner" : "paciente:paciente_id";
 
   let baseQuery = adminClient
     .from("presupuestos")
     .select(`
       id, fecha_emision, total_bruto, descuento_monto, estado, notas,
-      paciente:paciente_id (
+      ${pacienteJoin} (
         id, nombre, apellido, dni,
+        sede_id,
         sede:sede_id (id, nombre_clinica)
       ),
       doctor:doctor_id (id),
@@ -511,6 +557,10 @@ export async function getPresupuestosPaginadosAction({
       cuotas ( id, numero_cuota, monto, estado, fecha_vencimiento, movimiento_caja_id ),
       detalle_presupuesto ( catalogo_tratamientos (nombre, moneda) )
     `, { count: "exact" });
+
+  if (effectiveSedeId) {
+    baseQuery = baseQuery.eq("paciente.sede_id", effectiveSedeId);
+  }
 
   // Filtro por Estado
   if (filtro === "pendientes") {
@@ -605,8 +655,8 @@ export async function getPresupuestosPaginadosAction({
     );
   }
 
-  if (sedeId) {
-    finalList = finalList.filter((p: any) => String(p.paciente?.sede_id) === String(sedeId));
+  if (effectiveSedeId) {
+    finalList = finalList.filter((p: any) => String(p.paciente?.sede_id) === String(effectiveSedeId));
   }
 
   const totalRecords = count ?? finalList.length;
@@ -624,17 +674,25 @@ export async function getPresupuestosPaginadosAction({
 // -----------------------------------------------------------------------------
 
 export async function getDashboardContadorAction() {
+  const caller = await getCallerProfile();
   const adminClient = getAdminClient();
   const now = new Date();
   
   // 1. Obtener Cuentas por Cobrar Total (todos los presupuestos aprobados con saldo pendiente de pago)
-  const { data: presupuestosAprobados } = await adminClient
+  let presQuery = adminClient
     .from("presupuestos")
     .select(`
       id, total_bruto, descuento_monto, estado,
+      paciente:paciente_id ( sede_id ),
       movimiento_caja ( id, monto, estado )
     `)
     .eq("estado", "aprobado");
+
+  if (caller?.isDoctorAdmin && caller.sedeId) {
+    presQuery = presQuery.eq("paciente.sede_id", caller.sedeId);
+  }
+
+  const { data: presupuestosAprobados } = await presQuery;
 
   let totalPorCobrar = 0;
   (presupuestosAprobados || []).forEach((p: any) => {
@@ -647,13 +705,20 @@ export async function getDashboardContadorAction() {
   });
   
   // 2. Obtener movimientos confirmados (excluyendo anulados)
-  const { data: movimientos, error: movErr } = await adminClient
+  let movQuery = adminClient
     .from("movimiento_caja")
     .select(`
       fecha, monto, estado, observacion,
+      caja_turno:caja_turno_id ( sede_id ),
       categoria:categoria_id(nombre, tipo)
     `)
     .eq("estado", "confirmado");
+
+  if (caller?.isDoctorAdmin && caller.sedeId) {
+    movQuery = movQuery.eq("caja_turno.sede_id", caller.sedeId);
+  }
+
+  const { data: movimientos, error: movErr } = await movQuery;
     
   if (movErr) throw movErr;
   
@@ -741,46 +806,60 @@ export async function getDashboardContadorAction() {
  * previa de KPIs del generador de reportes — evita traer todas las columnas
  * de getReporteFinancieroAction solo para mostrar 3 números. */
 export async function getResumenReporteAction(startDate: string, endDate: string) {
+  const caller = await getCallerProfile();
   const adminClient = getAdminClient();
 
-  const { data: movimientos, error } = await adminClient
+  let movQuery = adminClient
     .from("movimiento_caja")
-    .select("monto, estado")
+    .select("monto, estado, caja_turno:caja_turno_id(sede_id)")
     .gte("fecha", startDate + "T00:00:00Z")
     .lte("fecha", endDate + "T23:59:59Z");
+
+  if (caller?.isDoctorAdmin && caller.sedeId) {
+    movQuery = movQuery.eq("caja_turno.sede_id", caller.sedeId);
+  }
+
+  const { data: movimientos, error } = await movQuery;
 
   if (error) throw error;
 
   const activos = (movimientos || []).filter((m: any) => m.estado !== "anulado");
   const montoTotal = activos.reduce((acc: number, m: any) => acc + Math.abs(Number(m.monto)), 0);
 
-  const { count: comprobantesCount, error: compErr } = await adminClient
+  let compQuery = adminClient
     .from("comprobante_pago")
-    .select("id", { count: "exact", head: true })
+    .select("id, paciente:paciente_id(sede_id)", { count: "exact", head: !caller?.isDoctorAdmin })
     .gte("fecha_emision", startDate + "T00:00:00Z")
     .lte("fecha_emision", endDate + "T23:59:59Z");
+
+  if (caller?.isDoctorAdmin && caller.sedeId) {
+    compQuery = compQuery.eq("paciente.sede_id", caller.sedeId);
+  }
+
+  const { count: comprobantesCount, data: compData, error: compErr } = await compQuery;
 
   if (compErr) throw compErr;
 
   return {
     movimientos: activos.length,
     montoTotal,
-    comprobantes: comprobantesCount || 0,
+    comprobantes: caller?.isDoctorAdmin ? (compData?.length || 0) : (comprobantesCount || 0),
   };
 }
 
 export async function getReporteFinancieroAction(startDate: string, endDate: string) {
+  const caller = await getCallerProfile();
   const adminClient = getAdminClient();
   
   // Obtener movimientos en el rango de fechas
-  const { data: movimientos, error } = await adminClient
+  let movQuery = adminClient
     .from("movimiento_caja")
     .select(`
       id, fecha, monto, observacion, referencia, estado, motivo_anulacion, fecha_anulacion,
       categoria:categoria_id(nombre, tipo, afecto_igv, cuenta_contable),
       moneda:tipo_moneda_id(moneda),
       medio_pago:medio_pago_id(id, nombre),
-      caja_turno:caja_turno_id(sede:sede_id(nombre_clinica)),
+      caja_turno:caja_turno_id(sede_id, sede:sede_id(nombre_clinica)),
       presupuestos:presupuesto_id(
         id,
         pacientes(nombre, apellido, dni)
@@ -789,21 +868,33 @@ export async function getReporteFinancieroAction(startDate: string, endDate: str
     .gte("fecha", startDate + "T00:00:00Z")
     .lte("fecha", endDate + "T23:59:59Z")
     .order("fecha", { ascending: true });
+
+  if (caller?.isDoctorAdmin && caller.sedeId) {
+    movQuery = movQuery.eq("caja_turno.sede_id", caller.sedeId);
+  }
+
+  const { data: movimientos, error } = await movQuery;
     
   if (error) throw error;
   
   // Obtener comprobantes emitidos en el rango
-  const { data: comprobantes, error: compErr } = await adminClient
+  let compQuery = adminClient
     .from("comprobante_pago")
     .select(`
       id, fecha_emision, tipo_comprobante, serie, numero, moneda, monto_total, estado, motivo_anulacion, fecha_anulacion, movimiento_caja_id,
-      paciente:paciente_id(id, nombre, apellido, dni),
+      paciente:paciente_id(id, nombre, apellido, dni, sede_id),
       cliente:cliente_id(id, nombre, apellidos, dni, pasaporte, carnet_extranjeria),
       movimiento:movimiento_caja_id(id, estado, monto, fecha, medio_pago:medio_pago_id(nombre))
     `)
     .gte("fecha_emision", startDate + "T00:00:00Z")
     .lte("fecha_emision", endDate + "T23:59:59Z")
     .order("fecha_emision", { ascending: true });
+
+  if (caller?.isDoctorAdmin && caller.sedeId) {
+    compQuery = compQuery.eq("paciente.sede_id", caller.sedeId);
+  }
+
+  const { data: comprobantes, error: compErr } = await compQuery;
     
   if (compErr) throw compErr;
   

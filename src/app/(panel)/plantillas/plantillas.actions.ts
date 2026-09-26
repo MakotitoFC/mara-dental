@@ -94,7 +94,7 @@ export async function uploadPlantillaAction(formData: FormData) {
   const rolRaw = userProfile.rol as any;
   const rol = Array.isArray(rolRaw) ? rolRaw[0] : rolRaw;
   const rolName = rol?.rol;
-  if (rolName !== "admin" && rolName !== "superadmin") {
+  if (rolName !== "admin" && rolName !== "superadmin" && rolName !== "doctor_admin") {
     throw new Error("No tienes permisos para subir plantillas");
   }
 
@@ -119,8 +119,8 @@ export async function uploadPlantillaAction(formData: FormData) {
 
   // Determinar sede_id
   let targetSedeId = null;
-  if (!isGlobal) {
-    targetSedeId = userProfile.sede_id; // Se sube a la sede del admin
+  if (rolName !== "superadmin" || !isGlobal) {
+    targetSedeId = userProfile.sede_id; // Se sube a la sede del admin/doctor_admin
   }
 
   // Insertar en BD

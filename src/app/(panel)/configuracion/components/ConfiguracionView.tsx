@@ -452,9 +452,9 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
   const router = useRouter();
   const toast = useToast();
   const esAsistente = rol === "asistente";
-  const esAdmin = rol === "admin";
+  const esAdmin = rol === "admin" || rol === "doctor_admin";
   const esSuperAdmin = rol === "superadmin";
-  const esDoctor = rol === "doctor";
+  const esDoctor = rol === "doctor" || rol === "doctor_admin";
   const esAdminOrSuperadmin = esAdmin || esSuperAdmin;
 
   // Estado de edición de Perfil Personal

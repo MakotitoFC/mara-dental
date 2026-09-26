@@ -191,13 +191,48 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
 
   const pendientesFiltrados = pendientesBuscados;
 
-  function handlePagoRegistrado(presupuestoId: string, nuevoSaldo: number, montoPagado: number, medioNombre: string) {
+  function handlePagoRegistrado(
+    presupuestoId: string,
+    nuevoSaldo: number,
+    montoPagado: number,
+    medioNombre: string,
+    cuotaId?: string
+  ) {
     const pacienteNombre = activo?.paciente_nombre || "Paciente";
     const monedaPago = activo?.moneda || "PEN";
 
-    updatePendienteLocal(presupuestoId, (p) =>
-      nuevoSaldo <= 0.009 ? null : { ...p, saldo: nuevoSaldo, pagado: p.total_neto - nuevoSaldo }
-    );
+    updatePendienteLocal(presupuestoId, (p) => {
+      if (nuevoSaldo <= 0.009) return null;
+      const updatedCuotas = cuotaId && p.cuotas
+        ? p.cuotas.map((c) =>
+            c.id === cuotaId
+              ? { ...c, estado: "pagado", movimiento_caja_id: `local-${Date.now()}` }
+              : c
+          )
+        : p.cuotas;
+      return {
+        ...p,
+        saldo: nuevoSaldo,
+        pagado: p.total_neto - nuevoSaldo,
+        cuotas: updatedCuotas,
+      };
+    });
+
+    if (activo && activo.id === presupuestoId) {
+      const updatedCuotas = cuotaId && activo.cuotas
+        ? activo.cuotas.map((c) =>
+            c.id === cuotaId
+              ? { ...c, estado: "pagado", movimiento_caja_id: `local-${Date.now()}` }
+              : c
+          )
+        : activo.cuotas;
+      setActivo({
+        ...activo,
+        saldo: nuevoSaldo,
+        pagado: activo.total_neto - nuevoSaldo,
+        cuotas: updatedCuotas,
+      });
+    }
 
     setDashboard((prev) => {
       const metodosPago = (() => {
@@ -229,7 +264,16 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
         historial: nuevoHistorial,
       };
     });
-    setActivo(null);
+
+    // En segundo plano, refrescar la lista de pendientes si hay una búsqueda activa
+    const q = query.trim();
+    if (q) {
+      import("../actions").then(({ buscarPresupuestosPendientesAction }) => {
+        buscarPresupuestosPendientesAction(q).then((res) => {
+          if (res) setPendientesBuscados(res);
+        }).catch(() => {});
+      });
+    }
   }
 
   function handleMovimientoLibreRegistrado(monto: number, tipo: "I" | "E", medioNombre: string, concepto: string) {
@@ -663,7 +707,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
       <AnimatePresence>
         {activo && (
           <RegistrarPagoSheet
-            key="registrar-pago"
+            key={`registrar-pago-${activo.id}`}
             presupuesto={activo}
             mediosPago={mediosPago}
             categoriasIngreso={categoriasIngreso}

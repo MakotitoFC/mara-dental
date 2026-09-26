@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { revalidatePath } from "next/cache";
 
 export interface CuotaPendiente {
   id: string;
@@ -639,7 +640,7 @@ export async function solicitarDevolucionPresupuestoAction(presupuestoId: string
   const adminUserIds = (admins || [])
     .filter((a: any) => {
       const r = Array.isArray(a.rol) ? a.rol[0]?.rol : a.rol?.rol;
-      return r === "admin" || r === "administrador";
+      return r === "admin" || r === "administrador" || r === "doctor_admin";
     })
     .map((a: any) => a.id);
 
@@ -770,6 +771,183 @@ export async function solicitarDevolucionPresupuestoAction(presupuestoId: string
   } catch (bcErr) {
     console.error("Error broadcast validacion:", bcErr);
   }
+
+  return { success: true };
+}
+
+/** Ejecuta directamente la devolución y anulación de un presupuesto pagado para roles administrativos (doctor_admin, admin, superadmin) */
+export async function ejecutarDevolucionPresupuestoDirectaAction(presupuestoId: string, motivo: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  const { data: usr } = await supabase
+    .from("usuarios")
+    .select("rol_id, sede_id, rol ( rol )")
+    .eq("id", user.id)
+    .single();
+
+  const rolName = ((usr?.rol as any)?.rol || "").toLowerCase();
+  const isDirectAdmin = usr?.rol_id === 2 || usr?.rol_id === 3 || usr?.rol_id === 6 || rolName === "admin" || rolName === "superadmin" || rolName === "doctor_admin";
+
+  if (!isDirectAdmin) {
+    return { error: "No tienes permisos de administrador para procesar devoluciones directas." };
+  }
+
+  const adminClient = getAdminClient();
+  const { data: pres, error: presErr } = await adminClient
+    .from("presupuestos")
+    .select(`
+      id, total_bruto, descuento_monto, estado,
+      pacientes ( id, nombre, apellido, dni, sede_id, telegram_chat_id ),
+      movimiento_caja ( id, monto, estado, tipo_moneda_id, medio_pago_id ),
+      cuotas ( id, estado )
+    `)
+    .eq("id", presupuestoId)
+    .single();
+
+  if (presErr || !pres) {
+    return { error: "No se encontró el presupuesto a anular." };
+  }
+
+  const pac = Array.isArray(pres.pacientes) ? pres.pacientes[0] : pres.pacientes;
+  if ((rolName === "admin" || rolName === "doctor_admin") && pac?.sede_id !== usr?.sede_id) {
+    return { error: "No tienes permiso para modificar presupuestos de otra sede." };
+  }
+
+  const fechaAnulacion = new Date().toISOString();
+  const motivoAnulacion = motivo.trim() || "Devolución directa por administración";
+
+  const pagosConfirmados = (pres.movimiento_caja || []).filter((m: any) => m.estado === "confirmado");
+  const totalDevolver = pagosConfirmados.reduce((acc: number, m: any) => acc + Math.abs(Number(m.monto)), 0);
+
+  // 1. Anular movimientos de caja confirmados
+  for (const mov of pagosConfirmados) {
+    await adminClient
+      .from("movimiento_caja")
+      .update({
+        estado: "anulado",
+        motivo_anulacion: motivoAnulacion,
+        anulado_por: user.id,
+        fecha_anulacion: fechaAnulacion,
+      })
+      .eq("id", mov.id);
+
+    await adminClient
+      .from("comprobante_pago")
+      .update({
+        estado: "anulado",
+        motivo_anulacion: motivoAnulacion,
+        anulado_por: user.id,
+        fecha_anulacion: fechaAnulacion,
+      })
+      .eq("movimiento_caja_id", mov.id);
+  }
+
+  // 2. Registrar egreso por devolución en caja abierta si corresponde
+  const { data: catDev } = await adminClient
+    .from("categoria_movimiento")
+    .select("id")
+    .ilike("nombre", "%devoluci%")
+    .eq("tipo", "E")
+    .limit(1)
+    .maybeSingle();
+
+  // Buscar caja activa del usuario o de su sede
+  let { data: cajaAbierta } = await adminClient
+    .from("caja_turno")
+    .select("id")
+    .eq("usuario_id", user.id)
+    .is("fecha_cierre", null)
+    .order("fecha_apertura", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!cajaAbierta && usr?.sede_id) {
+    const { data: cajaSede } = await adminClient
+      .from("caja_turno")
+      .select("id")
+      .eq("sede_id", usr.sede_id)
+      .is("fecha_cierre", null)
+      .order("fecha_apertura", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    cajaAbierta = cajaSede;
+  }
+
+  if (cajaAbierta && totalDevolver > 0) {
+    const pagosPorMedio = new Map<number, { total: number; monedaId: number }>();
+    if (pagosConfirmados.length > 0) {
+      pagosConfirmados.forEach((pg: any) => {
+        const mId = pg.medio_pago_id || 1;
+        const current = pagosPorMedio.get(mId) || { total: 0, monedaId: pg.tipo_moneda_id || 1 };
+        current.total += Math.abs(Number(pg.monto));
+        pagosPorMedio.set(mId, current);
+      });
+    } else {
+      pagosPorMedio.set(1, { total: totalDevolver, monedaId: 1 });
+    }
+
+    const devolucionRecords: any[] = [];
+    for (const [mId, info] of pagosPorMedio.entries()) {
+      if (info.total > 0) {
+        devolucionRecords.push({
+          caja_turno_id: cajaAbierta.id,
+          fecha: fechaAnulacion,
+          monto: -Math.abs(info.total),
+          tipo_moneda_id: info.monedaId,
+          categoria_id: catDev?.id || null,
+          medio_pago_id: mId,
+          observacion: `Devolución directa por anulación de Presupuesto #${presupuestoId.slice(0, 8).toUpperCase()}. Motivo: ${motivoAnulacion}`,
+          presupuesto_id: presupuestoId,
+          usuario_id: user.id,
+          estado: "confirmado",
+        });
+      }
+    }
+
+    if (devolucionRecords.length > 0) {
+      await adminClient.from("movimiento_caja").insert(devolucionRecords);
+    }
+  }
+
+  // 3. Cambiar estado del presupuesto a 'rechazado'
+  await adminClient
+    .from("presupuestos")
+    .update({
+      estado: "rechazado",
+      notas: `Devolución y anulación directa ejecutada. Motivo: ${motivoAnulacion}`,
+    })
+    .eq("id", presupuestoId);
+
+  // 4. Marcar cuotas como anuladas si existían
+  if (pres.cuotas && pres.cuotas.length > 0) {
+    await adminClient
+      .from("cuotas")
+      .update({ estado: "anulado" })
+      .eq("presupuesto_id", presupuestoId);
+  }
+
+  // 5. Notificar al paciente por Telegram si tiene chat_id
+  if (pac?.telegram_chat_id) {
+    try {
+      const textoTelegram = `🧾 MaraDental\n\nEstimado(a) ${pac.nombre}, le informamos que la anulación y devolución de su presupuesto por el monto de S/ ${totalDevolver.toFixed(2)} ha sido procesada con éxito.\nMotivo: ${motivoAnulacion}.`;
+      await adminClient.from("mensajes_telegram").insert({
+        paciente_id: pac.id,
+        tipo_mensaje: "devolucion_pago",
+        mensaje: textoTelegram,
+        estado_envio: "enviado",
+        fecha_envio: fechaAnulacion,
+        chat_id: pac.telegram_chat_id,
+      });
+    } catch (tgErr) {
+      console.error("Error registrando mensaje Telegram de devolución directa:", tgErr);
+    }
+  }
+
+  revalidatePath("/pagos");
+  revalidatePath("/caja");
+  if (pac?.id) revalidatePath(`/pacientes/${pac.id}`);
 
   return { success: true };
 }

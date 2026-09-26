@@ -45,7 +45,7 @@ export async function fetchDoctoresSede(sedeId: number | string, excludeUserId?:
         especialidad: (especialidadRaw?.especialidad as string | undefined) ?? null,
       };
     })
-    .filter((u) => u.rol === "doctor" && u.nombre && u.apellido)
+    .filter((u) => (u.rol === "doctor" || u.rol === "doctor_admin") && u.nombre && u.apellido)
     .map((u) => ({ id: u.id, nombre: u.nombre!, apellido: u.apellido!, especialidad: u.especialidad }));
 }
 

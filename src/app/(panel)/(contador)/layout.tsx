@@ -9,15 +9,15 @@ export default async function ContadorLayout({ children }: { children: React.Rea
     redirect('/login');
   }
 
-  // Verificar que el usuario tenga el rol de contador (rol_id = 5)
+  // Verificar que el usuario tenga el rol de contador (rol_id = 5) o doctor_admin (rol_id = 6)
   const { data: userData } = await supabase
     .from('usuarios')
     .select('rol_id')
     .eq('id', user.id)
     .single();
 
-  if (userData?.rol_id !== 5) {
-    // Si no es contador, mandarlo a su dashboard respectivo o a la raíz
+  if (userData?.rol_id !== 5 && userData?.rol_id !== 6) {
+    // Si no es contador ni doctor_admin, mandarlo a su dashboard respectivo o a la raíz
     redirect('/dashboard');
   }
 

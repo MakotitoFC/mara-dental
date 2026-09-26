@@ -9,6 +9,7 @@ export interface SelectOption {
   value: string;
   label: string;
   icon?: string;
+  disabled?: boolean;
 }
 
 /** Dropdown con diseño propio (el <select> nativo no permite estilizar su panel abierto). */
@@ -57,9 +58,18 @@ export function Select({
             <button
               key={o.value}
               type="button"
-              onMouseDown={() => { onChange(o.value); setOpen(false); }}
+              disabled={o.disabled}
+              onMouseDown={() => {
+                if (o.disabled) return;
+                onChange(o.value);
+                setOpen(false);
+              }}
               className={`w-full flex items-center gap-1.5 text-left px-2.5 py-1.5 sm:px-3 sm:py-2 text-[12px] sm:text-[13px] transition-colors ${
- o.value === value ? "text-cyan-700 font-semibold bg-cyan-50/70" : "text-slate-600 hover:bg-slate-50"
+                o.disabled
+                  ? "text-slate-400 bg-slate-50/70 cursor-not-allowed opacity-60"
+                  : o.value === value
+                  ? "text-cyan-700 font-semibold bg-cyan-50/70"
+                  : "text-slate-600 hover:bg-slate-50"
               }`}
             >
               {o.icon && <Icon name={o.icon} size={14} className="shrink-0" />}

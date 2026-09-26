@@ -193,10 +193,10 @@ export async function updateSedeAction(sedeId: number, data: Partial<SedeData>) 
   const { data: usr } = await supabase.from("usuarios").select("rol ( rol ), sede_id").eq("id", user.id).single();
   const userRol = (usr?.rol as any)?.rol;
 
-  if (userRol !== "superadmin" && userRol !== "admin") {
+  if (userRol !== "superadmin" && userRol !== "admin" && userRol !== "doctor_admin") {
     return { error: "Permisos insuficientes" };
   }
-  if (userRol === "admin" && usr?.sede_id !== sedeId) {
+  if ((userRol === "admin" || userRol === "doctor_admin") && usr?.sede_id !== sedeId) {
     return { error: "No tienes permiso para modificar esta sede" };
   }
 
@@ -231,10 +231,10 @@ export async function updateLogoSedeAction(sedeId: number, formData: FormData) {
   const { data: usr } = await supabase.from("usuarios").select("rol ( rol ), sede_id").eq("id", user.id).single();
   const userRol = (usr?.rol as any)?.rol;
 
-  if (userRol !== "superadmin" && userRol !== "admin") {
+  if (userRol !== "superadmin" && userRol !== "admin" && userRol !== "doctor_admin") {
     return { error: "Permisos insuficientes" };
   }
-  if (userRol === "admin" && usr?.sede_id !== sedeId) {
+  if ((userRol === "admin" || userRol === "doctor_admin") && usr?.sede_id !== sedeId) {
     return { error: "No tienes permiso para modificar esta sede" };
   }
 

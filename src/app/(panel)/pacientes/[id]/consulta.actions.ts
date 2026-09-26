@@ -1588,18 +1588,49 @@ export async function registrarPagoAction(data: {
     return { error: "No se pudo registrar el pago" };
   }
 
+  const adminClient = getAdminClient();
+
   if (comprobanteId) {
-    await supabase.from("comprobante_pago").update({ movimiento_caja_id: mov.id }).eq("id", comprobanteId);
+    await adminClient.from("comprobante_pago").update({ movimiento_caja_id: mov.id }).eq("id", comprobanteId);
   }
 
   if (data.cuota_id) {
-    await supabase.from("cuotas").update({ 
+    const { error: cuotaErr } = await adminClient.from("cuotas").update({ 
       estado: "pagado", 
       movimiento_caja_id: mov.id 
     }).eq("id", data.cuota_id);
+    if (cuotaErr) {
+      console.error("Error updating cuota in registrarPagoAction:", cuotaErr);
+    }
+  }
+
+  // Verificar si el presupuesto quedó totalmente cancelado
+  try {
+    const { data: presData } = await adminClient
+      .from("presupuestos")
+      .select("total_bruto, descuento_monto, movimiento_caja(monto, estado)")
+      .eq("id", data.presupuesto_id)
+      .single();
+
+    if (presData) {
+      const totalNeto = Number(presData.total_bruto) - Number(presData.descuento_monto || 0);
+      const totalPagado = (presData.movimiento_caja || [])
+        .filter((m: any) => m.estado === "confirmado")
+        .reduce((sum: number, m: any) => sum + Number(m.monto), 0);
+      if (totalNeto - totalPagado <= 0.009) {
+        await adminClient
+          .from("presupuestos")
+          .update({ estado: "pagado" })
+          .eq("id", data.presupuesto_id);
+      }
+    }
+  } catch (err) {
+    console.error("Error checking presupuesto pagado status:", err);
   }
 
   revalidatePath(`/pacientes/${data.paciente_id}`);
+  revalidatePath("/pagos");
+  revalidatePath("/presupuestos");
   return { success: true, movimiento_id: mov.id };
 }
 

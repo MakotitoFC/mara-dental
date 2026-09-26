@@ -134,7 +134,7 @@ export default function PlantillasClient({ plantillas, userRole }: PlantillasCli
   const toast = useToast();
   const confirm = useConfirm();
 
-  const canUploadDelete = userRole === "admin" || userRole === "superadmin";
+  const canUploadDelete = userRole === "admin" || userRole === "superadmin" || userRole === "doctor_admin";
 
   const handleUpload = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

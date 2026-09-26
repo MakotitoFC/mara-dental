@@ -194,7 +194,7 @@ export function DashboardView({ data }: { data: DashboardData }) {
       <motion.div variants={staggerItem} className="flex items-center gap-2.5 min-w-0">
         <div className="min-w-0">
  <p className="text-[15px] sm:text-[17px] font-semibold text-slate-900 leading-tight truncate">
-            {user?.rol === "doctor" ? `${saludoDelDia()}${user?.name ? `, ${user.name}` : ""}` : "Resumen del día"}
+            {user?.rol === "doctor" || user?.rol === "doctor_admin" ? `${saludoDelDia()}${user?.name ? `, ${user.name}` : ""}` : "Resumen del día"}
           </p>
  <p className="text-[11px] sm:text-[12px] text-slate-400 capitalize truncate">
             {fechaLarga}{user?.sede ? ` · ${user.sede}` : ""}

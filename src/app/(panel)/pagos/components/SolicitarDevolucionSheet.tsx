@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { Textarea } from "@/components/ui/TextInput";
-import { solicitarDevolucionPresupuestoAction, type PresupuestoPendiente } from "../actions";
+import { useAuth } from "@/components/layout/AuthProvider";
+import { solicitarDevolucionPresupuestoAction, ejecutarDevolucionPresupuestoDirectaAction, type PresupuestoPendiente } from "../actions";
 
 export function SolicitarDevolucionSheet({
   presupuesto,
@@ -15,6 +16,9 @@ export function SolicitarDevolucionSheet({
   onClose: () => void;
   onSuccess?: () => void;
 }) {
+  const { user } = useAuth();
+  const isDirectAdmin = user?.rol === "doctor_admin" || user?.rol === "admin" || user?.rol === "superadmin";
+
   const [motivo, setMotivo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
@@ -32,7 +36,9 @@ export function SolicitarDevolucionSheet({
     setEnviando(true);
     setError("");
 
-    const res = await solicitarDevolucionPresupuestoAction(presupuesto.id, motivo);
+    const res = isDirectAdmin
+      ? await ejecutarDevolucionPresupuestoDirectaAction(presupuesto.id, motivo)
+      : await solicitarDevolucionPresupuestoAction(presupuesto.id, motivo);
     setEnviando(false);
 
     if (res?.error) {
@@ -43,10 +49,14 @@ export function SolicitarDevolucionSheet({
     }
   }
 
+  const sheetTitle = enviado
+    ? (isDirectAdmin ? "Devolución procesada" : "Solicitud enviada")
+    : (isDirectAdmin ? "Procesar Devolución" : "Solicitar Devolución");
+
   return (
     <ResponsiveSheet
       onClose={onClose}
-      title={enviado ? "Solicitud enviada" : "Solicitar Devolución"}
+      title={sheetTitle}
       footer={
         enviado ? (
           <button
@@ -75,8 +85,8 @@ export function SolicitarDevolucionSheet({
                 disabled={enviando || !motivo.trim()}
                 className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-[13px] font-semibold transition-colors shadow-sm"
               >
-                <Icon name="send" size={15} />
-                {enviando ? "Enviando…" : "Enviar Solicitud"}
+                <Icon name={isDirectAdmin ? "check" : "send"} size={15} />
+                {enviando ? "Procesando…" : (isDirectAdmin ? "Procesar Devolución" : "Enviar Solicitud")}
               </button>
             </div>
           </div>
@@ -88,11 +98,13 @@ export function SolicitarDevolucionSheet({
  <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
             <Icon name="check_circle" size={28} />
           </div>
- <p className="text-[15px] font-bold text-slate-900">
-            Solicitud enviada al Administrador
+          <p className="text-[15px] font-bold text-slate-900">
+            {isDirectAdmin ? "Devolución procesada con éxito" : "Solicitud enviada al Administrador"}
           </p>
- <p className="text-[12.5px] text-slate-500 max-w-sm">
-            El Administrador de la sede ha recibido la solicitud de devolución por <strong>{simbolo} {montoDevolver.toFixed(2)}</strong>. Una vez aprobada, se registrará el egreso y se anularán los comprobantes automáticamente.
+          <p className="text-[12.5px] text-slate-500 max-w-sm">
+            {isDirectAdmin
+              ? <>Se ha registrado el egreso por devolución de <strong>{simbolo} {montoDevolver.toFixed(2)}</strong> y se han anulado los comprobantes y el presupuesto automáticamente.</>
+              : <>El Administrador de la sede ha recibido la solicitud de devolución por <strong>{simbolo} {montoDevolver.toFixed(2)}</strong>. Una vez aprobada, se registrará el egreso y se anularán los comprobantes automáticamente.</>}
           </p>
         </div>
       ) : (

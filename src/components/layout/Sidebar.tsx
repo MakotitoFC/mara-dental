@@ -34,6 +34,46 @@ const NAV_MAIN = [
   { href: "/reportes",            icon: "download",            label: "Reportes" },
 ];
 
+const DOCTOR_ADMIN_SECTIONS = [
+  {
+    id: "admin",
+    title: "Administración",
+    items: [
+      { href: "/admin/dashboard", icon: "space_dashboard", label: "Dashboard Admin" },
+      { href: "/admin/catalogo", icon: "medical_information", label: "Catálogo precios" },
+      { href: "/admin/configuracion-tipos", icon: "category", label: "Config. Tipos" },
+      { href: "/categorias", icon: "category", label: "Categorías" },
+      { href: "/proveedores", icon: "store", label: "Proveedores" },
+      { href: "/admin/personal", icon: "person", label: "Personal" },
+      { href: "/admin/auditoria", icon: "admin_panel_settings", label: "Auditoría" },
+      { href: "/admin/validaciones", icon: "verified", label: "Validaciones" },
+    ],
+  },
+  {
+    id: "pacientes",
+    title: "Pacientes",
+    items: [
+      { href: "/dashboard", icon: "home", label: "Dashboard Médico" },
+      { href: "/agenda", icon: "calendar_month", label: "Calendario" },
+      { href: "/pacientes", icon: "person", label: "Pacientes" },
+      { href: "/pagos", icon: "payments", label: "Pagos" },
+      { href: "/plantillas", icon: "article", label: "Plantillas" },
+    ],
+  },
+  {
+    id: "contabilidad",
+    title: "Contabilidad",
+    items: [
+      { href: "/contador-dashboard", icon: "monitoring", label: "Dashboard Contador" },
+      { href: "/caja", icon: "wallet", label: "Caja" },
+      { href: "/comprobantes", icon: "receipt_long", label: "Comprobantes" },
+      { href: "/presupuestos", icon: "assignment", label: "Presupuesto y Cobranzas" },
+      { href: "/tipo-cambio", icon: "currency_exchange", label: "Tipo Cambio" },
+      { href: "/reportes", icon: "download", label: "Reportes" },
+    ],
+  },
+];
+
 const NAV_BOTTOM = [{ href: "/configuracion", icon: "settings", label: "Configuración" }];
 
 const ROLE_HREFS: Record<string, string[]> = {
@@ -51,9 +91,31 @@ const ROLE_HREFS: Record<string, string[]> = {
     "/tipo-cambio",
     "/reportes"
   ],
+  doctor_admin: [
+    "/admin/dashboard",
+    "/admin/catalogo",
+    "/admin/configuracion-tipos",
+    "/categorias",
+    "/proveedores",
+    "/admin/personal",
+    "/admin/auditoria",
+    "/admin/validaciones",
+    "/dashboard",
+    "/agenda",
+    "/pacientes",
+    "/pagos",
+    "/plantillas",
+    "/contador-dashboard",
+    "/caja",
+    "/comprobantes",
+    "/presupuestos",
+    "/tipo-cambio",
+    "/reportes",
+  ],
 };
 
 const COLLAPSE_KEY = "maradental:sidebar-collapsed";
+const ACCORDION_KEY = "maradental:doctor_admin_accordions";
 
 export function Sidebar() {
   const router = useRouter();
@@ -62,12 +124,38 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [validacionesCount, setValidacionesCount] = useState(0);
 
+  const [accordions, setAccordions] = useState<Record<string, boolean>>({
+    admin: false,
+    pacientes: true,
+    contabilidad: false,
+  });
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(ACCORDION_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setAccordions((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch {}
+  }, []);
+
+  const toggleAccordion = (id: string) => {
+    setAccordions((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try {
+        localStorage.setItem(ACCORDION_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
   }, []);
 
   useEffect(() => {
-    if (!user || (user.rol !== "admin" && user.rol !== "superadmin") || !user.sede_id) return;
+    if (!user || (user.rol !== "admin" && user.rol !== "superadmin" && user.rol !== "doctor_admin") || !user.sede_id) return;
     const supabase = createClient();
 
     // Fetch inicial
@@ -182,44 +270,126 @@ export function Sidebar() {
 
       {/* Navegación principal */}
       <nav className="flex-1 py-3 overflow-y-auto no-scrollbar overflow-x-hidden">
-        {mainItems.map((item) => {
-          const active = isActive(item.href);
-          return (
-            <GuardedLink
-              key={item.href}
-              href={item.href}
-              title={collapsed ? item.label : undefined}
-              className={`flex items-center gap-3 mx-2 px-2.5 py-2.5 rounded-lg transition-colors mb-0.5 group ${collapsed ? "justify-center" : ""} ${
-                active
- ? "bg-cyan-50 text-cyan-700"
- :"text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-              }`}
-            >
-              <div className="relative shrink-0">
-                <Icon
-                  name={item.icon}
-                  size={20}
- className={`${active ? "text-cyan-700" : "text-slate-400 group-hover:text-slate-600"}`}
-                />
-                {item.href === "/admin/validaciones" && validacionesCount > 0 && (
-                  <span className={`absolute -top-1 -right-1 flex items-center justify-center bg-red-500 text-white font-bold rounded-full text-[9px] ${collapsed ? 'w-4 h-4' : 'w-4 h-4'}`}>
-                    {validacionesCount}
-                  </span>
+        {userRole === "doctor_admin" ? (
+          DOCTOR_ADMIN_SECTIONS.map((sec, idx) => {
+            const isOpen = Boolean(accordions[sec.id]);
+            const hasActiveItem = sec.items.some((it) => isActive(it.href));
+            return (
+              <div key={sec.id} className={idx > 0 ? "mt-3" : ""}>
+                {!collapsed ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleAccordion(sec.id)}
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-colors group select-none"
+                  >
+                    <span className={`truncate ${hasActiveItem ? "text-cyan-700" : ""}`}>{sec.title}</span>
+                    <Icon
+                      name="expand_more"
+                      size={16}
+                      className={`text-slate-400 group-hover:text-slate-600 transition-transform duration-200 ${
+                        isOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                ) : (
+                  <div
+                    onClick={() => toggleAccordion(sec.id)}
+                    title={`${sec.title} (clic para alternar)`}
+                    className="cursor-pointer py-1 flex items-center justify-center"
+                  >
+                    <div className="w-8 border-t border-slate-200" />
+                  </div>
+                )}
+
+                {isOpen && (
+                  <div className="flex flex-col gap-0.5 mt-0.5">
+                    {sec.items.map((item) => {
+                      const active = isActive(item.href);
+                      return (
+                        <GuardedLink
+                          key={item.href}
+                          href={item.href}
+                          title={collapsed ? item.label : undefined}
+                          className={`flex items-center gap-3 mx-2 px-2.5 py-2 rounded-lg transition-colors group ${
+                            collapsed ? "justify-center" : ""
+                          } ${
+                            active
+                              ? "bg-cyan-50 text-cyan-700 font-semibold"
+                              : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                          }`}
+                        >
+                          <div className="relative shrink-0">
+                            <Icon
+                              name={item.icon}
+                              size={20}
+                              className={`${
+                                active ? "text-cyan-700" : "text-slate-400 group-hover:text-slate-600"
+                              }`}
+                            />
+                            {item.href === "/admin/validaciones" && validacionesCount > 0 && (
+                              <span className="absolute -top-1 -right-1 flex items-center justify-center bg-red-500 text-white font-bold rounded-full text-[9px] w-4 h-4">
+                                {validacionesCount}
+                              </span>
+                            )}
+                          </div>
+                          {!collapsed && (
+                            <div className="flex-1 flex items-center justify-between min-w-0">
+                              <span className="text-[13px] font-medium truncate">{item.label}</span>
+                              {item.href === "/admin/validaciones" && validacionesCount > 0 && (
+                                <span className="shrink-0 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                  {validacionesCount}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </GuardedLink>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-              {!collapsed && (
-                <div className="flex-1 flex items-center justify-between min-w-0">
-                  <span className="text-[13px] font-medium truncate">{item.label}</span>
+            );
+          })
+        ) : (
+          mainItems.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <GuardedLink
+                key={item.href}
+                href={item.href}
+                title={collapsed ? item.label : undefined}
+                className={`flex items-center gap-3 mx-2 px-2.5 py-2.5 rounded-lg transition-colors mb-0.5 group ${collapsed ? "justify-center" : ""} ${
+                  active
+                    ? "bg-cyan-50 text-cyan-700"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <div className="relative shrink-0">
+                  <Icon
+                    name={item.icon}
+                    size={20}
+                    className={`${active ? "text-cyan-700" : "text-slate-400 group-hover:text-slate-600"}`}
+                  />
                   {item.href === "/admin/validaciones" && validacionesCount > 0 && (
- <span className="shrink-0 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                    <span className={`absolute -top-1 -right-1 flex items-center justify-center bg-red-500 text-white font-bold rounded-full text-[9px] ${collapsed ? 'w-4 h-4' : 'w-4 h-4'}`}>
                       {validacionesCount}
                     </span>
                   )}
                 </div>
-              )}
-            </GuardedLink>
-          );
-        })}
+                {!collapsed && (
+                  <div className="flex-1 flex items-center justify-between min-w-0">
+                    <span className="text-[13px] font-medium truncate">{item.label}</span>
+                    {item.href === "/admin/validaciones" && validacionesCount > 0 && (
+                      <span className="shrink-0 bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                        {validacionesCount}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </GuardedLink>
+            );
+          })
+        )}
       </nav>
 
       {/* Pie: configuración + usuario */}

@@ -84,7 +84,7 @@ export default async function PagosPage() {
     rol = (usr?.rol as any)?.rol ?? "";
   }
 
-  if (rol !== "asistente") {
+  if (rol !== "asistente" && rol !== "doctor_admin") {
     redirect("/dashboard");
   }
 

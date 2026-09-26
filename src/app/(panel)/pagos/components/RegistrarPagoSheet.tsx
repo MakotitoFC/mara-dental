@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { Select } from "@/components/ui/Select";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { TextInput, Textarea } from "@/components/ui/TextInput";
 import { registrarPagoAction } from "../../pacientes/[id]/consulta.actions";
 import { enviarVoucherPdfPagoAction, type PresupuestoPendiente } from "../actions";
+import { getCuotasPresupuestoAction } from "../cuotas.actions";
 import { buildVoucherCaption, buildVoucherHtml, comprobanteDocLabel } from "../voucherText";
 import { printHtml, downloadHtmlAsPaginatedPdf, generatePaginatedPdfBlob, type ClinicaInfo } from "@/lib/reportExport";
 
@@ -22,17 +23,41 @@ export function RegistrarPagoSheet({
   sede: ClinicaInfo | null;
   cajaAbiertaId: string;
   onClose: () => void;
-  onSaved: (presupuestoId: string, nuevoSaldo: number, montoPagado: number, medioNombre: string) => void;
+  onSaved: (presupuestoId: string, nuevoSaldo: number, montoPagado: number, medioNombre: string, cuotaId?: string) => void;
 }) {
+  const [cuotas, setCuotas] = useState<any[]>(presupuesto.cuotas || []);
+  const [saldoActual, setSaldoActual] = useState<number>(presupuesto.saldo);
+
+  // Cargar cuotas frescas directamente de la base de datos al abrir o cambiar de presupuesto
+  useEffect(() => {
+    if (!presupuesto.id) return;
+    getCuotasPresupuestoAction(presupuesto.id).then((fresh) => {
+      if (fresh && fresh.length > 0) {
+        setCuotas(fresh);
+      }
+    });
+  }, [presupuesto.id]);
+
   // Ordenar todas las cuotas correlativamente
-  const todasCuotas = [...(presupuesto.cuotas || [])].sort((a, b) => a.numero_cuota - b.numero_cuota);
+  const todasCuotas = [...(cuotas || [])].sort((a, b) => a.numero_cuota - b.numero_cuota);
   const cuotasPendientes = todasCuotas.filter(c => c.estado !== "pagado" && !c.movimiento_caja_id);
   const siguienteCuota = cuotasPendientes[0] || null;
 
   const [cuotaSeleccionada, setCuotaSeleccionada] = useState<string>(siguienteCuota ? siguienteCuota.id : "");
   const [monto, setMonto] = useState(
-    siguienteCuota ? siguienteCuota.monto.toFixed(2) : (presupuesto.saldo > 0 ? presupuesto.saldo.toFixed(2) : "")
+    siguienteCuota ? Number(siguienteCuota.monto).toFixed(2) : (presupuesto.saldo > 0 ? presupuesto.saldo.toFixed(2) : "")
   );
+
+  // Al cargar cuotas o cuando cambia la siguiente cuota disponible, auto-seleccionar en orden estricto
+  useEffect(() => {
+    if (siguienteCuota) {
+      setCuotaSeleccionada(siguienteCuota.id);
+      setMonto(Number(siguienteCuota.monto).toFixed(2));
+    } else if (todasCuotas.length > 0 && cuotasPendientes.length === 0) {
+      setCuotaSeleccionada("");
+      setMonto(saldoActual > 0 ? saldoActual.toFixed(2) : "0.00");
+    }
+  }, [siguienteCuota?.id]);
 
   const [medioId, setMedioId] = useState<string>(mediosPago[0] ? String(mediosPago[0].id) : "");
   const [categoriaId, setCategoriaId] = useState<string>(categoriasIngreso[0] ? String(categoriasIngreso[0].id) : "");
@@ -167,12 +192,22 @@ export function RegistrarPagoSheet({
     if (res?.error) { setSaving(false); setError(res.error); return; }
     setSaving(false);
 
-    const saldoRestante = Math.max(0, presupuesto.saldo - m);
+    const saldoRestante = Math.max(0, saldoActual - m);
+    setSaldoActual(saldoRestante);
     const medioNombre = mediosPago.find(mp => String(mp.id) === medioId)?.nombre ?? "—";
     const fecha = new Date().toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" });
     setNuevoSaldo(saldoRestante);
     setPagoInfo({ monto: m, medioNombre, referencia, observaciones, fecha, saldoRestante });
-    onSaved(presupuesto.id, saldoRestante, m, medioNombre);
+
+    if (cuotaSeleccionada) {
+      setCuotas(prev => prev.map(c =>
+        c.id === cuotaSeleccionada
+          ? { ...c, estado: "pagado", movimiento_caja_id: (res as any)?.movimiento_id || `local-${Date.now()}` }
+          : c
+      ));
+    }
+
+    onSaved(presupuesto.id, saldoRestante, m, medioNombre, cuotaSeleccionada || undefined);
 
     const html = buildVoucherHtmlFor({ monto: m, medioNombre, referencia, observaciones, fecha, saldoRestante });
     const caption = buildVoucherCaption({ pacienteNombre: presupuesto.paciente_nombre, saldoRestante, moneda: presupuesto.moneda });
@@ -228,12 +263,31 @@ export function RegistrarPagoSheet({
             </div>
           </div>
         ) : (
-          <button
-            onClick={onClose}
-            className="w-full h-11 flex items-center justify-center gap-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[13px] font-semibold transition-colors"
-          >
-            Listo
-          </button>
+          <div className="flex gap-2 w-full">
+            {nuevoSaldo > 0.009 && todasCuotas.filter(c => c.estado !== "pagado" && !c.movimiento_caja_id).length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPaso("form");
+                  setError("");
+                  setVoucherEstado(null);
+                  setVoucherError("");
+                  setReferencia("");
+                  setObservaciones("");
+                }}
+                className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl border border-cyan-600 text-cyan-700 hover:bg-cyan-50 text-[13px] font-semibold transition-colors"
+              >
+                <Icon name="arrow_forward" size={15} />
+                Pagar siguiente cuota
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-[13px] font-semibold transition-colors"
+            >
+              Listo
+            </button>
+          </div>
         )
       }
     >
@@ -246,7 +300,7 @@ export function RegistrarPagoSheet({
             </div>
             <div className="flex flex-col items-end">
  <span className="text-[15px] font-bold text-amber-600 shrink-0">
-                {presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda} {presupuesto.saldo.toFixed(2)}
+                {presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda} {saldoActual.toFixed(2)}
               </span>
  <span className="text-[10px] text-slate-400">
                 {new Date().toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -254,21 +308,32 @@ export function RegistrarPagoSheet({
             </div>
           </div>
 
-          {cuotasPendientes.length > 0 && (
+          {todasCuotas.length > 0 && (
             <div className="flex flex-col gap-1.5">
- <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Cuota a Pagar</label>
+              <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Cuota a Pagar</label>
               <Select
                 value={cuotaSeleccionada}
                 onChange={(val) => {
                   setCuotaSeleccionada(val);
                   const c = todasCuotas.find(x => x.id === val);
-                  if (c) setMonto(c.monto.toFixed(2));
+                  if (c) setMonto(Number(c.monto).toFixed(2));
                 }}
                 options={todasCuotas.map(c => {
                   const isPagada = c.estado === "pagado" || Boolean(c.movimiento_caja_id);
+                  const isSiguiente = siguienteCuota ? c.id === siguienteCuota.id : false;
+                  let estadoLabel = "";
+                  if (isPagada) {
+                    estadoLabel = " · Ya pagada";
+                  } else if (isSiguiente) {
+                    estadoLabel = ` · Siguiente a pagar (Vence: ${c.fecha_vencimiento})`;
+                  } else {
+                    estadoLabel = ` · Bloqueada (pagar Cuota ${siguienteCuota?.numero_cuota || 1} primero)`;
+                  }
+
                   return {
                     value: c.id,
-                    label: `Cuota ${c.numero_cuota} - ${presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda} ${Number(c.monto).toFixed(2)} (${isPagada ? "Ya pagada" : `Vence: ${c.fecha_vencimiento}`})`,
+                    disabled: !isSiguiente,
+                    label: `Cuota ${c.numero_cuota} - ${presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda} ${Number(c.monto).toFixed(2)}${estadoLabel}`,
                   };
                 })}
               />

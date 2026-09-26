@@ -7,6 +7,7 @@ import { TextInput } from "@/components/ui/TextInput";
 import { generarCuotasAction, eliminarCuotasAction, solicitarValidacionAction, getSolicitudValidacionAction } from "../cuotas.actions";
 import type { PresupuestoPendiente } from "../actions";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/components/layout/AuthProvider";
 
 export function CuotasSheet({
   presupuesto, onClose, onRefresh, onCuotasActualizadas
@@ -16,6 +17,9 @@ export function CuotasSheet({
   onRefresh: () => void;
   onCuotasActualizadas?: (cuotas: any[]) => void;
 }) {
+  const { user } = useAuth();
+  const isDirectAdmin = user?.rol === "doctor_admin" || user?.rol === "admin" || user?.rol === "superadmin";
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -129,6 +133,20 @@ export function CuotasSheet({
     setLoading(true);
     setError(null);
     try {
+      if (isDirectAdmin) {
+        const res = await eliminarCuotasAction(presupuesto.id, presupuesto.paciente_id);
+        if (res.error) {
+          setError(res.error);
+        } else {
+          setInfo("Cuotas eliminadas correctamente.");
+          if (onCuotasActualizadas) {
+            onCuotasActualizadas([]);
+          }
+          if (onRefresh) onRefresh();
+        }
+        return;
+      }
+
       const res = await solicitarValidacionAction(presupuesto.id, "eliminar_cuotas");
       if (res.error) {
         setError(res.error);
@@ -164,14 +182,14 @@ export function CuotasSheet({
           <div className="flex flex-col gap-3">
             <div className="flex justify-between items-center">
  <h3 className="text-[13px] font-bold text-slate-800">Cuotas Generadas</h3>
-              {!loadingEstado && solicitudEstado?.estado !== "pendiente" && (
+              {(isDirectAdmin || (!loadingEstado && solicitudEstado?.estado !== "pendiente")) && (
                 <button onClick={handleEliminar} disabled={loading} className="text-red-500 hover:text-red-600 text-[12px] font-semibold flex items-center gap-1 disabled:opacity-50">
                   <Icon name="delete" size={14} /> Eliminar Cuotas
                 </button>
               )}
             </div>
 
-            {!loadingEstado && solicitudEstado?.estado === "pendiente" && (
+            {!isDirectAdmin && !loadingEstado && solicitudEstado?.estado === "pendiente" && (
  <div className="p-3 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-[12px] font-medium flex items-center gap-2">
                 <Icon name="warning" size={16} /> Solicitud de eliminación pendiente de aprobación.
               </div>

@@ -53,3 +53,5 @@ database.sqlite
 /plan_*
 telegram*
 supabase_logs*
+script-bd*
+doctor_admin*

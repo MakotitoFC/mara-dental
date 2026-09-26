@@ -16,7 +16,7 @@ export default async function ValidacionesPage() {
   const rol = (usr?.rol as any)?.rol;
   const sedeId = usr?.sede_id;
 
-  if (rol !== "admin" && rol !== "superadmin") {
+  if (rol !== "admin" && rol !== "superadmin" && rol !== "doctor_admin") {
     redirect("/dashboard");
   }
 

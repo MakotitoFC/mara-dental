@@ -33,13 +33,14 @@ export default async function ConfiguracionPage() {
     );
   }
 
-  if (rol === "admin") {
+  if (rol === "admin" || rol === "doctor_admin") {
     const sede = await getSedeAdminAction();
+    const horarios = rol === "doctor_admin" ? await getHorariosAction() : undefined;
     return (
       <>
-        <Header title="Configuración de la Sede" />
+        <Header title={rol === "doctor_admin" ? "Configuración" : "Configuración de la Sede"} />
         <div className="flex-1 overflow-y-auto no-scrollbar">
-          <ConfiguracionView perfil={perfil} rol={rol} sede={sede} />
+          <ConfiguracionView perfil={perfil} rol={rol} sede={sede} horarios={horarios} />
         </div>
       </>
     );

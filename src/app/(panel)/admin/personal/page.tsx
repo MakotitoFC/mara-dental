@@ -29,7 +29,7 @@ export default async function PersonalPage({
   const rolRaw = profile.rol as any;
   const rol = Array.isArray(rolRaw) ? rolRaw[0] : rolRaw;
   const userRole = rol?.rol;
-  if (userRole !== "admin" && userRole !== "superadmin") {
+  if (userRole !== "admin" && userRole !== "superadmin" && userRole !== "doctor_admin") {
     redirect("/dashboard");
   }
 
@@ -39,7 +39,9 @@ export default async function PersonalPage({
   const especialidadId = params.especialidadId ? parseInt(params.especialidadId as string, 10) : null;
   const puestoId = params.puestoId ? parseInt(params.puestoId as string, 10) : null;
   const rolId = params.rolId ? parseInt(params.rolId as string, 10) : null;
-  const sedeId = params.sedeId ? parseInt(params.sedeId as string, 10) : profile.sede_id;
+  const sedeId = (userRole === "admin" || userRole === "doctor_admin")
+    ? profile.sede_id
+    : (params.sedeId ? parseInt(params.sedeId as string, 10) : profile.sede_id);
   const estado = (params.estado as string) || "todos";
   const activo = estado === "activos" ? true : estado === "inactivos" ? false : null;
 

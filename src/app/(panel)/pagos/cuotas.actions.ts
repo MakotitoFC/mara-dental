@@ -37,20 +37,33 @@ export async function generarCuotasAction(data: {
 
 export async function eliminarCuotasAction(presupuestoId: string, pacienteId: string) {
   const supabase = await createClient();
-  
-  // Verify if there's an approved validation request
-  const { data: solicitud } = await supabase
-    .from("solicitud_validacion")
-    .select("id")
-    .eq("referencia_id", presupuestoId)
-    .eq("tipo_accion", "eliminar_cuotas")
-    .eq("estado", "aprobada")
-    .order("fecha_respuesta", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
 
-  if (!solicitud) {
-    return { error: "No hay una solicitud aprobada para eliminar las cuotas de este presupuesto." };
+  const { data: usr } = await supabase
+    .from("usuarios")
+    .select("rol_id, rol ( rol )")
+    .eq("id", user.id)
+    .single();
+
+  const rolName = ((usr?.rol as any)?.rol || "").toLowerCase();
+  const isDirectAdmin = usr?.rol_id === 2 || usr?.rol_id === 3 || usr?.rol_id === 6 || rolName === "admin" || rolName === "superadmin" || rolName === "doctor_admin";
+
+  if (!isDirectAdmin) {
+    // Verify if there's an approved validation request
+    const { data: solicitud } = await supabase
+      .from("solicitud_validacion")
+      .select("id")
+      .eq("referencia_id", presupuestoId)
+      .eq("tipo_accion", "eliminar_cuotas")
+      .eq("estado", "aprobada")
+      .order("fecha_respuesta", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!solicitud) {
+      return { error: "No hay una solicitud aprobada para eliminar las cuotas de este presupuesto." };
+    }
   }
 
   // Delete cuotas that are 'pendiente'
@@ -71,14 +84,17 @@ export async function eliminarCuotasAction(presupuestoId: string, pacienteId: st
 }
 
 export async function getCuotasPresupuestoAction(presupuestoId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const adminClient = getAdminClient();
+  const { data, error } = await adminClient
     .from("cuotas")
     .select("*")
     .eq("presupuesto_id", presupuestoId)
     .order("numero_cuota", { ascending: true });
 
-  if (error) return [];
+  if (error) {
+    console.error("Error fetching cuotas for presupuesto:", error);
+    return [];
+  }
   return data || [];
 }
 

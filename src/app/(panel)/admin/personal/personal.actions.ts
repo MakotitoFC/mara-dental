@@ -76,14 +76,14 @@ export async function getPersonalAction({
   if (!currentUserProfile) throw new Error("Perfil no encontrado");
 
   const role = currentUserProfile.rol;
-  if (role !== "admin" && role !== "superadmin") {
+  if (role !== "admin" && role !== "superadmin" && role !== "doctor_admin") {
     throw new Error("No tienes permisos para ver el personal");
   }
 
   // Filtrado base de sede
   let targetSedeId = sedeId;
-  if (role === "admin") {
-    targetSedeId = currentUserProfile.sede_id; // Forzado para admin
+  if (role === "admin" || role === "doctor_admin") {
+    targetSedeId = currentUserProfile.sede_id; // Forzado para admin y doctor_admin
   } else if (role === "superadmin" && !targetSedeId) {
     targetSedeId = currentUserProfile.sede_id; // Por defecto la suya si no seleccionó
   }
@@ -213,12 +213,12 @@ export async function getPersonalCountsAction({
   if (!currentUserProfile) throw new Error("Perfil no encontrado");
 
   const role = currentUserProfile.rol;
-  if (role !== "admin" && role !== "superadmin") {
+  if (role !== "admin" && role !== "superadmin" && role !== "doctor_admin") {
     throw new Error("No tienes permisos para ver el personal");
   }
 
   let targetSedeId = sedeId;
-  if (role === "admin") {
+  if (role === "admin" || role === "doctor_admin") {
     targetSedeId = currentUserProfile.sede_id;
   } else if (role === "superadmin" && !targetSedeId) {
     targetSedeId = currentUserProfile.sede_id;
@@ -297,7 +297,7 @@ export async function createEmpleadoAction(formData: FormData) {
   if (!currentUserProfile) throw new Error("Perfil no encontrado");
 
   const role = currentUserProfile.rol;
-  if (role !== "admin" && role !== "superadmin") throw new Error("Sin permisos");
+  if (role !== "admin" && role !== "superadmin" && role !== "doctor_admin") throw new Error("Sin permisos");
 
   const nombre = formData.get("nombre") as string;
   const apellido = formData.get("apellido") as string;
@@ -310,7 +310,7 @@ export async function createEmpleadoAction(formData: FormData) {
   const especialidadId = formData.get("especialidad_id") ? Number(formData.get("especialidad_id")) : null;
   const rolId = Number(formData.get("rol_id")); // (1=Doctor, 2=Admin, 3=Superadmin, 4=Asistente)
   
-  let targetSedeId = role === "admin" ? currentUserProfile.sede_id : Number(formData.get("sede_id"));
+  let targetSedeId = (role === "admin" || role === "doctor_admin") ? currentUserProfile.sede_id : Number(formData.get("sede_id"));
 
   const adminClient = getAdminClient();
 
@@ -367,7 +367,34 @@ export async function createEmpleadoAction(formData: FormData) {
   return { success: true };
 }
 
+async function assertCanManageUser(userId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autorizado");
+
+  const currentUserProfile = await getUsuarioConRol(supabase, user.id);
+  if (!currentUserProfile) throw new Error("Perfil no encontrado");
+
+  const role = currentUserProfile.rol;
+  if (role !== "admin" && role !== "superadmin" && role !== "doctor_admin") {
+    throw new Error("Sin permisos");
+  }
+
+  if (role === "admin" || role === "doctor_admin") {
+    const adminClient = getAdminClient();
+    const { data: targetUser } = await adminClient
+      .from("usuarios")
+      .select("sede_id")
+      .eq("id", userId)
+      .single();
+    if (!targetUser || targetUser.sede_id !== currentUserProfile.sede_id) {
+      throw new Error("No tienes permisos para gestionar empleados de otra sede");
+    }
+  }
+}
+
 export async function editEmpleadoAction(userId: string, formData: FormData) {
+  await assertCanManageUser(userId);
   const adminClient = getAdminClient();
   
   const nombre = formData.get("nombre") as string;
@@ -417,6 +444,7 @@ export async function editEmpleadoAction(userId: string, formData: FormData) {
 }
 
 export async function toggleEmpleadoEstadoAction(userId: string, nuevoEstado: boolean) {
+  await assertCanManageUser(userId);
   const adminClient = getAdminClient();
   const { error } = await adminClient
     .from("usuarios")
@@ -438,6 +466,7 @@ export async function toggleEmpleadoEstadoAction(userId: string, nuevoEstado: bo
 }
 
 export async function softDeleteEmpleadoAction(userId: string) {
+  await assertCanManageUser(userId);
   const adminClient = getAdminClient();
   const { error } = await adminClient
     .from("usuarios")

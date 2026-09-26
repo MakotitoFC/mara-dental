@@ -27,6 +27,28 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/configuracion", icon: "settings", label: "Config." },
 ];
 
+const DOCTOR_ADMIN_NAV: NavItem[] = [
+  { href: "/dashboard", icon: "home", label: "Dashboard" },
+  { href: "/agenda", icon: "calendar_month", label: "Calendario" },
+  { href: "/pacientes", icon: "person", label: "Pacientes" },
+  { href: "/pagos", icon: "payments", label: "Pagos" },
+  { href: "/plantillas", icon: "article", label: "Plantillas" },
+  { href: "/admin/dashboard", icon: "space_dashboard", label: "Dashboard Admin" },
+  { href: "/admin/catalogo", icon: "medical_information", label: "Catálogo precios" },
+  { href: "/admin/configuracion-tipos", icon: "category", label: "Config. Tipos" },
+  { href: "/categorias", icon: "category", label: "Categorías" },
+  { href: "/proveedores", icon: "store", label: "Proveedores" },
+  { href: "/admin/personal", icon: "person", label: "Personal" },
+  { href: "/contador-dashboard", icon: "monitoring", label: "Dashboard Contador" },
+  { href: "/caja", icon: "wallet", label: "Caja" },
+  { href: "/comprobantes", icon: "receipt_long", label: "Comprobantes" },
+  { href: "/presupuestos", icon: "assignment", label: "Presupuesto y Cobranzas" },
+  { href: "/tipo-cambio", icon: "currency_exchange", label: "Tipo Cambio" },
+  { href: "/reportes", icon: "download", label: "Reportes" },
+  { href: "/admin/auditoria", icon: "admin_panel_settings", label: "Auditoría" },
+  { href: "/admin/validaciones", icon: "verified", label: "Validaciones" },
+];
+
 const NAV_BY_ROLE: Record<string, NavItem[]> = {
   superadmin: ADMIN_NAV,
   admin: ADMIN_NAV,
@@ -54,6 +76,7 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { href: "/reportes", icon: "download", label: "Reportes" },
     { href: "/configuracion", icon: "settings", label: "Config." },
   ],
+  doctor_admin: DOCTOR_ADMIN_NAV,
 };
 
 const DEFAULT_NAV: NavItem[] = NAV_BY_ROLE.doctor;

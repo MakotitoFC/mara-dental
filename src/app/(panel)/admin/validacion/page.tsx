@@ -14,8 +14,8 @@ export default async function ValidacionPage() {
     rol = (usr?.rol as any)?.rol ?? "";
   }
 
-  // Only admin or superadmin can see validation page
-  if (rol !== "admin" && rol !== "superadmin") {
+  // Only admin or superadmin or doctor_admin can see validation page
+  if (rol !== "admin" && rol !== "superadmin" && rol !== "doctor_admin") {
     redirect("/dashboard");
   }
 

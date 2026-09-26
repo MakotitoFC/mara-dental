@@ -130,7 +130,7 @@ export async function getAlertasAction(): Promise<AlertasData> {
     .single();
 
   const rolName = ((usuarioData?.rol as any)?.rol || "").toLowerCase();
-  const isDoctor = rolName === "doctor" || usuarioData?.rol_id === 1;
+  const isDoctor = rolName === "doctor" || rolName === "doctor_admin" || usuarioData?.rol_id === 1 || usuarioData?.rol_id === 6;
 
   const now = new Date();
   const hoyStr = now.toISOString().split("T")[0];

@@ -432,11 +432,19 @@ export default function ConfiguracionTiposClient({
           <Header> sticky superior que ahora la envuelve desde page.tsx. */}
       <header className="flex flex-col gap-4 px-4 sm:px-6 pt-4 sm:pt-6 bg-white border-b border-slate-200 shrink-0">
         {/* En mobile solo el título — ícono y descripción se ocultan. */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-[15px] md:text-base font-bold text-slate-800">Configuración de Tipos</h1>
             <p className="hidden sm:block text-[13px] md:text-sm text-slate-500">Gestiona los tipos de consultas y archivos permitidos en el sistema.</p>
           </div>
+          <a
+            href="/configuracion"
+            className="flex items-center gap-1.5 h-8 sm:h-9 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[12.5px] font-semibold text-slate-700 transition-colors shrink-0 shadow-sm"
+          >
+            <Icon name="storefront" size={16} className="text-slate-500" />
+            <span className="hidden sm:inline">Configuración de Sede</span>
+            <span className="sm:hidden">Sede</span>
+          </a>
         </div>
 
         {/* Tabs — subrayado, sin fondo tipo píldora (antes era un

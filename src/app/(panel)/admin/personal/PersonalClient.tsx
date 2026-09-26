@@ -294,7 +294,7 @@ export default function PersonalClient({
           search: nextSearch,
           especialidadId: nextFilters.especialidadId ? parseInt(nextFilters.especialidadId, 10) : null,
           puestoId: nextFilters.puestoId ? parseInt(nextFilters.puestoId, 10) : null,
-          sedeId: nextFilters.sedeId ? parseInt(nextFilters.sedeId, 10) : (userRole === "admin" ? userSedeId : null),
+          sedeId: nextFilters.sedeId ? parseInt(nextFilters.sedeId, 10) : (userRole === "admin" || userRole === "doctor_admin" ? userSedeId : null),
           rolId: nextFilters.rolId ? parseInt(nextFilters.rolId, 10) : null,
           activo,
         }),
@@ -302,7 +302,7 @@ export default function PersonalClient({
           search: nextSearch,
           especialidadId: nextFilters.especialidadId ? parseInt(nextFilters.especialidadId, 10) : null,
           puestoId: nextFilters.puestoId ? parseInt(nextFilters.puestoId, 10) : null,
-          sedeId: nextFilters.sedeId ? parseInt(nextFilters.sedeId, 10) : (userRole === "admin" ? userSedeId : null),
+          sedeId: nextFilters.sedeId ? parseInt(nextFilters.sedeId, 10) : (userRole === "admin" || userRole === "doctor_admin" ? userSedeId : null),
           rolId: nextFilters.rolId ? parseInt(nextFilters.rolId, 10) : null,
         }),
       ]);

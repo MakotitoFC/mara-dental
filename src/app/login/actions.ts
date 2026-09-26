@@ -103,6 +103,8 @@ export async function loginAction(formData: FormData){
         redirect("/admin/dashboard");
     } else if (roleName === "contador") {
         redirect("/contador-dashboard");
+    } else if (roleName === "doctor_admin") {
+        redirect("/dashboard");
     } else {
         redirect("/dashboard");
     }

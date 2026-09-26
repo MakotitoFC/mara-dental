@@ -27,8 +27,9 @@ export async function checkChatPermissions(pacienteId: string): Promise<{ allowe
   }
 
   const rolName = ((userData?.rol as any)?.rol || "").toLowerCase();
-  const isAdmin = rolName === "admin" || rolName === "superadmin" || userData?.rol_id === 2 || userData?.rol_id === 3;
-  const isDoctor = rolName === "doctor" || userData?.rol_id === 1;
+  const isDoctorAdmin = rolName === "doctor_admin" || userData?.rol_id === 6;
+  const isAdmin = rolName === "admin" || rolName === "superadmin" || userData?.rol_id === 2 || userData?.rol_id === 3 || isDoctorAdmin;
+  const isDoctor = rolName === "doctor" || userData?.rol_id === 1 || isDoctorAdmin;
 
   if (isAdmin || isDoctor) {
     return { allowed: true, isDoctor, isAdmin };
