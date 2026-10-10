@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
@@ -26,23 +26,6 @@ const FEATURES = [
   "Agenda y citas en tiempo real",
   "Historial clínico digital",
   "Archivos e imágenes dental",
-];
-
-const TEST_USERS = [
-  { email: "superadmin2026@gmail.com", password: "SuperAdmin2026", name: "Juan Pablo Escalante", rol: "SuperAdmin (S1)", color: "bg-slate-200 text-slate-700" },
-  { email: "israjm19@gmail.com", password: "M@ria10ijmrasmr", name: "María Isabel Gutiérrez", rol: "Admin (S1)", color: "bg-amber-100 text-amber-700" },
-  { email: "admin1sede2@gmail.com", password: "Admin1Sede2", name: "Luis Fernando López", rol: "Admin (S2)", color: "bg-amber-100 text-amber-700" },
-  { email: "escalinza14@gmail.com", password: "M@ria10ijmrasmr", name: "Dr. Carlos Rodríguez", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
-  { email: "doctor2sede1@gmail.com", password: "Doctor2Sede1", name: "Dr. Miguel Ángel Díaz", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
-  { email: "doctor3sede1@gmail.com", password: "Doctor3Sede1", name: "Dr. Marco Torres", rol: "Doctor (S1)", color: "bg-cyan-100 text-cyan-700" },
-  { email: "doctor1sede2@gmail.com", password: "Doctor1Sede2", name: "Dr. José María Romero", rol: "Doctor (S2)", color: "bg-cyan-100 text-cyan-700" },
-  { email: "doctor2sede2@gmail.com", password: "Doctor2Sede2", name: "Dr. Santiago Castro", rol: "Doctor (S2)", color: "bg-cyan-100 text-cyan-700" },
-  { email: "doctor3sede2@gmail.com", password: "Doctor3Sede2", name: "Dr. Carlos Mendoza", rol: "Doctor (S2)", color: "bg-cyan-100 text-cyan-700" },
-  { email: "almen042919@gmail.com", password: "Almen2029", name: "Ana Patricia Fernández", rol: "Contador (S1)", color: "bg-emerald-100 text-emerald-700" },
-  { email: "cajero1sede2@gmail.com", password: "Cajero1Sede2", name: "Rosa María Chávez", rol: "Contador (S2)", color: "bg-emerald-100 text-emerald-700" },
-  { email: "cajero2sede2@gmail.com", password: "Cajero2Sede2", name: "María Fernanda Salazar", rol: "Contador (S2)", color: "bg-emerald-100 text-emerald-700" },
-  { email: "t1513300521@gmail.com", password: "J@elito12", name: "José Luis Martínez", rol: "Asistente (S1)", color: "bg-blue-100 text-blue-700" },
-  { email: "asistente1sede2@gmail.com", password: "Asistente1Sede2", name: "Laura Patricia Ramos", rol: "Asistente (S2)", color: "bg-blue-100 text-blue-700" },
 ];
 
 export default function LoginPage() {
@@ -91,12 +74,6 @@ function LoginPageContent() {
       setError(result.error);
       setLoading(false);
     }
-  }
-
-  function fillTestUser(u: (typeof TEST_USERS)[0]) {
-    setEmail(u.email);
-    setPassword(u.password);
-    setError(null);
   }
 
   useEffect(()=>{
@@ -209,29 +186,6 @@ function LoginPageContent() {
               </Button>
             </motion.div>
           </form>
-
-          {/* Accesos de prueba por rol */}
-          <motion.div custom={7} initial="hidden" animate="visible" variants={fadeUp} className="mt-5">
-            <p className="text-[11px] font-medium text-slate-400 mb-2.5 text-center tracking-wide uppercase">
-              Accesos de prueba
-            </p>
-            <div className="grid grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
-              {TEST_USERS.map((u) => (
-                <button
-                  key={u.email}
-                  type="button"
-                  onClick={() => fillTestUser(u)}
-                  className="group flex flex-col items-start gap-1 p-3 rounded-xl border border-slate-200 hover:border-cyan-300 hover:bg-cyan-50/60 hover:shadow-sm transition-all cursor-pointer text-left active:scale-[0.98]"
-                >
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${u.color}`}>
-                    {u.rol}
-                  </span>
-                  <p className="text-[11px] font-semibold text-slate-800 truncate w-full">{u.name}</p>
-                  <p className="text-[9px] text-slate-400 truncate w-full font-mono">{u.email}</p>
-                </button>
-              ))}
-            </div>
-          </motion.div>
 
           <motion.p custom={8} initial="hidden" animate="visible" variants={fadeUp} className="mt-4 text-center text-xs text-slate-400">
             ¿Problemas para ingresar?{" "}
