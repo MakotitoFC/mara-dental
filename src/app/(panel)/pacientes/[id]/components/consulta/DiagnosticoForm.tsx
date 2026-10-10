@@ -46,14 +46,27 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
   useEffect(() => { previewsRef.current = previews; }, [previews]);
   useEffect(() => () => { Object.values(previewsRef.current).forEach(URL.revokeObjectURL); }, []);
 
+  const [cieOpen, setCieOpen] = useState(false);
+
+  async function loadCieList(q: string = "") {
+    setSearchingCie(true);
+    const data = await searchCIE10Action(q);
+    setCieList(data || []);
+    setSearchingCie(false);
+  }
+
   async function handleCieSearch(e: React.ChangeEvent<HTMLInputElement>) {
     const q = e.target.value;
     setQuery(q);
-    if (q.length >= 2) {
-      setSearchingCie(true);
-      setCieList(await searchCIE10Action(q));
-      setSearchingCie(false);
-    } else setCieList([]);
+    setCieOpen(true);
+    await loadCieList(q);
+  }
+
+  async function handleCieFocus() {
+    setCieOpen(true);
+    if (cieList.length === 0) {
+      await loadCieList(query);
+    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -228,26 +241,41 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
               </div>
             ) : (
               <SmartPopover
-                open={cieList.length > 0}
-                onClose={() => setCieList([])}
+                open={cieOpen && cieList.length > 0}
+                onClose={() => setCieOpen(false)}
                 placement="bottom-start"
                 matchWidth
                 renderTrigger={(ref) => (
                   <div ref={ref} className="relative">
- <Icon name="search" size={16} className="absolute left-3 top-2.5 text-slate-400"/>
-                    <input type="text" value={query} onChange={handleCieSearch}
+                    <Icon name="search" size={16} className="absolute left-3 top-2.5 text-slate-400"/>
+                    <input
+                      type="text"
+                      value={query}
+                      onChange={handleCieSearch}
+                      onFocus={handleCieFocus}
+                      onClick={handleCieFocus}
                       placeholder="Buscar por código o descripción…"
- className="w-full border border-slate-200 bg-white text-slate-800 rounded-xl pl-9 pr-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"/>
- {searchingCie && <div className="absolute right-3 top-2.5 w-4 h-4 rounded-full border-2 border-cyan-200 border-t-cyan-600 animate-spin"/>}
+                      className="w-full border border-slate-200 bg-white text-slate-800 rounded-xl pl-9 pr-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                    />
+                    {searchingCie && <div className="absolute right-3 top-2.5 w-4 h-4 rounded-full border-2 border-cyan-200 border-t-cyan-600 animate-spin"/>}
                   </div>
                 )}
               >
- <div className="bg-white border border-slate-200 shadow-xl rounded-xl max-h-48 overflow-y-auto no-scrollbar">
+                <div className="bg-white border border-slate-200 shadow-xl rounded-xl max-h-52 overflow-y-auto no-scrollbar py-1">
                   {cieList.map(c => (
-                    <button key={c.id} onClick={() => { setSelectedCie(c); setQuery(""); setCieList([]); }}
- className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 flex gap-2 items-center">
- <span className="text-[11px] font-bold text-slate-500 w-12">{c.codigo}</span>
- <span className="text-[12px] text-slate-700 truncate">{c.descripcion}</span>
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setSelectedCie(c);
+                        setQuery("");
+                        setCieOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 flex gap-2 items-center transition-colors"
+                    >
+                      <span className="text-[11px] font-bold text-slate-500 w-14 shrink-0">{c.codigo}</span>
+                      <span className="text-[12px] text-slate-700 truncate">{c.descripcion}</span>
                     </button>
                   ))}
                 </div>

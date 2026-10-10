@@ -312,14 +312,19 @@ export async function finalizarConsultaAction(consultaId: string, pacienteId: st
   return { success: true };
 }
 
-export async function searchCIE10Action(query: string) {
+export async function searchCIE10Action(query: string = "") {
   const supabase = await createClient();
-  if (!query || query.trim().length < 2) return [];
-  const { data, error } = await supabase
+  const q = (query || "").trim();
+  let dbQuery = supabase
     .from("cie10")
     .select("id, codigo, descripcion")
-    .or(`codigo.ilike.%${query.trim()}%,descripcion.ilike.%${query.trim()}%`)
-    .limit(10);
+    .eq("estado", true);
+
+  if (q.length > 0) {
+    dbQuery = dbQuery.or(`codigo.ilike.%${q}%,descripcion.ilike.%${q}%`);
+  }
+
+  const { data, error } = await dbQuery.order("codigo").limit(20);
   if (error) return [];
   return data || [];
 }

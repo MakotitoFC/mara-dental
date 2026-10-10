@@ -87,6 +87,7 @@ function DiaHorarioRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }: {
                 className="flex-1"
               />
               <button
+                type="button"
                 onClick={() => onRemove(idx)}
                 aria-label="Eliminar rango"
  className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-50 transition-colors"
@@ -96,6 +97,7 @@ function DiaHorarioRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }: {
             </div>
           ))}
           <button
+            type="button"
             onClick={onAdd}
  className="flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg border border-cyan-200 text-[12px] font-semibold text-cyan-600 hover:bg-cyan-50 transition-colors"
           >
@@ -183,6 +185,7 @@ function DiaHorarioMedicoRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }
                   className="flex-1"
                 />
                 <button
+                  type="button"
                   onClick={() => onRemove(idx)}
                   aria-label="Eliminar rango"
  className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-50 transition-colors"
@@ -193,6 +196,7 @@ function DiaHorarioMedicoRow({ dia, ranges, editing, onUpdate, onRemove, onAdd }
             </div>
           ))}
           <button
+            type="button"
             onClick={onAdd}
  className="flex items-center gap-1.5 self-start px-3 py-1.5 rounded-lg border border-cyan-200 text-[11px] md:text-xs font-semibold text-cyan-600 hover:bg-cyan-50 transition-colors"
           >
@@ -237,6 +241,140 @@ function fmtHora(minutos: number) {
 }
 function fmtHoras(horas: number) {
   return horas % 1 === 0 ? `${horas}` : horas.toFixed(1);
+}
+
+/**
+ * Validaciones de horario:
+ * 1. Formato HH:MM
+ * 2. Hora de inicio debe ser menor a hora de fin (no pueden ser iguales ni inicio mayor a fin)
+ * 3. No solapamiento de rangos en el mismo día (independientemente del turno en médicos)
+ */
+function validarHorariosMedico(
+  draft: Record<number, DraftRangoMedico[]>
+): { valid: boolean; error?: string } {
+  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+  for (const dia of DIAS) {
+    const rangos = draft[dia.num] ?? [];
+    if (rangos.length === 0) continue;
+
+    for (let i = 0; i < rangos.length; i++) {
+      const r = rangos[i];
+      const pos = i + 1;
+      const turnoTxt = TURNO_LABEL[r.turno] || r.turno;
+
+      if (!r.hora_inicio || !r.hora_fin) {
+        return {
+          valid: false,
+          error: `En ${dia.label} (rango ${pos}, turno ${turnoTxt}): debes ingresar tanto la hora de inicio como la hora de fin.`,
+        };
+      }
+
+      if (!timeRegex.test(r.hora_inicio) || !timeRegex.test(r.hora_fin)) {
+        return {
+          valid: false,
+          error: `En ${dia.label} (rango ${pos}, turno ${turnoTxt}): el formato de hora debe ser de 24 horas (HH:MM).`,
+        };
+      }
+
+      const minInicio = toMinutos(r.hora_inicio);
+      const minFin = toMinutos(r.hora_fin);
+
+      if (minInicio >= minFin) {
+        return {
+          valid: false,
+          error: `En ${dia.label} (rango ${pos}, turno ${turnoTxt}): la hora de inicio (${r.hora_inicio}) debe ser menor a la hora de fin (${r.hora_fin}). Por favor, corrígelo.`,
+        };
+      }
+    }
+
+    // Comprobar solapamiento entre rangos del mismo día
+    for (let i = 0; i < rangos.length; i++) {
+      const a = rangos[i];
+      const aIni = toMinutos(a.hora_inicio);
+      const aFin = toMinutos(a.hora_fin);
+
+      for (let j = i + 1; j < rangos.length; j++) {
+        const b = rangos[j];
+        const bIni = toMinutos(b.hora_inicio);
+        const bFin = toMinutos(b.hora_fin);
+
+        // Se solapan si Max(aIni, bIni) < Min(aFin, bFin)
+        if (Math.max(aIni, bIni) < Math.min(aFin, bFin)) {
+          const aTurno = TURNO_LABEL[a.turno] || a.turno;
+          const bTurno = TURNO_LABEL[b.turno] || b.turno;
+          return {
+            valid: false,
+            error: `En ${dia.label}: existe un cruce de horarios entre el rango ${i + 1} (${aTurno}: ${a.hora_inicio}–${a.hora_fin}) y el rango ${j + 1} (${bTurno}: ${b.hora_inicio}–${b.hora_fin}). Los rangos no pueden superponerse en el mismo día.`,
+          };
+        }
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
+function validarHorariosSede(
+  horarioAtencion: Record<number, DraftRango[]>
+): { valid: boolean; error?: string } {
+  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+  for (const dia of DIAS) {
+    const rangos = horarioAtencion[dia.num] ?? [];
+    if (rangos.length === 0) continue;
+
+    for (let i = 0; i < rangos.length; i++) {
+      const r = rangos[i];
+      const pos = i + 1;
+
+      if (!r.hora_inicio || !r.hora_fin) {
+        return {
+          valid: false,
+          error: `En Horarios de Atención de la Clínica para el ${dia.label} (rango ${pos}): debes ingresar la hora de inicio y fin.`,
+        };
+      }
+
+      if (!timeRegex.test(r.hora_inicio) || !timeRegex.test(r.hora_fin)) {
+        return {
+          valid: false,
+          error: `En Horarios de Atención de la Clínica para el ${dia.label} (rango ${pos}): el formato debe ser de 24 horas (HH:MM).`,
+        };
+      }
+
+      const minInicio = toMinutos(r.hora_inicio);
+      const minFin = toMinutos(r.hora_fin);
+
+      if (minInicio >= minFin) {
+        return {
+          valid: false,
+          error: `En Horarios de Atención de la Clínica para el ${dia.label} (rango ${pos}): la hora de inicio (${r.hora_inicio}) debe ser menor a la hora de fin (${r.hora_fin}). Por favor, corrígelo.`,
+        };
+      }
+    }
+
+    // Comprobar solapamiento entre rangos del mismo día
+    for (let i = 0; i < rangos.length; i++) {
+      const a = rangos[i];
+      const aIni = toMinutos(a.hora_inicio);
+      const aFin = toMinutos(a.hora_fin);
+
+      for (let j = i + 1; j < rangos.length; j++) {
+        const b = rangos[j];
+        const bIni = toMinutos(b.hora_inicio);
+        const bFin = toMinutos(b.hora_fin);
+
+        if (Math.max(aIni, bIni) < Math.min(aFin, bFin)) {
+          return {
+            valid: false,
+            error: `En Horarios de Atención de la Clínica para el ${dia.label}: existe un cruce entre el rango ${i + 1} (${a.hora_inicio}–${a.hora_fin}) y el rango ${j + 1} (${b.hora_inicio}–${b.hora_fin}). Los rangos no pueden superponerse en el mismo día.`,
+          };
+        }
+      }
+    }
+  }
+
+  return { valid: true };
 }
 
 /** Tres cifras resumen arriba del calendario — días con al menos un rango
@@ -568,6 +706,13 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
   const handleSaveSede = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeSede) return;
+
+    const val = validarHorariosSede(sedeForm.horario_atencion);
+    if (!val.valid) {
+      toast.error(val.error || "Corrige los errores en los horarios de atención.");
+      return;
+    }
+
     setSavingSede(true);
     const res = await updateSedeAction(activeSede.id, sedeForm);
     setSavingSede(false);
@@ -637,6 +782,12 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
   }
 
   async function guardarHorario() {
+    const val = validarHorariosMedico(draftHorarios);
+    if (!val.valid) {
+      toast.error(val.error || "Corrige los errores en los horarios.");
+      return;
+    }
+
     setSavingHorario(true);
     for (const dia of DIAS) {
       const rangos = (draftHorarios[dia.num] ?? []).filter((r) => r.hora_inicio && r.hora_fin);
@@ -693,6 +844,13 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
 
   async function guardarHorarioDoctor() {
     if (!editingDoctorId) return;
+
+    const val = validarHorariosMedico(draftHorariosSede);
+    if (!val.valid) {
+      toast.error(val.error || "Corrige los errores en los horarios del médico.");
+      return;
+    }
+
     setSavingHorarioSede(true);
     for (const dia of DIAS) {
       const rangos = (draftHorariosSede[dia.num] ?? []).filter((r) => r.hora_inicio && r.hora_fin);

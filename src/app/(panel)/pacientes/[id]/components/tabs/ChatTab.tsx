@@ -13,6 +13,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
   const [paciente, setPaciente] = useState<any>(null);
+  const [botUsername, setBotUsername] = useState<string>("MaraDental_Bot");
   const [messages, setMessages] = useState<any[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -151,6 +152,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
         setAccessDenied(false);
         if (pageNum === 0) {
           setPaciente(data.paciente);
+          if (data.botUsername) setBotUsername(data.botUsername);
           setMessages(data.messages || []);
           setTimeout(scrollToBottom, 100);
         } else {
@@ -231,7 +233,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
   };
 
   const copyToClipboard = (code: string) => {
-    const url = `https://t.me/MaraDentalBot?start=${code}`;
+    const url = `https://t.me/${botUsername}?start=${code}`;
     navigator.clipboard.writeText(url);
     toast.success("Enlace copiado al portapapeles");
   };
@@ -355,7 +357,7 @@ export function ChatTab({ pacienteId }: { pacienteId: string }) {
           <div className="flex flex-col items-center gap-3 w-full max-w-md">
             <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full flex items-center justify-between gap-2">
               <span className="text-[12px] font-mono text-slate-700 truncate select-all">
-                https://t.me/MaraDentalBot?start={paciente.telegram_link_code}
+                https://t.me/{botUsername}?start={paciente.telegram_link_code}
               </span>
               <button
                 type="button"

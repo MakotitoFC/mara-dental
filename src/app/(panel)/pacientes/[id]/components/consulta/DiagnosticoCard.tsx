@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { SmartPopover } from "@/components/ui/SmartPopover";
 import { Select } from "@/components/ui/Select";
 import { fadeIn } from "@/lib/animations";
-import { searchCIE10Action, updateDiagnosticoAction, deleteArchivoClinicoAction } from "../../consulta.actions";
+import { searchCIE10Action, updateDiagnosticoAction, deleteArchivoClinicoAction, getPresignedUploadUrlAction } from "../../consulta.actions";
 import { VisorModal } from "./VisorModal";
 import { useToast } from "@/components/ui/Toast";
 import { useConfirm } from "@/components/ui/ConfirmModal";
@@ -64,13 +64,26 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
   const toast = useToast();
   const confirm = useConfirm();
 
-  async function handleCieSearch(q: string) {
-    setQuery(q);
-    if (q.length < 2) { setCieList([]); return; }
+  const [cieOpen, setCieOpen] = useState(false);
+
+  async function loadCieList(q: string = "") {
     setSearching(true);
     const res = await searchCIE10Action(q);
     setCieList(res as CIE10[]);
     setSearching(false);
+  }
+
+  async function handleCieSearch(q: string) {
+    setQuery(q);
+    setCieOpen(true);
+    await loadCieList(q);
+  }
+
+  async function handleCieFocus() {
+    setCieOpen(true);
+    if (cieList.length === 0) {
+      await loadCieList(query);
+    }
   }
 
   function addFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -93,18 +106,51 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
     formData.append("es_definitivo", String(esDefinitivo));
     if (selectedCie) formData.append("cie10_id", String(selectedCie.id));
 
-    if (esDefinitivo) {
-      nuevosFiles.forEach((f) => {
-        formData.append("archivos", f);
-        formData.append(`categoria_${f.name}`, categorias[f.name] || "otros");
-        formData.append(`descripcion_${f.name}`, (descripciones[f.name] || "").trim());
-      });
+    if (esDefinitivo && nuevosFiles.length > 0) {
+      const metadata = [];
+      for (const file of nuevosFiles) {
+        // 1. Obtener URL firmada
+        const { signedUrl, objectKey, error: presignErr } = await getPresignedUploadUrlAction(file.name, file.type, "diagnostico");
+        if (presignErr || !signedUrl) {
+          setError(`Error preparando subida de ${file.name}`);
+          setSaving(false);
+          toast.error(`Error preparando subida de ${file.name}`);
+          return;
+        }
+
+        // 2. Subir directo a R2 desde el navegador
+        try {
+          const uploadRes = await fetch(signedUrl, {
+            method: "PUT",
+            body: file,
+            headers: { "Content-Type": file.type }
+          });
+          if (!uploadRes.ok) throw new Error("Error en PUT");
+        } catch (e) {
+          setError(`Error subiendo el archivo ${file.name}`);
+          setSaving(false);
+          toast.error(`Error subiendo el archivo ${file.name}`);
+          return;
+        }
+
+        // 3. Registrar metadatos
+        metadata.push({
+          nombre: file.name,
+          url: objectKey,
+          tipo_archivo_id: 1, // Por defecto o mapeado
+          categoria: file.type.startsWith("image/") ? "img" : "pdf",
+          descripcion: (descripciones[file.name] || "").trim(),
+          tam_bytes: file.size
+        });
+      }
+      formData.append("archivos_metadata", JSON.stringify(metadata));
     }
 
     const res = await updateDiagnosticoAction(formData);
 
     setSaving(false);
     if (res?.error) { setError(res.error); toast.error(res.error); return; }
+    setNuevosFiles([]);
     setEditing(false);
     onSaved?.();
     toast.success("Diagnóstico actualizado correctamente");
@@ -285,26 +331,41 @@ export function DiagnosticoCard({ diagnostico, consultaId, pacienteId, onSaved, 
             </div>
           ) : (
             <SmartPopover
-              open={cieList.length > 0}
-              onClose={() => setCieList([])}
+              open={cieOpen && cieList.length > 0}
+              onClose={() => setCieOpen(false)}
               placement="bottom-start"
               matchWidth
               renderTrigger={(ref) => (
                 <div ref={ref} className="relative">
- <Icon name="search" size={16} className="absolute left-3 top-2.5 text-slate-400"/>
-                  <input type="text" value={query} onChange={e => handleCieSearch(e.target.value)}
+                  <Icon name="search" size={16} className="absolute left-3 top-2.5 text-slate-400"/>
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={e => handleCieSearch(e.target.value)}
+                    onFocus={handleCieFocus}
+                    onClick={handleCieFocus}
                     placeholder="Buscar por código o descripción..."
- className="w-full border border-slate-200 bg-white text-slate-800 rounded-xl pl-9 pr-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"/>
- {searching && <div className="absolute right-3 top-2.5 w-4 h-4 rounded-full border-2 border-cyan-200 border-t-cyan-600 animate-spin"/>}
+                    className="w-full border border-slate-200 bg-white text-slate-800 rounded-xl pl-9 pr-3 py-2 text-[16px] sm:text-[13px] outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                  />
+                  {searching && <div className="absolute right-3 top-2.5 w-4 h-4 rounded-full border-2 border-cyan-200 border-t-cyan-600 animate-spin"/>}
                 </div>
               )}
             >
- <div className="bg-white border border-slate-200 shadow-xl rounded-xl max-h-48 overflow-y-auto no-scrollbar">
+              <div className="bg-white border border-slate-200 shadow-xl rounded-xl max-h-52 overflow-y-auto no-scrollbar py-1">
                 {cieList.map(c => (
-                  <button key={c.id} onClick={() => { setSelectedCie(c); setQuery(""); setCieList([]); }}
- className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 flex gap-2 items-center">
- <span className="text-[11px] font-bold text-slate-500 w-12">{c.codigo}</span>
- <span className="text-[12px] text-slate-700 truncate">{c.descripcion}</span>
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setSelectedCie(c);
+                      setQuery("");
+                      setCieOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 flex gap-2 items-center transition-colors"
+                  >
+                    <span className="text-[11px] font-bold text-slate-500 w-14 shrink-0">{c.codigo}</span>
+                    <span className="text-[12px] text-slate-700 truncate">{c.descripcion}</span>
                   </button>
                 ))}
               </div>

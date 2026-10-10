@@ -422,10 +422,16 @@ export async function editEmpleadoAction(userId: string, formData: FormData) {
 
   if (error) throw new Error("Error al actualizar el personal");
 
-  // 2. Actualizar estado activo en Usuarios
+  // 2. Actualizar estado activo y rol en Usuarios
+  const rolId = formData.get("rol_id") ? Number(formData.get("rol_id")) : null;
+  const updateUserData: Record<string, any> = { activo };
+  if (rolId) {
+    updateUserData.rol_id = rolId;
+  }
+
   const { error: userError } = await adminClient
     .from("usuarios")
-    .update({ activo })
+    .update(updateUserData)
     .eq("id", userId);
 
   if (userError) throw new Error("Error al actualizar estado del usuario");

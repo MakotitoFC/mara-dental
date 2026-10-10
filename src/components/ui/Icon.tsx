@@ -238,6 +238,7 @@ const ICONS: Record<string, LucideIcon> = {
   filter_lines:         AlignCenter,
   more_horiz:           MoreHorizontal,
   store:                Store,
+  storefront:           Store,
   currency_exchange:    ArrowRightLeft,
   wallet:               Wallet,
   request_quote:        Receipt,

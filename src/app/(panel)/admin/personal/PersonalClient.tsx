@@ -994,21 +994,29 @@ export default function PersonalClient({
                     </div>
                   )}
 
-                  {!editingPersonal && (
-                    <div>
-                      <label className="block text-[13px] md:text-sm font-medium text-slate-700 mb-1">Rol de Acceso en Sistema</label>
-                      <input type="hidden" name="rol_id" value={selectedRol} />
-                      <Select
-                        value={selectedRol}
-                        onChange={setSelectedRol}
-                        options={[
-                          { value: "1", label: "Doctor" },
-                          { value: "4", label: "Asistente" },
-                          ...(userRole === "superadmin" ? [{ value: "2", label: "Administrador" }] : []),
-                        ]}
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-[13px] md:text-sm font-medium text-slate-700 mb-1">Rol de Acceso en Sistema</label>
+                    <input type="hidden" name="rol_id" value={selectedRol} />
+                    <Select
+                      value={selectedRol}
+                      onChange={setSelectedRol}
+                      placeholder="Seleccione un rol..."
+                      options={
+                        roles && roles.length > 0
+                          ? roles
+                              .filter((r) => userRole === "superadmin" || (r.rol !== "superadmin" && r.rol !== "admin"))
+                              .map((r) => ({
+                                value: String(r.id),
+                                label: r.rol ? (r.rol.charAt(0).toUpperCase() + r.rol.slice(1)).replace(/_/g, " ") : String(r.id),
+                              }))
+                          : [
+                              { value: "1", label: "Doctor" },
+                              { value: "4", label: "Asistente" },
+                              ...(userRole === "superadmin" ? [{ value: "2", label: "Administrador" }] : []),
+                            ]
+                      }
+                    />
+                  </div>
 
                   {editingPersonal && (
                     <div className="flex flex-col gap-1.5">

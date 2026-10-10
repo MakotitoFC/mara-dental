@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { revalidatePath } from "next/cache";
 
 export async function getDashboardMetricsAction(rangoFechas: { inicio?: string; fin?: string }, sedeId?: number) {
   const supabase = await createClient();
@@ -230,7 +231,7 @@ async function requireAdminRole() {
   const { data } = await supabase.from("usuarios").select("rol(rol)").eq("id", user.id).single();
   const rolRaw = data?.rol as any;
   const rol = (Array.isArray(rolRaw) ? rolRaw[0]?.rol : rolRaw?.rol) as string | undefined;
-  if (rol !== "admin" && rol !== "superadmin") throw new Error("Sin permisos");
+  if (rol !== "admin" && rol !== "superadmin" && rol !== "doctor_admin") throw new Error("Sin permisos");
 }
 
 export async function toggleTratamientoActivoAction(id: number, activo: boolean) {
@@ -263,25 +264,28 @@ export async function getCie10Action() {
 export async function saveCie10Action(data: any) {
   await requireAdminRole();
   const supabase = getAdminClient();
+  const { codigo_antiguo, ...cie10Data } = data;
   const payload = {
-    ...data,
-    estado: data.estado !== undefined ? data.estado : true,
+    ...cie10Data,
+    estado: cie10Data.estado !== undefined ? cie10Data.estado : true,
   };
-  if (payload.codigo_antiguo) {
-    const { codigo_antiguo, ...updateData } = payload;
-    const { error } = await supabase.from("cie10").update(updateData).eq("codigo", codigo_antiguo);
+  if (codigo_antiguo) {
+    const { error } = await supabase.from("cie10").update(payload).eq("codigo", codigo_antiguo);
     if (error) return { error: error.message };
   } else {
     const { error } = await supabase.from("cie10").insert([payload]);
     if (error) return { error: error.message };
   }
+  revalidatePath("/admin/configuracion-tipos");
   return { success: true };
 }
 
 export async function softDeleteCie10Action(codigo: string) {
+  await requireAdminRole();
   const supabase = getAdminClient();
   const { error } = await supabase.from("cie10").update({ estado: false }).eq("codigo", codigo);
   if (error) return { error: error.message };
+  revalidatePath("/admin/configuracion-tipos");
   return { success: true };
 }
 

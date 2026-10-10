@@ -114,9 +114,12 @@ export async function getChatInfoAction(pacienteId: string, page: number = 0, li
 
   const sortedMessages = (messages || []).reverse();
 
+  const botUsername = (process.env.TELEGRAM_URL_BOT || "").replace(/^https?:\/\/t\.me\//i, "").replace(/^t\.me\//i, "").replace(/^@/, "").trim() || "MaraDental_Bot";
+
   return {
     allowed: true,
     paciente,
+    botUsername,
     messages: sortedMessages.map((m: any) => {
       const per = Array.isArray(m.usuarios?.personal) ? m.usuarios?.personal[0] : m.usuarios?.personal;
       return {
@@ -196,8 +199,12 @@ export async function sendMessageAction(pacienteId: string, text?: string, fileU
     return { error: "El paciente no tiene activado el chat de Telegram" };
   }
 
-  const telegramApi = process.env.TELEGRAM_API;
-  if (!telegramApi) return { error: "Falta configuración TELEGRAM_API" };
+  const token = process.env.TELEGRAM_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+  const telegramApi = process.env.TELEGRAM_API && !process.env.TELEGRAM_API.includes("${") 
+    ? process.env.TELEGRAM_API 
+    : (token ? `https://api.telegram.org/bot${token}` : null);
+
+  if (!telegramApi) return { error: "Falta configuración de TELEGRAM_TOKEN o TELEGRAM_API" };
 
   let telegramMessageId = null;
 
