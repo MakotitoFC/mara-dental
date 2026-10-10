@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { getCajaTurnosAction } from "../contador.actions";
 import CajaPageClient from "./CajaPageClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function CajaPage() {
   const data = await getCajaTurnosAction();
 

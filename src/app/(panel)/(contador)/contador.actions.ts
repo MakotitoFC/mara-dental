@@ -23,7 +23,10 @@ async function getCallerProfile() {
       rolName,
       isDoctorAdmin: userData.rol_id === 6 || rolName === "doctor_admin",
     };
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.digest === "DYNAMIC_SERVER_USAGE" || err?.message?.includes("Dynamic server usage")) {
+      throw err;
+    }
     console.error("Error getCallerProfile in contador.actions:", err);
     return null;
   }
