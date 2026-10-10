@@ -80,10 +80,26 @@ async function resolveCajaTurnoAbierto(supabase: SupabaseClient, usuarioId: stri
   return abierto?.id || null;
 }
 
-/** consultas → nota_clinica_id (ya viene directo en la fila de consultas). */
-async function resolveNotaClinicaId(supabase: SupabaseClient, consultaId: string): Promise<number | null> {
-  const { data } = await supabase.from("consultas").select("nota_clinica_id").eq("id", consultaId).single();
-  return data?.nota_clinica_id ?? null;
+/** consultas → nota_clinica_id (con fallback a la nota_clinica del paciente si consultaId es 0 o inexistente). */
+async function resolveNotaClinicaId(supabase: SupabaseClient, consultaId: string, pacienteId?: string): Promise<string | number | null> {
+  if (consultaId && consultaId !== "0") {
+    const { data } = await supabase.from("consultas").select("nota_clinica_id").eq("id", consultaId).maybeSingle();
+    if (data?.nota_clinica_id) return data.nota_clinica_id;
+  }
+  if (pacienteId) {
+    const { data: hc } = await supabase.from("historia_clinica").select("id").eq("paciente_id", pacienteId).maybeSingle();
+    if (hc) {
+      const { data: nota } = await supabase
+        .from("nota_clinica")
+        .select("id")
+        .eq("historia_clinica_id", hc.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (nota) return nota.id;
+    }
+  }
+  return null;
 }
 
 /**
@@ -509,12 +525,15 @@ export async function saveDiagnosticoAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
 
-  const { data: personal } = await supabase.from("personal").select("usuario_id").eq("usuario_id", user.id).single();
-  if (!personal) return { error: "Perfil no encontrado" };
+  const { data: personal } = await supabase.from("personal").select("usuario_id").eq("usuario_id", user.id).maybeSingle();
+  if (!personal) {
+    const { data: usr } = await supabase.from("usuarios").select("id, rol_id").eq("id", user.id).maybeSingle();
+    if (!usr) return { error: "Perfil no encontrado" };
+  }
 
   const consulta_id = formData.get("consulta_id") as string;
   const paciente_id = formData.get("paciente_id") as string;
-  const nota_clinica_id = await resolveNotaClinicaId(supabase, String(consulta_id));
+  const nota_clinica_id = await resolveNotaClinicaId(supabase, String(consulta_id), paciente_id);
   if (!nota_clinica_id) return { error: "No se encontró la nota clínica de esta consulta." };
 
   const diagnosticoStr = formData.get("diagnostico") as string;
@@ -775,7 +794,7 @@ export async function saveTratamientoAction(data: { diagnostico_id: string; cons
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
 
-  const nota_clinica_id = await resolveNotaClinicaId(supabase, data.consulta_id);
+  const nota_clinica_id = await resolveNotaClinicaId(supabase, data.consulta_id, data.paciente_id);
   if (!nota_clinica_id) return { error: "No se encontró la nota clínica de esta consulta." };
 
   // 1. Obtener detalles del catálogo para el precio
@@ -799,42 +818,83 @@ export async function saveTratamientoAction(data: { diagnostico_id: string; cons
   let presupuestoId: string | null = null;
   const { data: presExistente } = await supabase
     .from("presupuestos")
-    .select("id, total_bruto")
+    .select("id, total_bruto, descuento_porcentaje")
     .eq("diagnostico_id", data.diagnostico_id)
     .eq("estado", "pendiente")
-    .single();
+    .order("fecha_emision", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (presExistente) {
     presupuestoId = presExistente.id;
-    // Actualizar total
+    // Buscar si ya existe el ítem en detalle_presupuesto para incrementar cantidad
+    const { data: detExistente } = await supabase
+      .from("detalle_presupuesto")
+      .select("id, cantidad, precio_unitario, subtotal")
+      .eq("presupuesto_id", presupuestoId)
+      .eq("catalogo_tratamiento_id", data.catalogo_tratamiento_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (detExistente) {
+      const nuevaCantidad = Number(detExistente.cantidad || 0) + 1;
+      const precioUnitario = Number(detExistente.precio_unitario || catalogo.precio);
+      await supabase.from("detalle_presupuesto").update({
+        cantidad: nuevaCantidad,
+        subtotal: nuevaCantidad * precioUnitario,
+      }).eq("id", detExistente.id);
+    } else {
+      await supabase.from("detalle_presupuesto").insert({
+        presupuesto_id: presupuestoId,
+        catalogo_tratamiento_id: data.catalogo_tratamiento_id,
+        cantidad: 1,
+        precio_unitario: Number(catalogo.precio),
+        subtotal: Number(catalogo.precio),
+      });
+    }
+
+    // Recalcular total_bruto y descuento del presupuesto sumando los detalles
+    const { data: todosDetalles } = await supabase
+      .from("detalle_presupuesto")
+      .select("subtotal")
+      .eq("presupuesto_id", presupuestoId);
+
+    const nuevoTotal = (todosDetalles || []).reduce((acc, d) => acc + Number(d.subtotal || 0), 0);
+    const descPct = Number(presExistente.descuento_porcentaje) || 0;
+    const descMonto = (nuevoTotal * descPct) / 100;
+
     await supabase.from("presupuestos").update({
-      total_bruto: Number(presExistente.total_bruto) + Number(catalogo.precio)
+      total_bruto: nuevoTotal,
+      descuento_monto: descMonto,
     }).eq("id", presupuestoId);
   } else {
-    // Crear nuevo presupuesto
+    // Crear nuevo presupuesto pendiente
     const { data: nuevoPres } = await supabase.from("presupuestos").insert({
       paciente_id: data.paciente_id,
       doctor_id: user.id,
       nota_clinica_id,
       diagnostico_id: data.diagnostico_id,
-      total_bruto: catalogo.precio,
+      total_bruto: Number(catalogo.precio),
+      descuento_porcentaje: 0,
+      descuento_monto: 0,
       estado: "pendiente",
+      created_at: new Date().toISOString(),
     }).select("id").single();
-    if (nuevoPres) presupuestoId = nuevoPres.id;
-  }
 
-  // 4. Agregar detalle_presupuesto
-  if (presupuestoId) {
-    await supabase.from("detalle_presupuesto").insert({
-      presupuesto_id: presupuestoId,
-      catalogo_tratamiento_id: data.catalogo_tratamiento_id,
-      cantidad: 1,
-      precio_unitario: catalogo.precio,
-      subtotal: catalogo.precio,
-    });
+    if (nuevoPres) {
+      presupuestoId = nuevoPres.id;
+      await supabase.from("detalle_presupuesto").insert({
+        presupuesto_id: presupuestoId,
+        catalogo_tratamiento_id: data.catalogo_tratamiento_id,
+        cantidad: 1,
+        precio_unitario: Number(catalogo.precio),
+        subtotal: Number(catalogo.precio),
+      });
+    }
   }
 
   revalidatePath(`/pacientes/${data.paciente_id}`);
+  revalidatePath("/presupuestos");
   return { success: true, id: tratamiento.id };
 }
 
@@ -883,41 +943,57 @@ export async function deleteTratamientoAction(id: string, pacienteId: string) {
   // 4. Descontar del presupuesto (si existe)
   if (tratData && tratData.diagnostico_id) {
     const { data: presExistente } = await supabase.from("presupuestos")
-      .select("id, total_bruto")
+      .select("id, total_bruto, descuento_porcentaje")
       .eq("diagnostico_id", tratData.diagnostico_id)
       .eq("estado", "pendiente")
-      .single();
+      .order("fecha_emision", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (presExistente) {
-      const precio = Number((tratData as any).catalogo_tratamientos?.precio || 0);
-      
-      // Actualizar total
-      await supabase.from("presupuestos").update({
-        total_bruto: Math.max(0, Number(presExistente.total_bruto) - precio)
-      }).eq("id", presExistente.id);
-
       // Buscar si el item está en el detalle
       const { data: det } = await supabase.from("detalle_presupuesto")
         .select("id, cantidad, precio_unitario, subtotal")
         .eq("presupuesto_id", presExistente.id)
         .eq("catalogo_tratamiento_id", tratData.catalogo_tratamiento_id)
         .limit(1)
-        .single();
+        .maybeSingle();
       
       if (det) {
-        if (det.cantidad > 1) {
+        if (Number(det.cantidad) > 1) {
+          const nuevaCant = Number(det.cantidad) - 1;
           await supabase.from("detalle_presupuesto").update({
-            cantidad: det.cantidad - 1,
-            subtotal: Number(det.subtotal) - Number(det.precio_unitario)
+            cantidad: nuevaCant,
+            subtotal: nuevaCant * Number(det.precio_unitario),
           }).eq("id", det.id);
         } else {
           await supabase.from("detalle_presupuesto").delete().eq("id", det.id);
         }
       }
+
+      // Recalcular total_bruto y descuento del presupuesto sumando los detalles restantes
+      const { data: restantes } = await supabase
+        .from("detalle_presupuesto")
+        .select("id, subtotal")
+        .eq("presupuesto_id", presExistente.id);
+
+      if (!restantes || restantes.length === 0) {
+        // Si ya no quedan ítems en el presupuesto pendiente, eliminar el presupuesto vacío
+        await supabase.from("presupuestos").delete().eq("id", presExistente.id);
+      } else {
+        const nuevoTotal = restantes.reduce((acc, d) => acc + Number(d.subtotal || 0), 0);
+        const descPct = Number(presExistente.descuento_porcentaje) || 0;
+        const descMonto = (nuevoTotal * descPct) / 100;
+        await supabase.from("presupuestos").update({
+          total_bruto: nuevoTotal,
+          descuento_monto: descMonto,
+        }).eq("id", presExistente.id);
+      }
     }
   }
   
   revalidatePath(`/pacientes/${pacienteId}`);
+  revalidatePath("/presupuestos");
   return { success: true };
 }
 
@@ -1162,7 +1238,7 @@ export async function getPresupuestosNotaClinicaAction(notaClinicaId: string) {
     .from("presupuestos")
     .select(`
       id, fecha_emision, total_bruto, descuento_porcentaje, descuento_monto, estado, fecha_aprobacion, notas, diagnostico_id,
-      diagnostico!inner ( diagnostico ),
+      diagnostico ( diagnostico ),
       usuarios!doctor_id ( personal ( nombre, apellido ) ),
       detalle_presupuesto ( id, catalogo_tratamiento_id, cantidad, precio_unitario, subtotal, catalogo_tratamientos ( id, nombre, descripcion, moneda ) ),
       movimiento_caja ( id, monto, fecha, medio_pago_id, referencia, estado, observacion, medio_pago ( id, nombre ) )
@@ -1176,7 +1252,8 @@ export async function getPresupuestosNotaClinicaAction(notaClinicaId: string) {
   }
 
   return (presupuestos || []).map((presupuesto: any) => {
-    const doctor = (presupuesto.usuarios as any)?.personal;
+    const rawDoctor = (presupuesto.usuarios as any)?.personal;
+    const doctor = Array.isArray(rawDoctor) ? rawDoctor[0] : rawDoctor;
     return {
       id: presupuesto.id,
       diagnostico_id: presupuesto.diagnostico_id,
@@ -1325,16 +1402,70 @@ export async function crearPresupuestoAction(data: {
   paciente_id: string; consulta_id: string;
   items: { catalogo_id: string; cantidad: number; precio_unitario: number }[];
   descuento_porcentaje: number; notas?: string;
+  diagnostico_id?: string;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
-  const { data: personal } = await supabase.from("personal").select("usuario_id").eq("usuario_id", user.id).single();
-  if (!personal) return { error: "Perfil no encontrado" };
+  const { data: personal } = await supabase.from("personal").select("usuario_id").eq("usuario_id", user.id).maybeSingle();
+  if (!personal) {
+    const { data: usr } = await supabase.from("usuarios").select("id, rol_id").eq("id", user.id).maybeSingle();
+    if (!usr) return { error: "Perfil no encontrado" };
+  }
   if (data.items.length === 0) return { error: "Agrega al menos un ítem al presupuesto" };
 
-  const nota_clinica_id = await resolveNotaClinicaId(supabase, data.consulta_id);
-  if (!nota_clinica_id) return { error: "No se encontró la nota clínica de esta consulta." };
+  let nota_clinica_id = await resolveNotaClinicaId(supabase, data.consulta_id, data.paciente_id);
+  if (!nota_clinica_id) {
+    const { data: hc } = await supabase.from("historia_clinica").select("id").eq("paciente_id", data.paciente_id).maybeSingle();
+    let hcId = hc?.id;
+    if (!hcId) {
+      const year = new Date().getFullYear();
+      const { data: p } = await supabase.from("pacientes").select("dni").eq("id", data.paciente_id).maybeSingle();
+      const baseDni = p?.dni || Date.now().toString().slice(-6);
+      const { data: newHc } = await supabase.from("historia_clinica").insert({
+        paciente_id: data.paciente_id,
+        codigo_historia: `HC${year}-${baseDni}`,
+        estado: "activa",
+      }).select("id").single();
+      hcId = newHc?.id;
+    }
+    if (hcId) {
+      const { data: newNota } = await supabase.from("nota_clinica").insert({
+        historia_clinica_id: hcId,
+        titulo_caso_clinico: "Presupuesto y Plan Dental",
+        estado: "En Consulta",
+      }).select("id").single();
+      nota_clinica_id = newNota?.id;
+    }
+  }
+
+  // Resolver diagnostico_id si no vino en data
+  let diagnostico_id = data.diagnostico_id;
+  if (!diagnostico_id && nota_clinica_id) {
+    const { data: diag } = await supabase
+      .from("diagnostico")
+      .select("id")
+      .eq("nota_clinica_id", nota_clinica_id)
+      .order("fecha_deteccion", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (diag) {
+      diagnostico_id = diag.id;
+    } else {
+      const { data: newDiag } = await supabase
+        .from("diagnostico")
+        .insert({
+          nota_clinica_id,
+          diagnostico: "Diagnóstico para Plan de Tratamiento",
+          es_definitivo: true,
+          esTratado: false,
+          fecha_deteccion: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      if (newDiag) diagnostico_id = newDiag.id;
+    }
+  }
 
   const total_bruto = data.items.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0);
   const descuento_monto = (total_bruto * (data.descuento_porcentaje || 0)) / 100;
@@ -1345,6 +1476,7 @@ export async function crearPresupuestoAction(data: {
       paciente_id: data.paciente_id,
       doctor_id: user.id,
       nota_clinica_id,
+      diagnostico_id: diagnostico_id || null,
       total_bruto,
       descuento_porcentaje: data.descuento_porcentaje || 0,
       descuento_monto,
@@ -1362,7 +1494,7 @@ export async function crearPresupuestoAction(data: {
 
   const detalles = data.items.map((it) => ({
     presupuesto_id: presupuesto.id,
-    catalogo_tratamiento_id: it.catalogo_id,
+    catalogo_tratamiento_id: Number(it.catalogo_id),
     cantidad: it.cantidad,
     precio_unitario: it.precio_unitario,
     subtotal: it.cantidad * it.precio_unitario,
@@ -1374,7 +1506,47 @@ export async function crearPresupuestoAction(data: {
     return { error: "Presupuesto creado, pero falló el detalle" };
   }
 
+  // ==== SINCRONIZACIÓN CON TRATAMIENTOS: AÑADIR A TRATAMIENTOS ====
+  if (diagnostico_id && nota_clinica_id) {
+    const { data: existingTrats } = await supabase
+      .from("tratamiento")
+      .select("id, catalogo_tratamiento_id")
+      .eq("diagnostico_id", diagnostico_id);
+
+    const countMap = new Map<number, number>();
+    for (const t of existingTrats || []) {
+      if (t.catalogo_tratamiento_id) {
+        countMap.set(t.catalogo_tratamiento_id, (countMap.get(t.catalogo_tratamiento_id) || 0) + 1);
+      }
+    }
+
+    for (const it of data.items) {
+      const catId = Number(it.catalogo_id);
+      const existingCount = countMap.get(catId) || 0;
+      const needed = it.cantidad - existingCount;
+
+      for (let i = 0; i < needed; i++) {
+        const { data: trat } = await supabase.from("tratamiento").insert({
+          diagnostico_id,
+          nota_clinica_id,
+          tratamiento: "Tratamiento desde Presupuesto",
+          catalogo_tratamiento_id: catId,
+        }).select("id").single();
+
+        if (trat) {
+          await supabase.from("plan_tratamiento").insert({
+            tratamiento_id: trat.id,
+            fase: "Planeado",
+            orden: 1,
+            estado: "pendiente",
+          });
+        }
+      }
+    }
+  }
+
   revalidatePath(`/pacientes/${data.paciente_id}`);
+  revalidatePath("/presupuestos");
   return { success: true, presupuesto_id: presupuesto.id };
 }
 
@@ -1389,8 +1561,32 @@ export async function editPresupuestoAction(data: {
   
   if (data.items.length === 0) return { error: "Agrega al menos un ítem al presupuesto" };
 
-  const { data: presInfo } = await supabase.from("presupuestos").select("diagnostico_id, nota_clinica_id").eq("id", data.presupuesto_id).single();
-  if (!presInfo || !presInfo.diagnostico_id) return { error: "El presupuesto no tiene un diagnóstico válido" };
+  const { data: presInfo } = await supabase.from("presupuestos").select("diagnostico_id, nota_clinica_id, paciente_id").eq("id", data.presupuesto_id).maybeSingle();
+  if (!presInfo) return { error: "Presupuesto no encontrado" };
+
+  let diagnostico_id = presInfo.diagnostico_id;
+  let nota_clinica_id = presInfo.nota_clinica_id;
+
+  if (!nota_clinica_id) {
+    nota_clinica_id = await resolveNotaClinicaId(supabase, "0", data.paciente_id);
+    if (nota_clinica_id) {
+      await supabase.from("presupuestos").update({ nota_clinica_id }).eq("id", data.presupuesto_id);
+    }
+  }
+
+  if (!diagnostico_id && nota_clinica_id) {
+    const { data: diag } = await supabase
+      .from("diagnostico")
+      .select("id")
+      .eq("nota_clinica_id", nota_clinica_id)
+      .order("fecha_deteccion", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (diag) {
+      diagnostico_id = diag.id;
+      await supabase.from("presupuestos").update({ diagnostico_id }).eq("id", data.presupuesto_id);
+    }
+  }
 
   const { data: oldDetails } = await supabase.from("detalle_presupuesto").select("catalogo_tratamiento_id, cantidad").eq("presupuesto_id", data.presupuesto_id);
 
@@ -1432,70 +1628,73 @@ export async function editPresupuestoAction(data: {
   }
 
   // ==== SINCRONIZACIÓN CON TRATAMIENTOS ====
-  const oldMap = new Map<number, number>();
-  (oldDetails || []).forEach(d => oldMap.set(d.catalogo_tratamiento_id, d.cantidad));
+  if (diagnostico_id && nota_clinica_id) {
+    const oldMap = new Map<number, number>();
+    (oldDetails || []).forEach(d => oldMap.set(d.catalogo_tratamiento_id, d.cantidad));
 
-  const newMap = new Map<number, number>();
-  data.items.forEach(i => newMap.set(Number(i.catalogo_id), i.cantidad));
+    const newMap = new Map<number, number>();
+    data.items.forEach(i => newMap.set(Number(i.catalogo_id), i.cantidad));
 
-  const toAdd: { catId: number, count: number }[] = [];
-  const toRemove: { catId: number, count: number }[] = [];
+    const toAdd: { catId: number, count: number }[] = [];
+    const toRemove: { catId: number, count: number }[] = [];
 
-  newMap.forEach((count, catId) => {
-    const oldCount = oldMap.get(catId) || 0;
-    if (count > oldCount) toAdd.push({ catId, count: count - oldCount });
-  });
+    newMap.forEach((count, catId) => {
+      const oldCount = oldMap.get(catId) || 0;
+      if (count > oldCount) toAdd.push({ catId, count: count - oldCount });
+    });
 
-  oldMap.forEach((oldCount, catId) => {
-    const newCount = newMap.get(catId) || 0;
-    if (oldCount > newCount) toRemove.push({ catId, count: oldCount - newCount });
-  });
+    oldMap.forEach((oldCount, catId) => {
+      const newCount = newMap.get(catId) || 0;
+      if (oldCount > newCount) toRemove.push({ catId, count: oldCount - newCount });
+    });
 
-  // Agregar nuevos tratamientos
-  for (const item of toAdd) {
-    for (let i = 0; i < item.count; i++) {
-      const { data: trat } = await supabase.from("tratamiento").insert({
-        diagnostico_id: presInfo.diagnostico_id,
-        nota_clinica_id: presInfo.nota_clinica_id,
-        tratamiento: "Tratamiento desde Presupuesto",
-        catalogo_tratamiento_id: item.catId
-      }).select("id").single();
+    // Agregar nuevos tratamientos
+    for (const item of toAdd) {
+      for (let i = 0; i < item.count; i++) {
+        const { data: trat } = await supabase.from("tratamiento").insert({
+          diagnostico_id,
+          nota_clinica_id,
+          tratamiento: "Tratamiento desde Presupuesto",
+          catalogo_tratamiento_id: item.catId
+        }).select("id").single();
 
-      if (trat) {
-        await supabase.from("plan_tratamiento").insert({
-          tratamiento_id: trat.id,
-          fase: "Planeado",
-          orden: 1,
-          estado: "pendiente"
-        });
+        if (trat) {
+          await supabase.from("plan_tratamiento").insert({
+            tratamiento_id: trat.id,
+            fase: "Planeado",
+            orden: 1,
+            estado: "pendiente"
+          });
+        }
       }
     }
-  }
 
-  // Quitar tratamientos eliminados
-  for (const item of toRemove) {
-    const { data: tratsToRemove } = await supabase.from("tratamiento")
-      .select("id")
-      .eq("diagnostico_id", presInfo.diagnostico_id)
-      .eq("catalogo_tratamiento_id", item.catId)
-      .limit(item.count);
-    
-    if (tratsToRemove && tratsToRemove.length > 0) {
-      for (const t of tratsToRemove) {
-        await supabase.from("citas").update({ tratamiento_id: null }).eq("tratamiento_id", t.id);
-        const { data: fases } = await supabase.from("plan_tratamiento").select("id").eq("tratamiento_id", t.id);
-        if (fases && fases.length > 0) {
-           const faseIds = fases.map(f => f.id);
-           await supabase.from("archivos_clinicos").update({ plan_tratamiento_id: null }).in("plan_tratamiento_id", faseIds);
-           await supabase.from("procedimiento_efectuado").delete().in("plan_tratamiento_id", faseIds);
-           await supabase.from("plan_tratamiento").delete().in("id", faseIds);
+    // Quitar tratamientos eliminados
+    for (const item of toRemove) {
+      const { data: tratsToRemove } = await supabase.from("tratamiento")
+        .select("id")
+        .eq("diagnostico_id", diagnostico_id)
+        .eq("catalogo_tratamiento_id", item.catId)
+        .limit(item.count);
+      
+      if (tratsToRemove && tratsToRemove.length > 0) {
+        for (const t of tratsToRemove) {
+          await supabase.from("citas").update({ tratamiento_id: null }).eq("tratamiento_id", t.id);
+          const { data: fases } = await supabase.from("plan_tratamiento").select("id").eq("tratamiento_id", t.id);
+          if (fases && fases.length > 0) {
+             const faseIds = fases.map(f => f.id);
+             await supabase.from("archivos_clinicos").update({ plan_tratamiento_id: null }).in("plan_tratamiento_id", faseIds);
+             await supabase.from("procedimiento_efectuado").delete().in("plan_tratamiento_id", faseIds);
+             await supabase.from("plan_tratamiento").delete().in("id", faseIds);
+          }
+          await supabase.from("tratamiento").delete().eq("id", t.id);
         }
-        await supabase.from("tratamiento").delete().eq("id", t.id);
       }
     }
   }
 
   revalidatePath(`/pacientes/${data.paciente_id}`);
+  revalidatePath("/presupuestos");
   return { success: true };
 }
 
@@ -1507,19 +1706,60 @@ export async function updateEstadoPresupuestoAction(data: { presupuesto_id: stri
   const { error } = await supabase.from("presupuestos").update(patch).eq("id", data.presupuesto_id);
   if (error) return { error: "No se pudo actualizar el estado del presupuesto" };
   revalidatePath(`/pacientes/${data.paciente_id}`);
+  revalidatePath("/presupuestos");
   return { success: true };
 }
 
 export async function deletePresupuestoAction(presupuestoId: string, pacienteId: string) {
   const supabase = await createClient();
-  const { data: p } = await supabase.from("presupuestos").select("estado").eq("id", presupuestoId).single();
+  const { data: p } = await supabase
+    .from("presupuestos")
+    .select("id, estado, diagnostico_id")
+    .eq("id", presupuestoId)
+    .maybeSingle();
+
   if (p && p.estado !== "pendiente") {
     return { error: "Solo se pueden eliminar presupuestos en estado pendiente." };
   }
+
+  // Obtener ítems del detalle antes de eliminar para remover los tratamientos correspondientes
+  const { data: detalles } = await supabase
+    .from("detalle_presupuesto")
+    .select("catalogo_tratamiento_id, cantidad")
+    .eq("presupuesto_id", presupuestoId);
+
+  if (p?.diagnostico_id && detalles && detalles.length > 0) {
+    for (const d of detalles) {
+      const count = Number(d.cantidad) || 1;
+      const { data: trats } = await supabase
+        .from("tratamiento")
+        .select("id")
+        .eq("diagnostico_id", p.diagnostico_id)
+        .eq("catalogo_tratamiento_id", d.catalogo_tratamiento_id)
+        .limit(count);
+
+      if (trats && trats.length > 0) {
+        for (const t of trats) {
+          await supabase.from("citas").update({ tratamiento_id: null }).eq("tratamiento_id", t.id);
+          const { data: fases } = await supabase.from("plan_tratamiento").select("id").eq("tratamiento_id", t.id);
+          if (fases && fases.length > 0) {
+            const faseIds = fases.map((f) => f.id);
+            await supabase.from("archivos_clinicos").update({ plan_tratamiento_id: null }).in("plan_tratamiento_id", faseIds);
+            await supabase.from("procedimiento_efectuado").delete().in("plan_tratamiento_id", faseIds);
+            await supabase.from("plan_tratamiento").delete().in("id", faseIds);
+          }
+          await supabase.from("tratamiento").delete().eq("id", t.id);
+        }
+      }
+    }
+  }
+
   await supabase.from("movimiento_caja").delete().eq("presupuesto_id", presupuestoId);
   await supabase.from("detalle_presupuesto").delete().eq("presupuesto_id", presupuestoId);
   await supabase.from("presupuestos").delete().eq("id", presupuestoId);
+
   revalidatePath(`/pacientes/${pacienteId}`);
+  revalidatePath("/presupuestos");
   return { success: true };
 }
 
