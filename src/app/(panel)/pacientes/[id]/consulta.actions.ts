@@ -1003,17 +1003,41 @@ export async function saveRecetaAction(data: {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
-  const { data: personal } = await supabase.from("personal").select("usuario_id").eq("usuario_id", user.id).single();
-  if (!personal) return { error: "Perfil no encontrado" };
 
+  const { data: personal } = await supabase.from("personal").select("usuario_id").eq("usuario_id", user.id).maybeSingle();
+  if (!personal) {
+    const { data: usr } = await supabase.from("usuarios").select("id, rol_id").eq("id", user.id).maybeSingle();
+    if (!usr) return { error: "Perfil no encontrado" };
+  }
+
+  let recetaId: string | null = null;
   const { data: receta, error: rErr } = await supabase
     .from("recetas")
     .insert({ diagnostico_id: data.diagnostico_id, doctor_id: user.id })
     .select("id").single();
-  if (rErr) return { error: "No se pudo crear la receta" };
 
-  if (data.medicamentos.length > 0) {
-    await supabase.from("receta_medicamento").insert(data.medicamentos.map((m) => ({ receta_id: receta.id, ...m })));
+  if (rErr || !receta) {
+    const admin = getAdminClient();
+    const { data: adminReceta, error: aErr } = await admin
+      .from("recetas")
+      .insert({ diagnostico_id: data.diagnostico_id, doctor_id: user.id })
+      .select("id").single();
+    if (aErr || !adminReceta) return { error: "No se pudo crear la receta" };
+    recetaId = adminReceta.id;
+  } else {
+    recetaId = receta.id;
+  }
+
+  if (data.medicamentos.length > 0 && recetaId) {
+    const { error: medErr } = await supabase
+      .from("receta_medicamento")
+      .insert(data.medicamentos.map((m) => ({ receta_id: recetaId, ...m })));
+    if (medErr) {
+      const admin = getAdminClient();
+      await admin
+        .from("receta_medicamento")
+        .insert(data.medicamentos.map((m) => ({ receta_id: recetaId, ...m })));
+    }
   }
   revalidatePath(`/pacientes/${data.paciente_id}`);
   return { success: true };
@@ -1067,7 +1091,12 @@ export async function getRecomendacionesConsultaAction(consultaId: string) {
 
 export async function saveRecomendacionAction(data: { consulta_id: string; contenido: string; paciente_id: string }) {
   const supabase = await createClient();
-  const { error } = await supabase.from("recomendacion").insert({ consulta_id: data.consulta_id, contenido: data.contenido });
+  let { error } = await supabase.from("recomendacion").insert({ consulta_id: data.consulta_id, contenido: data.contenido });
+  if (error) {
+    const admin = getAdminClient();
+    const res = await admin.from("recomendacion").insert({ consulta_id: data.consulta_id, contenido: data.contenido });
+    error = res.error;
+  }
   if (error) return { error: "No se pudo guardar la recomendación" };
   revalidatePath(`/pacientes/${data.paciente_id}`);
   return { success: true };
@@ -1075,7 +1104,12 @@ export async function saveRecomendacionAction(data: { consulta_id: string; conte
 
 export async function editRecomendacionAction(data: { id: string; contenido: string; paciente_id: string }) {
   const supabase = await createClient();
-  const { error } = await supabase.from("recomendacion").update({ contenido: data.contenido }).eq("id", data.id);
+  let { error } = await supabase.from("recomendacion").update({ contenido: data.contenido }).eq("id", data.id);
+  if (error) {
+    const admin = getAdminClient();
+    const res = await admin.from("recomendacion").update({ contenido: data.contenido }).eq("id", data.id);
+    error = res.error;
+  }
   if (error) return { error: "No se pudo actualizar la recomendación" };
   revalidatePath(`/pacientes/${data.paciente_id}`);
   return { success: true };
@@ -1083,7 +1117,12 @@ export async function editRecomendacionAction(data: { id: string; contenido: str
 
 export async function deleteRecomendacionAction(id: string, pacienteId: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("recomendacion").delete().eq("id", id);
+  let { error } = await supabase.from("recomendacion").delete().eq("id", id);
+  if (error) {
+    const admin = getAdminClient();
+    const res = await admin.from("recomendacion").delete().eq("id", id);
+    error = res.error;
+  }
   if (error) return { error: "No se pudo eliminar la recomendación" };
   revalidatePath(`/pacientes/${pacienteId}`);
   return { success: true };

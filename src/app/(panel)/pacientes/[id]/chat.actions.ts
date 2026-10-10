@@ -117,12 +117,13 @@ export async function getChatInfoAction(pacienteId: string, page: number = 0, li
   return {
     allowed: true,
     paciente,
-    messages: sortedMessages.map((m: any) => ({
-      ...m,
-      doctor_nombre: m.usuarios?.personal?.length > 0 
-        ? `${m.usuarios.personal[0].nombre} ${m.usuarios.personal[0].apellido}`
-        : null
-    }))
+    messages: sortedMessages.map((m: any) => {
+      const per = Array.isArray(m.usuarios?.personal) ? m.usuarios?.personal[0] : m.usuarios?.personal;
+      return {
+        ...m,
+        doctor_nombre: per ? `${per.nombre || ""} ${per.apellido || ""}`.trim() : null
+      };
+    })
   };
 }
 

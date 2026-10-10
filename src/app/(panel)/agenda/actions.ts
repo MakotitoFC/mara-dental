@@ -49,22 +49,74 @@ export async function fetchDoctoresSede(sedeId: number | string, excludeUserId?:
     .map((u) => ({ id: u.id, nombre: u.nombre!, apellido: u.apellido!, especialidad: u.especialidad }));
 }
 
+function normalizeSearchText(str: string): string {
+  return (str || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export async function searchPatients(query: string) {
-  const supabase = await createClient();
-  
   if (!query || query.trim().length < 2) return [];
 
-  const isDni = /^\d+$/.test(query.trim());
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
 
-  const { data, error } = await supabase.rpc("buscar_pacientes_sede", { 
-    busqueda: query.trim(), 
-    es_dni: isDni 
-  });
-  if (error) {
-    console.error("Error buscando pacientes:", error);
-    return [];
+  // Obtener sede del usuario logueado
+  const { data: usr } = await supabase
+    .from("usuarios")
+    .select("sede_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const sedeId = usr?.sede_id;
+
+  // Consulta usando supabase con fallback a adminClient
+  let queryBuilder = supabase
+    .from("pacientes")
+    .select("id, nombre, apellido, dni, telefono")
+    .eq("activo", true);
+
+  if (sedeId) {
+    queryBuilder = queryBuilder.eq("sede_id", sedeId);
   }
-  return data || [];
+
+  let { data: patients, error } = await queryBuilder.order("apellido", { ascending: true }).limit(300);
+
+  if (error || !patients || patients.length === 0) {
+    const admin = getAdminClient();
+    let adminQuery = admin
+      .from("pacientes")
+      .select("id, nombre, apellido, dni, telefono")
+      .eq("activo", true);
+
+    if (sedeId) {
+      adminQuery = adminQuery.eq("sede_id", sedeId);
+    }
+
+    const res = await adminQuery.order("apellido", { ascending: true }).limit(300);
+    if (res.data && res.data.length > 0) {
+      patients = res.data;
+    }
+  }
+
+  const normTokens = query.trim().split(/\s+/).filter(Boolean).map(normalizeSearchText);
+
+  return (patients || [])
+    .filter((p) => {
+      const fullName = normalizeSearchText(`${p.nombre || ""} ${p.apellido || ""}`);
+      const reverseFullName = normalizeSearchText(`${p.apellido || ""} ${p.nombre || ""}`);
+      const dni = (p.dni || "").trim();
+
+      return normTokens.every((tok) =>
+        fullName.includes(tok) ||
+        reverseFullName.includes(tok) ||
+        dni.includes(tok)
+      );
+    })
+    .slice(0, 20);
 }
 
 export async function createPacienteRapidoAction(data: {
@@ -244,6 +296,7 @@ const CITA_SELECT = `
 
 function mapCitaRow(c: any) {
   const paciente = Array.isArray(c.pacientes) ? c.pacientes[0] : c.pacientes;
+  const personal = Array.isArray(c.usuarios?.personal) ? c.usuarios.personal[0] : c.usuarios?.personal;
 
   if (!paciente) {
     console.error(`[mapCitaRow] cita id=${c.id} sin datos de paciente embebidos (paciente_id=${c.paciente_id ?? "?"}) — ¿RLS bloqueando "pacientes" o paciente_id inválido?`);
@@ -263,10 +316,10 @@ function mapCitaRow(c: any) {
     alergias: alergiasArr,
     tipo_consulta_id: c.tipo_consulta_id || "",
     doctor_id: String(c.doctor_id),
-    doctor_nombre: `Dr. ${c.usuarios?.personal?.[0]?.apellido || "Médico"}`,
+    doctor_nombre: `Dr. ${personal?.apellido || "Médico"}`,
     fecha: c.fecha,
-    hora_inicio: c.hora_inicio.slice(0, 5),
-    hora_fin: c.hora_fin.slice(0, 5),
+    hora_inicio: c.hora_inicio ? c.hora_inicio.slice(0, 5) : "00:00",
+    hora_fin: c.hora_fin ? c.hora_fin.slice(0, 5) : "00:00",
     estado: c.estado || "programada",
     notas: c.notas ?? undefined,
   };

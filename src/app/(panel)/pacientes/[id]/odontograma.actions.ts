@@ -88,13 +88,14 @@ export async function getOdontogramasAction(pacienteId: string) {
     }
 
     const findings = Array.from(grouped.values());
-    const dentistaInfo = (record.usuarios as any)?.personal;
+    const rawPersonal = (record.usuarios as any)?.personal;
+    const personal = Array.isArray(rawPersonal) ? rawPersonal[0] : rawPersonal;
 
     return {
       id: String(record.id),
       fecha: record.created_at.split("T")[0],
       tipo: "Evaluación Odontológica",
-      dentista: dentistaInfo ? `Dr. ${dentistaInfo.nombre} ${dentistaInfo.apellido}` : "Doctor",
+      dentista: personal ? `Dr. ${personal.nombre || ""} ${personal.apellido || ""}`.trim() : "Doctor",
       findings
     };
   });

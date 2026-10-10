@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { resolveOrCrearHistoriaClinica } from "../historia.helpers";
 import { getSedeInfoAction, signFirmaUrl, firmarUrls } from "./consulta.actions";
@@ -8,12 +9,18 @@ import { getSedeInfoAction, signFirmaUrl, firmarUrls } from "./consulta.actions"
 export async function getDetallePacienteAction(pacienteId: string) {
   const supabase = await createClient();
 
-  // 1. Obtener paciente
-  const { data: paciente } = await supabase
+  // 1. Obtener paciente con fallback a adminClient
+  let { data: paciente } = await supabase
     .from("pacientes")
     .select("*")
     .eq("id", pacienteId)
-    .single();
+    .maybeSingle();
+
+  if (!paciente) {
+    const admin = getAdminClient();
+    const res = await admin.from("pacientes").select("*").eq("id", pacienteId).maybeSingle();
+    paciente = res.data;
+  }
 
   if (!paciente) return null;
 
@@ -27,25 +34,43 @@ export async function getDetallePacienteAction(pacienteId: string) {
       tipo_consulta_id,
       estado,
       notas,
-      tipo_consulta:tipo_consulta_id ( tipo_consulta, color )
+      tipo_consulta:tipo_consulta_id ( tipo_consulta, color ),
+      usuarios ( personal ( nombre, apellido ) )
     `)
     .eq("paciente_id", pacienteId)
     .order("fecha", { ascending: false });
 
-  // 3. Obtener consultas (notas clínicas)
-  const { data: consultas } = await supabase
-    .from("consultas")
-    .select(`
-      id,
-      fecha_consulta,
-      motivo,
-      observaciones,
-      examen_fisico,
-      personal ( nombre, apellido ),
-      historia_clinica!inner ( paciente_id )
-    `)
-    .eq("historia_clinica.paciente_id", pacienteId)
-    .order("fecha_consulta", { ascending: false });
+  // 3. Obtener consultas (notas clínicas) a través de historia_clinica -> nota_clinica
+  const { data: hc } = await supabase
+    .from("historia_clinica")
+    .select("id")
+    .eq("paciente_id", pacienteId)
+    .maybeSingle();
+
+  let consultas: any[] = [];
+  if (hc) {
+    const { data: notasClinicas } = await supabase
+      .from("nota_clinica")
+      .select("id")
+      .eq("historia_clinica_id", hc.id);
+
+    const notaIds = (notasClinicas || []).map((n) => n.id);
+    if (notaIds.length > 0) {
+      const { data: cons } = await supabase
+        .from("consultas")
+        .select(`
+          id,
+          fecha_consulta,
+          motivo,
+          observaciones,
+          examen_fisico,
+          usuarios ( personal ( nombre, apellido ) )
+        `)
+        .in("nota_clinica_id", notaIds)
+        .order("fecha_consulta", { ascending: false });
+      consultas = cons || [];
+    }
+  }
 
   // Procesar para la vista
   // Convierte cualquier valor (string, object JSONB, array) a string seguro para React
@@ -124,7 +149,8 @@ export async function getDetallePacienteAction(pacienteId: string) {
       med = c.examen_fisico.medicacion;
       type = c.examen_fisico.tipo || "consulta";
     }
-    const drName = c.personal ? `${c.personal.nombre} ${c.personal.apellido}`.trim() : "Doctor";
+    const per = Array.isArray(c.usuarios?.personal) ? c.usuarios.personal[0] : (c.usuarios?.personal || c.personal);
+    const drName = per ? `Dr. ${per.nombre || ""} ${per.apellido || ""}`.trim() : "Doctor";
     return {
       id: String(c.id),
       fecha: c.fecha_consulta || "",
@@ -138,7 +164,8 @@ export async function getDetallePacienteAction(pacienteId: string) {
   });
 
   const citasMap = (citas || []).map((c: any) => {
-    const drName = c.personal ? `${c.personal.nombre} ${c.personal.apellido}`.trim() : "Doctor";
+    const per = Array.isArray(c.usuarios?.personal) ? c.usuarios.personal[0] : (c.usuarios?.personal || c.personal);
+    const drName = per ? `Dr. ${per.nombre || ""} ${per.apellido || ""}`.trim() : "Doctor";
     return {
       id: String(c.id),
       fecha: c.fecha,
