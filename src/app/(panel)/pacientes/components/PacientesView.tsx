@@ -76,6 +76,11 @@ export function PacientesView({ initialData }: { initialData: any[] }) {
   const [query, setQuery] = useState("");
   // Inicializamos directamente con initialData, eliminando el estado de carga
   const [todos, setTodos] = useState<PacienteListItem[]>(initialData || []);
+
+  useEffect(() => {
+    setTodos(initialData || []);
+  }, [initialData]);
+
   const loading = false;
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [showNuevoModal, setShowNuevoModal] = useState(false);

@@ -20,7 +20,7 @@ import {
 } from "../../consulta.actions";
 import {
   esc, fmtGenerado, buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, sectionLabel, wrapDocument, shortCode,
-  printHtml, downloadHtmlAsPaginatedPdf, exportHtmlAsCanvas, type ClinicaInfo,
+  printHtml, downloadHtmlAsPaginatedPdf, exportHtmlAsCanvas, buildPresupuestoFormatoHtml, type ClinicaInfo,
 } from "@/lib/reportExport";
 
 type Linea = { catalogo_id: number; nombre: string; cantidad: number; precio_unitario: number; moneda: string };
@@ -64,123 +64,24 @@ function buildPresupuestoHtml(opts: {
 }): string {
   const { presupuesto, totalNeto, moneda, pagosValidos } = opts;
   const pagado = pagosValidos.reduce((acc, p) => acc + p.monto, 0);
-  const saldo = totalNeto - pagado;
-  const docCode = `Presupuesto #${shortCode(presupuesto.id)}`;
-
-  const header = buildLetterheadHeader({
-    clinica: opts.clinica,
-    docLabel: "Presupuesto de Tratamiento",
-    docCode,
+  return buildPresupuestoFormatoHtml({
     pacienteNombre: opts.pacienteNombre,
-    generado: fmtGenerado(),
+    pacienteDni: opts.pacienteDni,
+    fecha: presupuesto.fecha_emision,
+    medico: presupuesto.doctor_nombre,
+    especialidad: presupuesto.doctor_especialidad,
+    estado: ESTADO_LABEL[presupuesto.estado] ?? presupuesto.estado,
+    items: presupuesto.items.map((it) => ({ nombre: it.nombre, descripcion: it.descripcion, cantidad: it.cantidad, precioUnitario: it.precio_unitario, subtotal: it.subtotal, moneda: it.moneda })),
+    totalBruto: presupuesto.total_bruto,
+    descuentoMonto: presupuesto.descuento_monto,
+    descuentoPorcentaje: presupuesto.descuento_porcentaje,
+    totalNeto,
+    pagado,
+    saldo: totalNeto - pagado,
+    moneda,
+    pagos: pagosValidos.map((p) => ({ fecha: new Date(p.fecha_pago).toLocaleDateString("es-PE"), metodo: p.medio_pago_nombre, referencia: p.referencia, monto: p.monto })),
+    firma: { nombre: presupuesto.doctor_nombre, especialidad: presupuesto.doctor_especialidad, numColegiatura: presupuesto.doctor_num_colegiatura, firmaUrl: presupuesto.doctor_firma_url },
   });
-
-  const infoCell = (label: string, value?: string | null) => value ? `
-    <div>
-      <div style="font-size:9px;font-weight:700;color:#95A5A6;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px;">${esc(label)}</div>
-      <div style="font-size:12px;font-weight:700;color:#212E3D;">${esc(value)}</div>
-    </div>
-  ` : "";
-
-  const infoBar = `
-    <div style="margin:0 28px 20px;padding:14px 18px;background:#ecfeff;border-radius:10px;display:flex;flex-wrap:wrap;gap:18px;">
-      ${infoCell("Paciente", opts.pacienteNombre)}
-      ${infoCell("DNI", opts.pacienteDni)}
-      ${infoCell("Médico tratante", presupuesto.doctor_nombre ? `Dr. ${presupuesto.doctor_nombre}` : null)}
-      ${infoCell("Especialidad", presupuesto.doctor_especialidad)}
-      ${infoCell("Estado", ESTADO_LABEL[presupuesto.estado] ?? presupuesto.estado)}
-    </div>
-  `;
-
-  const itemsRows = presupuesto.items.map((it, i) => `
-    <tr>
-      <td style="padding:8px 4px;border-bottom:1px solid #F1F3F6;font-size:11px;font-weight:700;color:#0e7490;">${String(i + 1).padStart(2, "0")}</td>
-      <td style="padding:8px 4px;border-bottom:1px solid #F1F3F6;">
-        <div style="font-size:12px;font-weight:600;color:#212E3D;">${esc(it.nombre)}</div>
-        ${it.descripcion ? `<div style="font-size:10.5px;color:#95A5A6;">${esc(it.descripcion)}</div>` : ""}
-      </td>
-      <td style="padding:8px 4px;border-bottom:1px solid #F1F3F6;text-align:center;font-size:12px;color:#2C3E50;">${it.cantidad}</td>
-      <td style="padding:8px 4px;border-bottom:1px solid #F1F3F6;text-align:right;font-size:12px;color:#2C3E50;">${esc(money(it.precio_unitario, it.moneda))}</td>
-      <td style="padding:8px 4px;border-bottom:1px solid #F1F3F6;text-align:right;font-size:12px;font-weight:700;color:#212E3D;">${esc(money(it.subtotal, it.moneda))}</td>
-    </tr>
-  `).join("");
-
-  const pagosRows = pagosValidos.length === 0
-    ? `<p style="font-size:11.5px;color:#95A5A6;">Sin pagos registrados.</p>`
-    : `<table style="width:100%;border-collapse:collapse;">
-        <thead>
-          <tr>
-            <th style="text-align:left;padding:6px 4px;font-size:9px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:1px solid #EDF0F4;">Fecha</th>
-            <th style="text-align:left;padding:6px 4px;font-size:9px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:1px solid #EDF0F4;">Método</th>
-            <th style="text-align:left;padding:6px 4px;font-size:9px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:1px solid #EDF0F4;">Referencia</th>
-            <th style="text-align:right;padding:6px 4px;font-size:9px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:1px solid #EDF0F4;">Monto</th>
-          </tr>
-        </thead>
-        <tbody>
-        ${pagosValidos.map((p) => `
-          <tr>
-            <td style="padding:7px 4px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#2C3E50;">${esc(new Date(p.fecha_pago).toLocaleDateString("es-PE"))}</td>
-            <td style="padding:7px 4px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#2C3E50;">${esc(p.medio_pago_nombre)}</td>
-            <td style="padding:7px 4px;border-bottom:1px solid #F1F3F6;font-size:11.5px;color:#95A5A6;">${esc(p.referencia || "—")}</td>
-            <td style="padding:7px 4px;border-bottom:1px solid #F1F3F6;font-size:11.5px;font-weight:700;color:#059669;text-align:right;">${esc(money(p.monto, moneda))}</td>
-          </tr>
-        `).join("")}
-        </tbody>
-      </table>`;
-
-  const summaryBox = (label: string, value: string, bg: string, fg: string) => `
-    <div style="flex:1;background:${bg};border-radius:10px;padding:12px 14px;">
-      <div style="font-size:9px;font-weight:800;color:${fg};text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">${esc(label)}</div>
-      <div style="font-size:16px;font-weight:800;color:${fg};">${esc(value)}</div>
-    </div>
-  `;
-
-  const body = `
-    ${infoBar}
-    <div style="padding:0 28px;">
-      ${sectionLabel("Detalle de tratamientos")}
-      <table style="width:100%;border-collapse:collapse;">
-        <thead>
-          <tr>
-            <th style="text-align:left;padding:6px 4px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:2px solid #EDF0F4;">#</th>
-            <th style="text-align:left;padding:6px 4px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:2px solid #EDF0F4;">Tratamiento</th>
-            <th style="text-align:center;padding:6px 4px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:2px solid #EDF0F4;">Cant.</th>
-            <th style="text-align:right;padding:6px 4px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:2px solid #EDF0F4;">P. Unit.</th>
-            <th style="text-align:right;padding:6px 4px;font-size:9.5px;font-weight:800;color:#95A5A6;text-transform:uppercase;border-bottom:2px solid #EDF0F4;">Subtotal</th>
-          </tr>
-        </thead>
-        <tbody>${itemsRows}</tbody>
-      </table>
-      <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-        <div style="width:260px;">
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:#5D6D7E;margin-bottom:4px;padding:0 14px;"><span>Subtotal</span><span>${esc(money(presupuesto.total_bruto, moneda))}</span></div>
-          ${presupuesto.descuento_monto > 0 ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#e11d48;margin-bottom:4px;padding:0 14px;"><span>Descuento (${presupuesto.descuento_porcentaje}%)</span><span>− ${esc(money(presupuesto.descuento_monto, moneda))}</span></div>` : ""}
-          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:800;color:#ffffff;background:#1A1A2E;border-radius:8px;padding:10px 14px;margin-top:6px;"><span>Total</span><span style="color:#22d3ee;">${esc(money(totalNeto, moneda))}</span></div>
-        </div>
-      </div>
-    </div>
-
-    <div style="padding:22px 28px 0;">
-      ${sectionLabel("Registro de pagos")}
-      ${pagosRows}
-      <div style="display:flex;gap:12px;margin-top:14px;">
-        ${summaryBox("Total pagado", money(pagado, moneda), "#ecfdf5", "#059669")}
-        ${summaryBox("Saldo pendiente", money(saldo, moneda), saldo > 0 ? "#fffbeb" : "#ecfdf5", saldo > 0 ? "#d97706" : "#059669")}
-        ${summaryBox("Total presupuesto", money(totalNeto, moneda), "#eff6ff", "#1d4ed8")}
-      </div>
-    </div>
-
-    <div style="margin:22px 28px 0;padding:14px 16px;background:#F7F8FA;border-radius:10px;">
-      <div style="font-size:10.5px;color:#5D6D7E;line-height:1.6;"><b style="color:#2C3E50;">Condiciones:</b> Este presupuesto tiene validez de 30 días desde la fecha de emisión. El paciente firma en señal de conformidad con el plan de tratamiento propuesto. Cualquier cambio en el plan de tratamiento puede modificar el total.</div>
-    </div>
-
-    <div style="padding:32px 28px 24px;display:flex;justify-content:center;">
-      ${buildSignatureBlock({ nombre: presupuesto.doctor_nombre, especialidad: presupuesto.doctor_especialidad, numColegiatura: presupuesto.doctor_num_colegiatura, firmaUrl: presupuesto.doctor_firma_url })}
-    </div>
-  `;
-
-  const footer = opts.includeFooter ? buildLetterheadFooter({ clinica: opts.clinica, pacienteNombre: opts.pacienteNombre, docCode }) : "";
-  return wrapDocument(`${header}${body}${footer}`, 850);
 }
 
 export function PresupuestoPhase({ consultaId, pacienteId, paciente, presupuesto, mediosPago, onSaved, onCancel, onNavigateTab, fillHeight }: {
@@ -538,7 +439,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
       const html = buildPresupuestoHtml({ clinica: sede, pacienteNombre: paciente?.nombre_completo, pacienteDni: paciente?.dni, presupuesto, totalNeto, moneda, pagosValidos, includeFooter: mode !== "pdf" });
       const pacienteSlug = (paciente?.nombre_completo || "paciente").replace(/\s+/g, "_");
       if (mode === "print") await printHtml(html, `Presupuesto · ${paciente?.nombre_completo || ""}`);
-      else if (mode === "pdf") await downloadHtmlAsPaginatedPdf(html, `presupuesto_${pacienteSlug}_${shortCode(presupuesto.id)}.pdf`, 850, { clinica: sede, docLabel: "Presupuesto de Tratamiento" });
+      else if (mode === "pdf") await downloadHtmlAsPaginatedPdf(html, `presupuesto_${pacienteSlug}_${shortCode(presupuesto.id)}.pdf`, 900);
       else if (mode === "telegram") {
         const canvas = await exportHtmlAsCanvas(html);
         canvas.toBlob((blob) => {
@@ -693,7 +594,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
             {presupuesto.estado === "pendiente" && (
               <button onClick={() => cambiarEstado("aprobado")} disabled={busy} title="Aprobar presupuesto"
                 className="flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 text-white rounded-xl text-[12px] font-semibold transition-colors">
-                <Icon name="check_circle" size={15} /> <span className="hidden sm:inline">Aprobar presupuesto</span>
+                <Icon name="check_circle" size={15} /> <span className="hidden sm:inline">Aprobar</span>
               </button>
             )}
             {presupuesto.estado === "aprobado" && (
@@ -713,7 +614,7 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
             {presupuesto.estado === "pendiente" && (
               <button onClick={eliminar} disabled={busy} title="Eliminar presupuesto"
                 className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 text-red-500 hover:bg-red-50 border border-red-100 disabled:opacity-40 rounded-xl text-[12px] font-medium transition-colors">
-                <Icon name="delete" size={14} /> <span className="hidden sm:inline">Eliminar presupuesto</span>
+                <Icon name="delete" size={14} /> <span className="hidden sm:inline">Eliminar</span>
               </button>
             )}
           </div>

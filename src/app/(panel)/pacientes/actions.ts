@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { resolveOrCrearHistoriaClinica } from "./historia.helpers";
 import { randomUUID } from "crypto";
@@ -32,16 +33,142 @@ export async function getDoctorPacientesAction() {
 
   if (!user) return [];
 
-  // Llama a la función optimizada en la BD usando directamente el ID del usuario (doctor)
-  const { data, error } = await supabase
-    .rpc("get_doctor_pacientes_summary", { p_doctor_id: user.id });
+  // 1. Obtener rol y sede del usuario
+  const { data: usuarioData } = await supabase
+    .from("usuarios")
+    .select("rol_id, sede_id, rol ( rol )")
+    .eq("id", user.id)
+    .single();
 
-  if (error || !data) {
-    console.error("Error obteniendo pacientes optimizados:", error);
-    return [];
+  const rolRaw = usuarioData?.rol as any;
+  const rolName = (Array.isArray(rolRaw) ? rolRaw[0]?.rol : rolRaw?.rol) || "";
+  const isDoctorAdmin = usuarioData?.rol_id === 6 || rolName === "doctor_admin";
+  const isAdmin = usuarioData?.rol_id === 2 || usuarioData?.rol_id === 3 || rolName === "admin" || rolName === "superadmin";
+
+  let rawList: any[] | null = null;
+
+  // Si es un doctor regular (no admin ni doctor_admin), intentar la RPC de resumen
+  if (!isDoctorAdmin && !isAdmin) {
+    try {
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc("get_doctor_pacientes_summary", { p_doctor_id: user.id });
+
+      if (!rpcError && rpcData && rpcData.length > 0) {
+        rawList = rpcData;
+      }
+    } catch {
+      // Continúa con la consulta directa si la RPC falla
+    }
   }
 
-  return data.map((p: any) => {
+  // Si es doctor_admin, admin, o si la RPC falló / vino vacía:
+  if (!rawList) {
+    try {
+      let query = supabase
+        .from("pacientes")
+        .select(`
+          id,
+          nombre,
+          apellido,
+          dni,
+          fecha_nacimiento,
+          telefono,
+          alergias,
+          activo,
+          sexo,
+          grupo_sanguineo,
+          sede_id,
+          creado_por,
+          citas (
+            id,
+            fecha
+          )
+        `);
+
+      if ((isDoctorAdmin || isAdmin) && usuarioData?.sede_id) {
+        query = query.eq("sede_id", usuarioData.sede_id);
+      }
+
+      let { data: pacs, error: pacsError } = await query;
+
+      // Si la consulta regular con RLS fallase, asegurar acceso mediante adminClient con scope de sede
+      if (pacsError || !pacs) {
+        const adminClient = getAdminClient();
+        let adminQuery = adminClient
+          .from("pacientes")
+          .select(`
+            id,
+            nombre,
+            apellido,
+            dni,
+            fecha_nacimiento,
+            telefono,
+            alergias,
+            activo,
+            sexo,
+            grupo_sanguineo,
+            sede_id,
+            creado_por,
+            citas (
+              id,
+              fecha
+            )
+          `);
+
+        if (usuarioData?.sede_id) {
+          adminQuery = adminQuery.eq("sede_id", usuarioData.sede_id);
+        } else if (!isDoctorAdmin && !isAdmin) {
+          adminQuery = adminQuery.eq("creado_por", user.id);
+        }
+
+        const adminRes = await adminQuery;
+        pacs = adminRes.data;
+      }
+
+      if (pacs) {
+        rawList = pacs.map((p: any) => {
+          const citas = p.citas || [];
+          const totalCitas = citas.length;
+          let ultimaVisita: string | null = null;
+          if (citas.length > 0) {
+            const sorted = [...citas].sort((a: any, b: any) => (b.fecha > a.fecha ? 1 : -1));
+            ultimaVisita = sorted[0]?.fecha || null;
+          }
+
+          return {
+            id: p.id,
+            nombre: p.nombre,
+            apellido: p.apellido,
+            dni: p.dni,
+            fecha_nacimiento: p.fecha_nacimiento,
+            telefono: p.telefono,
+            alergias: p.alergias,
+            activo: p.activo,
+            total_citas: totalCitas,
+            ultima_visita: ultimaVisita,
+            sexo: p.sexo,
+            grupo_sanguineo: p.grupo_sanguineo,
+          };
+        });
+
+        // Ordenar por última visita descendente y luego por nombre
+        rawList.sort((a, b) => {
+          if (a.ultima_visita && b.ultima_visita) {
+            return b.ultima_visita.localeCompare(a.ultima_visita);
+          }
+          if (a.ultima_visita) return -1;
+          if (b.ultima_visita) return 1;
+          return (a.nombre || "").localeCompare(b.nombre || "");
+        });
+      }
+    } catch (err) {
+      console.error("Error obteniendo pacientes:", err);
+    }
+  }
+
+  if (!rawList) return [];
+
+  return rawList.map((p: any) => {
     let alergiasArr: string[] = [];
     if (Array.isArray(p.alergias)) {
       alergiasArr = p.alergias;
@@ -58,7 +185,7 @@ export async function getDoctorPacientesAction() {
 
     return {
       id: String(p.id),
-      nombre: `${p.nombre} ${p.apellido}`.trim(),
+      nombre: `${p.nombre || ""} ${p.apellido || ""}`.trim(),
       dni: p.dni,
       fecha_nacimiento: p.fecha_nacimiento,
       telefono: p.telefono,

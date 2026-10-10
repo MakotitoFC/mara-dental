@@ -159,6 +159,8 @@ export function DiagnosticoForm({ consultaId, pacienteId, onSaved }: {
       <div>
         <div className="p-5 flex flex-col gap-5">
 
+          <p className="text-[11.5px] text-slate-500 -mb-2">Los campos marcados con <span className="font-bold text-red-500">*</span> son obligatorios.</p>
+
           {/* Tipo — un switch individual por opción (no uno compartido entre
               ambas), las dos en una sola fila compacta (no a lo ancho):
               apagado sin color, prendido cian. Son mutuamente excluyentes

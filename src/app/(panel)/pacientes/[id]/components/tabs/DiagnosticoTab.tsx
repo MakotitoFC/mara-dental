@@ -122,7 +122,7 @@ function DiagnosticoHistorialRow({ d, active, tratCount, recCount, onClick, isMo
       onClick={onClick}
       className={`w-full text-left flex items-start gap-3 px-3 py-3 border-l-2 transition-colors border-0 ${
         active
- ? "bg-slate-100 border-l-slate-400"
+ ? "bg-cyan-50 border-l-cyan-600"
  :"border-l-transparent hover:bg-slate-50"
       }`}
     >
@@ -169,7 +169,7 @@ function ConsultaStepper({ step, done, onStepClick }: { step: number; done: bool
   // y compacto), completados = relleno cian + check, activo = solo borde
   // cian con su número, pendientes = borde gris pálido con su número.
   return (
-    <div className="flex items-center px-1 py-2">
+    <div className="flex items-center px-4 sm:px-6 py-3">
       {WIZARD_STEPS.map((s, i) => (
         <div key={s.key} className="flex items-center flex-1 last:flex-none">
           <button onClick={() => onStepClick(i)} className="shrink-0">
@@ -224,19 +224,20 @@ function ResumenRegistrado({ done, detalles }: { done: boolean[]; detalles: stri
   );
 }
 
-export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, onFinalizarConsulta, onNavigateTab }: {
+export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, onConfirmarConsulta, onNavigateTab }: {
   paciente: any;
   consultaId?: string | null;
   data: any;
   loading: boolean;
   refetch: () => void;
-  onFinalizarConsulta?: () => void;
+  onConfirmarConsulta?: () => void;
   onNavigateTab?: (tab: string) => void;
 }) {
   const pacienteId = String(paciente.id);
   const [planItems, setPlanItems] = useState<{ estado: string }[] | null>(null);
   const [step, setStep] = useState(0);
   const [showFinalizar, setShowFinalizar] = useState(false);
+  const [confirmHintDone, setConfirmHintDone] = useState(false);
   const [confirmado, setConfirmado] = useState(false);
   // Tablet Y mobile (<lg) usan el patrón de tabla headerless + modal de
   // detalle (estilo admin); solo desktop (lg+) mantiene la grilla
@@ -347,7 +348,15 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
   }, [selectedId, historialPaciente, detalleMap]);
 
   if (!consultaId) {
-    if (historialPaciente === null) return <DiagnosticoSkeleton />;
+    if (historialPaciente === null) return (
+      <div className="flex flex-col w-full lg:h-full">
+        <div className="static md:sticky md:top-0 md:z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-4 mb-3 bg-white border-b border-slate-100">
+          <h2 className="text-[15px] font-bold text-slate-800">Diagnóstico</h2>
+          <p className="hidden md:block text-[12px] text-slate-400 mt-0.5 leading-snug">Registro clínico del diagnóstico activo del paciente</p>
+        </div>
+        <DiagnosticoSkeleton />
+      </div>
+    );
 
     const seleccionado = historialPaciente.find((d) => String(d.id) === selectedId) ?? null;
     const detalleSel = seleccionado ? detalleMap[String(seleccionado.id)] : null;
@@ -460,6 +469,9 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                       pacienteId={String(pacienteId)}
                       initial={detalleSel.tratamientos}
                       onItemsChange={() => fetchHistorialPaciente()}
+                      pacienteNombre={paciente.nombre_completo}
+                      diagnosticoTexto={seleccionado.diagnostico_texto ?? ""}
+                      onNavigateTab={onNavigateTab}
                     />
                   ) : (
                     <Notice text="Este diagnóstico no requiere tratamiento en la clínica." />
@@ -470,6 +482,8 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                     pacienteId={String(pacienteId)}
                     initial={detalleSel.recomendaciones}
                     onSaved={fetchHistorialPaciente}
+                    pacienteNombre={paciente.nombre_completo}
+                    onNavigateTab={onNavigateTab}
                   />
                   <RecetaSection
                     key={`receta-${seleccionado.id}`}
@@ -511,7 +525,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
       return (
         <>
           {header}
- <div className={isMobile ? "flex flex-col gap-3 px-3 pt-3 bg-slate-50" : "flex flex-col divide-y divide-slate-100"}>
+ <div className="flex flex-col gap-3 px-3 pt-3 bg-slate-50">
             {historialFiltrado.length === 0 ? (
  <p className="text-[12px] text-slate-400 text-center py-8">
                 {filterFecha ? "Sin diagnósticos en esta fecha." : "Este paciente no tiene diagnósticos registrados."}
@@ -525,7 +539,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                   tratCount={detalleMap[String(d.id)]?.tratamientos.length ?? 0}
                   recCount={detalleMap[String(d.id)]?.recetas.length ?? 0}
                   onClick={() => { setSelectedId(String(d.id)); setShowDetalleModal(true); }}
-                  isMobile={isMobile}
+                  isMobile
                 />
               ))
             )}
@@ -535,7 +549,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
               de asistente (Turnos de Caja, Personal, etc.). Solo en mobile:
               en tablet (md-lg, dentro de isCompact) no se muestra. */}
           {mobileTotalPages > 1 && (
- <div className="md:hidden mt-3 sticky bottom-3 self-center z-10 flex items-center gap-1 bg-white/70 backdrop-blur-md border border-slate-200 rounded-full shadow-lg px-1.5 py-1.5 mx-auto w-fit">
+ <div className="mt-3 sticky bottom-3 self-center z-10 flex items-center gap-1 bg-white/70 backdrop-blur-md border border-slate-200 rounded-full shadow-lg px-1.5 py-1.5 mx-auto w-fit">
               <button
                 disabled={mobilePage === 1}
                 onClick={() => setMobilePage(p => p - 1)}
@@ -663,7 +677,8 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
   return (
     <>
     <div className="h-full flex flex-col gap-4 min-w-0">
-      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col gap-4">
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+      <div className="w-full max-w-4xl mx-auto flex flex-col gap-4">
         {/* Stepper — ya no queda fijo fuera del scroll: pedido explícito de
             liberar ese espacio en pantalla en todos los tamaños (antes vivía
             en un contenedor `shrink-0` hermano de este scroll para evitar un
@@ -678,7 +693,7 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
             envolverlos en OTRA tarjeta acá arriba solo duplicaba el borde).
             Anterior/Continuar pasan de texto en un footer a solo íconos acá
             arriba, al lado del título. */}
-        <div className="flex items-start justify-between gap-3 px-1">
+        <div className="flex items-start justify-between gap-3 px-4 sm:px-6">
           <div className="min-w-0">
  <p className="text-[10.5px] font-bold text-cyan-600 uppercase tracking-widest mb-1">Paso {step + 1} de {WIZARD_STEPS.length}</p>
  <h3 className="text-[17px] font-bold text-slate-900">{WIZARD_STEPS[step].titulo}</h3>
@@ -693,11 +708,14 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
               <Icon name="chevron_left" size={18} />
             </button>
             <button
-              onClick={() => { if (step < WIZARD_STEPS.length - 1) goStep(step + 1); else setShowFinalizar(true); }}
-              aria-label={step === WIZARD_STEPS.length - 1 ? "Finalizar consulta" : "Siguiente paso"}
-              className="w-9 h-9 rounded-full bg-cyan-600 hover:bg-cyan-700 flex items-center justify-center text-white transition-colors"
+              onClick={() => { if (step < WIZARD_STEPS.length - 1) goStep(step + 1); else { setConfirmHintDone(true); setShowFinalizar(true); } }}
+              aria-label={step === WIZARD_STEPS.length - 1 ? "Confirmar" : "Siguiente paso"}
+              className="relative w-9 h-9 rounded-full bg-cyan-600 hover:bg-cyan-700 flex items-center justify-center text-white transition-colors"
             >
-              <Icon name={step === WIZARD_STEPS.length - 1 ? "check" : "chevron_right"} size={18} />
+              {step === WIZARD_STEPS.length - 1 && !confirmHintDone && (
+                <span aria-hidden className="absolute inset-0 rounded-full bg-cyan-500 opacity-60 animate-ping pointer-events-none" />
+              )}
+              <Icon name={step === WIZARD_STEPS.length - 1 ? "check" : "chevron_right"} size={18} className="relative" />
             </button>
           </div>
         </div>
@@ -723,6 +741,10 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                   pacienteId={String(pacienteId)}
                   initial={data.tratamientos ?? []}
                   onItemsChange={() => refetch()}
+                  pacienteNombre={paciente.nombre_completo}
+                  diagnosticoTexto={actual.diagnostico_texto ?? ""}
+                  onNavigateTab={onNavigateTab}
+                  consultaActiva
                 />
                 {(totalFases > 0 || presupuestoTotal != null) && (
  <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-4">
@@ -751,6 +773,8 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
                 pacienteId={String(pacienteId)}
                 initial={data.recomendaciones ?? []}
                 onSaved={refetch}
+                pacienteNombre={paciente.nombre_completo}
+                onNavigateTab={onNavigateTab}
               />
             )
           )}
@@ -777,20 +801,21 @@ export function DiagnosticoTab({ paciente, consultaId, data, loading, refetch, o
           )}
 
       </div>
+      </div>
     </div>
 
     <AnimatePresence>
       {showFinalizar && (
         <ResponsiveSheet
-          title="Finalizar consulta"
+          title="Confirmar consulta"
           onClose={() => { setShowFinalizar(false); setConfirmado(false); }}
           footer={
             <button
-              onClick={() => { onFinalizarConsulta?.(); setShowFinalizar(false); setConfirmado(false); }}
+              onClick={() => { onConfirmarConsulta?.(); setShowFinalizar(false); setConfirmado(false); }}
               disabled={!confirmado}
               className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-semibold transition-colors"
             >
-              <Icon name="check_circle" size={16} /> Finalizar consulta
+              <Icon name="check_circle" size={16} /> Confirmar
             </button>
           }
         >
