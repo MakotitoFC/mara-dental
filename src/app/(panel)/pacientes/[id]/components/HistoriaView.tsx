@@ -223,6 +223,9 @@ export function HistoriaView({
   // Limpieza compartida al salir/finalizar una consulta: la marca como
   // finalizada en BD (para que no vuelva a aparecer como "reanudable" en el
   // banner de arriba) y limpia todo el estado local relacionado.
+  const [consultaConfirmada, setConsultaConfirmada] = useState(false);
+  useEffect(() => { setConsultaConfirmada(false); }, [consultaId]);
+
   async function cerrarConsultaState() {
     if (consultaId) {
       await finalizarConsultaAction(consultaId, String(p.id));
@@ -258,10 +261,11 @@ export function HistoriaView({
   // Al "Finalizar consulta" desde el wizard de Diagnóstico, el registro ya
   // se confirmó dentro de ese mismo modal — no debe pedirse de nuevo el
   // texto "salir de consulta", solo se limpia el estado y se avisa del éxito.
-  async function finalizarConsultaDirecto() {
-    await cerrarConsultaState();
-    toast.success("Consulta finalizada correctamente");
-    goTo(tab, { consultaId: null });
+  // El último paso del wizard solo CONFIRMA lo registrado: no cierra la
+  // consulta. Marca la consulta como confirmada para resaltar "Salir de consulta".
+  function confirmarConsulta() {
+    setConsultaConfirmada(true);
+    toast.success("Consulta confirmada. Ahora puedes salir de la consulta.");
   }
 
   // Cambiar de pestaña "a mano" (tab bar) en consulta activa también debe
@@ -464,9 +468,23 @@ export function HistoriaView({
             <Icon name="stethoscope" size={14} className="text-white" />
             Consulta en curso
           </span>
-          <button onClick={salirDeConsulta} className="text-[11.5px] font-semibold text-white border border-white rounded-lg px-2.5 py-1 bg-transparent hover:bg-white/10 transition-colors">
-            Salir de consulta
-          </button>
+          <div className="relative">
+            <button onClick={() => { setConsultaConfirmada(false); salirDeConsulta(); }} className={`text-[11.5px] font-semibold text-white border border-white rounded-lg px-2.5 py-1 bg-transparent hover:bg-white/10 transition-colors`}>
+              Salir de consulta
+            </button>
+            {consultaConfirmada && (
+              <div role="status" className="absolute right-0 top-full mt-2.5 z-40 w-[230px] max-w-[calc(100vw-24px)] rounded-xl bg-white border border-cyan-200 shadow-lg p-3 flex items-start gap-2">
+                <span aria-hidden className="absolute -top-1.5 right-6 w-3 h-3 rotate-45 bg-white border-l border-t border-cyan-200" />
+                <Icon name="check_circle" size={16} className="text-cyan-600 shrink-0 mt-px" />
+                <p className="flex-1 text-[12px] leading-snug text-slate-700">
+                  <span className="font-bold text-slate-900">Consulta confirmada.</span> Ya puedes salir de la consulta.
+                </p>
+                <button onClick={() => setConsultaConfirmada(false)} aria-label="Cerrar aviso" className="shrink-0 text-slate-400 hover:text-slate-600 bg-transparent border-0 p-0">
+                  <Icon name="close" size={14} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -515,7 +533,7 @@ export function HistoriaView({
           scroll de acá para que todo sea alcanzable (antes quedaba con overflow-hidden y
           el detalle quedaba inalcanzable). ── */}
       <div
-        className={`flex-1 min-h-0 overflow-x-hidden no-scrollbar ${diagnosticoWizardActivo ? "overflow-hidden" : "overflow-y-auto"} ${contentPadding}`}
+        className={`flex-1 min-h-0 overflow-x-hidden no-scrollbar ${tab === "archivos" ? "bg-white" : ""} ${diagnosticoWizardActivo ? "overflow-hidden" : "overflow-y-auto"} ${contentPadding}`}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -546,7 +564,7 @@ export function HistoriaView({
                 data={consultaData}
                 loading={loadingConsulta}
                 refetch={refetchConsultaData}
-                onFinalizarConsulta={finalizarConsultaDirecto}
+                onConfirmarConsulta={confirmarConsulta}
                 onNavigateTab={(t) => goTo(t as TabKey)}
               />
             )}

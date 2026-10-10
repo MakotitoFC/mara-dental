@@ -17,6 +17,8 @@ export interface ConfirmOptions {
   requireText?: string;
   /** false = confirmación neutral (no destructiva); por defecto true (rojo/peligro). */
   danger?: boolean;
+  /** true = sin el ícono de papelera en el botón de confirmar. */
+  hideIcon?: boolean;
 }
 
 interface PendingConfirm extends ConfirmOptions {
@@ -168,7 +170,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                     danger ? "bg-red-600 hover:bg-red-700" : "bg-cyan-600 hover:bg-cyan-700"
                   }`}
                 >
-                  {danger && <Icon name="delete" size={13} />}
+                  {danger && !pending.hideIcon && <Icon name="delete" size={13} />}
                   {pending.confirmLabel ?? (danger ? "Eliminar" : "Confirmar")}
                 </button>
               </div>

@@ -8,7 +8,7 @@ import { calcEdad } from "@/lib/date-utils";
 import { getExpedienteCompletoAction } from "../actions";
 import { getCasosClinicosAction } from "../casos.actions";
 import {
-  esc, fmtGenerado, buildLetterheadHeader, buildSignatureBlock, sectionLabel, wrapDocument,
+  esc, fmtGenerado, buildFormatoHeaderLogo, formatoSeccionTitulo, CIAN_CLARO, buildAnotacionesLeyenda, composeAnnotatedCanvas, buildSignatureBlock, sectionLabel, wrapDocument,
   downloadHtmlAsPaginatedPdf, printHtml, type ClinicaInfo,
 } from "@/lib/reportExport";
 
@@ -86,77 +86,6 @@ function toothStyle(convention?: string) {
   return { bg: "#0891b2", fg: "#fff" };
 }
 
-function renderAnotacionesSvg(anotaciones?: any[]): string {
-  if (!anotaciones || !Array.isArray(anotaciones) || anotaciones.length === 0) return "";
-
-  const elements: string[] = [];
-
-  for (const a of anotaciones) {
-    const color = a.color || "#ef4444";
-
-    // 1. Pines
-    if (a.type === "pin") {
-      const px = a.x ?? 0;
-      const py = a.y ?? 0;
-      const txt = a.text || a.nota || "";
-      elements.push(`
-        <circle cx="${px}" cy="${py}" r="2.5" fill="${color}" stroke="#ffffff" stroke-width="0.6" />
-        ${txt ? `<text x="${px + 3}" y="${py + 1.2}" fill="${color}" font-size="3.8" font-weight="bold">${esc(txt)}</text>` : ""}
-      `);
-    }
-
-    // 2. Textos
-    if (a.type === "text") {
-      const px = a.x ?? 0;
-      const py = a.y ?? 0;
-      elements.push(`
-        <text x="${px}" y="${py}" fill="${color}" font-size="4" font-weight="bold">${esc(a.text || "")}</text>
-      `);
-    }
-
-    // 3. Flechas
-    if (a.type === "arrow") {
-      const x1 = a.x1 ?? a.from?.x ?? 0;
-      const y1 = a.y1 ?? a.from?.y ?? 0;
-      const x2 = a.x2 ?? a.to?.x ?? 0;
-      const y2 = a.y2 ?? a.to?.y ?? 0;
-      elements.push(`
-        <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1.6" stroke-linecap="round" />
-        <circle cx="${x2}" cy="${y2}" r="1.8" fill="${color}" />
-      `);
-    }
-
-    // 4. Dibujos / Trazos canvas (draws)
-    if (a.type === "draw") {
-      if (Array.isArray(a.strokes) && a.strokes.length > 0) {
-        for (const stroke of a.strokes) {
-          if (Array.isArray(stroke.points) && stroke.points.length > 1) {
-            const strokeColor = stroke.color || color;
-            const strokeWidth = (stroke.width || 3) * 0.35;
-            const pathData = stroke.points.map((p: any, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-            elements.push(`
-              <path d="${pathData}" stroke="${strokeColor}" stroke-width="${strokeWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-            `);
-          }
-        }
-      } else if (Array.isArray(a.points) && a.points.length > 1) {
-        const pathData = a.points.map((p: any, i: number) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-        elements.push(`
-          <path d="${pathData}" stroke="${color}" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-        `);
-      }
-    }
-  }
-
-  if (elements.length === 0) return "";
-
-  return `
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;">
-      ${elements.join("")}
-    </svg>
-  `;
-}
-
 function buildOdontogramaHtml(entries: any[]): string {
   const allFindings = entries.flatMap((o: any) => o.findings || []);
   if (allFindings.length === 0) return "";
@@ -199,9 +128,8 @@ function buildHistoriaClinicaHtml(data: any, secciones: Secciones): string {
   const docCode = hc?.codigo_historia || "Historia Clínica";
   const generado = fmtGenerado();
   const edad = p.fecha_nacimiento ? calcEdad(p.fecha_nacimiento) : null;
-  const initials = [p.nombre, p.apellido].filter(Boolean).map((s: string) => s[0]).join("").toUpperCase().slice(0, 2) || "PA";
 
-  const header = buildLetterheadHeader({ clinica, docLabel: "Historia Clínica Odontológica", docCode, pacienteNombre: nombreCompleto, generado });
+  const header = buildFormatoHeaderLogo({ titulo: "Historia Clínica Odontológica", linea1: docCode, linea2: `Generado: ${generado}` });
 
   const field = (label: string, value?: string | null) => `
     <div style="padding-left:11px;border-left:2px solid #d3edf1;">
@@ -217,29 +145,25 @@ function buildHistoriaClinicaHtml(data: any, secciones: Secciones): string {
   ` : "";
   const pillRow = (items: string[], bg: string, fg: string) => items.length === 0 ? "" : `
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
-      ${items.map((a) => `<span style="display:inline-flex;padding:3.5px 11px;border-radius:999px;font-size:10.5px;font-weight:700;background:${bg};color:${fg};">${esc(a)}</span>`).join("")}
+      ${items.map((a) => `<span style="display:inline-block;padding:2px 11px 6px;line-height:1.2;border-radius:999px;font-size:10.5px;font-weight:700;background:${bg};color:${fg};">${esc(a)}</span>`).join("")}
     </div>
   `;
 
   // 1. Encabezado Obligatorio de Historia Clínica y Datos Generales del Paciente
   const patientHeaderBlock = `
-    <table style="width:100%;border-collapse:collapse;margin-top:20px;border-bottom:2px solid #e2e8f0;padding-bottom:16px;page-break-inside:avoid;break-inside:avoid;"><tr>
-      <td style="width:56px;padding:0 16px 0 28px;vertical-align:middle;">
-        <table style="width:56px;height:56px;border-collapse:collapse;"><tr>
-          <td style="width:56px;height:56px;border-radius:50%;background:linear-gradient(155deg,#0891b2,#0e7490);color:#fff;text-align:center;vertical-align:middle;font-size:18px;font-weight:800;">${esc(initials)}</td>
-        </tr></table>
-      </td>
-      <td style="vertical-align:middle;padding-right:28px;">
-        <div style="font-size:20px;font-weight:800;color:#212E3D;">${esc(nombreCompleto)}</div>
-        <div style="font-size:11.5px;color:#5D6D7E;margin-top:3px;">DNI ${esc(p.dni || "—")} · ${esc(p.sexo || "—")}${edad != null ? ` · ${edad} años` : ""}</div>
-        <div style="margin-top:8px;">
-          ${hc?.codigo_historia ? `<span style="display:inline-block;padding:4px 11px 3px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;background:#e3f4f6;color:#0e7490;">Código HC: ${esc(hc.codigo_historia)}</span>` : ""}
-          ${hc?.fecha_creacion ? `<span style="display:inline-block;padding:4px 11px 3px;border-radius:999px;font-size:10.5px;font-weight:700;line-height:1;margin-left:6px;background:#f1f5f9;color:#64748b;">Apertura: ${fmtFechaCorta(hc.fecha_creacion)}</span>` : ""}
-        </div>
-      </td>
-    </tr></table>
+    <div style="margin:0 28px 0;border:1px solid ${CIAN_CLARO};border-radius:12px;padding:16px 20px;page-break-inside:avoid;break-inside:avoid;">
+    ${formatoSeccionTitulo("user", "Datos del Paciente")}
+    <div>
+      <div style="font-size:15px;font-weight:800;color:#212E3D;">${esc(nombreCompleto)}</div>
+      <div style="font-size:11px;color:#5D6D7E;margin-top:3px;">DNI ${esc(p.dni || "—")} · ${esc(p.sexo || "—")}${edad != null ? ` · ${edad} años` : ""}</div>
+      <div style="font-size:11px;color:#5D6D7E;margin-top:3px;">
+        ${hc?.codigo_historia ? `<span>Código HC: <b style="color:#0e7490;">${esc(hc.codigo_historia)}</b></span>` : ""}
+        ${hc?.codigo_historia && hc?.fecha_creacion ? `<span style="margin:0 6px;color:#cbd5e1;">|</span>` : ""}
+        ${hc?.fecha_creacion ? `<span>Apertura: <b style="color:#5D6D7E;">${fmtFechaCorta(hc.fecha_creacion)}</b></span>` : ""}
+      </div>
+    </div>
 
-    <div style="padding:18px 28px 0;display:grid;grid-template-columns:repeat(2,1fr);gap:12px 28px;page-break-inside:avoid;break-inside:avoid;">
+    <div style="padding:18px 0 0;display:grid;grid-template-columns:repeat(2,1fr);gap:12px 28px;">
       ${field("Fecha de nacimiento", fmtFechaCorta(p.fecha_nacimiento))}
       ${field("Sexo", p.sexo)}
       ${field("Grupo sanguíneo", p.grupo_sanguineo)}
@@ -247,10 +171,11 @@ function buildHistoriaClinicaHtml(data: any, secciones: Secciones): string {
       ${field("Email", p.email)}
       ${field("Dirección", p.direccion || p.domicilio)}
     </div>
+    </div>
 
     ${secciones.resumenClinico ? `
-      <div style="margin:16px 28px 0;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;page-break-inside:avoid;break-inside:avoid;">
-        ${sectionLabel("Resumen clínico y antecedentes del paciente")}
+      <div style="margin:16px 28px 0;padding:16px 20px;border:1px solid ${CIAN_CLARO};border-radius:12px;page-break-inside:avoid;break-inside:avoid;">
+        ${formatoSeccionTitulo("stethoscope", "Resumen clínico y antecedentes")}
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px 16px;margin-bottom:10px;">
           ${infoItem("Ocupación", p.ocupacion)}
           ${infoItem("Estado civil", p.estado_civil)}
@@ -297,7 +222,7 @@ function buildHistoriaClinicaHtml(data: any, secciones: Secciones): string {
             <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:11px;font-weight:700;color:#0e7490;">${esc(d.cie10?.codigo || "—")}</td>
             <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;font-size:11px;color:#1e293b;">${esc(d.texto)}</td>
             <td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;">
-              <span style="display:inline-flex;padding:2.5px 8px;border-radius:4px;font-size:9.5px;font-weight:700;background:${d.es_definitivo ? "#fee2e2" : "#fef3c7"};color:${d.es_definitivo ? "#dc2626" : "#b45309"};">${d.es_definitivo ? "Definitivo" : "Presuntivo"}</span>
+              <span style="display:inline-block;padding:1px 8px 5px;line-height:1.2;border-radius:4px;font-size:9.5px;font-weight:700;background:${d.es_definitivo ? "#fee2e2" : "#fef3c7"};color:${d.es_definitivo ? "#dc2626" : "#b45309"};">${d.es_definitivo ? "Definitivo" : "Presuntivo"}</span>
             </td>
           </tr>
         `).join("");
@@ -359,21 +284,21 @@ function buildHistoriaClinicaHtml(data: any, secciones: Secciones): string {
 
         const archivosHtml = (!secciones.archivos || (c.archivos || []).length === 0) ? "" : `
           <div style="margin-bottom:6px;page-break-inside:avoid;break-inside:avoid;">${sectionLabel(`Archivos y Radiografías con anotaciones (${c.archivos.length})`)}</div>
-          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:12px;page-break-inside:avoid;break-inside:avoid;">
+          <div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:12px;">
             ${(c.archivos || []).map((a: any) => {
               const isImg = /\.(jpe?g|png|gif|webp)$/i.test(a.nombre_archivo || "");
               return `
-                <div style="border:1.5px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#ffffff;page-break-inside:avoid;break-inside:avoid;">
-                  <div style="position:relative;width:100%;height:200px;background:#0f172a;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                <div data-avoid-break style="border:1.5px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#ffffff;">
+                  <div style="position:relative;width:100%;background:#0f172a;line-height:0;${isImg ? "" : "height:120px;display:flex;align-items:center;justify-content:center;"}">
                     ${isImg
-                      ? `<img src="${a.displayUrl}" style="width:100%;height:100%;object-fit:contain;" crossorigin="anonymous" />
-                         ${renderAnotacionesSvg(a.anotaciones)}`
+                      ? `<img src="${a.annotatedSrc || a.displayUrl}" style="width:100%;height:auto;display:block;" crossorigin="anonymous" />`
                       : `<svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" stroke="#94a3b8" stroke-width="1.6"/><path d="M14 2v5h5" stroke="#94a3b8" stroke-width="1.6"/></svg>`
                     }
                   </div>
                   <div style="padding:8px 10px;background:#f8fafc;border-top:1px solid #e2e8f0;">
                     <div style="font-size:10.5px;color:#0f172a;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.nombre_archivo)}</div>
-                    <div style="font-size:9px;color:#64748b;margin-top:2px;">${esc(a.categoria || a.tipo_archivo || "")} ${(a.anotaciones && a.anotaciones.length > 0) ? `· <b>${a.anotaciones.length} anotación(es)</b>` : ""}</div>
+                    <div style="font-size:9px;color:#64748b;margin-top:2px;">${esc(a.categoria || a.tipo_archivo || "")}</div>
+                    ${a.anotaciones?.length ? `<div style="margin-top:6px;padding-top:5px;border-top:1px dashed #e2e8f0;">${buildAnotacionesLeyenda(a.anotaciones)}</div>` : ""}
                   </div>
                 </div>
               `;
@@ -477,7 +402,7 @@ function buildHistoriaClinicaHtml(data: any, secciones: Secciones): string {
             <div style="font-size:16px;font-weight:800;color:#0e7490;">
               Caso Clínico: ${esc(caso.titulo_caso_clinico || "Consulta General")}
             </div>
-            <span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:10.5px;font-weight:700;background:${caso.estado === 'De alta' ? '#f1f5f9' : '#e0f2fe'};color:${caso.estado === 'De alta' ? '#64748b' : '#0369a1'};">
+            <span style="display:inline-block;padding:2px 10px 6px;line-height:1.2;border-radius:999px;font-size:10.5px;font-weight:700;background:${caso.estado === 'De alta' ? '#f1f5f9' : '#e0f2fe'};color:${caso.estado === 'De alta' ? '#64748b' : '#0369a1'};">
               Estado: ${esc(caso.estado)}
             </span>
           </div>
@@ -539,6 +464,21 @@ export function DescargarExpedienteModal({ paciente, onClose }: {
       });
       if (!data) { setError("No se pudo cargar el expediente del paciente."); return; }
 
+      // Las imágenes con anotaciones se componen (trazos, flechas, pines y textos
+      // sobre la imagen original) antes de armar el documento.
+      if (secciones.archivos) {
+        const archivos = (data.casosClinicos || []).flatMap((caso: any) => (caso.consultas || []).flatMap((c: any) => c.archivos || []));
+        await Promise.all(archivos.map(async (a: any) => {
+          const esImagen = /.(jpe?g|png|gif|webp)$/i.test(a.nombre_archivo || "");
+          if (!esImagen || !a.displayUrl || !Array.isArray(a.anotaciones) || a.anotaciones.length === 0) return;
+          try {
+            a.annotatedSrc = (await composeAnnotatedCanvas(a.displayUrl, a.anotaciones)).toDataURL("image/jpeg", 0.92);
+          } catch (e) {
+            console.error("No se pudo componer la imagen anotada:", e);
+          }
+        }));
+      }
+
       const html = buildHistoriaClinicaHtml(data, secciones);
       const nombreCompleto = [paciente.nombre, paciente.apellido].filter(Boolean).join(" ") || "Paciente";
 
@@ -549,7 +489,7 @@ export function DescargarExpedienteModal({ paciente, onClose }: {
         const apellido = slugify(paciente.apellido || data.paciente?.apellido || "PACIENTE");
         const fecha = new Date().toISOString().split("T")[0];
         const filename = `HC-${codigo}-${apellido}-${fecha}.pdf`;
-        await downloadHtmlAsPaginatedPdf(html, filename, 850, { clinica: data.sede, docLabel: "Historia Clínica Odontológica" });
+        await downloadHtmlAsPaginatedPdf(html, filename, 900);
       }
       onClose();
     } catch (err) {

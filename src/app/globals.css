@@ -220,3 +220,10 @@ html.dark { color-scheme: dark; }
     font-size: 14px;
   }
 }
+
+/* Indicador suave de "pulsa aquí": el botón se hunde un poco, como un toque. */
+@keyframes tap-hint {
+  0%, 60%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  75% { transform: scale(0.94); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.28); }
+}
+.tap-hint { animation: tap-hint 1.8s ease-in-out infinite; }

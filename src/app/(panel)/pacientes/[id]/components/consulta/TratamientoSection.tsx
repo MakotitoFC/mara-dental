@@ -9,17 +9,22 @@ import { TextInput, Textarea } from "@/components/ui/TextInput";
 import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
 import { useConfirm } from "@/components/ui/ConfirmModal";
 import { useToast } from "@/components/ui/Toast";
-import { 
-  saveTratamientoAction, 
-  deleteTratamientoAction, 
-  editTratamientoAction, 
-  savePlanTrabajoAction, 
-  deletePlanTrabajoAction, 
-  editPlanTrabajoAction, 
-  searchCatalogoAction, 
+import {
+  saveTratamientoAction,
+  deleteTratamientoAction,
+  editTratamientoAction,
+  savePlanTrabajoAction,
+  deletePlanTrabajoAction,
+  editPlanTrabajoAction,
+  searchCatalogoAction,
   getCatalogoTratamientosAction,
-  getTiposArchivoAction
+  getTiposArchivoAction,
+  getSedeInfoAction,
 } from "../../consulta.actions";
+import { getPerfilProfesionalAction } from "../../../../configuracion/actions";
+import {
+  buildDiagnosticoPlanHtml, downloadHtmlAsPaginatedPdf, generatePaginatedPdfBlob, printHtml, type ClinicaInfo, type DiagnosticoPlanItem,
+} from "@/lib/reportExport";
 
 interface ArchivoFase {
   id: string;
@@ -47,6 +52,8 @@ interface Tratamiento {
   notas: string;
   catalogo_id: number;
   catalogo_nombre: string;
+  precio?: number | null;
+  moneda?: string;
   plan: PlanTratamiento[];
 }
 
@@ -222,14 +229,24 @@ export function TratamientoSection({
   enabled = true,
   onItemsChange,
   scrollBody = false,
-}: { 
-  diagnosticoId: string; 
-  consultaId: string; 
-  pacienteId: string; 
-  initial: Tratamiento[]; 
-  enabled?: boolean; 
-  onItemsChange?: (items: Tratamiento[]) => void; 
-  scrollBody?: boolean 
+  pacienteNombre,
+  diagnosticoTexto,
+  onNavigateTab,
+  consultaActiva = false,
+}: {
+  diagnosticoId: string;
+  consultaId: string;
+  pacienteId: string;
+  initial: Tratamiento[];
+  enabled?: boolean;
+  onItemsChange?: (items: Tratamiento[]) => void;
+  scrollBody?: boolean;
+  /** Para el documento "Diagnóstico y Plan de Tratamiento" — igual patrón de props que ya usa RecetaSection. */
+  pacienteNombre?: string;
+  diagnosticoTexto?: string;
+  onNavigateTab?: (tab: string) => void;
+  /** true dentro del wizard de consulta activa — cambia el aviso al agendar. */
+  consultaActiva?: boolean;
 }) {
   const [items, setItems] = useState<Tratamiento[]>(initial);
   const [adding, setAdding] = useState(false);
@@ -237,7 +254,7 @@ export function TratamientoSection({
   useEffect(() => {
     setItems(initial || []);
   }, [initial]);
-  
+
   // Agregar tratamiento
   const [selectedCatalogo, setSelectedCatalogo] = useState<any>(null);
   const [notas, setNotas] = useState("");
@@ -267,6 +284,8 @@ export function TratamientoSection({
         notas,
         catalogo_id: selectedCatalogo.id,
         catalogo_nombre: selectedCatalogo.nombre,
+        precio: selectedCatalogo.precio ?? null,
+        moneda: selectedCatalogo.moneda ?? "PEN",
         plan: []
       }]);
       setAdding(false);
@@ -275,6 +294,62 @@ export function TratamientoSection({
       toast.success("Tratamiento agregado correctamente");
     } else if (res?.error) {
       toast.error(res.error);
+    }
+  }
+
+  // ── Documento "Diagnóstico y Plan de Tratamiento" ──────────────────────
+  const [sede, setSede] = useState<ClinicaInfo | null>(null);
+  const [exportando, setExportando] = useState<"print" | "pdf" | "telegram" | null>(null);
+
+  useEffect(() => {
+    getSedeInfoAction().then(setSede).catch(() => {});
+  }, []);
+
+  function buildDiagnosticoPlanDoc() {
+    const planItems: DiagnosticoPlanItem[] = items.map((t) => ({
+      nombre: t.catalogo_nombre,
+      precio: t.precio ?? null,
+      moneda: t.moneda ?? "PEN",
+    }));
+    return buildDiagnosticoPlanHtml({
+      pacienteNombre,
+      fecha: new Date().toISOString(),
+      diagnosticos: diagnosticoTexto ? [diagnosticoTexto] : [],
+      items: planItems,
+    });
+  }
+
+  async function handleExportar(mode: "print" | "pdf" | "telegram") {
+    setExportando(mode);
+    try {
+      const html = buildDiagnosticoPlanDoc();
+      const pacienteSlug = (pacienteNombre || "paciente").replace(/\s+/g, "_");
+      if (mode === "print") {
+        await printHtml(html, `Diagnóstico y Plan · ${pacienteNombre || ""}`);
+      } else if (mode === "pdf") {
+        await downloadHtmlAsPaginatedPdf(html, `diagnostico_plan_${pacienteSlug}.pdf`, 900);
+      } else if (mode === "telegram") {
+        (window as any).__loadingTelegramAttachment = true;
+        (window as any).__autoSendPending = false;
+        onNavigateTab?.("chat");
+        const blob = await generatePaginatedPdfBlob(html, 900);
+        const filename = `Diagnostico_Plan_${pacienteSlug}.pdf`;
+        const pdfFile = new File([blob], filename, { type: "application/pdf" });
+        const caption = `🦷 Diagnóstico y Plan de Tratamiento para ${pacienteNombre || "el paciente"}.`;
+        (window as any).__pendingTelegramFile = pdfFile;
+        (window as any).__pendingTelegramCaption = caption;
+        (window as any).__loadingTelegramAttachment = false;
+        window.dispatchEvent(new CustomEvent("telegram_attachment_ready", { detail: { file: pdfFile, caption } }));
+      }
+    } catch (err) {
+      console.error("Error exportando diagnóstico y plan: ", err);
+      if (mode === "telegram") {
+        (window as any).__loadingTelegramAttachment = false;
+        window.dispatchEvent(new CustomEvent("telegram_attachment_error"));
+      }
+      toast.error("No se pudo generar el documento.");
+    } finally {
+      setExportando(null);
     }
   }
 
@@ -311,11 +386,25 @@ export function TratamientoSection({
  <p className="text-[11px] text-slate-400 truncate">Define los tratamientos y sus fases</p>
           </div>
         </div>
-        <button onClick={() => setAdding(v => !v)}
- className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-cyan-200 text-[12px] font-semibold text-cyan-600 hover:bg-cyan-50 transition-colors">
-          <Icon name={adding ? "remove" : "add"} size={16} />
-          {adding ? "Cancelar" : "Agregar"}
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={() => handleExportar("print")} disabled={exportando !== null} title="Imprimir Diagnóstico y Plan"
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors">
+            <Icon name="print" size={13} />
+          </button>
+          <button onClick={() => handleExportar("pdf")} disabled={exportando !== null} title="Descargar PDF"
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors">
+            <Icon name="download" size={13} />
+          </button>
+          <button onClick={() => handleExportar("telegram")} disabled={exportando !== null} title="Enviar por Telegram"
+ className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-[color:var(--telegram-blue)] hover:bg-[color:var(--telegram-blue)]/10 disabled:opacity-40 transition-colors">
+            <Icon name="send" size={13} />
+          </button>
+          <button onClick={() => setAdding(v => !v)}
+ className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-cyan-200 text-[12px] font-semibold text-cyan-600 hover:bg-cyan-50 transition-colors">
+            <Icon name={adding ? "remove" : "add"} size={16} />
+            {adding ? "Cancelar" : "Agregar"}
+          </button>
+        </div>
       </div>
 
       <div className={`p-5 flex flex-col gap-5 ${scrollBody ? "flex-1 min-h-0 overflow-y-auto no-scrollbar" : ""}`}>
@@ -363,6 +452,7 @@ export function TratamientoSection({
                 tratamiento={t}
                 pacienteId={pacienteId}
                 consultaId={consultaId}
+                consultaActiva={consultaActiva}
                 onDelete={() => handleDelete(t.id)}
                 onPlanChange={(plan) => updateItems(items.map(i => i.id === t.id ? { ...i, plan } : i))}
               />
@@ -374,13 +464,27 @@ export function TratamientoSection({
   );
 }
 
-function TratamientoCard({ tratamiento, pacienteId, consultaId, onDelete, onPlanChange }: { tratamiento: Tratamiento; pacienteId: string; consultaId: string; onDelete: () => void; onPlanChange?: (plan: PlanTratamiento[]) => void }) {
+function TratamientoCard({ tratamiento, pacienteId, consultaId, consultaActiva, onDelete, onPlanChange }: { tratamiento: Tratamiento; pacienteId: string; consultaId: string; consultaActiva?: boolean; onDelete: () => void; onPlanChange?: (plan: PlanTratamiento[]) => void }) {
   const [addingFase, setAddingFase] = useState(false);
   const [faseForm, setFaseForm] = useState({ etapa: "", descripcion: "", tiempo_pronostico: "", estado: "pendiente" });
   const [savingFase, setSavingFase] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [localPlan, setLocalPlan] = useState<PlanTratamiento[]>(tratamiento.plan || []);
   const toast = useToast();
+  const confirmAgendar = useConfirm();
+
+  async function handleAgendar() {
+    const ok = await confirmAgendar({
+      title: "Agendar cita",
+      message: consultaActiva
+        ? "Se abrirá una nueva pestaña para agendar la cita. Al terminar, cierra esa pestaña y regresa a esta para continuar con la consulta. ¿Confirmas?"
+        : "Se abrirá una nueva pestaña para agendar la cita. Al terminar, cierra esa pestaña y regresa a la anterior. ¿Confirmas?",
+      confirmLabel: "Confirmar",
+      hideIcon: true,
+    });
+    if (!ok) return;
+    window.open(`/agenda?paciente=${pacienteId}&tratamiento_id=${tratamiento.id}`, "_blank", "noopener,noreferrer");
+  }
 
   function updatePlan(next: PlanTratamiento[]) {
     setLocalPlan(next);
@@ -425,10 +529,10 @@ function TratamientoCard({ tratamiento, pacienteId, consultaId, onDelete, onPlan
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0 pl-2">
-          <a href={`/agenda?paciente=${pacienteId}&tratamiento_id=${tratamiento.id}`} target="_blank" rel="noopener noreferrer"
+          <button type="button" onClick={handleAgendar}
  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-cyan-600 text-cyan-600 text-[11px] font-semibold hover:bg-cyan-50 transition-colors">
-            <Icon name="event" size={14} /> Agendar Cita
-          </a>
+            <Icon name="event" size={14} /> Agendar
+          </button>
           <button onClick={onDelete} className="text-slate-400 hover:text-red-500 ml-2">
             <Icon name="delete" size={16} />
           </button>
