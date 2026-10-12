@@ -81,6 +81,15 @@ const NAV_BY_ROLE: Record<string, NavItem[]> = {
 
 const DEFAULT_NAV: NavItem[] = NAV_BY_ROLE.doctor;
 
+// Con ~19 módulos, doctor_admin no puede ver una sola grilla plana en "Más":
+// se agrupan con los mismos títulos que usa el Sidebar (Administración,
+// Pacientes, Contabilidad).
+const DOCTOR_ADMIN_GROUPS: { title: string; hrefs: string[] }[] = [
+  { title: "Pacientes", hrefs: ["/dashboard", "/agenda", "/pacientes", "/pagos", "/plantillas"] },
+  { title: "Administración", hrefs: ["/admin/dashboard", "/admin/catalogo", "/admin/configuracion-tipos", "/categorias", "/proveedores", "/admin/personal", "/admin/auditoria", "/admin/validaciones"] },
+  { title: "Contabilidad", hrefs: ["/contador-dashboard", "/caja", "/comprobantes", "/presupuestos", "/tipo-cambio", "/reportes"] },
+];
+
 export function BottomNav() {
   const router = useRouter();
   const { activePath } = useActiveConsultaGuard();
@@ -104,6 +113,14 @@ export function BottomNav() {
   const primaryItems = hasOverflow ? navItems.slice(0, 3) : navItems;
   const overflowItems = hasOverflow ? navItems.slice(3) : [];
   const isOverflowActive = overflowItems.some((item) => isActive(item.href));
+
+  // Solo doctor_admin se agrupa; el resto de roles mantiene la grilla única.
+  const overflowGroups: { title: string | null; items: NavItem[] }[] =
+    user?.rol === "doctor_admin"
+      ? DOCTOR_ADMIN_GROUPS
+          .map((g) => ({ title: g.title, items: overflowItems.filter((i) => g.hrefs.includes(i.href)) }))
+          .filter((g) => g.items.length > 0)
+      : [{ title: null, items: overflowItems }];
 
   function NavLink({ item }: { item: NavItem }) {
     const active = isActive(item.href);
@@ -167,25 +184,34 @@ export function BottomNav() {
       <AnimatePresence>
         {moreOpen && (
           <ResponsiveSheet onClose={() => setMoreOpen(false)} title="Más opciones">
-            <div className="grid grid-cols-3 gap-3 pb-2">
-              {overflowItems.map((item) => {
-                const active = isActive(item.href);
-                return (
-                  <GuardedLink
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMoreOpen(false)}
-                    className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border transition-colors ${
-                      active
- ? "bg-cyan-50 border-cyan-200 text-cyan-700"
- :"bg-slate-50 border-slate-200 text-slate-500"
-                    }`}
-                  >
-                    <Icon name={item.icon} size={22} />
-                    <span className="text-[11px] font-medium text-center">{item.label}</span>
-                  </GuardedLink>
-                );
-              })}
+            <div className="flex flex-col gap-4 pb-2">
+              {overflowGroups.map((group) => (
+                <div key={group.title ?? "all"}>
+                  {group.title && (
+                    <p className="px-1 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">{group.title}</p>
+                  )}
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {group.items.map((item) => {
+                      const active = isActive(item.href);
+                      return (
+                        <GuardedLink
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setMoreOpen(false)}
+                          className={`flex flex-col items-center justify-center gap-1.5 py-4 px-1 rounded-xl border transition-colors ${
+                            active
+                              ? "bg-cyan-50 border-cyan-200 text-cyan-700"
+                              : "bg-slate-50 border-slate-200 text-slate-500"
+                          }`}
+                        >
+                          <Icon name={item.icon} size={22} />
+                          <span className="text-[11px] font-medium text-center leading-tight">{item.label}</span>
+                        </GuardedLink>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </ResponsiveSheet>
         )}

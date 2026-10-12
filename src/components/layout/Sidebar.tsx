@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion } from "framer-motion";
@@ -151,8 +151,41 @@ export function Sidebar() {
   };
 
   useEffect(() => {
-    setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+    // Sin preferencia guardada, en tablet (< lg) arranca como riel de íconos
+    // para no quitarle 224px a un contenido que ya es angosto.
+    const stored = localStorage.getItem(COLLAPSE_KEY);
+    setCollapsed(stored === null ? window.innerWidth < 1024 : stored === "1");
   }, []);
+
+  // Indicadores de "hay más contenido": el nav no muestra barra de scroll
+  // (no-scrollbar), así que sin esto con varias secciones abiertas nada
+  // sugiere que debajo (o arriba) hay más módulos.
+  const navRef = useRef<HTMLElement>(null);
+  const [scrollHint, setScrollHint] = useState({ up: false, down: false });
+
+  const updateScrollHint = useCallback(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const up = el.scrollTop > 4;
+    const down = el.scrollTop + el.clientHeight < el.scrollHeight - 4;
+    setScrollHint((prev) => (prev.up === up && prev.down === down ? prev : { up, down }));
+  }, []);
+
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    updateScrollHint();
+    const ro = new ResizeObserver(updateScrollHint);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, [updateScrollHint, accordions, collapsed, user?.rol]);
+
+  const scrollNav = (dir: 1 | -1) => {
+    const el = navRef.current;
+    if (!el) return;
+    el.scrollBy({ top: dir * el.clientHeight * 0.7, behavior: "smooth" });
+  };
 
   useEffect(() => {
     if (!user || (user.rol !== "admin" && user.rol !== "superadmin" && user.rol !== "doctor_admin") || !user.sede_id) return;
@@ -269,7 +302,13 @@ export function Sidebar() {
       </div>
 
       {/* Navegación principal */}
-      <nav className="flex-1 py-3 overflow-y-auto no-scrollbar overflow-x-hidden">
+      <div className="relative flex-1 min-h-0">
+      <nav
+        ref={navRef}
+        onScroll={updateScrollHint}
+        className="h-full py-3 overflow-y-auto no-scrollbar overflow-x-hidden"
+      >
+       <div>
         {userRole === "doctor_admin" ? (
           DOCTOR_ADMIN_SECTIONS.map((sec, idx) => {
             const isOpen = Boolean(accordions[sec.id]);
@@ -301,7 +340,9 @@ export function Sidebar() {
                   </div>
                 )}
 
-                {isOpen && (
+                {/* Riel colapsado: no hay título para abrir/cerrar, así que se
+                    muestran siempre todos los módulos (separados por la línea). */}
+                {(isOpen || collapsed) && (
                   <div className="flex flex-col gap-0.5 mt-0.5">
                     {sec.items.map((item) => {
                       const active = isActive(item.href);
@@ -390,7 +431,35 @@ export function Sidebar() {
             );
           })
         )}
+       </div>
       </nav>
+
+      {/* Fades + chevron: avisan que el menú sigue arriba/abajo. */}
+      {scrollHint.up && (
+        <div className="absolute top-0 inset-x-0 h-10 bg-gradient-to-b from-white via-white/80 to-transparent flex items-start justify-center pointer-events-none">
+          <button
+            type="button"
+            onClick={() => scrollNav(-1)}
+            aria-label="Ver más módulos arriba"
+            className="pointer-events-auto mt-0.5 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-cyan-700 hover:border-cyan-200 transition-colors"
+          >
+            <Icon name="expand_less" size={14} />
+          </button>
+        </div>
+      )}
+      {scrollHint.down && (
+        <div className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-white via-white/85 to-transparent flex items-end justify-center pointer-events-none">
+          <button
+            type="button"
+            onClick={() => scrollNav(1)}
+            aria-label="Ver más módulos abajo"
+            className="pointer-events-auto mb-1 w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-cyan-700 hover:border-cyan-200 transition-colors animate-bounce"
+          >
+            <Icon name="expand_more" size={14} />
+          </button>
+        </div>
+      )}
+      </div>
 
       {/* Pie: configuración + usuario */}
  <div className="border-t border-slate-200 py-3">

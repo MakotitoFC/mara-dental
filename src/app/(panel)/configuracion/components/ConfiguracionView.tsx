@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmModal";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { TimePicker } from "@/components/ui/TimePicker";
 import { DatePicker } from "@/components/ui/DatePicker";
@@ -17,6 +18,8 @@ import {
   updatePerfilPersonalAction,
   updateSedeAction,
   updateLogoSedeAction,
+  deleteLogoSedeAction,
+  deleteFirmaDigitalAction,
   type PerfilProfesional,
   type HorarioRango,
   type DoctorHorarioSede,
@@ -589,6 +592,7 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
 }) {
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
   const esAsistente = rol === "asistente";
   const esAdmin = rol === "admin" || rol === "doctor_admin";
   const esSuperAdmin = rol === "superadmin";
@@ -725,11 +729,26 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
     }
   };
 
-  const handleLogoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const [draggingLogo, setDraggingLogo] = useState(false);
+
+  const procesarLogoFile = (file: File | undefined | null) => {
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecciona una imagen para el logo");
+      return;
+    }
     setPendingLogoFile(file);
     setLogoPreview(URL.createObjectURL(file));
+  };
+
+  const handleLogoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    procesarLogoFile(e.target.files?.[0]);
+  };
+
+  const handleLogoDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDraggingLogo(false);
+    procesarLogoFile(e.dataTransfer.files?.[0]);
   };
 
   const handleSaveLogo = async () => {
@@ -748,6 +767,61 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
       toast.success("Logo de la sede actualizado correctamente");
       setPendingLogoFile(null);
       setLogoPreview(null);
+      router.refresh();
+    }
+  };
+
+  const handleDeleteLogo = async () => {
+    if (!activeSede) return;
+    // Solo había un archivo elegido sin guardar: basta con descartarlo.
+    if (pendingLogoFile) {
+      setPendingLogoFile(null);
+      setLogoPreview(null);
+      if (logoFileRef.current) logoFileRef.current.value = "";
+      return;
+    }
+    const ok = await confirm({
+      title: "Eliminar logo de la sede",
+      message: "Se quitará el logo de la sede y se borrará el archivo subido. ¿Continuar?",
+      confirmLabel: "Sí, eliminar",
+    });
+    if (!ok) return;
+
+    setUploadingLogo(true);
+    const res = await deleteLogoSedeAction(activeSede.id);
+    setUploadingLogo(false);
+
+    if (res?.error) {
+      toast.error(res.error);
+    } else {
+      toast.success("Logo de la sede eliminado");
+      router.refresh();
+    }
+  };
+
+  const handleDeleteFirma = async () => {
+    // Solo había un archivo elegido sin guardar: basta con descartarlo.
+    if (pendingFirmaFile) {
+      setPendingFirmaFile(null);
+      setFirmaPreview(null);
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    const ok = await confirm({
+      title: "Eliminar firma digital",
+      message: "Se quitará tu firma y se borrará el archivo subido. Los documentos nuevos saldrán sin firma hasta que subas otra. ¿Continuar?",
+      confirmLabel: "Sí, eliminar",
+    });
+    if (!ok) return;
+
+    setUploadingFirma(true);
+    const res = await deleteFirmaDigitalAction();
+    setUploadingFirma(false);
+
+    if (res?.error) {
+      toast.error(res.error);
+    } else {
+      toast.success("Firma digital eliminada");
       router.refresh();
     }
   };
@@ -1265,6 +1339,68 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
   // (Firma Digital) y SECCIÓN 4 (Horario Profesional) el contenido de
   // doctor es tan largo como el de admin — se unifica a un solo layout a
   // todo el ancho para los tres roles.
+  const firmaCard = (
+    <div className="rounded-2xl border border-slate-200 p-4 flex flex-col items-center gap-3">
+      <div className="self-start">
+        <p className="text-[10px] font-bold text-slate-400 uppercase">Firma digital del profesional</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">Se imprime en recetas y documentos clínicos</p>
+      </div>
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDraggingFirma(true); }}
+        onDragLeave={() => setDraggingFirma(false)}
+        onDrop={handleFirmaDrop}
+        onClick={() => fileRef.current?.click()}
+        className={`w-full h-28 rounded-xl border-2 border-dashed flex items-center justify-center p-2 overflow-hidden relative cursor-pointer transition-colors ${draggingFirma ? "border-cyan-400 bg-cyan-50" : "border-slate-300 bg-slate-50"}`}
+      >
+        {procesandoFirma ? (
+          <div className="flex flex-col items-center gap-1 text-slate-400">
+            <Icon name="progress_activity" size={22} className="animate-spin" />
+            <span className="text-[11px]">Procesando firma…</span>
+          </div>
+        ) : firmaPreview || perfil?.firma_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={firmaPreview || perfil?.firma_url || undefined} alt="Firma digital" className="max-h-full max-w-full object-contain pointer-events-none" />
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-slate-400 pointer-events-none">
+            <Icon name="upload" size={22} />
+            <span className="text-[11px]">Sin firma registrada</span>
+            <span className="text-[10px]">Arrastra una imagen o haz clic</span>
+          </div>
+        )}
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFirmaFileSelect} />
+      <div className="w-full flex items-center gap-2">
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={uploadingFirma || procesandoFirma}
+          className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12.5px] font-semibold transition-colors disabled:opacity-50"
+        >
+          <Icon name="upload" size={16} />
+          Subir
+        </button>
+        <button
+          onClick={handleSaveFirma}
+          disabled={!pendingFirmaFile || uploadingFirma || procesandoFirma}
+          className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Icon name="check" size={16} />
+          {uploadingFirma ? "Guardando…" : "Guardar"}
+        </button>
+        {(firmaPreview || perfil?.firma_url) && (
+          <button
+            onClick={handleDeleteFirma}
+            disabled={uploadingFirma || procesandoFirma}
+            title={pendingFirmaFile ? "Descartar imagen elegida" : "Eliminar firma"}
+            aria-label={pendingFirmaFile ? "Descartar imagen elegida" : "Eliminar firma"}
+            className="shrink-0 flex items-center justify-center h-9 w-9 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+          >
+            <Icon name="delete" size={16} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-6">
 
@@ -1381,14 +1517,22 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
               <div className="flex flex-col gap-4">
                 {/* Logo Box */}
  <div className="rounded-2xl border border-slate-200 p-4 flex flex-col items-center gap-3">
- <div className="w-full h-32 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center p-2 overflow-hidden relative">
+                  <p className="self-start text-[10px] font-bold text-slate-400 uppercase">Logo de la sede</p>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setDraggingLogo(true); }}
+                    onDragLeave={() => setDraggingLogo(false)}
+                    onDrop={handleLogoDrop}
+                    onClick={() => logoFileRef.current?.click()}
+                    className={`w-full h-32 rounded-xl border-2 border-dashed flex items-center justify-center p-2 overflow-hidden relative cursor-pointer transition-colors ${draggingLogo ? "border-cyan-400 bg-cyan-50" : "border-slate-300 bg-slate-50"}`}
+                  >
                     {logoPreview || activeSede.logo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={logoPreview || activeSede.logo_url || undefined} alt="Logo Sede" className="max-h-full max-w-full object-contain" />
+                      <img src={logoPreview || activeSede.logo_url || undefined} alt="Logo Sede" className="max-h-full max-w-full object-contain pointer-events-none" />
                     ) : (
-                      <div className="flex flex-col items-center gap-1 text-slate-400">
+                      <div className="flex flex-col items-center gap-1 text-slate-400 pointer-events-none">
                         <Icon name="cloud_upload" size={28} />
-                        <span className="text-[11px]">Sin Logo</span>
+                        <span className="text-[11px]">Sin logo registrado</span>
+                        <span className="text-[10px]">Arrastra una imagen o haz clic</span>
                       </div>
                     )}
                   </div>
@@ -1410,8 +1554,23 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
                       <Icon name="check" size={16} />
                       {uploadingLogo ? "Guardando…" : "Guardar"}
                     </button>
+                    {(logoPreview || activeSede.logo_url) && (
+                      <button
+                        onClick={handleDeleteLogo}
+                        disabled={uploadingLogo}
+                        title={pendingLogoFile ? "Descartar imagen elegida" : "Eliminar logo"}
+                        aria-label={pendingLogoFile ? "Descartar imagen elegida" : "Eliminar logo"}
+                        className="shrink-0 flex items-center justify-center h-9 w-9 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        <Icon name="delete" size={16} />
+                      </button>
+                    )}
                   </div>
                 </div>
+
+                {/* Firma digital del profesional — dentro de la información de
+                    la sede cuando el usuario también es admin/superadmin. */}
+                {esDoctor && firmaCard}
 
                 {/* Parámetros de la Sede */}
  <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 bg-white">
@@ -1504,8 +1663,9 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
       )}
 
       {/* SECCIÓN 3: FIRMA DIGITAL (SOLO PARA DOCTOR) — misma hoja continua,
-          separada con border-t. */}
-      {esDoctor && (
+          separada con border-t. Si el usuario también es admin/superadmin, la
+          firma vive dentro de la sección de sede (ver SECCIÓN 2). */}
+      {esDoctor && !esAdminOrSuperadmin && (
         <div className="p-5 border-t border-slate-200">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-9 h-9 rounded-xl bg-cyan-50 flex items-center justify-center text-cyan-600 shrink-0">
@@ -1546,52 +1706,7 @@ export function ConfiguracionView({ perfil, rol, horarios, horariosSede, sede, s
               )}
             </div>
 
-            <div className="w-full sm:w-[340px] shrink-0">
-              <div className="rounded-2xl border border-slate-200 p-4 flex flex-col items-center gap-3">
-                <div
-                  onDragOver={(e) => { e.preventDefault(); setDraggingFirma(true); }}
-                  onDragLeave={() => setDraggingFirma(false)}
-                  onDrop={handleFirmaDrop}
-                  onClick={() => fileRef.current?.click()}
-                  className={`w-full h-28 rounded-xl border-2 border-dashed flex items-center justify-center p-2 overflow-hidden relative cursor-pointer transition-colors ${draggingFirma ? "border-cyan-400 bg-cyan-50" : "border-slate-300 bg-slate-50"}`}
-                >
-                  {procesandoFirma ? (
-                    <div className="flex flex-col items-center gap-1 text-slate-400">
-                      <Icon name="progress_activity" size={22} className="animate-spin" />
-                      <span className="text-[11px]">Procesando firma…</span>
-                    </div>
-                  ) : firmaPreview || perfil?.firma_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={firmaPreview || perfil?.firma_url || undefined} alt="Firma digital" className="max-h-full max-w-full object-contain pointer-events-none" />
-                  ) : (
-                    <div className="flex flex-col items-center gap-1 text-slate-400 pointer-events-none">
-                      <Icon name="upload" size={22} />
-                      <span className="text-[11px]">Sin firma registrada</span>
-                      <span className="text-[10px]">Arrastra una imagen o haz clic</span>
-                    </div>
-                  )}
-                </div>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFirmaFileSelect} />
-                <div className="w-full flex items-center gap-2">
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    disabled={uploadingFirma || procesandoFirma}
-                    className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[12.5px] font-semibold transition-colors disabled:opacity-50"
-                  >
-                    <Icon name="upload" size={16} />
-                    Subir
-                  </button>
-                  <button
-                    onClick={handleSaveFirma}
-                    disabled={!pendingFirmaFile || uploadingFirma || procesandoFirma}
-                    className="flex-1 flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[12.5px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Icon name="check" size={16} />
-                    {uploadingFirma ? "Guardando…" : "Guardar"}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <div className="w-full sm:w-[340px] shrink-0">{firmaCard}</div>
           </div>
         </div>
       )}

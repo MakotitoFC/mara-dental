@@ -1,12 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import {
   useFloating,
   offset,
   flip,
   shift,
   size,
+  hide,
   autoUpdate,
   FloatingPortal,
   type Placement,
@@ -65,7 +66,7 @@ export function SmartPopover({
   matchWidth = false,
   panelClassName = "",
 }: SmartPopoverProps) {
-  const { refs, floatingStyles } = useFloating({
+  const { refs, floatingStyles, middlewareData } = useFloating({
     open,
     placement,
     whileElementsMounted: autoUpdate,
@@ -73,19 +74,35 @@ export function SmartPopover({
       offset(offsetPx),
       flip({ padding: 8 }),
       shift({ padding: 8 }),
-      ...(matchWidth
-        ? [
-            size({
-              apply({ rects, elements }) {
-                Object.assign(elements.floating.style, {
-                  minWidth: `${rects.reference.width}px`,
-                });
-              },
-            }),
-          ]
-        : []),
+      // Corre después de flip/shift, con la posición ya final: publica el alto
+      // realmente disponible como variable CSS (`--popover-available-h`) para
+      // que listas con scroll propio (Select) se acorten en vez de salirse de
+      // la pantalla — con un max-h fijo, en un viewport bajo (móvil en
+      // horizontal, teclado abierto) las últimas opciones quedaban fuera de
+      // la pantalla y no había forma de scrollear hasta ellas.
+      size({
+        padding: 8,
+        apply({ rects, elements, availableHeight }) {
+          elements.floating.style.setProperty("--popover-available-h", `${Math.max(availableHeight, 96)}px`);
+          if (matchWidth) elements.floating.style.minWidth = `${rects.reference.width}px`;
+        },
+      }),
+      // Si el trigger sale de la zona visible (p.ej. se scrolleó el modal
+      // donde vive), el panel se oculta en vez de quedar flotando sobre el
+      // header/footer del modal.
+      hide({ strategy: "referenceHidden" }),
     ],
   });
+
+  // Escape cierra el panel (teclado) — sin esto solo se cerraba con clic afuera.
+  useEffect(() => {
+    if (!open || !onClose) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  const referenceHidden = middlewareData.hide?.referenceHidden;
 
   // Trigger Y panel cuentan como "adentro" — el panel vive en un portal,
   // fuera del subárbol DOM del trigger, así que hay que pasar ambos refs.
@@ -112,7 +129,12 @@ export function SmartPopover({
               modal debe quedar encima de ese modal, no debajo (con z-50
               quedaba tapado y parecía "no abrir"). Por debajo de ConfirmModal
               (z-[150]) y Toast (z-[200]), que si aparecen deben ganar siempre. */}
-          <div ref={refs.setFloating} style={floatingStyles} className={`z-[110] ${panelClassName}`} data-smart-popover="">
+          <div
+            ref={refs.setFloating}
+            style={referenceHidden ? { ...floatingStyles, visibility: "hidden", pointerEvents: "none" } : floatingStyles}
+            className={`z-[110] ${panelClassName}`}
+            data-smart-popover=""
+          >
             {children}
           </div>
         </FloatingPortal>
