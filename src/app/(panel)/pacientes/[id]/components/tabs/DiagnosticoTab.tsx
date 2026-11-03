@@ -21,6 +21,7 @@ import { DatePicker } from "@/components/ui/DatePicker";
 import { FilterCategoryPicker, type FilterCategoryMeta } from "@/components/ui/FilterCategoryPicker";
 import { TagDropdown } from "@/components/ui/TagDropdown";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { parseFechaLocal } from "@/lib/date-utils";
 
 const TIPO_OPTIONS = [
   { value: "definitivo", label: "Definitivo" },
@@ -43,7 +44,7 @@ function Notice({ text }: { text: string }) {
 }
 
 const fmtFecha = (iso: string) => {
-  try { return new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" }); }
+  try { return parseFechaLocal(iso).toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" }); }
   catch { return iso; }
 };
 
