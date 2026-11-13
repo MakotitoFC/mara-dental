@@ -1406,7 +1406,10 @@ export async function getPresupuestosPacienteAction(pacienteId: string) {
 export async function crearPresupuestoAction(data: {
   paciente_id: string; consulta_id: string;
   items: { catalogo_id: string; cantidad: number; precio_unitario: number }[];
-  descuento_porcentaje: number; notas?: string;
+  descuento_porcentaje: number;
+  descuento_monto?: number;
+  tipo_descuento?: "porcentaje" | "monto";
+  notas?: string;
   diagnostico_id?: string;
 }) {
   const supabase = await createClient();
@@ -1418,6 +1421,19 @@ export async function crearPresupuestoAction(data: {
     if (!usr) return { error: "Perfil no encontrado" };
   }
   if (data.items.length === 0) return { error: "Agrega al menos un ítem al presupuesto" };
+
+  if (Number(data.descuento_porcentaje || 0) > 0 || Number(data.descuento_monto || 0) > 0) {
+    const { data: usrRol } = await supabase
+      .from("usuarios")
+      .select("rol_id, rol ( rol )")
+      .eq("id", user.id)
+      .single();
+    const rolName = ((usrRol?.rol as any)?.rol || "").toLowerCase();
+    const puedeDescuento = [1, 2, 3, 6].includes(usrRol?.rol_id) || ["doctor", "admin", "superadmin", "doctor_admin"].includes(rolName);
+    if (!puedeDescuento) {
+      return { error: "No tienes permisos para aplicar descuentos." };
+    }
+  }
 
   let nota_clinica_id = await resolveNotaClinicaId(supabase, data.consulta_id, data.paciente_id);
   if (!nota_clinica_id) {
@@ -1473,7 +1489,12 @@ export async function crearPresupuestoAction(data: {
   }
 
   const total_bruto = data.items.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0);
-  const descuento_monto = (total_bruto * (data.descuento_porcentaje || 0)) / 100;
+  const descuento_monto = data.tipo_descuento === "monto"
+    ? Math.min(total_bruto, Math.max(0, Number(data.descuento_monto || 0)))
+    : Number(((total_bruto * Math.min(100, Math.max(0, Number(data.descuento_porcentaje || 0)))) / 100).toFixed(2));
+  const descuento_porcentaje = data.tipo_descuento === "monto"
+    ? (total_bruto > 0 ? Number(((descuento_monto / total_bruto) * 100).toFixed(2)) : 0)
+    : Math.min(100, Math.max(0, Number(data.descuento_porcentaje || 0)));
 
   const { data: presupuesto, error: pErr } = await supabase
     .from("presupuestos")
@@ -1483,7 +1504,7 @@ export async function crearPresupuestoAction(data: {
       nota_clinica_id,
       diagnostico_id: diagnostico_id || null,
       total_bruto,
-      descuento_porcentaje: data.descuento_porcentaje || 0,
+      descuento_porcentaje,
       descuento_monto,
       estado: "pendiente",
       notas: data.notas || null,
@@ -1558,13 +1579,29 @@ export async function crearPresupuestoAction(data: {
 export async function editPresupuestoAction(data: {
   presupuesto_id: string; paciente_id: string;
   items: { catalogo_id: string; cantidad: number; precio_unitario: number }[];
-  descuento_porcentaje: number; notas?: string;
+  descuento_porcentaje: number;
+  descuento_monto?: number;
+  tipo_descuento?: "porcentaje" | "monto";
+  notas?: string;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
   
   if (data.items.length === 0) return { error: "Agrega al menos un ítem al presupuesto" };
+
+  if (Number(data.descuento_porcentaje || 0) > 0 || Number(data.descuento_monto || 0) > 0) {
+    const { data: usrRol } = await supabase
+      .from("usuarios")
+      .select("rol_id, rol ( rol )")
+      .eq("id", user.id)
+      .single();
+    const rolName = ((usrRol?.rol as any)?.rol || "").toLowerCase();
+    const puedeDescuento = [1, 2, 3, 6].includes(usrRol?.rol_id) || ["doctor", "admin", "superadmin", "doctor_admin"].includes(rolName);
+    if (!puedeDescuento) {
+      return { error: "No tienes permisos para aplicar descuentos." };
+    }
+  }
 
   const { data: presInfo } = await supabase.from("presupuestos").select("diagnostico_id, nota_clinica_id, paciente_id").eq("id", data.presupuesto_id).maybeSingle();
   if (!presInfo) return { error: "Presupuesto no encontrado" };
@@ -1596,14 +1633,19 @@ export async function editPresupuestoAction(data: {
   const { data: oldDetails } = await supabase.from("detalle_presupuesto").select("catalogo_tratamiento_id, cantidad").eq("presupuesto_id", data.presupuesto_id);
 
   const total_bruto = data.items.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0);
-  const descuento_monto = (total_bruto * (data.descuento_porcentaje || 0)) / 100;
+  const descuento_monto = data.tipo_descuento === "monto"
+    ? Math.min(total_bruto, Math.max(0, Number(data.descuento_monto || 0)))
+    : Number(((total_bruto * Math.min(100, Math.max(0, Number(data.descuento_porcentaje || 0)))) / 100).toFixed(2));
+  const descuento_porcentaje = data.tipo_descuento === "monto"
+    ? (total_bruto > 0 ? Number(((descuento_monto / total_bruto) * 100).toFixed(2)) : 0)
+    : Math.min(100, Math.max(0, Number(data.descuento_porcentaje || 0)));
 
   // Actualizar cabecera
   const { error: pErr } = await supabase
     .from("presupuestos")
     .update({
       total_bruto,
-      descuento_porcentaje: data.descuento_porcentaje || 0,
+      descuento_porcentaje,
       descuento_monto,
       notas: data.notas || null,
     })
@@ -1768,6 +1810,89 @@ export async function deletePresupuestoAction(presupuestoId: string, pacienteId:
   return { success: true };
 }
 
+export async function aplicarDescuentoPresupuestoAction(data: {
+  presupuesto_id: string;
+  paciente_id: string;
+  descuento_porcentaje: number;
+  descuento_monto?: number;
+  tipo_descuento?: "porcentaje" | "monto";
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: usrRol } = await supabase
+    .from("usuarios")
+    .select("rol_id, sede_id, rol ( rol )")
+    .eq("id", user.id)
+    .single();
+  const rolName = ((usrRol?.rol as any)?.rol || "").toLowerCase();
+  const puedeDescuento = [1, 2, 3, 6].includes(usrRol?.rol_id) || ["doctor", "admin", "superadmin", "doctor_admin"].includes(rolName);
+  if (!puedeDescuento) {
+    return { error: "No tienes permisos para aplicar descuentos." };
+  }
+
+  const adminClient = getAdminClient();
+
+  const { data: pres, error: pErr } = await adminClient
+    .from("presupuestos")
+    .select("id, total_bruto, estado, movimiento_caja(monto, estado)")
+    .eq("id", data.presupuesto_id)
+    .single();
+
+  if (pErr || !pres) return { error: "Presupuesto no encontrado" };
+  if (pres.estado === "cancelado" || pres.estado === "rechazado") {
+    return { error: "No se puede aplicar descuento a un presupuesto cancelado o rechazado" };
+  }
+
+  const totalBruto = Number(pres.total_bruto || 0);
+  const descuentoMonto = data.tipo_descuento === "monto"
+    ? Math.min(totalBruto, Math.max(0, Number(data.descuento_monto || 0)))
+    : Number(((totalBruto * Math.min(100, Math.max(0, Number(data.descuento_porcentaje || 0)))) / 100).toFixed(2));
+  const pct = data.tipo_descuento === "monto"
+    ? (totalBruto > 0 ? Number(((descuentoMonto / totalBruto) * 100).toFixed(2)) : 0)
+    : Math.min(100, Math.max(0, Number(data.descuento_porcentaje || 0)));
+  const totalNeto = Math.max(0, totalBruto - descuentoMonto);
+
+  const totalPagado = (pres.movimiento_caja || [])
+    .filter((m: any) => m.estado === "confirmado")
+    .reduce((sum: number, m: any) => sum + Number(m.monto), 0);
+
+  let nuevoEstado = pres.estado;
+  if (pres.estado === "aprobado" && totalPagado >= totalNeto - 0.01 && totalNeto > 0) {
+    nuevoEstado = "pagado";
+  } else if (pres.estado === "pagado" && totalPagado < totalNeto - 0.01) {
+    nuevoEstado = "aprobado";
+  }
+
+  const { error: uErr } = await adminClient
+    .from("presupuestos")
+    .update({
+      descuento_porcentaje: pct,
+      descuento_monto: descuentoMonto,
+      estado: nuevoEstado,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", data.presupuesto_id);
+
+  if (uErr) {
+    console.error("aplicarDescuentoPresupuestoAction error:", uErr);
+    return { error: "No se pudo aplicar el descuento" };
+  }
+
+  const saldoAFavor = Math.max(0, Number((totalPagado - totalNeto).toFixed(2)));
+
+  revalidatePath(`/pacientes/${data.paciente_id}`);
+  revalidatePath("/pagos");
+  revalidatePath("/presupuestos");
+  return {
+    success: true,
+    total_neto: totalNeto,
+    total_pagado: totalPagado,
+    saldo_a_favor: saldoAFavor,
+  };
+}
+
 export async function registrarPagoAction(data: {
   presupuesto_id: string; 
   monto: number; 
@@ -1792,8 +1917,43 @@ export async function registrarPagoAction(data: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "No autorizado" };
 
-  const { data: usr } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
+  const { data: usr } = await supabase
+    .from("usuarios")
+    .select("sede_id, rol_id, rol ( rol )")
+    .eq("id", user.id)
+    .single();
   if (!usr?.sede_id) return { error: "No se pudo resolver la sede del usuario" };
+
+  const rolName = ((usr?.rol as any)?.rol || "").toLowerCase();
+  const puedeRegistrarPago = [2, 3, 4, 6].includes(usr?.rol_id) || ["asistente", "admin", "superadmin", "doctor_admin"].includes(rolName);
+  if (!puedeRegistrarPago) {
+    return { error: "No tienes permisos para registrar pagos en caja." };
+  }
+
+  const adminClient = getAdminClient();
+  const { data: presCheck } = await adminClient
+    .from("presupuestos")
+    .select("total_bruto, descuento_monto, estado, movimiento_caja(monto, estado)")
+    .eq("id", data.presupuesto_id)
+    .maybeSingle();
+
+  if (!presCheck) return { error: "Presupuesto no encontrado" };
+  if (presCheck.estado === "cancelado" || presCheck.estado === "rechazado") {
+    return { error: "No se pueden registrar pagos sobre un presupuesto cancelado o rechazado" };
+  }
+
+  const totalNetoCheck = Number(presCheck.total_bruto || 0) - Number(presCheck.descuento_monto || 0);
+  const totalPagadoCheck = (presCheck.movimiento_caja || [])
+    .filter((m: any) => m.estado === "confirmado")
+    .reduce((sum: number, m: any) => sum + Number(m.monto), 0);
+  const saldoPendienteCheck = Math.max(0, totalNetoCheck - totalPagadoCheck);
+
+  if (saldoPendienteCheck <= 0.009) {
+    return { error: "Este presupuesto ya no tiene saldo pendiente por cobrar." };
+  }
+  if (data.monto > saldoPendienteCheck + 0.01) {
+    return { error: `El monto (${data.monto.toFixed(2)}) excede el saldo pendiente (${saldoPendienteCheck.toFixed(2)}).` };
+  }
 
   // Use passed tipo_moneda_id if available, otherwise resolve PEN
   let tipoMonedaId = data.tipo_moneda_id ? Number(data.tipo_moneda_id) : null;
@@ -1874,45 +2034,12 @@ export async function registrarPagoAction(data: {
     return { error: "No se pudo registrar el pago" };
   }
 
-  const adminClient = getAdminClient();
-
   if (comprobanteId) {
     await adminClient.from("comprobante_pago").update({ movimiento_caja_id: mov.id }).eq("id", comprobanteId);
   }
 
-  if (data.cuota_id) {
-    const { error: cuotaErr } = await adminClient.from("cuotas").update({ 
-      estado: "pagado", 
-      movimiento_caja_id: mov.id 
-    }).eq("id", data.cuota_id);
-    if (cuotaErr) {
-      console.error("Error updating cuota in registrarPagoAction:", cuotaErr);
-    }
-  }
-
-  // Verificar si el presupuesto quedó totalmente cancelado
-  try {
-    const { data: presData } = await adminClient
-      .from("presupuestos")
-      .select("total_bruto, descuento_monto, movimiento_caja(monto, estado)")
-      .eq("id", data.presupuesto_id)
-      .single();
-
-    if (presData) {
-      const totalNeto = Number(presData.total_bruto) - Number(presData.descuento_monto || 0);
-      const totalPagado = (presData.movimiento_caja || [])
-        .filter((m: any) => m.estado === "confirmado")
-        .reduce((sum: number, m: any) => sum + Number(m.monto), 0);
-      if (totalNeto - totalPagado <= 0.009) {
-        await adminClient
-          .from("presupuestos")
-          .update({ estado: "pagado" })
-          .eq("id", data.presupuesto_id);
-      }
-    }
-  } catch (err) {
-    console.error("Error checking presupuesto pagado status:", err);
-  }
+  // Nota: El trigger fn_procesar_pago_movimiento_caja() en Supabase amortiza automáticamente
+  // las cuotas pendientes/parciales (en cascada FIFO) y actualiza el estado del presupuesto a 'pagado'.
 
   revalidatePath(`/pacientes/${data.paciente_id}`);
   revalidatePath("/pagos");

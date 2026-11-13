@@ -30,7 +30,7 @@ export async function getValidacionesPendientesAction(sedeId: number) {
   const presupuestoIds = Array.from(
     new Set(
       data
-        .filter(d => d.tipo_accion === "eliminar_cuotas" || d.tipo_accion === "devolucion_presupuesto")
+        .filter(d => d.tipo_accion === "eliminar_cuotas" || d.tipo_accion === "devolucion_presupuesto" || d.tipo_accion === "devolucion_saldo_favor")
         .map(d => d.referencia_id)
         .filter(Boolean)
     )
@@ -159,6 +159,59 @@ export async function responderValidacionAction(id: string, accion: "aprobar" | 
       const { error: delErr } = await supabaseAdmin.from("cuotas").delete().eq("presupuesto_id", presupuestoId);
       if (delErr) {
         return { error: "Error eliminando las cuotas. Revise dependencias." };
+      }
+    } else if (solicitud.tipo_accion === "devolucion_saldo_favor") {
+      const presupuestoId = solicitud.referencia_id;
+      const motivoDev = solicitud.comentarios || "Devolución de saldo a favor aprobada";
+
+      const { data: pres } = await supabaseAdmin
+        .from("presupuestos")
+        .select("id, total_bruto, descuento_monto, movimiento_caja(monto, estado, tipo_moneda_id, medio_pago_id)")
+        .eq("id", presupuestoId)
+        .single();
+
+      if (!pres) return { error: "No se encontró el presupuesto." };
+
+      const totalNeto = Number(pres.total_bruto || 0) - Number(pres.descuento_monto || 0);
+      const pagosConfirmados = (pres.movimiento_caja || []).filter((m: any) => m.estado === "confirmado");
+      const pagado = pagosConfirmados.reduce((acc: number, m: any) => acc + Number(m.monto), 0);
+      const saldoAFavor = Number((pagado - totalNeto).toFixed(2));
+
+      if (saldoAFavor > 0.009) {
+        const { data: cajaAbierta } = await supabaseAdmin
+          .from("caja_turno")
+          .select("id")
+          .eq("sede_id", solicitud.sede_id)
+          .is("fecha_cierre", null)
+          .order("fecha_apertura", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!cajaAbierta) {
+          return { error: "No hay un turno de caja abierto en la sede para registrar el egreso de devolución." };
+        }
+
+        const { data: catDev } = await supabaseAdmin
+          .from("categoria_movimiento")
+          .select("id")
+          .ilike("nombre", "%devoluci%")
+          .eq("tipo", "E")
+          .limit(1)
+          .maybeSingle();
+
+        const ultimoPago = pagosConfirmados.find((m: any) => Number(m.monto) > 0);
+        await supabaseAdmin.from("movimiento_caja").insert({
+          caja_turno_id: cajaAbierta.id,
+          fecha: new Date().toISOString(),
+          monto: -Math.abs(saldoAFavor),
+          tipo_moneda_id: ultimoPago?.tipo_moneda_id || 1,
+          categoria_id: catDev?.id || null,
+          medio_pago_id: ultimoPago?.medio_pago_id || 1,
+          observacion: `Devolución saldo a favor Presupuesto #${presupuestoId.slice(0, 8).toUpperCase()}. Motivo: ${motivoDev}`,
+          presupuesto_id: presupuestoId,
+          usuario_id: user.id,
+          estado: "confirmado",
+        });
       }
     } else if (solicitud.tipo_accion === "devolucion_presupuesto") {
       const presupuestoId = solicitud.referencia_id;
@@ -314,7 +367,9 @@ export async function responderValidacionAction(id: string, accion: "aprobar" | 
 
   const tituloAccion = solicitud.tipo_accion === "eliminar_cuotas" 
     ? "Eliminación de Cuotas" 
-    : (solicitud.tipo_accion === "devolucion_presupuesto" ? "Devolución de Presupuesto" : solicitud.tipo_accion);
+    : (solicitud.tipo_accion === "devolucion_saldo_favor"
+      ? "Devolución de Saldo a Favor"
+      : (solicitud.tipo_accion === "devolucion_presupuesto" ? "Devolución de Presupuesto" : solicitud.tipo_accion));
 
   // Crear notificación para el solicitante
   await supabaseAdmin.from("notificaciones").insert({

@@ -9,11 +9,13 @@ import { fadeIn, staggerContainer, staggerItem } from "@/lib/animations";
 import { ESTADO_PRESUPUESTO_CFG } from "@/lib/estadoConfig";
 import { Badge } from "@/components/ui/Badge";
 import { useConfirm } from "@/components/ui/ConfirmModal";
+import { useAuth } from "@/components/layout/AuthProvider";
 import {
   searchCatalogoAction,
   getCatalogoTratamientosAction,
   crearPresupuestoAction,
   editPresupuestoAction,
+  aplicarDescuentoPresupuestoAction,
   updateEstadoPresupuestoAction,
   deletePresupuestoAction,
   getSedeInfoAction,
@@ -211,7 +213,11 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
       moneda: it.moneda
     })) : []
   );
+  const { user } = useAuth();
+  const canEditDiscount = ["doctor", "admin", "superadmin", "doctor_admin"].includes((user?.rol || "").toLowerCase());
+  const [tipoDescuento, setTipoDescuento] = useState<"porcentaje" | "monto">("porcentaje");
   const [descuento, setDescuento] = useState(initialPresupuesto ? initialPresupuesto.descuento_porcentaje : 0);
+  const [descuentoMontoInput, setDescuentoMontoInput] = useState(initialPresupuesto ? Number(initialPresupuesto.descuento_monto || 0) : 0);
   const [notas, setNotas] = useState(initialPresupuesto?.notas || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -225,8 +231,10 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
   }
 
   const totalBruto = lineas.reduce((acc, l) => acc + l.cantidad * l.precio_unitario, 0);
-  const descMonto = totalBruto * descuento / 100;
-  const totalNeto = totalBruto - descMonto;
+  const descMonto = tipoDescuento === "monto"
+    ? Math.min(totalBruto, Math.max(0, Number(descuentoMontoInput || 0)))
+    : (totalBruto * descuento) / 100;
+  const totalNeto = Math.max(0, totalBruto - descMonto);
   const moneda = lineas[0]?.moneda ?? "PEN";
 
   async function guardar() {
@@ -240,6 +248,8 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
         paciente_id: String(pacienteId),
         items: lineas.map(l => ({ catalogo_id: String(l.catalogo_id), cantidad: l.cantidad, precio_unitario: l.precio_unitario })),
         descuento_porcentaje: descuento,
+        descuento_monto: descMonto,
+        tipo_descuento: tipoDescuento,
         notas: notas || undefined,
       });
     } else {
@@ -248,6 +258,8 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
         consulta_id: String(consultaId),
         items: lineas.map(l => ({ catalogo_id: String(l.catalogo_id), cantidad: l.cantidad, precio_unitario: l.precio_unitario })),
         descuento_porcentaje: descuento,
+        descuento_monto: descMonto,
+        tipo_descuento: tipoDescuento,
         notas: notas || undefined,
       });
     }
@@ -324,14 +336,43 @@ function PresupuestoBuilder({ consultaId, pacienteId, initialPresupuesto, onSave
  <span className="font-medium text-slate-700">{money(totalBruto, moneda)}</span>
           </div>
           <div className="flex items-center justify-between text-[13px]">
- <span className="text-slate-500 flex items-center gap-2">
+ <span className="text-slate-500 flex items-center gap-2 flex-wrap">
               Descuento
-              <span className="flex items-center gap-1">
-                <TextInput type="number" value={descuento} min={0} max={100}
-                  onChange={e => setDescuento(Math.min(100, Math.max(0, Number(e.target.value))))}
-                  className="w-16 rounded-lg px-2 py-0.5 text-right"/>
- <span className="text-slate-400">%</span>
+              <span className="inline-flex rounded-lg bg-slate-100 p-0.5 text-[11px] font-semibold">
+                <button
+                  type="button"
+                  disabled={!canEditDiscount}
+                  onClick={() => setTipoDescuento("porcentaje")}
+                  className={`px-2 py-0.5 rounded-md transition-colors ${tipoDescuento === "porcentaje" ? "bg-white text-cyan-700 shadow-sm" : "text-slate-500"}`}
+                >
+                  %
+                </button>
+                <button
+                  type="button"
+                  disabled={!canEditDiscount}
+                  onClick={() => setTipoDescuento("monto")}
+                  className={`px-2 py-0.5 rounded-md transition-colors ${tipoDescuento === "monto" ? "bg-white text-cyan-700 shadow-sm" : "text-slate-500"}`}
+                >
+                  {moneda === "PEN" ? "S/" : moneda}
+                </button>
               </span>
+              {tipoDescuento === "porcentaje" ? (
+                <span className="flex items-center gap-1">
+                  <TextInput type="number" value={descuento} min={0} max={100}
+                    disabled={!canEditDiscount}
+                    onChange={e => setDescuento(Math.min(100, Math.max(0, Number(e.target.value))))}
+                    className="w-16 rounded-lg px-2 py-0.5 text-right disabled:opacity-60"/>
+                  <span className="text-slate-400">%</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <TextInput type="number" value={descuentoMontoInput} min={0} max={totalBruto} step="0.01"
+                    disabled={!canEditDiscount}
+                    onChange={e => setDescuentoMontoInput(Math.min(totalBruto, Math.max(0, Number(e.target.value))))}
+                    className="w-20 rounded-lg px-2 py-0.5 text-right disabled:opacity-60"/>
+                  <span className="text-slate-400">{moneda === "PEN" ? "S/" : moneda}</span>
+                </span>
+              )}
             </span>
             <span className="font-medium text-red-500">− {money(descMonto, moneda)}</span>
           </div>
@@ -381,9 +422,15 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
   fillHeight?: boolean;
 }) {
   const confirm = useConfirm();
+  const { user } = useAuth();
+  const canEditDiscount = ["doctor", "admin", "superadmin", "doctor_admin"].includes((user?.rol || "").toLowerCase());
   const [busy, setBusy] = useState(false);
   const [showPago, setShowPago] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [editingDescuento, setEditingDescuento] = useState(false);
+  const [tipoDescuentoEdit, setTipoDescuentoEdit] = useState<"porcentaje" | "monto">("monto");
+  const [descuentoInput, setDescuentoInput] = useState(Number(presupuesto.descuento_porcentaje || 0));
+  const [descuentoMontoEdit, setDescuentoMontoEdit] = useState(Number(presupuesto.descuento_monto || 0));
   const [error, setError] = useState("");
   const [exportando, setExportando] = useState<"print" | "pdf" | "telegram" | null>(null);
   const [sede, setSede] = useState<ClinicaInfo | null>(null);
@@ -395,6 +442,27 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
   const moneda = presupuesto.items[0]?.moneda ?? "PEN";
   const totalNeto = presupuesto.total_bruto - presupuesto.descuento_monto;
   const pagosValidos = presupuesto.pagos.filter(p => p.estado !== "anulado");
+  const totalPagado = pagosValidos.reduce((acc, p) => acc + Number(p.monto || 0), 0);
+  const saldoAFavor = Math.max(0, Number((totalPagado - totalNeto).toFixed(2)));
+
+  async function guardarDescuentoGlobal() {
+    setBusy(true);
+    setError("");
+    const res = await aplicarDescuentoPresupuestoAction({
+      presupuesto_id: String(presupuesto.id),
+      paciente_id: String(pacienteId),
+      descuento_porcentaje: descuentoInput,
+      descuento_monto: descuentoMontoEdit,
+      tipo_descuento: tipoDescuentoEdit,
+    });
+    setBusy(false);
+    if (res?.error) {
+      setError(res.error);
+      return;
+    }
+    setEditingDescuento(false);
+    onSaved?.();
+  }
 
   const cfg = ESTADO_PRESUPUESTO_CFG[presupuesto.estado] ?? ESTADO_PRESUPUESTO_CFG.pendiente;
 
@@ -575,10 +643,112 @@ function PresupuestoExistente({ pacienteId, paciente, presupuesto, mediosPago, o
         {/* Total y acciones — fijos, no forman parte del scroll de arriba */}
  <div className="shrink-0 flex flex-col gap-1.5 border-t border-slate-100 pt-3">
  <div className="flex justify-between text-[13px]"><span className="text-slate-500">Subtotal</span><span className="text-slate-700">{money(presupuesto.total_bruto, moneda)}</span></div>
-          {presupuesto.descuento_monto > 0 && (
- <div className="flex justify-between text-[13px]"><span className="text-slate-500">Descuento ({presupuesto.descuento_porcentaje}%)</span><span className="text-red-500">− {money(presupuesto.descuento_monto, moneda)}</span></div>
+          {editingDescuento ? (
+            <div className="flex items-center justify-between gap-2 text-[13px] py-1 flex-wrap">
+              <span className="text-slate-600 font-medium flex items-center gap-1.5 flex-wrap">
+                Descuento
+                <span className="inline-flex rounded-lg bg-slate-100 p-0.5 text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setTipoDescuentoEdit("porcentaje")}
+                    className={`px-2 py-0.5 rounded-md transition-colors ${tipoDescuentoEdit === "porcentaje" ? "bg-white text-cyan-700 shadow-sm" : "text-slate-500"}`}
+                  >
+                    %
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipoDescuentoEdit("monto")}
+                    className={`px-2 py-0.5 rounded-md transition-colors ${tipoDescuentoEdit === "monto" ? "bg-white text-cyan-700 shadow-sm" : "text-slate-500"}`}
+                  >
+                    {moneda === "PEN" ? "S/" : moneda}
+                  </button>
+                </span>
+                {tipoDescuentoEdit === "porcentaje" ? (
+                  <>
+                    <TextInput
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={descuentoInput}
+                      onChange={e => setDescuentoInput(Math.min(100, Math.max(0, Number(e.target.value))))}
+                      className="w-16 rounded-lg px-2 py-0.5 text-right"
+                    />
+                    <span className="text-slate-400">%</span>
+                  </>
+                ) : (
+                  <>
+                    <TextInput
+                      type="number"
+                      min={0}
+                      max={presupuesto.total_bruto}
+                      step="0.01"
+                      value={descuentoMontoEdit}
+                      onChange={e => setDescuentoMontoEdit(Math.min(presupuesto.total_bruto, Math.max(0, Number(e.target.value))))}
+                      className="w-20 rounded-lg px-2 py-0.5 text-right"
+                    />
+                    <span className="text-slate-400">{moneda === "PEN" ? "S/" : moneda}</span>
+                  </>
+                )}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingDescuento(false);
+                    setDescuentoInput(Number(presupuesto.descuento_porcentaje || 0));
+                    setDescuentoMontoEdit(Number(presupuesto.descuento_monto || 0));
+                  }}
+                  disabled={busy}
+                  className="px-2 py-1 text-[11px] rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={guardarDescuentoGlobal}
+                  disabled={busy}
+                  className="px-2.5 py-1 text-[11px] rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white font-semibold disabled:opacity-50"
+                >
+                  {busy ? "Aplicando…" : "Aplicar"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-between items-center text-[13px]">
+              <span className="text-slate-500 flex items-center gap-2">
+                Descuento ({presupuesto.descuento_porcentaje}%)
+                {canEditDiscount && presupuesto.estado !== "cancelado" && presupuesto.estado !== "rechazado" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDescuentoInput(Number(presupuesto.descuento_porcentaje || 0));
+                      setDescuentoMontoEdit(Number(presupuesto.descuento_monto || 0));
+                      setEditingDescuento(true);
+                    }}
+                    className="text-[11px] font-semibold text-cyan-600 hover:text-cyan-700 hover:underline"
+                  >
+                    {presupuesto.descuento_monto > 0 ? "Editar" : "Aplicar descuento"}
+                  </button>
+                )}
+              </span>
+              <span className="text-red-500">− {money(presupuesto.descuento_monto, moneda)}</span>
+            </div>
           )}
  <div className="flex justify-between text-[15px] pt-1"><span className="font-semibold text-slate-800">Total</span><span className="font-bold text-slate-900">{money(totalNeto, moneda)}</span></div>
+          {saldoAFavor > 0.009 && (
+            <div className="mt-1.5 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-[12px] text-amber-800">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Icon name="account_balance_wallet" size={15} className="text-amber-600 shrink-0" />
+                Saldo a favor del paciente: <strong>{money(saldoAFavor, moneda)}</strong>
+              </span>
+              <a
+                href={`/pagos?presupuestoId=${presupuesto.id}`}
+                className="text-[11.5px] font-semibold text-cyan-700 hover:underline whitespace-nowrap"
+              >
+                Devolver en Caja →
+              </a>
+            </div>
+          )}
         </div>
 
         {error && (

@@ -3,12 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import { getSupabaseEnv } from "@/lib/supabase/env";
 
 const getAdminClient = () => {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const { url, serviceRoleKey } = getSupabaseEnv();
+  return createAdminClient(url, serviceRoleKey);
 };
 
 /** Rol y sede del usuario logueado — el embed `rol(rol)` tipa como array

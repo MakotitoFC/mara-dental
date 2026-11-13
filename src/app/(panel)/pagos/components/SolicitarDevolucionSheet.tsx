@@ -5,7 +5,13 @@ import { Icon } from "@/components/ui/Icon";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { Textarea } from "@/components/ui/TextInput";
 import { useAuth } from "@/components/layout/AuthProvider";
-import { solicitarDevolucionPresupuestoAction, ejecutarDevolucionPresupuestoDirectaAction, type PresupuestoPendiente } from "../actions";
+import {
+  solicitarDevolucionPresupuestoAction,
+  ejecutarDevolucionPresupuestoDirectaAction,
+  devolverSaldoAFavorAction,
+  solicitarDevolucionSaldoAFavorAction,
+  type PresupuestoPendiente,
+} from "../actions";
 
 export function SolicitarDevolucionSheet({
   presupuesto,
@@ -14,18 +20,22 @@ export function SolicitarDevolucionSheet({
 }: {
   presupuesto: PresupuestoPendiente;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (modo?: "saldo_favor" | "anulacion_total") => void;
 }) {
   const { user } = useAuth();
   const isDirectAdmin = user?.rol === "doctor_admin" || user?.rol === "admin" || user?.rol === "superadmin";
+  const tieneSaldoAFavor = (presupuesto.saldo_a_favor || 0) > 0.009;
 
+  const [modo, setModo] = useState<"saldo_favor" | "anulacion_total">(tieneSaldoAFavor ? "saldo_favor" : "anulacion_total");
   const [motivo, setMotivo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
   const [enviado, setEnviado] = useState(false);
 
   const simbolo = presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda;
-  const montoDevolver = presupuesto.pagado > 0 ? presupuesto.pagado : presupuesto.total_neto;
+  const montoDevolver = modo === "saldo_favor"
+    ? Number(presupuesto.saldo_a_favor || 0)
+    : (presupuesto.pagado > 0 ? presupuesto.pagado : presupuesto.total_neto);
 
   async function handleSolicitar() {
     if (!motivo.trim()) {
@@ -36,22 +46,31 @@ export function SolicitarDevolucionSheet({
     setEnviando(true);
     setError("");
 
-    const res = isDirectAdmin
-      ? await ejecutarDevolucionPresupuestoDirectaAction(presupuesto.id, motivo)
-      : await solicitarDevolucionPresupuestoAction(presupuesto.id, motivo);
+    let res: any;
+    if (modo === "saldo_favor") {
+      res = isDirectAdmin
+        ? await devolverSaldoAFavorAction(presupuesto.id, motivo)
+        : await solicitarDevolucionSaldoAFavorAction(presupuesto.id, motivo);
+    } else {
+      res = isDirectAdmin
+        ? await ejecutarDevolucionPresupuestoDirectaAction(presupuesto.id, motivo)
+        : await solicitarDevolucionPresupuestoAction(presupuesto.id, motivo);
+    }
     setEnviando(false);
 
     if (res?.error) {
       setError(res.error);
     } else {
       setEnviado(true);
-      if (onSuccess) onSuccess();
+      if (onSuccess) onSuccess(modo);
     }
   }
 
   const sheetTitle = enviado
     ? (isDirectAdmin ? "Devolución procesada" : "Solicitud enviada")
-    : (isDirectAdmin ? "Procesar Devolución" : "Solicitar Devolución");
+    : (modo === "saldo_favor"
+      ? (isDirectAdmin ? "Devolver Saldo a Favor" : "Solicitar Devolución de Saldo a Favor")
+      : (isDirectAdmin ? "Procesar Devolución" : "Solicitar Devolución"));
 
   return (
     <ResponsiveSheet
@@ -102,13 +121,40 @@ export function SolicitarDevolucionSheet({
             {isDirectAdmin ? "Devolución procesada con éxito" : "Solicitud enviada al Administrador"}
           </p>
           <p className="text-[12.5px] text-slate-500 max-w-sm">
-            {isDirectAdmin
-              ? <>Se ha registrado el egreso por devolución de <strong>{simbolo} {montoDevolver.toFixed(2)}</strong> y se han anulado los comprobantes y el presupuesto automáticamente.</>
-              : <>El Administrador de la sede ha recibido la solicitud de devolución por <strong>{simbolo} {montoDevolver.toFixed(2)}</strong>. Una vez aprobada, se registrará el egreso y se anularán los comprobantes automáticamente.</>}
+            {modo === "saldo_favor"
+              ? (isDirectAdmin
+                ? <>Se ha registrado el egreso por devolución de saldo a favor de <strong>{simbolo} {montoDevolver.toFixed(2)}</strong>. El presupuesto permanece activo y pagado.</>
+                : <>El Administrador de la sede ha recibido la solicitud de devolución de saldo a favor por <strong>{simbolo} {montoDevolver.toFixed(2)}</strong>.</>)
+              : (isDirectAdmin
+                ? <>Se ha registrado el egreso por devolución de <strong>{simbolo} {montoDevolver.toFixed(2)}</strong> y se han anulado los comprobantes y el presupuesto automáticamente.</>
+                : <>El Administrador de la sede ha recibido la solicitud de devolución por <strong>{simbolo} {montoDevolver.toFixed(2)}</strong>. Una vez aprobada, se registrará el egreso y se anularán los comprobantes automáticamente.</>)}
           </p>
         </div>
       ) : (
         <div className="flex flex-col gap-4 pt-1 pb-2">
+          {tieneSaldoAFavor && (
+            <div className="flex p-1 bg-slate-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setModo("saldo_favor")}
+                className={`flex-1 py-1.5 text-[12px] font-semibold rounded-lg transition-all ${
+                  modo === "saldo_favor" ? "bg-white text-cyan-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Solo saldo a favor ({simbolo} {presupuesto.saldo_a_favor.toFixed(2)})
+              </button>
+              <button
+                type="button"
+                onClick={() => setModo("anulacion_total")}
+                className={`flex-1 py-1.5 text-[12px] font-semibold rounded-lg transition-all ${
+                  modo === "anulacion_total" ? "bg-white text-red-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Anulación total
+              </button>
+            </div>
+          )}
+
           {/* Tarjeta de Resumen del Presupuesto */}
  <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-200 px-4 py-3.5">
             <div className="min-w-0">
@@ -120,7 +166,7 @@ export function SolicitarDevolucionSheet({
                 {simbolo} {montoDevolver.toFixed(2)}
               </span>
  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-cyan-500/5 text-cyan-600 border border-cyan-500/40 mt-0.5">
-                Total pagado
+                {modo === "saldo_favor" ? "Saldo a favor" : "Total pagado"}
               </span>
             </div>
           </div>
@@ -129,9 +175,13 @@ export function SolicitarDevolucionSheet({
  <div className="p-3 bg-amber-50/60 border border-amber-100 rounded-xl text-amber-700 text-[12px] flex items-start gap-2.5">
  <Icon name="info" size={16} className="text-amber-500 mt-0.5 shrink-0"/>
             <div>
-              <strong className="block font-bold">Proceso de Devolución y Anulación:</strong>
+              <strong className="block font-bold">
+                {modo === "saldo_favor" ? "Devolución de Excedente por Descuento:" : "Proceso de Devolución y Anulación:"}
+              </strong>
               <span>
-                Esta acción requiere validación del administrador. Al ser aprobada, todos los pagos y comprobantes de este presupuesto quedarán anulados, se generará el egreso correspondiente por <strong>{simbolo} {montoDevolver.toFixed(2)}</strong> y el presupuesto pasará a estado <em>rechazado</em>.
+                {modo === "saldo_favor"
+                  ? <>Se registrará un egreso de caja por <strong>{simbolo} {montoDevolver.toFixed(2)}</strong> correspondiente al excedente pagado. El presupuesto y sus tratamientos seguirán vigentes como <em>pagados</em>.</>
+                  : <>Esta acción requiere validación del administrador. Al ser aprobada, todos los pagos y comprobantes de este presupuesto quedarán anulados, se generará el egreso correspondiente por <strong>{simbolo} {montoDevolver.toFixed(2)}</strong> y el presupuesto pasará a estado <em>rechazado</em>.</>}
               </span>
             </div>
           </div>

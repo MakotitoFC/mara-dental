@@ -66,12 +66,13 @@ export async function eliminarCuotasAction(presupuestoId: string, pacienteId: st
     }
   }
 
-  // Delete cuotas that are 'pendiente'
+  // Delete cuotas that are 'pendiente' and have no partial payments
   const { error } = await supabase
     .from("cuotas")
     .delete()
     .eq("presupuesto_id", presupuestoId)
-    .eq("estado", "pendiente");
+    .eq("estado", "pendiente")
+    .lte("monto_pagado", 0);
 
   if (error) {
     console.error("Error eliminando cuotas:", error.message);

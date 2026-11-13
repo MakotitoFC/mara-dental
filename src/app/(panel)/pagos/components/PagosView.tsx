@@ -455,6 +455,7 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
                     <tbody className="divide-y divide-slate-100">
                       {pendientesFiltrados.map((p) => {
                         const isPagado = p.esPagado || p.estado === "pagado";
+                        const tieneSaldoAFavor = (p.saldo_a_favor || 0) > 0.009;
                         return (
                           <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                             <td className="px-5 py-3">
@@ -473,24 +474,40 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
                               <span className="text-[13.5px] text-slate-900">
                                 {simbolo(p.moneda)} {(isPagado ? p.total_neto : p.saldo).toFixed(2)}
                               </span>
+                              {tieneSaldoAFavor && (
+                                <p className="text-[11px] font-semibold text-amber-600">
+                                  A favor: {simbolo(p.moneda)} {p.saldo_a_favor.toFixed(2)}
+                                </p>
+                              )}
                             </td>
                             <td className="px-5 py-3 text-center">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-                                isPagado ? "bg-emerald-50 text-emerald-600" : "bg-amber-50/60 text-amber-600"
-                              }`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${isPagado ? "bg-emerald-500" : "bg-amber-400"}`} />
-                                {isPagado ? "Pagado" : "Pendiente"}
-                              </span>
+                              {tieneSaldoAFavor ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                  Saldo a favor
+                                </span>
+                              ) : (
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                                  isPagado ? "bg-emerald-50 text-emerald-600" : "bg-amber-50/60 text-amber-600"
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isPagado ? "bg-emerald-500" : "bg-amber-400"}`} />
+                                  {isPagado ? "Pagado" : "Pendiente"}
+                                </span>
+                              )}
                             </td>
                             <td className="px-5 py-3 text-right">
                               {isPagado ? (
                                 <button
                                   onClick={() => setActivoDevolucion(p)}
-                                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-transparent hover:bg-cyan-500/5 text-cyan-600 text-[11.5px] font-semibold transition-colors border border-cyan-500/40 whitespace-nowrap"
-                                  title="Solicitar devolución de dinero y anulación del presupuesto"
+                                  className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[11.5px] font-semibold transition-colors whitespace-nowrap ${
+                                    tieneSaldoAFavor
+                                      ? "bg-amber-500 hover:bg-amber-600 text-white"
+                                      : "bg-transparent hover:bg-cyan-500/5 text-cyan-600 border border-cyan-500/40"
+                                  }`}
+                                  title={tieneSaldoAFavor ? "Devolver saldo a favor por descuento" : "Solicitar devolución de dinero y anulación del presupuesto"}
                                 >
                                   <Icon name="undo" size={14} />
-                                  Devolución
+                                  {tieneSaldoAFavor ? "Devolver saldo" : "Devolución"}
                                 </button>
                               ) : (
                                 <div className="flex items-center justify-end gap-2">
@@ -523,18 +540,26 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
                 <div className="md:hidden bg-white p-3 flex flex-col gap-3 overflow-y-auto no-scrollbar" style={{ maxHeight: 620 }}>
                   {pendientesFiltrados.map((p) => {
                     const isPagado = p.esPagado || p.estado === "pagado";
+                    const tieneSaldoAFavor = (p.saldo_a_favor || 0) > 0.009;
                     return (
                       <div key={p.id} className="bg-white rounded-xl border border-slate-200 flex flex-col">
                         <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100">
                           <span className="inline-flex items-center gap-1 text-[10.5px] text-slate-400">
                             <Icon name="event" size={11} /> {fmtFechaRelativa(p.fecha_emision)}
                           </span>
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
-                            isPagado ? "bg-emerald-50 text-emerald-600" : "bg-amber-50/60 text-amber-600"
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${isPagado ? "bg-emerald-500" : "bg-amber-400"}`} />
-                            {isPagado ? "Pagado" : "Pendiente"}
-                          </span>
+                          {tieneSaldoAFavor ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              Saldo a favor
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                              isPagado ? "bg-emerald-50 text-emerald-600" : "bg-amber-50/60 text-amber-600"
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isPagado ? "bg-emerald-500" : "bg-amber-400"}`} />
+                              {isPagado ? "Pagado" : "Pendiente"}
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex flex-col gap-3 p-4">
@@ -547,17 +572,28 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
                           </div>
 
                           <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                            <span className="text-[13px] text-slate-900">
-                              {simbolo(p.moneda)} {(isPagado ? p.total_neto : p.saldo).toFixed(2)}
-                            </span>
+                            <div>
+                              <span className="text-[13px] text-slate-900">
+                                {simbolo(p.moneda)} {(isPagado ? p.total_neto : p.saldo).toFixed(2)}
+                              </span>
+                              {tieneSaldoAFavor && (
+                                <p className="text-[11px] font-semibold text-amber-600">
+                                  A favor: {simbolo(p.moneda)} {p.saldo_a_favor.toFixed(2)}
+                                </p>
+                              )}
+                            </div>
                             {isPagado ? (
                               <button
                                 onClick={() => setActivoDevolucion(p)}
-                                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-transparent hover:bg-cyan-500/5 text-cyan-600 text-[11.5px] font-semibold transition-colors border border-cyan-500/40 whitespace-nowrap"
-                                title="Solicitar devolución de dinero y anulación del presupuesto"
+                                className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[11.5px] font-semibold transition-colors whitespace-nowrap ${
+                                  tieneSaldoAFavor
+                                    ? "bg-amber-500 hover:bg-amber-600 text-white"
+                                    : "bg-transparent hover:bg-cyan-500/5 text-cyan-600 border border-cyan-500/40"
+                                }`}
+                                title={tieneSaldoAFavor ? "Devolver saldo a favor por descuento" : "Solicitar devolución de dinero y anulación del presupuesto"}
                               >
                                 <Icon name="undo" size={14} />
-                                Devolución
+                                {tieneSaldoAFavor ? "Devolver saldo" : "Devolución"}
                               </button>
                             ) : (
                               <div className="flex items-center gap-2 shrink-0">
@@ -723,8 +759,16 @@ export function PagosView({ initialDashboard, mediosPago, categoriasIngreso, cat
             key="solicitar-devolucion"
             presupuesto={activoDevolucion}
             onClose={() => setActivoDevolucion(null)}
-            onSuccess={() => {
-              updatePendienteLocal(activoDevolucion.id, () => null);
+            onSuccess={(modo) => {
+              if (modo === "saldo_favor") {
+                updatePendienteLocal(activoDevolucion.id, (p) => ({
+                  ...p,
+                  pagado: p.total_neto,
+                  saldo_a_favor: 0,
+                }));
+              } else {
+                updatePendienteLocal(activoDevolucion.id, () => null);
+              }
             }}
           />
         )}

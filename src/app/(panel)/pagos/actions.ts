@@ -8,6 +8,7 @@ export interface CuotaPendiente {
   id: string;
   numero_cuota: number;
   monto: number;
+  monto_pagado?: number;
   fecha_vencimiento: string;
   estado: string;
   movimiento_caja_id?: string | null;
@@ -26,6 +27,7 @@ export interface PresupuestoPendiente {
   total_neto: number;
   pagado: number;
   saldo: number;
+  saldo_a_favor: number;
   moneda: string;
   cuotas: CuotaPendiente[];
 }
@@ -289,9 +291,10 @@ function mapPresupuestoPendiente(p: any, pac: { id: string | number; nombre: str
   })();
 
   const saldo = Math.max(0, totalNeto - pagado);
+  const saldo_a_favor = Math.max(0, Number((pagado - totalNeto).toFixed(2)));
   const esPagado = p.estado === "pagado" || (saldo <= 0.009 && pagado > 0);
 
-  if (saldo <= 0.009 && !esPagado) return null;
+  if (saldo <= 0.009 && saldo_a_favor <= 0.009 && !esPagado) return null;
 
   return {
     id: String(p.id),
@@ -306,6 +309,7 @@ function mapPresupuestoPendiente(p: any, pac: { id: string | number; nombre: str
     total_neto: totalNeto,
     pagado,
     saldo: esPagado ? 0 : saldo,
+    saldo_a_favor,
     moneda: primeraMoneda,
     cuotas: (p.cuotas || []).sort((a: any, b: any) => a.numero_cuota - b.numero_cuota),
   };
@@ -331,7 +335,7 @@ export async function getPendientesCobroSedeAction(): Promise<PresupuestoPendien
       pacientes!inner ( id, nombre, apellido, dni, telegram_chat_id, sede_id, activo ),
       detalle_presupuesto ( id, catalogo_tratamientos ( nombre, moneda ) ),
       movimiento_caja ( id, monto, estado, fecha, medio_pago_id, medio_pago ( nombre ) ),
-      cuotas ( id, numero_cuota, monto, fecha_vencimiento, estado, movimiento_caja_id )
+      cuotas ( id, numero_cuota, monto, monto_pagado, fecha_vencimiento, estado, movimiento_caja_id )
     `)
     .eq("pacientes.sede_id", usr.sede_id)
     .eq("pacientes.activo", true)
@@ -399,7 +403,7 @@ export async function buscarPresupuestosPendientesAction(query: string) {
       id, fecha_emision, total_bruto, descuento_monto, estado, paciente_id,
       detalle_presupuesto ( id, catalogo_tratamientos ( nombre, moneda ) ),
       movimiento_caja ( id, monto, estado, fecha, medio_pago_id, medio_pago ( nombre ) ),
-      cuotas ( id, numero_cuota, monto, fecha_vencimiento, estado, movimiento_caja_id )
+      cuotas ( id, numero_cuota, monto, monto_pagado, fecha_vencimiento, estado, movimiento_caja_id )
     `)
     .in("paciente_id", pacienteIds)
     .in("estado", ["aprobado", "pagado"])
@@ -431,7 +435,7 @@ export async function getPresupuestoPorIdAction(presupuestoId: string): Promise<
       pacientes ( id, nombre, apellido, dni, telegram_chat_id ),
       detalle_presupuesto ( id, catalogo_tratamientos ( nombre, moneda ) ),
       movimiento_caja ( id, monto, estado, fecha, medio_pago_id, medio_pago ( nombre ) ),
-      cuotas ( id, numero_cuota, monto, fecha_vencimiento, estado, movimiento_caja_id )
+      cuotas ( id, numero_cuota, monto, monto_pagado, fecha_vencimiento, estado, movimiento_caja_id )
     `)
     .eq("id", presupuestoId)
     .maybeSingle();
@@ -457,6 +461,7 @@ export async function getPresupuestoPorIdAction(presupuestoId: string): Promise<
   })();
 
   const saldo = Math.max(0, totalNeto - pagado);
+  const saldo_a_favor = Math.max(0, Number((pagado - totalNeto).toFixed(2)));
   const esPagado = p.estado === "pagado" || (saldo <= 0.009 && pagado > 0);
 
   return {
@@ -472,6 +477,7 @@ export async function getPresupuestoPorIdAction(presupuestoId: string): Promise<
     total_neto: totalNeto,
     pagado,
     saldo: esPagado ? 0 : saldo,
+    saldo_a_favor,
     moneda: primeraMoneda,
     cuotas: (p.cuotas || []).sort((a: any, b: any) => a.numero_cuota - b.numero_cuota),
   };
@@ -499,7 +505,7 @@ export async function getComprobantePagoDetalleAction(movimientoId: string) {
         id, total_bruto, descuento_monto, estado,
         pacientes ( id, nombre, apellido, dni, telefono, email ),
         detalle_presupuesto ( precio_unitario, catalogo_tratamientos ( nombre, moneda, precio ) ),
-        cuotas ( id, numero_cuota, monto, fecha_vencimiento, estado, movimiento_caja_id )
+        cuotas ( id, numero_cuota, monto, monto_pagado, fecha_vencimiento, estado, movimiento_caja_id )
       )
     `)
     .eq("id", movimientoId)
@@ -691,7 +697,7 @@ export async function solicitarDevolucionPresupuestoAction(presupuestoId: string
         id, total_bruto, descuento_monto, estado,
         pacientes ( id, nombre, apellido, dni, telegram_chat_id ),
         detalle_presupuesto ( catalogo_tratamientos ( nombre, moneda ) ),
-        cuotas ( id, numero_cuota, monto, fecha_vencimiento, estado, movimiento_caja_id )
+        cuotas ( id, numero_cuota, monto, monto_pagado, fecha_vencimiento, estado, movimiento_caja_id )
       `)
       .eq("id", presupuestoId)
       .maybeSingle(),
@@ -949,5 +955,163 @@ export async function ejecutarDevolucionPresupuestoDirectaAction(presupuestoId: 
   revalidatePath("/caja");
   if (pac?.id) revalidatePath(`/pacientes/${pac.id}`);
 
+  return { success: true };
+}
+
+/** Devuelve únicamente el saldo a favor (excedente) cuando un descuento dejó total_neto < pagado,
+ * sin anular el presupuesto ni los tratamientos. Requiere caja_turno abierta. */
+export async function devolverSaldoAFavorAction(presupuestoId: string, motivo: string, medioPagoId?: number) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  const { data: usr } = await supabase
+    .from("usuarios")
+    .select("rol_id, sede_id, rol ( rol )")
+    .eq("id", user.id)
+    .single();
+
+  const rolName = ((usr?.rol as any)?.rol || "").toLowerCase();
+  const isDirectAdmin = usr?.rol_id === 2 || usr?.rol_id === 3 || usr?.rol_id === 6 || rolName === "admin" || rolName === "superadmin" || rolName === "doctor_admin";
+  if (!isDirectAdmin) {
+    return { error: "No tienes permisos de administrador para procesar devoluciones directas." };
+  }
+
+  const adminClient = getAdminClient();
+  const { data: pres, error: presErr } = await adminClient
+    .from("presupuestos")
+    .select(`
+      id, total_bruto, descuento_monto, estado,
+      pacientes ( id, nombre, apellido, sede_id, telegram_chat_id ),
+      movimiento_caja ( id, monto, estado, tipo_moneda_id, medio_pago_id )
+    `)
+    .eq("id", presupuestoId)
+    .single();
+
+  if (presErr || !pres) return { error: "No se encontró el presupuesto." };
+
+  const pac = Array.isArray(pres.pacientes) ? pres.pacientes[0] : pres.pacientes;
+  if ((rolName === "admin" || rolName === "doctor_admin") && pac?.sede_id !== usr?.sede_id) {
+    return { error: "No tienes permiso para modificar presupuestos de otra sede." };
+  }
+
+  const totalNeto = Number(pres.total_bruto || 0) - Number(pres.descuento_monto || 0);
+  const pagosConfirmados = (pres.movimiento_caja || []).filter((m: any) => m.estado === "confirmado");
+  const pagado = pagosConfirmados.reduce((acc: number, m: any) => acc + Number(m.monto), 0);
+  const saldoAFavor = Number((pagado - totalNeto).toFixed(2));
+
+  if (saldoAFavor <= 0.009) {
+    return { error: "Este presupuesto no tiene saldo a favor pendiente por devolver." };
+  }
+
+  // Buscar caja abierta del usuario o de su sede
+  let { data: cajaAbierta } = await adminClient
+    .from("caja_turno")
+    .select("id")
+    .eq("usuario_id", user.id)
+    .is("fecha_cierre", null)
+    .order("fecha_apertura", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!cajaAbierta && usr?.sede_id) {
+    const { data: cajaSede } = await adminClient
+      .from("caja_turno")
+      .select("id")
+      .eq("sede_id", usr.sede_id)
+      .is("fecha_cierre", null)
+      .order("fecha_apertura", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    cajaAbierta = cajaSede;
+  }
+
+  if (!cajaAbierta) {
+    return { error: "No hay un turno de caja abierto en la sede para registrar el egreso de devolución." };
+  }
+
+  const { data: catDev } = await adminClient
+    .from("categoria_movimiento")
+    .select("id")
+    .ilike("nombre", "%devoluci%")
+    .eq("tipo", "E")
+    .limit(1)
+    .maybeSingle();
+
+  const ultimoPago = pagosConfirmados.find((m: any) => Number(m.monto) > 0);
+  const mId = medioPagoId || ultimoPago?.medio_pago_id || 1;
+  const monId = ultimoPago?.tipo_moneda_id || 1;
+  const motivoFinal = motivo.trim() || "Devolución de saldo a favor por descuento aplicado";
+
+  const { error: movErr } = await adminClient.from("movimiento_caja").insert({
+    caja_turno_id: cajaAbierta.id,
+    fecha: new Date().toISOString(),
+    monto: -Math.abs(saldoAFavor),
+    tipo_moneda_id: monId,
+    categoria_id: catDev?.id || null,
+    medio_pago_id: mId,
+    observacion: `Devolución saldo a favor Presupuesto #${presupuestoId.slice(0, 8).toUpperCase()}. Motivo: ${motivoFinal}`,
+    presupuesto_id: presupuestoId,
+    usuario_id: user.id,
+    estado: "confirmado",
+  });
+
+  if (movErr) {
+    console.error("devolverSaldoAFavorAction error:", movErr);
+    return { error: "No se pudo registrar el movimiento de devolución en caja." };
+  }
+
+  revalidatePath("/pagos");
+  revalidatePath("/caja");
+  if (pac?.id) revalidatePath(`/pacientes/${pac.id}`);
+
+  return { success: true, monto_devuelto: saldoAFavor };
+}
+
+/** Solicitud de devolución de saldo a favor iniciada por asistente */
+export async function solicitarDevolucionSaldoAFavorAction(presupuestoId: string, motivo: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autenticado" };
+
+  if (!motivo || motivo.trim() === "") {
+    return { error: "Debe ingresar un motivo para la devolución." };
+  }
+
+  const { data: usr } = await supabase.from("usuarios").select("sede_id").eq("id", user.id).single();
+  if (!usr?.sede_id) return { error: "Usuario sin sede asignada" };
+
+  const adminClient = getAdminClient();
+
+  const { data: existente } = await adminClient
+    .from("solicitud_validacion")
+    .select("id")
+    .eq("referencia_id", presupuestoId)
+    .eq("tipo_accion", "devolucion_saldo_favor")
+    .eq("estado", "pendiente")
+    .maybeSingle();
+
+  if (existente) {
+    return { error: "Ya existe una solicitud de devolución de saldo a favor pendiente para este presupuesto." };
+  }
+
+  const { error: insErr } = await adminClient
+    .from("solicitud_validacion")
+    .insert({
+      sede_id: usr.sede_id,
+      solicitante_id: user.id,
+      tipo_accion: "devolucion_saldo_favor",
+      referencia_id: presupuestoId,
+      estado: "pendiente",
+      comentarios: motivo.trim(),
+    });
+
+  if (insErr) {
+    console.error("[solicitarDevolucionSaldoAFavorAction] Error:", insErr);
+    return { error: "Error creando la solicitud de validación" };
+  }
+
+  revalidatePath("/pagos");
+  revalidatePath("/validaciones");
   return { success: true };
 }

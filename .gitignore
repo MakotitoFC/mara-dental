@@ -55,3 +55,4 @@ telegram*
 supabase_logs*
 script-bd*
 doctor_admin*
+*.sql

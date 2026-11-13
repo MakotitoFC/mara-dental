@@ -40,31 +40,39 @@ export function RegistrarPagoSheet({
 
   // Ordenar todas las cuotas correlativamente
   const todasCuotas = [...(cuotas || [])].sort((a, b) => a.numero_cuota - b.numero_cuota);
-  const cuotasPendientes = todasCuotas.filter(c => c.estado !== "pagado" && !c.movimiento_caja_id);
+  const cuotasPendientes = todasCuotas.filter(c => c.estado !== "pagado");
   const siguienteCuota = cuotasPendientes[0] || null;
+  const restanteSiguienteCuota = siguienteCuota
+    ? Math.max(0, Number(siguienteCuota.monto) - Number(siguienteCuota.monto_pagado || 0))
+    : 0;
 
   const [cuotaSeleccionada, setCuotaSeleccionada] = useState<string>(siguienteCuota ? siguienteCuota.id : "");
   const [monto, setMonto] = useState(
-    siguienteCuota ? Number(siguienteCuota.monto).toFixed(2) : (presupuesto.saldo > 0 ? presupuesto.saldo.toFixed(2) : "")
+    siguienteCuota && restanteSiguienteCuota > 0
+      ? restanteSiguienteCuota.toFixed(2)
+      : (presupuesto.saldo > 0 ? presupuesto.saldo.toFixed(2) : "")
   );
 
-  // Al cargar cuotas o cuando cambia la siguiente cuota disponible, auto-seleccionar en orden estricto
+  // Al cargar cuotas o cuando cambia la siguiente cuota disponible, pre-llenar con el saldo restante de la cuota
   useEffect(() => {
-    if (siguienteCuota) {
+    if (siguienteCuota && restanteSiguienteCuota > 0) {
       setCuotaSeleccionada(siguienteCuota.id);
-      setMonto(Number(siguienteCuota.monto).toFixed(2));
+      setMonto(restanteSiguienteCuota.toFixed(2));
     } else if (todasCuotas.length > 0 && cuotasPendientes.length === 0) {
       setCuotaSeleccionada("");
       setMonto(saldoActual > 0 ? saldoActual.toFixed(2) : "0.00");
     }
-  }, [siguienteCuota?.id]);
+  }, [siguienteCuota?.id, restanteSiguienteCuota]);
 
-  const [medioId, setMedioId] = useState<string>(mediosPago[0] ? String(mediosPago[0].id) : "");
+  const mediosOrdenados = [...mediosPago].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  const medioEfectivo = mediosOrdenados.find(mp => mp.nombre.toLowerCase().includes("efectivo")) ?? mediosOrdenados[0];
+
+  const [medioId, setMedioId] = useState<string>(medioEfectivo ? String(medioEfectivo.id) : "");
   const [categoriaId, setCategoriaId] = useState<string>(categoriasIngreso[0] ? String(categoriasIngreso[0].id) : "");
   const [monedaId, setMonedaId] = useState<string>(tiposMoneda.find(m => m.moneda === presupuesto.moneda) ? String(tiposMoneda.find(m => m.moneda === presupuesto.moneda)?.id) : "1");
   const [referencia, setReferencia] = useState("");
   const [observaciones, setObservaciones] = useState("");
-  const [tipoComprobante, setTipoComprobante] = useState<"boleta" | "factura" | "ticket_interno">("boleta");
+  const [tipoComprobante, setTipoComprobante] = useState<"boleta" | "factura" | "ticket_interno">("ticket_interno");
   
   const [quienPaga, setQuienPaga] = useState<"paciente" | "tercero">("paciente");
   const [terceroDocTipo, setTerceroDocTipo] = useState<string>("DNI");
@@ -85,12 +93,8 @@ export function RegistrarPagoSheet({
   const [pagoInfo, setPagoInfo] = useState<{ monto: number; medioNombre: string; referencia: string; observaciones: string; fecha: string; saldoRestante: number } | null>(null);
   const [exportando, setExportando] = useState<"print" | "pdf" | null>(null);
 
-  // Validación de orden estricto de cuotas
-  const cuotaActual = todasCuotas.find(c => c.id === cuotaSeleccionada);
-  const cuotaAnteriorImpaga = cuotaActual
-    ? todasCuotas.find(c => c.numero_cuota < cuotaActual.numero_cuota && c.estado !== "pagado" && !c.movimiento_caja_id)
-    : null;
-  const esCuotaInvalida = Boolean(cuotaAnteriorImpaga);
+  // Ya no bloqueamos por orden de cuota ni monto fijo: cualquier abono libre se amortiza en cascada FIFO
+  const esCuotaInvalida = false;
 
   /** Arma el HTML del comprobante para un pago dado — el mismo `buildVoucherHtml`
    * que usa `handleExportarVoucher`, factorizado acá porque también lo necesita
@@ -154,14 +158,15 @@ export function RegistrarPagoSheet({
     }
   }
 
-  async function guardar() {
-    if (esCuotaInvalida) {
-      setError(`Debe pagar primero la Cuota ${cuotaAnteriorImpaga?.numero_cuota} antes de continuar.`);
-      return;
-    }
+  const cuotaActual = todasCuotas.find(c => c.id === cuotaSeleccionada);
 
+  async function guardar() {
     const m = Number(monto);
     if (!m || m <= 0) { setError("Ingresa un monto válido"); return; }
+    if (m > saldoActual + 0.01) {
+      setError(`El monto (${m.toFixed(2)}) no puede superar el saldo pendiente (${saldoActual.toFixed(2)}).`);
+      return;
+    }
     setSaving(true);
     setError("");
 
@@ -199,12 +204,10 @@ export function RegistrarPagoSheet({
     setNuevoSaldo(saldoRestante);
     setPagoInfo({ monto: m, medioNombre, referencia, observaciones, fecha, saldoRestante });
 
-    if (cuotaSeleccionada) {
-      setCuotas(prev => prev.map(c =>
-        c.id === cuotaSeleccionada
-          ? { ...c, estado: "pagado", movimiento_caja_id: (res as any)?.movimiento_id || `local-${Date.now()}` }
-          : c
-      ));
+    if (todasCuotas.length > 0) {
+      getCuotasPresupuestoAction(presupuesto.id).then((fresh) => {
+        if (fresh) setCuotas(fresh);
+      });
     }
 
     onSaved(presupuesto.id, saldoRestante, m, medioNombre, cuotaSeleccionada || undefined);
@@ -264,7 +267,7 @@ export function RegistrarPagoSheet({
           </div>
         ) : (
           <div className="flex gap-2 w-full">
-            {nuevoSaldo > 0.009 && todasCuotas.filter(c => c.estado !== "pagado" && !c.movimiento_caja_id).length > 0 && (
+            {nuevoSaldo > 0.009 && (
               <button
                 type="button"
                 onClick={() => {
@@ -278,7 +281,7 @@ export function RegistrarPagoSheet({
                 className="flex-1 h-11 flex items-center justify-center gap-2 rounded-xl border border-cyan-600 text-cyan-700 hover:bg-cyan-50 text-[13px] font-semibold transition-colors"
               >
                 <Icon name="arrow_forward" size={15} />
-                Pagar siguiente cuota
+                Registrar otro abono
               </button>
             )}
             <button
@@ -309,64 +312,62 @@ export function RegistrarPagoSheet({
           </div>
 
           {todasCuotas.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Cuota a Pagar</label>
-              <Select
-                value={cuotaSeleccionada}
-                onChange={(val) => {
-                  setCuotaSeleccionada(val);
-                  const c = todasCuotas.find(x => x.id === val);
-                  if (c) setMonto(Number(c.monto).toFixed(2));
-                }}
-                options={todasCuotas.map(c => {
-                  const isPagada = c.estado === "pagado" || Boolean(c.movimiento_caja_id);
-                  const isSiguiente = siguienteCuota ? c.id === siguienteCuota.id : false;
-                  let estadoLabel = "";
-                  if (isPagada) {
-                    estadoLabel = " · Ya pagada";
-                  } else if (isSiguiente) {
-                    estadoLabel = ` · Siguiente a pagar (Vence: ${c.fecha_vencimiento})`;
-                  } else {
-                    estadoLabel = ` · Bloqueada (pagar Cuota ${siguienteCuota?.numero_cuota || 1} primero)`;
-                  }
-
-                  return {
-                    value: c.id,
-                    disabled: !isSiguiente,
-                    label: `Cuota ${c.numero_cuota} - ${presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda} ${Number(c.monto).toFixed(2)}${estadoLabel}`,
-                  };
+            <div className="flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wide">
+                  Cronograma de cuotas (abono libre)
+                </label>
+                <span className="text-[10.5px] text-cyan-700 font-medium">
+                  Se amortizan en orden
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 max-h-28 overflow-y-auto no-scrollbar">
+                {todasCuotas.map((c, idx) => {
+                  const pagadoC = Number(c.monto_pagado || 0);
+                  const isPagada = c.estado === "pagado";
+                  const isParcial = c.estado === "parcial" || (!isPagada && pagadoC > 0.009);
+                  const sym = presupuesto.moneda === "PEN" ? "S/" : presupuesto.moneda;
+                  return (
+                    <div key={c.id || `cuota-${c.numero_cuota}-${idx}`} className="flex items-center justify-between text-[11.5px] py-0.5">
+                      <span className="text-slate-700 font-medium">
+                        Cuota {c.numero_cuota} · {sym} {Number(c.monto).toFixed(2)}
+                      </span>
+                      {isPagada ? (
+                        <span className="text-emerald-600 font-semibold">Pagada</span>
+                      ) : isParcial ? (
+                        <span className="text-amber-600 font-semibold">
+                          Parcial ({sym} {pagadoC.toFixed(2)} / {Number(c.monto).toFixed(2)})
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">Pendiente · Vence {c.fecha_vencimiento}</span>
+                      )}
+                    </div>
+                  );
                 })}
-              />
-              
-              {/* Alerta de bloqueo secuencial si se intenta pagar una cuota posterior */}
-              {esCuotaInvalida && (
- <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[12px] flex items-start gap-2 mt-1">
- <Icon name="warning" size={16} className="text-amber-600 mt-0.5 shrink-0"/>
-                  <div>
-                    <strong className="block font-bold">Pago secuencial obligatorio:</strong>
-                    <span>Debe pagar primero la <strong>Cuota {cuotaAnteriorImpaga?.numero_cuota}</strong> antes de poder abonar la Cuota {cuotaActual?.numero_cuota}.</span>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
- <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Monto</label>
+ <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Monto a abonar</label>
               <TextInput
-                type="number" step="0.01" min="0"
+                type="number" step="0.01" min="0.01" max={saldoActual}
                 value={monto}
                 onChange={e => setMonto(e.target.value)}
-                readOnly={cuotaSeleccionada !== ""}
               />
+              {todasCuotas.length > 0 && (
+                <span className="text-[10px] text-slate-400">
+                  Puedes ingresar cualquier monto (máx. {saldoActual.toFixed(2)}).
+                </span>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
  <label className="text-[10.5px] font-semibold text-slate-400 uppercase tracking-wide">Medio de pago</label>
               <Select
                 value={medioId}
                 onChange={setMedioId}
-                options={mediosPago.map(mp => ({ value: String(mp.id), label: mp.nombre }))}
+                options={mediosOrdenados.map(mp => ({ value: String(mp.id), label: mp.nombre }))}
                 placeholder="Seleccionar…"
               />
             </div>
