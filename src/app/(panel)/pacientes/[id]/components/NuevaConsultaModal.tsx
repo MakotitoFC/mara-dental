@@ -57,7 +57,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
   const hasActiveCase = casosActivos.length > 0;
   const [selectedCasoId, setSelectedCasoId] = useState<string>(hasActiveCase ? casosActivos[0].id : "nuevo");
   const [tituloCaso, setTituloCaso] = useState<string>("");
-  const initialCita = citasProgramadasHoy[0];
+  const initialCita = citaInicial;
   const matchedTipo = initialCita?.tipo_consulta_id || 
                       (initialCita?.tipo_consulta?.tipo_consulta ? tipos.find(t => t.tipo_consulta === initialCita.tipo_consulta?.tipo_consulta)?.id : null);
   
@@ -187,7 +187,7 @@ export function NuevaConsultaModal({ pacienteId, datosCasos, citas, preselectedC
  <button onClick={onClose} className="px-4 py-2 text-[13px] font-medium border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
             Cancelar
           </button>
-          <button onClick={handleGuardar} disabled={saving || !motivo.trim() || isLockedByCita}
+          <button onClick={handleGuardar} disabled={saving || !motivo.trim()}
             className="flex items-center gap-1.5 px-5 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-semibold transition-colors">
             <Icon name="save" size={15} />
             {saving ? "Guardando…" : "Guardar consulta"}
