@@ -1967,7 +1967,7 @@ export async function registrarPagoAction(data: {
 
   let clientePId = null;
   if (data.cliente_pago) {
-    const { data: clienteRes, error: cliErr } = await supabase.from("cliente_pago").insert({
+    const { data: clienteRes, error: cliErr } = await adminClient.from("cliente_pago").insert({
       nombre: data.cliente_pago.nombres,
       apellidos: data.cliente_pago.apellidos,
       dni: data.cliente_pago.tipo_documento === "DNI" ? data.cliente_pago.numero_documento : null,
@@ -1986,7 +1986,7 @@ export async function registrarPagoAction(data: {
   if (data.tipo_comprobante) {
     // Determine IGV rules based on service type. For now assuming exonerated for dental.
     const montoExonerado = data.monto;
-    const { data: comprobante, error: compError } = await supabase.from("comprobante_pago").insert({
+    const { data: comprobante, error: compError } = await adminClient.from("comprobante_pago").insert({
       sede_id: usr.sede_id,
       tipo_comprobante: data.tipo_comprobante,
       paciente_id: data.paciente_id,
@@ -2010,11 +2010,11 @@ export async function registrarPagoAction(data: {
   // Use passed categoria_id or resolve default 'I'
   let categoriaId = data.categoria_id ? Number(data.categoria_id) : null;
   if (!categoriaId) {
-    const { data: categoria } = await supabase.from("categoria_movimiento").select("id").eq("tipo", "I").limit(1).maybeSingle();
+    const { data: categoria } = await adminClient.from("categoria_movimiento").select("id").eq("tipo", "I").limit(1).maybeSingle();
     categoriaId = categoria?.id || null;
   }
 
-  const { data: mov, error } = await supabase.from("movimiento_caja").insert({
+  const { data: mov, error } = await adminClient.from("movimiento_caja").insert({
     caja_turno_id: cajaTurnoId,
     presupuesto_id: data.presupuesto_id,
     monto: data.monto,
@@ -2031,7 +2031,7 @@ export async function registrarPagoAction(data: {
 
   if (error) {
     console.error("registrarPagoAction error:", error);
-    return { error: "No se pudo registrar el pago" };
+    return { error: `No se pudo registrar el pago: ${error.message}` };
   }
 
   if (comprobanteId) {
