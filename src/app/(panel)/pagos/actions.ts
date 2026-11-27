@@ -369,30 +369,48 @@ export async function buscarPresupuestosPendientesAction(query: string) {
 
   const adminClient = getAdminClient();
 
-  // Handle full names by splitting query
   const parts = query.trim().split(/\s+/).filter(Boolean);
-  let orQuery = "";
-  if (parts.length === 1) {
-    orQuery = `nombre.ilike.%${parts[0]}%,apellido.ilike.%${parts[0]}%,dni.ilike.%${parts[0]}%`;
-  } else if (parts.length >= 2) {
-    // If multiple words, assume first is name and second is last name, or both in name
-    orQuery = `and(nombre.ilike.%${parts[0]}%,apellido.ilike.%${parts[1]}%),and(nombre.ilike.%${parts[0]} ${parts[1]}%)`;
-  }
+  if (parts.length === 0) return [];
 
-  // Buscar pacientes por nombre o documento en la sede
-  const { data: pacientes, error: pacErr } = await adminClient
+  const norm = (s: string) =>
+    s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  // Construir filtro PostgREST válido para traer candidatos de la sede sin errores de sintaxis
+  const orConditions = parts
+    .flatMap((p) => {
+      const clean = p.replace(/[,()]/g, "");
+      const unaccented = clean.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const variants = clean === unaccented ? [clean] : [clean, unaccented];
+      return variants.flatMap((v) => [
+        `nombre.ilike.%${v}%`,
+        `apellido.ilike.%${v}%`,
+        `dni.ilike.%${v}%`,
+      ]);
+    })
+    .join(",");
+
+  // Buscar pacientes por nombre, apellido o documento en la sede
+  const { data: candidatos, error: pacErr } = await adminClient
     .from("pacientes")
     .select("id, nombre, apellido, dni, telegram_chat_id")
     .eq("sede_id", usr.sede_id)
     .eq("activo", true)
-    .or(orQuery)
-    .limit(20);
+    .or(orConditions)
+    .limit(100);
 
   if (pacErr) {
     console.error("Error buscando pacientes:", pacErr.message);
   }
 
-  if (!pacientes || pacientes.length === 0) return [];
+  const normParts = parts.map(norm);
+  const pacientes = (candidatos || [])
+    .filter((p) => {
+      const target = norm(`${p.nombre ?? ""} ${p.apellido ?? ""} ${p.dni ?? ""}`);
+      return normParts.every((part) => target.includes(part));
+    })
+    .slice(0, 20);
+
+  if (pacientes.length === 0) return [];
   const pacienteIds = pacientes.map(p => String(p.id));
   const pacienteMap = new Map(pacientes.map(p => [String(p.id), p]));
 
