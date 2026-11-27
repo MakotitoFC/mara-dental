@@ -1224,11 +1224,25 @@ const MEDIOS_PAGO_MOCK = [
 ];
 
 export async function getMediosPagoAction() {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("medio_pago").select("id, nombre").order("id");
+  const adminClient = getAdminClient();
+  const { data, error } = await adminClient.from("medio_pago").select("id, nombre").order("id");
   if (error) console.error("[getMediosPagoAction] Error obteniendo medios de pago:", error);
   if (!data || data.length === 0) {
-    console.log("[getMediosPagoAction] Tabla medio_pago sin filas → usando opciones de ejemplo (Tarjeta/Efectivo/Yape)");
+    const defaults = [
+      { nombre: "Efectivo" },
+      { nombre: "Transferencia" },
+      { nombre: "Yape" },
+      { nombre: "Tarjeta" },
+    ];
+    const { data: inserted, error: insErr } = await adminClient
+      .from("medio_pago")
+      .insert(defaults)
+      .select("id, nombre")
+      .order("id");
+    if (!insErr && inserted && inserted.length > 0) {
+      return inserted;
+    }
+    console.error("[getMediosPagoAction] No se pudieron inicializar medios de pago:", insErr);
     return MEDIOS_PAGO_MOCK;
   }
   return data;

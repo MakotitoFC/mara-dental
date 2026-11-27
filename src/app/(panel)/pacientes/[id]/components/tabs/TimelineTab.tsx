@@ -1,15 +1,18 @@
 "use client";
 
 import { useState, useEffect, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { staggerContainer, staggerItem, fadeIn, EASE } from "@/lib/animations";
 import { useTipoConsultaVars } from "@/providers/TipoConsultaProvider";
-import { crearHistoriaClinicaAction, cambiarEstadoNotaAction } from "../../casos.actions";
+import { crearHistoriaClinicaAction, cambiarEstadoNotaAction, eliminarConsultaAction } from "../../casos.actions";
 import { getConsultaDetalleTimelineAction } from "../../consulta.actions";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
+import { useConfirm } from "@/components/ui/ConfirmModal";
+import { useAuth } from "@/components/layout/AuthProvider";
 import { EditarConsultaModal } from "../EditarConsultaModal";
 import { parseFechaLocal } from "@/lib/date-utils";
 
@@ -61,6 +64,10 @@ export function TimelineTab({
   const [savingHC, setSavingHC] = useState(false);
   const [estadoOverrides, setEstadoOverrides] = useState<Record<string, string>>({});
   const toast = useToast();
+  const confirm = useConfirm();
+  const router = useRouter();
+  const { user } = useAuth();
+  const canDeleteConsulta = ["doctor", "admin", "superadmin", "doctor_admin"].includes((user?.rol || "").toLowerCase());
 
   // Acordeón de casos clínicos — el caso activo (estado distinto de "De
   // Alta") empieza abierto; los dados de alta empiezan cerrados. Solo se
@@ -120,6 +127,28 @@ export function TimelineTab({
     const res = await cambiarEstadoNotaAction(String(notaId), nuevoEstado, String(pacienteId));
     if (res?.error) toast.error(res.error);
     else toast.success("Estado del caso actualizado correctamente");
+  }
+
+  async function handleEliminarConsulta(consultaId: string) {
+    const ok = await confirm({
+      title: "Eliminar consulta",
+      message: "¿Estás seguro de eliminar esta consulta? Se eliminarán también todos los diagnósticos, tratamientos, odontogramas, recomendaciones, archivos y presupuestos sin pagos que dependan de ella. Esta acción no se puede deshacer.",
+      confirmLabel: "Sí, eliminar",
+      cancelLabel: "Cancelar",
+      danger: true,
+    });
+    if (!ok) return;
+
+    const res = await eliminarConsultaAction(String(consultaId), String(pacienteId));
+    if (res?.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success("Consulta y registros dependientes eliminados correctamente");
+    setIsMobileModalOpen(false);
+    setDetalleActivo(null);
+    setSelectedId(null);
+    router.refresh();
   }
 
   const accionBoton = !hc ? (
@@ -261,7 +290,12 @@ export function TimelineTab({
                     </div>
                   )}
                   {detalleActivo ? (
-                    <ConsultaDetail consulta={detalleActivo} onNavigateTab={onNavigateTab} onEdit={() => setIsEditingConsulta(true)} />
+                    <ConsultaDetail
+                      consulta={detalleActivo}
+                      onNavigateTab={onNavigateTab}
+                      onEdit={() => setIsEditingConsulta(true)}
+                      onDelete={canDeleteConsulta ? () => handleEliminarConsulta(detalleActivo.id) : undefined}
+                    />
                   ) : (
                     <div className="p-8 text-center text-slate-400">Selecciona una consulta</div>
                   )}
@@ -284,10 +318,16 @@ export function TimelineTab({
                 </div>
               )}
               {detalleActivo ? (
-                <ConsultaDetail consulta={detalleActivo} onNavigateTab={(tab) => {
-                  setIsMobileModalOpen(false);
-                  if (onNavigateTab) onNavigateTab(tab);
-                }} onEdit={() => setIsEditingConsulta(true)} onClose={() => setIsMobileModalOpen(false)} />
+                <ConsultaDetail
+                  consulta={detalleActivo}
+                  onNavigateTab={(tab) => {
+                    setIsMobileModalOpen(false);
+                    if (onNavigateTab) onNavigateTab(tab);
+                  }}
+                  onEdit={() => setIsEditingConsulta(true)}
+                  onDelete={canDeleteConsulta ? () => handleEliminarConsulta(detalleActivo.id) : undefined}
+                  onClose={() => setIsMobileModalOpen(false)}
+                />
               ) : (
                 <div className="p-8 text-center text-slate-400">Cargando detalles...</div>
               )}
@@ -378,7 +418,7 @@ function TimelineNode({
 
 // ─── Detalle de consulta (compartido entre panel fijo y acordeón mobile) ──────
 
-function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consulta: any; onNavigateTab?: (tab: TabNav) => void; onEdit?: () => void; onClose?: () => void }) {
+function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onDelete, onClose }: { consulta: any; onNavigateTab?: (tab: TabNav) => void; onEdit?: () => void; onDelete?: () => void; onClose?: () => void }) {
   const { getVars } = useTipoConsultaVars();
   const vars = getVars(c.motivo_id);
 
@@ -404,7 +444,7 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
             {vars.label}
           </span>
 
-          {((isSameDay && onEdit) || onClose) && (
+          {((isSameDay && onEdit) || onDelete || onClose) && (
             <div className="flex items-center gap-2 shrink-0">
               {isSameDay && onEdit && (
                 <button
@@ -413,6 +453,15 @@ function ConsultaDetail({ consulta: c, onNavigateTab, onEdit, onClose }: { consu
                   title="Editar consulta"
                 >
                   <Icon name="edit" size={15} />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={onDelete}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                  title="Eliminar consulta"
+                >
+                  <Icon name="delete" size={15} />
                 </button>
               )}
               {onClose && (

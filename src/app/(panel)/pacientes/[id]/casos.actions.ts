@@ -1,5 +1,6 @@
 "use server";
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
 export async function getCasosClinicosAction(pacienteId: string) {
@@ -219,5 +220,139 @@ export async function editarConsultaAction(consultaId: string, data: any) {
 
   if (errUpdate) return { error: "Error al actualizar la consulta" };
 
+  return { success: true };
+}
+
+
+/** Elimina una consulta y TODAS sus dependencias (diagnósticos, tratamientos,
+ * planes, recetas, odontogramas, recomendaciones, archivos y presupuestos sin pagos). */
+export async function eliminarConsultaAction(consultaId: string, pacienteId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: usr } = await supabase
+    .from("usuarios")
+    .select("rol_id, sede_id, rol ( rol )")
+    .eq("id", user.id)
+    .single();
+  const rolName = ((usr?.rol as any)?.rol || "").toLowerCase();
+  const puedeEliminar = [1, 2, 3, 6].includes(usr?.rol_id) || ["doctor", "admin", "superadmin", "doctor_admin"].includes(rolName);
+  if (!puedeEliminar) {
+    return { error: "No tienes permisos para eliminar consultas." };
+  }
+
+  const adminClient = getAdminClient();
+
+  const { data: consultaDb, error: cErr } = await adminClient
+    .from("consultas")
+    .select("id, cita_id, nota_clinica_id")
+    .eq("id", consultaId)
+    .maybeSingle();
+
+  if (cErr || !consultaDb) {
+    return { error: "Consulta no encontrada" };
+  }
+
+  // 1. Buscar diagnósticos originados en esta consulta
+  const { data: diags } = await adminClient
+    .from("diagnostico")
+    .select("id")
+    .eq("consulta_origen_id", consultaId);
+  const diagIds = (diags || []).map((d: any) => d.id);
+
+  // 2. Verificar si existen presupuestos vinculados con pagos confirmados
+  const presIds: string[] = [];
+  if (diagIds.length > 0) {
+    const { data: presList } = await adminClient
+      .from("presupuestos")
+      .select("id, movimiento_caja(id, estado, monto)")
+      .in("diagnostico_id", diagIds);
+
+    for (const p of presList || []) {
+      const pagos = (p.movimiento_caja || []).filter((m: any) => m.estado === "confirmado" && Number(m.monto) !== 0);
+      if (pagos.length > 0) {
+        return { error: "No se puede eliminar esta consulta porque tiene un presupuesto con pagos registrados en caja." };
+      }
+      presIds.push(p.id);
+    }
+  }
+
+  // 3. Eliminar archivos clínicos asociados a la consulta o a sus diagnósticos
+  await adminClient.from("archivos_clinicos").delete().eq("consulta_id", consultaId);
+  if (diagIds.length > 0) {
+    await adminClient.from("archivos_clinicos").delete().in("diagnostico_id", diagIds);
+  }
+
+  // 4. Eliminar recomendaciones de la consulta
+  await adminClient.from("recomendacion").delete().eq("consulta_id", consultaId);
+
+  // 5. Eliminar odontogramas y dientes asociados a la consulta
+  const { data: odontos } = await adminClient
+    .from("odontograma")
+    .select("id")
+    .eq("consulta_id", consultaId);
+  const odontoIds = (odontos || []).map((o: any) => o.id);
+  if (odontoIds.length > 0) {
+    await adminClient.from("odontograma_diente").delete().in("odontograma_id", odontoIds);
+    await adminClient.from("odontograma").delete().in("id", odontoIds);
+  }
+
+  // 6. Eliminar dependencias de diagnósticos: recetas, tratamientos, presupuestos y luego diagnósticos
+  if (diagIds.length > 0) {
+    const { data: recetas } = await adminClient
+      .from("recetas")
+      .select("id")
+      .in("diagnostico_id", diagIds);
+    const recetaIds = (recetas || []).map((r: any) => r.id);
+    if (recetaIds.length > 0) {
+      await adminClient.from("receta_medicamento").delete().in("receta_id", recetaIds);
+      await adminClient.from("recetas").delete().in("id", recetaIds);
+    }
+
+    const { data: trats } = await adminClient
+      .from("tratamiento")
+      .select("id")
+      .in("diagnostico_id", diagIds);
+    const tratIds = (trats || []).map((t: any) => t.id);
+    if (tratIds.length > 0) {
+      await adminClient.from("plan_tratamiento").delete().in("tratamiento_id", tratIds);
+      await adminClient.from("tratamiento").delete().in("id", tratIds);
+    }
+
+    if (presIds.length > 0) {
+      await adminClient.from("cuotas").delete().in("presupuesto_id", presIds);
+      await adminClient.from("detalle_presupuesto").delete().in("presupuesto_id", presIds);
+      await adminClient.from("presupuestos").delete().in("id", presIds);
+    }
+
+    await adminClient.from("diagnostico").delete().in("id", diagIds);
+  }
+
+  // 7. Eliminar la consulta
+  const { error: delErr } = await adminClient.from("consultas").delete().eq("id", consultaId);
+  if (delErr) {
+    console.error("eliminarConsultaAction error:", delErr);
+    return { error: `No se pudo eliminar la consulta: ${delErr.message}` };
+  }
+
+  // 8. Si estaba asociada a una cita y no quedan otras consultas para esa cita, devolverla a 'programada'
+  if (consultaDb.cita_id) {
+    const { count } = await adminClient
+      .from("consultas")
+      .select("id", { count: "exact", head: true })
+      .eq("cita_id", consultaDb.cita_id);
+    if (!count || count === 0) {
+      await adminClient
+        .from("citas")
+        .update({ estado: "programada" })
+        .eq("id", consultaDb.cita_id)
+        .eq("estado", "hecho");
+    }
+  }
+
+  revalidatePath(`/pacientes/${pacienteId}`);
+  revalidatePath("/pagos");
+  revalidatePath("/agenda");
   return { success: true };
 }
