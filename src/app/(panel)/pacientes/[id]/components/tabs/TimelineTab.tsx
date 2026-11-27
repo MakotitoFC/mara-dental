@@ -11,6 +11,7 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
 import { EditarConsultaModal } from "../EditarConsultaModal";
+import { parseFechaLocal } from "@/lib/date-utils";
 
 const ESTADO_CASO_OPTIONS = [
   { value: "En Consulta", label: "En Consulta" },
@@ -22,11 +23,11 @@ const ESTADO_CASO_OPTIONS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmtFull = (d: string) => {
-  try { return new Date(d).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }); }
+  try { return parseFechaLocal(d).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }); }
   catch { return d; }
 };
 const fmtCorta = (d: string) => {
-  try { return new Date(d).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+  try { return parseFechaLocal(d).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" }); }
   catch { return d; }
 };
 const money = (n: number, m = "PEN") => `${m === "PEN" ? "S/" : m} ${Number(n).toFixed(2)}`;

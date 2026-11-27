@@ -15,7 +15,6 @@ import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { FilterCategoryPicker, type FilterCategoryMeta } from "@/components/ui/FilterCategoryPicker";
 import { TagDropdown } from "@/components/ui/TagDropdown";
-import { GuiaRegistroOdontograma } from "./GuiaRegistroOdontograma";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1339,8 +1338,6 @@ export function OdontogramaTab({ paciente, consultaId, onNavigateTab }: { pacien
  <h3 className="text-[14px] font-bold text-slate-800">Registro clínico</h3>
  <p className="text-[11px] text-slate-400">Cada superficie puede tener su propia condición</p>
               </div>
-
-              <GuiaRegistroOdontograma />
 
               {/* Dientes seleccionados */}
               <div>

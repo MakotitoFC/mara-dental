@@ -10,7 +10,7 @@ import { TextInput } from "@/components/ui/TextInput";
 import { fadeIn, scaleIn, slideUp, staggerContainer, staggerItem } from "@/lib/animations";
 import { useBodyScrollLock } from "@/lib/hooks/useBodyScrollLock";
 import { useSnapDrag } from "@/lib/hooks/useSnapDrag";
-import { calcEdad } from "@/lib/date-utils";
+import { calcEdad, parseFechaLocal } from "@/lib/date-utils";
 import {
   esc, wrapDocument,
   buildRecetaBandaHeader, buildFirmaDerecha, buildFormatoFooterAzul, FORMATO_PRIMARIO, FORMATO_SECUNDARIO,
@@ -50,7 +50,7 @@ const FRECUENCIAS = ["Cada 6 horas", "Cada 8 horas", "Cada 12 horas", "Cada 24 h
 const FRECUENCIA_OPTIONS = FRECUENCIAS.map((f) => ({ value: f, label: f }));
 
 const fmtFecha = (d: string) => {
-  try { return new Date(d).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }); }
+  try { return parseFechaLocal(d).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }); }
   catch { return d; }
 };
 
@@ -307,7 +307,7 @@ export function RecetaSection(props: SectionProps) {
 }
 
 const fmtFechaCorta = (d: string) => {
-  try { return new Date(d).toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" }); }
+  try { return parseFechaLocal(d).toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" }); }
   catch { return d; }
 };
 

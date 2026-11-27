@@ -24,6 +24,7 @@ import {
   esc, fmtGenerado, buildLetterheadHeader, buildLetterheadFooter, buildSignatureBlock, sectionLabel, wrapDocument, shortCode,
   printHtml, downloadHtmlAsPaginatedPdf, exportHtmlAsCanvas, buildPresupuestoFormatoHtml, type ClinicaInfo,
 } from "@/lib/reportExport";
+import { parseFechaLocal } from "@/lib/date-utils";
 
 type Linea = { catalogo_id: number; nombre: string; cantidad: number; precio_unitario: number; moneda: string };
 
@@ -46,7 +47,7 @@ interface PresupuestoData {
 
 function fmtFechaCorta(iso?: string) {
   if (!iso) return null;
-  try { return new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }); }
+  try { return parseFechaLocal(iso).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }); }
   catch { return iso; }
 }
 

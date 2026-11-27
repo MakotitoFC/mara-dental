@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { fetchDoctoresSede } from "../agenda/actions";
@@ -272,6 +272,44 @@ export async function updateLogoSedeAction(sedeId: number, formData: FormData) {
   return { success: true };
 }
 
+export async function deleteLogoSedeAction(sedeId: number) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: usr } = await supabase.from("usuarios").select("rol ( rol ), sede_id").eq("id", user.id).single();
+  const userRol = (usr?.rol as any)?.rol;
+
+  if (userRol !== "superadmin" && userRol !== "admin" && userRol !== "doctor_admin") {
+    return { error: "Permisos insuficientes" };
+  }
+  if ((userRol === "admin" || userRol === "doctor_admin") && usr?.sede_id !== sedeId) {
+    return { error: "No tienes permiso para modificar esta sede" };
+  }
+
+  const adminClient = getAdminClient();
+  const { data: sede } = await adminClient.from("sede").select("logo_url").eq("id", sedeId).single();
+
+  const { error: updateError } = await adminClient.from("sede").update({ logo_url: null }).eq("id", sedeId);
+  if (updateError) {
+    console.error("Error quitando logo_url de la sede:", updateError);
+    return { error: "No se pudo eliminar el logo de la sede" };
+  }
+
+  // Borra el archivo de R2 solo si es una key propia del bucket (no una URL externa).
+  const key = sede?.logo_url;
+  if (key && !key.startsWith("http")) {
+    try {
+      await r2Client.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key }));
+    } catch (err) {
+      console.error("Logo quitado de la sede, pero no se pudo borrar el archivo en R2:", err);
+    }
+  }
+
+  revalidatePath("/configuracion");
+  return { success: true };
+}
+
 export async function updateFirmaDigitalAction(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -310,6 +348,46 @@ export async function updateFirmaDigitalAction(formData: FormData) {
   if (!updated || updated.length === 0) {
     console.error(`[updateFirmaDigitalAction] UPDATE afectó 0 filas para usuario_id=${user.id} — probable bloqueo de RLS en "personal" (política de UPDATE faltante o mal configurada).`);
     return { error: "La firma se subió pero no se pudo guardar en tu perfil (0 filas actualizadas — revisa los permisos de la tabla personal)." };
+  }
+
+  revalidatePath("/configuracion");
+  return { success: true };
+}
+
+export async function deleteFirmaDigitalAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: personal } = await supabase
+    .from("personal")
+    .select("url_firma_digital")
+    .eq("usuario_id", user.id)
+    .single();
+
+  const { data: updated, error: updateError } = await supabase
+    .from("personal")
+    .update({ url_firma_digital: null, updated_at: new Date().toISOString() })
+    .eq("usuario_id", user.id)
+    .select("usuario_id");
+
+  if (updateError) {
+    console.error("Error quitando la firma:", updateError);
+    return { error: "No se pudo eliminar la firma" };
+  }
+  if (!updated || updated.length === 0) {
+    console.error(`[deleteFirmaDigitalAction] UPDATE afectó 0 filas para usuario_id=${user.id} — probable bloqueo de RLS en "personal".`);
+    return { error: "No se pudo eliminar la firma (0 filas actualizadas — revisa los permisos de la tabla personal)." };
+  }
+
+  // Borra el archivo de R2 solo si es una key propia del bucket (no una URL externa).
+  const key = personal?.url_firma_digital;
+  if (key && !key.startsWith("http")) {
+    try {
+      await r2Client.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key }));
+    } catch (err) {
+      console.error("Firma quitada del perfil, pero no se pudo borrar el archivo en R2:", err);
+    }
   }
 
   revalidatePath("/configuracion");

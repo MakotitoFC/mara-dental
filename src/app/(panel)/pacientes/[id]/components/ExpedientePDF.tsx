@@ -1,6 +1,7 @@
 "use client";
 
 import { Document, Page, View, Text, Image, StyleSheet, Font } from "@react-pdf/renderer";
+import { parseFechaLocal } from "@/lib/date-utils";
 
 Font.register({
   family: "Inter",
@@ -129,12 +130,12 @@ const money = (n: number, m = "PEN") => `${m === "PEN" ? "S/" : m} ${Number(n ||
 
 function fmtFecha(iso?: string | null) {
   if (!iso) return "—";
-  try { return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+  try { return parseFechaLocal(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" }); }
   catch { return iso; }
 }
 function fmtFechaLarga(iso?: string | null) {
   if (!iso) return "—";
-  try { return new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }); }
+  try { return parseFechaLocal(iso).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }); }
   catch { return iso; }
 }
 function fmtGenerado() {

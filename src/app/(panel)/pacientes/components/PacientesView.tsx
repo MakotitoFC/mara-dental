@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { TextInput } from "@/components/ui/TextInput";
-import { calcEdad, fmtFecha } from "@/lib/date-utils";
+import { calcEdad, fmtFecha, parseFechaLocal } from "@/lib/date-utils";
 import { staggerContainer, staggerItem } from "@/lib/animations";
 import type { EstadoPaciente } from "@/types/paciente";
 import { getDoctorPacientesAction, getPreviewPacienteAction } from "../actions";
@@ -34,7 +34,7 @@ type PacienteListItem = {
 function isBirthdayToday(fechaNacimiento: string): boolean {
   if (!fechaNacimiento) return false;
   const hoy = new Date();
-  const nac = new Date(fechaNacimiento);
+  const nac = parseFechaLocal(fechaNacimiento);
   return hoy.getMonth() === nac.getMonth() && hoy.getDate() === nac.getDate();
 }
 

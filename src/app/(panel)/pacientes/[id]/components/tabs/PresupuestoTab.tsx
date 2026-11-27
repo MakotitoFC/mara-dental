@@ -14,6 +14,7 @@ import { PresupuestoPhase } from "../consulta/PresupuestoPhase";
 import { getPresupuestosPacienteAction, getMediosPagoAction } from "../../consulta.actions";
 import { ESTADO_PRESUPUESTO_CFG as ESTADO_CFG } from "@/lib/estadoConfig";
 import { Badge } from "@/components/ui/Badge";
+import { parseFechaLocal } from "@/lib/date-utils";
 
 const ESTADO_OPTIONS = [
   { value: "pendiente", label: "Pendiente" },
@@ -30,7 +31,7 @@ const FILTER_CATEGORIES: Record<FilterTagKey, FilterCategoryMeta> = {
 
 function fmtFechaCorta(iso?: string) {
   if (!iso) return "";
-  try { return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" }); }
+  try { return parseFechaLocal(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" }); }
   catch { return iso; }
 }
 

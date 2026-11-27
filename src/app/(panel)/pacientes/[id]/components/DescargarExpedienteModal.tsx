@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { ResponsiveSheet } from "@/components/ui/ResponsiveSheet";
-import { calcEdad } from "@/lib/date-utils";
+import { calcEdad, parseFechaLocal } from "@/lib/date-utils";
 import { getExpedienteCompletoAction } from "../actions";
 import { getCasosClinicosAction } from "../casos.actions";
 import {
@@ -59,12 +59,12 @@ function Checkbox({ checked, onChange, icon, label }: { checked: boolean; onChan
 
 const fmtFechaCorta = (iso?: string | null) => {
   if (!iso) return "—";
-  try { return new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" }); }
+  try { return parseFechaLocal(iso).toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" }); }
   catch { return iso; }
 };
 const fmtFechaLarga = (iso?: string | null) => {
   if (!iso) return "—";
-  try { return new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }); }
+  try { return parseFechaLocal(iso).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }); }
   catch { return iso; }
 };
 
